@@ -12,13 +12,6 @@ O sistema precisa de um banco de dados que atenda aos requisitos técnicos do do
 - **`Orcamento`** — itens com estrutura semi-flexível; exige JSONB para armazenamento e consultas indexadas
 - **`Usuario`** — papéis de acesso (`Papel`); exige ENUM nativo para mapeamento direto via SQLAlchemy
 
-Quais capacidades são necessárias?
-
-- Tipos ENUM nativos para estados de `OrdemDeServico` e `Papel` de `Usuario`
-- `SELECT FOR UPDATE NOWAIT` para controle de concorrência no `ItemEstoque`
-- JSONB para armazenamento flexível de itens do `Orcamento`
-- Transações robustas com garantias ACID completas
-
 ## Decisão
 
 Adotar o PostgreSQL 16 como banco de dados relacional do projeto.
@@ -69,7 +62,7 @@ Banco de dados orientado a documentos, com modelo flexível de schema.
 
 * Bom, porque o modelo de documentos é naturalmente flexível para dados semi-estruturados
 * Bom, porque escala horizontalmente com facilidade
-* Ruim, porque não oferece transações ACID multi-documento com a mesma robustez de um banco relacional
+* Ruim, porque transações ACID multi-documento não oferecem as mesmas garantias de um banco relacional
 * Ruim, porque o modelo de documentos não se alinha com o mapeamento relacional do SQLAlchemy
 * Ruim, porque adiciona complexidade operacional desnecessária para o escopo do projeto
 
@@ -77,17 +70,17 @@ Banco de dados orientado a documentos, com modelo flexível de schema.
 
 ### Positivas
 
-* Tipos ENUM nativos mapeados diretamente para `StatusOrdemDeServico` e `Papel` via SQLAlchemy
-* `SELECT FOR UPDATE NOWAIT` permite locking pessimista no `ItemEstoque` sem risco de deadlock
-* JSONB armazena itens do `Orcamento` com flexibilidade, permitindo consultas indexadas
-* Garantias ACID completas para todas as operações transacionais do domínio
-* Ecossistema maduro com ferramentas de monitoramento, backup e migração bem estabelecidas
+* Mapeamento direto entre estados do domínio e tipos do banco, sem conversão manual
+* Controle de concorrência no estoque resolvido na camada de banco, simplificando o código de aplicação
+* Flexibilidade para evolução do schema de itens do `Orcamento` sem migrações destrutivas
+* Garantias ACID completas para operações cross-agregado
+* Ecossistema maduro com ferramentas amplamente disponíveis
 * Gratuito e open-source, sem custos de licenciamento
 
 ### Negativas
 
 * Complexidade operacional maior que SQLite para desenvolvimento local (requer Docker ou instalação)
-* Curva de aprendizado para funcionalidades avançadas (JSONB, locking, tuning)
+* Curva de aprendizado para JSONB, locking e tuning
 * Testes de integração requerem instância PostgreSQL real ou container, aumentando o tempo de setup
 
 ## Decisões Relacionadas
