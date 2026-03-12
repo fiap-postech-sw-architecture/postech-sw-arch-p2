@@ -5,11 +5,18 @@
 
 ## Contexto e Problema
 
-O sistema precisa de um banco de dados que atenda aos requisitos técnicos do domínio de oficina mecânica. Quais capacidades são necessárias?
+O sistema precisa de um banco de dados que atenda aos requisitos técnicos do domínio de oficina mecânica. As entidades centrais do domínio impõem demandas específicas ao banco de dados:
 
-- Tipos ENUM nativos para estados de OrdemDeServico e Papel de usuario
-- `SELECT FOR UPDATE NOWAIT` para controle de concorrência no estoque
-- JSONB para armazenamento flexível de itens do Orcamento
+- **`OrdemDeServico`** — máquina de estados com transições controladas (`StatusOrdemDeServico`); exige tipos ENUM nativos para validação no nível do banco
+- **`ItemEstoque`** — controle de concorrência em reservas e baixas; exige `SELECT FOR UPDATE NOWAIT` para locking pessimista sem deadlocks
+- **`Orcamento`** — itens com estrutura semi-flexível; exige JSONB para armazenamento e consultas indexadas
+- **`Usuario`** — papéis de acesso (`Papel`); exige ENUM nativo para mapeamento direto via SQLAlchemy
+
+Quais capacidades são necessárias?
+
+- Tipos ENUM nativos para estados de `OrdemDeServico` e `Papel` de `Usuario`
+- `SELECT FOR UPDATE NOWAIT` para controle de concorrência no `ItemEstoque`
+- JSONB para armazenamento flexível de itens do `Orcamento`
 - Transações robustas com garantias ACID completas
 
 ## Decisão
@@ -82,3 +89,8 @@ Banco de dados orientado a documentos, com modelo flexível de schema.
 * Complexidade operacional maior que SQLite para desenvolvimento local (requer Docker ou instalação)
 * Curva de aprendizado para funcionalidades avançadas (JSONB, locking, tuning)
 * Testes de integração requerem instância PostgreSQL real ou container, aumentando o tempo de setup
+
+## Decisões Relacionadas
+
+- [ADR-005](005-estrategia-testes.md): Estratégia de testes — testcontainers com PostgreSQL real mitiga a consequência negativa de complexidade de testes
+- [ADR-008](008-bloqueio-pessimista-estoque.md): Bloqueio pessimista — detalha o uso de SELECT FOR UPDATE NOWAIT com locks em ordem crescente
