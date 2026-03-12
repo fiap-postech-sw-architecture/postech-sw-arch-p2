@@ -12,7 +12,7 @@ O sistema proposto é um MVP back-end que digitaliza a gestão de ordens de serv
 - Aplicar Domain-Driven Design com Linguagem Ubíqua em português
 - Controlar estoque de peças com reserva atômica na aprovação de orçamento
 - Permitir consulta pública de status por placa + documento
-- Garantir 90%+ de cobertura de testes no domínio core (Ordem de Serviço) e 80%+ nos demais domínios
+- Garantir 90%+ de cobertura de testes no domínio principal (Ordem de Serviço) e 80%+ nos demais domínios
 - Proteger endpoints administrativos com JWT
 
 ## Não-Objetivos
@@ -165,6 +165,6 @@ O sistema proposto é um MVP back-end que digitaliza a gestão de ordens de serv
 |---|---|---|
 | SQLAlchemy imperative mapping com complexidade inesperada | Alto | Spike de 4h com go/no-go gates. Fallback para declarative mapping (ADR-006). |
 | Deadlocks na reserva de estoque | Médio | Locks em ordem crescente de `item_id`. `NOWAIT` para falhar rápido. Testes de concorrência. |
-| Cobertura de 90% no domínio core pode exigir tempo desproporcional em edge cases | Médio | Mutation testing para priorizar testes de maior valor. Metas por faixa, não globais. |
+| Cobertura de 90% no domínio principal pode exigir tempo desproporcional em edge cases | Médio | Mutation testing para priorizar testes de maior valor. Metas por faixa, não globais. |
 | Tempo insuficiente para todos os entregáveis | Alto | Priorização MoSCoW. Feature freeze S5. EMV (entrega mínima viável) definida. |
 | CPF armazenado em texto plano (LGPD) | Baixo (MVP) | Documentado como risco aceito no relatório de vulnerabilidades. Remediação planejada com pgcrypto. |

@@ -2,7 +2,7 @@
 
 Diagramas de classes por agregado, mostrando entidades, objetos de valor e relacionamentos dentro das fronteiras de cada agregado.
 
-## Agregado: OrdemDeServico (Core)
+## Agregado: OrdemDeServico (Principal)
 
 ```mermaid
 classDiagram

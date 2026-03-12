@@ -57,7 +57,7 @@ OHS = Open Host Service (padrão DDD de integração). Ver [Glossário](../../re
 
 | Contexto | Classificação | Responsabilidade |
 |---|---|---|
-| Ordem de Serviço | Core | Máquina de estados da OS, orçamentos, orquestração cross-contexto |
+| Ordem de Serviço | Principal | Máquina de estados da OS, orçamentos, orquestração cross-contexto |
 | Cliente + Veículo | Suporte | Cadastro de clientes e veículos, validação de CPF/CNPJ |
 | Catálogo de Serviços | Suporte | Tipos de serviço disponíveis, preços |
 | Estoque | Suporte | Peças e insumos, reserva pessimista, controle de quantidade |

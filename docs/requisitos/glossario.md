@@ -4,7 +4,7 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 
 "OS" é a abreviação aceita para "Ordem de Serviço" em documentação, nomes de arquivo e mensagens de log.
 
-## Contexto: Ordem de Serviço (Core)
+## Contexto: Ordem de Serviço (Principal)
 
 | Termo do Domínio | Identificador no Código | Definição |
 |---|---|---|

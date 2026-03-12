@@ -7,7 +7,7 @@ Representação dos 5 contextos delimitados e seus padrões de integração, con
 ```mermaid
 graph LR
     subgraph Nucleo
-        OS[Ordem de Servico<br/><i>Core Domain</i>]
+        OS[Ordem de Servico<br/><i>Principal</i>]
     end
     subgraph Suporte
         C[Cliente + Veiculo<br/><i>Suporte</i>]
@@ -33,7 +33,7 @@ graph LR
 
 | Contexto | Classificação | Agregados | Responsabilidade |
 |---|---|---|---|
-| **Ordem de Serviço** | Core | `OrdemDeServico` | Ciclo de vida da OS (7 status), geração de orçamento, orquestração cross-contexto |
+| **Ordem de Serviço** | Principal | `OrdemDeServico` | Ciclo de vida da OS (7 status), geração de orçamento, orquestração cross-contexto |
 | **Cliente + Veículo** | Suporte | `Cliente`, `Veiculo` | Cadastro e validação de clientes (CPF/CNPJ) e seus veículos |
 | **Catálogo de Serviços** | Suporte | `ServicoOferecido` | Tipos de serviço disponíveis com preços |
 | **Estoque** | Suporte | `ItemEstoque` | Peças e insumos com reserva pessimista e controle de quantidade |
