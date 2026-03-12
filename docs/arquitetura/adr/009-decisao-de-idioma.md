@@ -1,84 +1,84 @@
-# Modelo hibrido de idioma para codigo e documentacao
+# Modelo híbrido de idioma para código e documentação
 
 * Status: Aceito
 * Data: 2026-03-11
 
 ## Contexto e Problema
 
-O DDD exige que o codigo reflita a Linguagem Ubiqua do dominio. O dominio e uma oficina mecanica brasileira, onde os termos de negocio sao em portugues: CPF, CNPJ, Ordem de Servico, Orcamento, Peca. Ao mesmo tempo, padroes tecnicos como Repository, Service, Event e Port sao universalmente reconhecidos em ingles. Qual idioma usar no codigo?
+O DDD exige que o código reflita a Linguagem Ubíqua do domínio. O domínio é uma oficina mecânica brasileira, onde os termos de negócio são em português: CPF, CNPJ, Ordem de Servico, Orcamento, Peca. Ao mesmo tempo, padrões técnicos como Repository, Service, Event e Port são universalmente reconhecidos em inglês. Qual idioma usar no código?
 
-## Decisao
+## Decisão
 
-Adotar um modelo hibrido: termos de negocio em portugues (sem acentos), padroes tecnicos em ingles.
+Adotar um modelo híbrido: termos de negócio em português (sem acentos), padrões técnicos em inglês.
 
-**Regras de nomeacao:**
+**Regras de nomeação:**
 
 | Categoria | Idioma | Exemplos |
 |---|---|---|
-| Entidades e agregados | Portugues | `OrdemDeServico`, `Cliente`, `ItemEstoque` |
-| Classes base tecnicas | Ingles | `Entity`, `AggregateRoot`, `ValueObject`, `DomainEvent` |
-| Nomes hibridos (dominio + sufixo tecnico) | Misto | `OrdemDeServicoRepository`, `OrcamentoAprovadoEvent`, `EstoquePort` |
-| Metodos de dominio | Portugues | `iniciar_diagnostico()`, `aprovar_orcamento()` |
-| Arquivos tecnicos | Ingles | `entity.py`, `repository.py`, `events.py`, `exceptions.py` |
-| Arquivos de modulo de negocio | Portugues | `cliente.py`, `veiculo.py`, `cpf.py`, `dinheiro.py` |
-| Pastas de camada | Portugues | `dominio/`, `aplicacao/`, `infraestrutura/`, `interfaces/` |
-| Documentacao | Portugues | ADRs, guias, comentarios de dominio |
-| Arquivos de configuracao de IA | Ingles | `.claude/`, regras de agentes |
+| Entidades e agregados | Português | `OrdemDeServico`, `Cliente`, `ItemEstoque` |
+| Classes base técnicas | Inglês | `Entity`, `AggregateRoot`, `ValueObject`, `DomainEvent` |
+| Nomes híbridos (domínio + sufixo técnico) | Misto | `OrdemDeServicoRepository`, `OrcamentoAprovadoEvent`, `EstoquePort` |
+| Métodos de domínio | Português | `iniciar_diagnostico()`, `aprovar_orcamento()` |
+| Arquivos técnicos | Inglês | `entity.py`, `repository.py`, `events.py`, `exceptions.py` |
+| Arquivos de módulo de negócio | Português | `cliente.py`, `veiculo.py`, `cpf.py`, `dinheiro.py` |
+| Pastas de camada | Português | `dominio/`, `aplicacao/`, `infraestrutura/`, `interfaces/` |
+| Documentação | Português | ADRs, guias, comentários de domínio |
+| Arquivos de configuração de IA | Inglês | `.claude/`, regras de agentes |
 
-**Fundamentacao teorica:**
+**Fundamentação teórica:**
 
-Eric Evans (Domain-Driven Design, 2003): "O codigo deve ser baseado na mesma linguagem usada para escrever os requisitos." Os requisitos deste projeto sao em portugues. Forcar `WorkOrder` em vez de `OrdemDeServico` quebraria a correspondencia direta com os especialistas do dominio.
+Eric Evans (Domain-Driven Design, 2003): "O código deve ser baseado na mesma linguagem usada para escrever os requisitos." Os requisitos deste projeto são em português. Forçar `WorkOrder` em vez de `OrdemDeServico` quebraria a correspondência direta com os especialistas do domínio.
 
-**Validacao externa:**
+**Validação externa:**
 
-Prof. Matheus Llobregat confirmou a adequacao desta abordagem em mensagem no Discord da FIAP em 10/03/2026.
+Prof. Matheus Llobregat confirmou a adequação desta abordagem em mensagem no Discord da FIAP em 10/03/2026.
 
 ## Alternativas Consideradas
 
-* Modelo hibrido (portugues para dominio, ingles para padroes)
-* Tudo em ingles
-* Tudo em portugues
+* Modelo híbrido (português para domínio, inglês para padrões)
+* Tudo em inglês
+* Tudo em português
 
-### Modelo hibrido (portugues para dominio, ingles para padroes)
+### Modelo híbrido (português para domínio, inglês para padrões)
 
-Termos de negocio em portugues sem acentos, sufixos e padroes tecnicos em ingles.
+Termos de negócio em português sem acentos, sufixos e padrões técnicos em inglês.
 
-* Bom, porque reflete a Linguagem Ubiqua do dominio brasileiro
-* Bom, porque stakeholders nao-tecnicos reconhecem os termos de negocio no codigo
-* Bom, porque padroes tecnicos (Repository, Event, Port) sao reconheciveis por qualquer desenvolvedor
-* Ruim, porque a mistura de idiomas pode confundir novos desenvolvedores (mitigado por glossario e CONTRIBUTING.md)
+* Bom, porque reflete a Linguagem Ubíqua do domínio brasileiro
+* Bom, porque stakeholders não-técnicos reconhecem os termos de negócio no código
+* Bom, porque padrões técnicos (Repository, Event, Port) são reconhecíveis por qualquer desenvolvedor
+* Ruim, porque a mistura de idiomas pode confundir novos desenvolvedores (mitigado por glossário e CONTRIBUTING.md)
 
-### Tudo em ingles
+### Tudo em inglês
 
-Todo o codigo, nomes de classes, metodos e modulos em ingles.
+Todo o código, nomes de classes, métodos e módulos em inglês.
 
-* Bom, porque segue a convencao mais comum em projetos open source
-* Bom, porque nao mistura idiomas no codigo
-* Ruim, porque desconecta o codigo dos especialistas do dominio — `WorkOrder` nao significa nada para o dono da oficina
-* Ruim, porque termos como CPF, CNPJ e Ordem de Servico nao tem traducao natural para ingles
-* Ruim, porque viola o principio fundamental do DDD de usar a linguagem dos especialistas
+* Bom, porque segue a convenção mais comum em projetos open source
+* Bom, porque não mistura idiomas no código
+* Ruim, porque desconecta o código dos especialistas do domínio — `WorkOrder` não significa nada para o dono da oficina
+* Ruim, porque termos como CPF, CNPJ e Ordem de Servico não têm tradução natural para inglês
+* Ruim, porque viola o princípio fundamental do DDD de usar a linguagem dos especialistas
 
-### Tudo em portugues
+### Tudo em português
 
-Todo o codigo em portugues, incluindo padroes tecnicos: `RepositorioOrdemDeServico`, `EventoOrcamentoAprovado`.
+Todo o código em português, incluindo padrões técnicos: `RepositorioOrdemDeServico`, `EventoOrcamentoAprovado`.
 
 * Bom, porque elimina a mistura de idiomas
-* Bom, porque e totalmente alinhado com o dominio brasileiro
-* Ruim, porque `RepositorioOrdemDeServico` e `ServicoDeAplicacao` sao estranhos para padroes universais
-* Ruim, porque dificulta busca por documentacao tecnica — ninguem procura "Repositorio" no Stack Overflow
-* Ruim, porque padroes traduzidos perdem o vinculo com a literatura tecnica de referencia
+* Bom, porque é totalmente alinhado com o domínio brasileiro
+* Ruim, porque `RepositorioOrdemDeServico` e `ServicoDeAplicacao` são estranhos para padrões universais
+* Ruim, porque dificulta busca por documentação técnica — ninguém procura "Repositorio" no Stack Overflow
+* Ruim, porque padrões traduzidos perdem o vínculo com a literatura técnica de referência
 
-## Consequencias
+## Consequências
 
 ### Positivas
 
-* O codigo reflete a Linguagem Ubiqua conforme preconizado pelo DDD
-* Stakeholders brasileiros reconhecem os termos de negocio diretamente no codigo
-* Padroes tecnicos em ingles mantem a legibilidade para qualquer desenvolvedor, independente do idioma nativo
-* Termos sem traducao natural (CPF, CNPJ, OS) ficam no idioma original, sem adaptacoes forcadas
+* O código reflete a Linguagem Ubíqua conforme preconizado pelo DDD
+* Stakeholders brasileiros reconhecem os termos de negócio diretamente no código
+* Padrões técnicos em inglês mantêm a legibilidade para qualquer desenvolvedor, independente do idioma nativo
+* Termos sem tradução natural (CPF, CNPJ, OS) ficam no idioma original, sem adaptações forçadas
 
 ### Negativas
 
-* A mistura de idiomas exige disciplina e convencoes claras para manter a consistencia
-* Novos desenvolvedores precisam consultar o glossario para entender a convencao (mitigado por documentacao em CONTRIBUTING.md)
-* Ferramentas de linting e spell-check podem sinalizar falsos positivos com palavras em portugues
+* A mistura de idiomas exige disciplina e convenções claras para manter a consistência
+* Novos desenvolvedores precisam consultar o glossário para entender a convenção (mitigado por documentação em CONTRIBUTING.md)
+* Ferramentas de linting e spell-check podem sinalizar falsos positivos com palavras em português

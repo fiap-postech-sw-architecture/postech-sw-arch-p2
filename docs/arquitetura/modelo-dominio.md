@@ -157,6 +157,7 @@ classDiagram
         +__add__(outro: Dinheiro) Dinheiro
         +__sub__(outro: Dinheiro) Dinheiro
         +__mul__(fator: int) Dinheiro
+        +__rmul__(fator: int) Dinheiro
     }
 
     ItemEstoque --> Dinheiro : preco_unitario
@@ -183,7 +184,7 @@ classDiagram
 ```mermaid
 classDiagram
     class Usuario {
-        <<Entity>>
+        <<AggregateRoot>>
         -id: UUID
         -email: str
         -senha_hash: str

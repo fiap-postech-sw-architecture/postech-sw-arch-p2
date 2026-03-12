@@ -70,6 +70,7 @@ stateDiagram-v2
 |---|---|
 | 🔵 Comando | `AdicionarItemAOrdem(ordem_id, servico_catalogo_id, item_estoque_id?, quantidade)` |
 | 🟡 Agregado | `OrdemDeServico` |
+| 🟠 Evento | `ItemAdicionadoAOrdemEvent(ordem_id, item_id, servico_catalogo_id)` |
 | 🩷 Política | Só aceito nos status Recebida ou EmDiagnostico. Consultar `CatalogoPort.obter_servico()` para obter preço. |
 
 **Contexto**: Admin ou mecânico adiciona serviços e peças à OS. Cada `ItemDaOrdem` referencia um `ServicoOferecido` do catálogo (obrigatório) e opcionalmente um `ItemEstoque`. O preço unitário vem do catálogo no momento da adição.
@@ -153,7 +154,7 @@ stateDiagram-v2
 | Elemento | Detalhe |
 |---|---|
 | 🔵 Comando | `ConsultarStatusOS(placa, documento)` |
-| 🟣 Read Model | Status atual da OS, serviços incluídos, data de previsão. |
+| 🟣 Read Model | Status atual da OS, serviços incluídos. |
 | 🩷 Política | Sem autenticação JWT. Identificação por placa + CPF/CNPJ via `ClientePort.obter_veiculo_por_placa_e_documento()`. |
 
 **Contexto**: Cliente consulta o andamento da OS pela API pública usando placa do veículo e documento (CPF/CNPJ). Não requer login — a combinação placa + documento funciona como identificação.

@@ -22,6 +22,7 @@
 | RNF-001 | Desempenho | Endpoints de leitura respondem em < 500ms (p95) com até 1000 registros. |
 | RNF-002 | Segurança | Autenticação JWT HS256 com tokens de 15 min. Senhas com 12+ caracteres, rejeição de top-10000 comuns, lockout após 5 falhas. |
 | RNF-003 | Segurança | Rate limiting: 5/min login, 10/min consulta pública, 60/min global (por IP). |
+| RNF-003a | Segurança | Consulta pública (`/acompanhamento`) retorna resposta genérica quando combinação placa+documento não existe, para dificultar enumeração. |
 | RNF-004 | Segurança | Headers: X-Content-Type-Options, X-Frame-Options, HSTS, Cache-Control, X-Request-ID. |
 | RNF-005 | Segurança | CORS com whitelist configurável. `allow_origins=["*"]` proibido. |
 | RNF-006 | Segurança | Mass assignment prevenido com Pydantic `extra="forbid"`. |
@@ -38,7 +39,7 @@
 | RN | Descrição | Contexto |
 |---|---|---|
 | RN-001 | Transições de status da OS seguem máquina de estados com 7 status e 9 transições válidas. Transição inválida levanta `TransicaoStatusInvalidaException` (409). | Ordem de Serviço |
-| RN-002 | Cancelamento possível a partir de Recebida, EmDiagnostico, AguardandoAprovacao e EmExecucao. Cancelamento de Finalizada bloqueado. | Ordem de Serviço |
+| RN-002 | Cancelamento possível a partir de Recebida, EmDiagnostico, AguardandoAprovacao e EmExecucao. Cancelamento de Finalizada bloqueado. Motivo obrigatório quando cancelando em EmExecucao. | Ordem de Serviço |
 | RN-003 | Cancelamento em EmExecucao libera estoque reservado. Nos demais status, sem efeitos colaterais de estoque. | Ordem de Serviço / Estoque |
 | RN-004 | Estoque reservado no momento da aprovação do orçamento (AguardandoAprovacao → EmExecucao), não antes. Reserva tudo-ou-nada. | Estoque |
 | RN-005 | Um cliente por CPF/CNPJ (unique). Tentativa de duplicata retorna 409. | Cliente |
@@ -52,6 +53,8 @@
 | RN-013 | Orçamento é objeto de valor imutável. Quando itens mudam, um novo orçamento substitui o anterior (sem histórico no MVP). | Ordem de Serviço |
 | RN-014 | "Envio do orçamento ao cliente" = disponibilização via API para consulta e aprovação. Sem push notification/email no MVP. | Ordem de Serviço |
 | RN-015 | Orçamentos complementares durante execução estão fora de escopo no MVP. | Ordem de Serviço |
+| RN-016 | Uma vez gerado o orçamento, itens não podem ser alterados. Para modificar itens, a OS deve ser cancelada e uma nova OS criada. | Ordem de Serviço |
+| RN-017 | Para alterar quantidade de um item da OS, remover e adicionar novamente com a nova quantidade (não há endpoint de atualização de item). | Ordem de Serviço |
 
 ## Inventário de Endpoints API
 
@@ -151,7 +154,6 @@ Todos os endpoints de listagem suportam paginação offset-based:
 
 ## Premissas
 
-1. "Envio do orçamento ao cliente para aprovação" significa disponibilização via API para consulta e aprovação — sem push notification ou email no MVP.
-2. Orçamentos complementares durante execução estão fora de escopo no MVP.
-3. "Alteração automática dos status" significa que o status muda como resultado direto de ações na API, não automação em background.
-4. O tech challenge define 6 status; `Cancelada` é adição justificada para cobrir rejeição de orçamento e abandono (ADR-007).
+1. "Alteração automática dos status" significa que o status muda como resultado direto de ações na API, não automação em background.
+2. O tech challenge define 6 status; `Cancelada` é adição justificada para cobrir rejeição de orçamento e abandono ([ADR-007](../arquitetura/adr/007-organizacao-contextos-delimitados.md)).
+3. Ver RN-014 e RN-015 para premissas sobre orçamentos.

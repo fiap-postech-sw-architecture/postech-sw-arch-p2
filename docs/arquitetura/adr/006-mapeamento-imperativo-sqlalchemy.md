@@ -1,34 +1,34 @@
-# Mapeamento imperativo do SQLAlchemy para entidades de dominio
+# Mapeamento imperativo do SQLAlchemy para entidades de domínio
 
 * Status: Aceito
 * Data: 2026-03-11
 
 ## Contexto e Problema
 
-O DDD exige que as entidades de dominio sejam classes Python puras, sem dependencia de frameworks ou ORM. O SQLAlchemy 2.0 oferece duas formas de mapeamento: declarativo (entidades herdam de `DeclarativeBase`) e imperativo (`registry.map_imperatively()`). Como mapear entidades de dominio para o banco sem acopla-las ao SQLAlchemy?
+O DDD exige que as entidades de domínio sejam classes Python puras, sem dependência de frameworks ou ORM. O SQLAlchemy 2.0 oferece duas formas de mapeamento: declarativo (entidades herdam de `DeclarativeBase`) e imperativo (`registry.map_imperatively()`). Como mapear entidades de domínio para o banco sem acoplá-las ao SQLAlchemy?
 
-## Decisao
+## Decisão
 
-Adotar o mapeamento imperativo do SQLAlchemy 2.0 via `registry.map_imperatively()`, precedido por um spike de 4 horas com criterios go/no-go.
+Adotar o mapeamento imperativo do SQLAlchemy 2.0 via `registry.map_imperatively()`, precedido por um spike de 4 horas com critérios go/no-go.
 
-O mapeamento imperativo permite que as entidades de dominio permaneçam como classes Python puras — sem heranca de `DeclarativeBase`, sem decorators do ORM, sem imports do SQLAlchemy. A definicao das tabelas e o mapeamento entre classes e tabelas ficam isolados na camada de infraestrutura (`infraestrutura/persistencia/`).
+O mapeamento imperativo permite que as entidades de domínio permaneçam como classes Python puras — sem herança de `DeclarativeBase`, sem decorators do ORM, sem imports do SQLAlchemy. A definição das tabelas e o mapeamento entre classes e tabelas ficam isolados na camada de infraestrutura (`infraestrutura/persistencia/`).
 
-**Spike de 4 horas com criterios go/no-go:**
+**Spike de 4 horas com critérios go/no-go:**
 
-A decisao esta condicionada a um spike tecnico que deve validar os seguintes criterios antes de adotar o mapeamento imperativo em todo o projeto:
+A decisão está condicionada a um spike técnico que deve validar os seguintes critérios antes de adotar o mapeamento imperativo em todo o projeto:
 
 1. Relacionamentos `relationship()` funcionam entre entidades mapeadas imperativamente
 2. `composite()` funciona para o Value Object `Dinheiro` (valor + moeda)
 3. Colunas JSONB funcionam para persistir o agregado `Orcamento`
-4. `lazy="selectin"` funciona para carregamento de colecoes
+4. `lazy="selectin"` funciona para carregamento de coleções
 
-Se qualquer criterio falhar, o fallback e o mapeamento declarativo com entidades herdando de `DeclarativeBase`.
+Se qualquer critério falhar, o fallback é o mapeamento declarativo com entidades herdando de `DeclarativeBase`.
 
-**Detalhes de implementacao:**
+**Detalhes de implementação:**
 
-- A funcao `iniciar_mapeamentos()` e chamada uma unica vez na inicializacao da aplicacao
-- Um guard de idempotencia impede mapeamentos duplicados caso a funcao seja chamada mais de uma vez
-- As tabelas sao definidas com `Table()` explicito, separadas das classes de dominio
+- A função `iniciar_mapeamentos()` é chamada uma única vez na inicialização da aplicação
+- Um guard de idempotência impede mapeamentos duplicados caso a função seja chamada mais de uma vez
+- As tabelas são definidas com `Table()` explícito, separadas das classes de domínio
 
 ## Alternativas Consideradas
 
@@ -38,47 +38,47 @@ Se qualquer criterio falhar, o fallback e o mapeamento declarativo com entidades
 
 ### Mapeamento imperativo (registry.map_imperatively)
 
-As entidades de dominio sao classes Python puras. O mapeamento entre classes e tabelas e definido na camada de infraestrutura via `registry.map_imperatively()`.
+As entidades de domínio são classes Python puras. O mapeamento entre classes e tabelas é definido na camada de infraestrutura via `registry.map_imperatively()`.
 
-* Bom, porque as entidades de dominio nao tem nenhuma dependencia do SQLAlchemy
-* Bom, porque permite testar entidades de dominio sem banco de dados
-* Bom, porque a separacao entre dominio e persistencia segue Ports & Adapters
-* Ruim, porque tem menos documentacao e exemplos na comunidade comparado ao declarativo
-* Ruim, porque a definicao de relacionamentos em `iniciar_mapeamentos()` e mais verbosa
-* Ruim, porque exige guard de idempotencia para evitar mapeamentos duplicados
+* Bom, porque as entidades de domínio não têm nenhuma dependência do SQLAlchemy
+* Bom, porque permite testar entidades de domínio sem banco de dados
+* Bom, porque a separação entre domínio e persistência segue Ports & Adapters
+* Ruim, porque tem menos documentação e exemplos na comunidade comparado ao declarativo
+* Ruim, porque a definição de relacionamentos em `iniciar_mapeamentos()` é mais verbosa
+* Ruim, porque exige guard de idempotência para evitar mapeamentos duplicados
 
 ### Mapeamento declarativo (DeclarativeBase)
 
 As entidades herdam de `DeclarativeBase` e definem colunas como atributos de classe com `mapped_column()`.
 
-* Bom, porque e a abordagem padrao e mais documentada do SQLAlchemy 2.0
-* Bom, porque a definicao de colunas e relacionamentos e concisa e familiar
-* Ruim, porque acopla as entidades de dominio ao SQLAlchemy via heranca
-* Ruim, porque imports do SQLAlchemy vazam para a camada de dominio
+* Bom, porque é a abordagem padrão e mais documentada do SQLAlchemy 2.0
+* Bom, porque a definição de colunas e relacionamentos é concisa e familiar
+* Ruim, porque acopla as entidades de domínio ao SQLAlchemy via herança
+* Ruim, porque imports do SQLAlchemy vazam para a camada de domínio
 * Ruim, porque dificulta testar entidades isoladamente sem o ORM carregado
 
 ### SQL puro sem ORM
 
-Usar queries SQL diretamente nos repositorios, sem mapeamento objeto-relacional.
+Usar queries SQL diretamente nos repositórios, sem mapeamento objeto-relacional.
 
-* Bom, porque da controle total sobre as queries executadas
-* Bom, porque nao ha nenhuma camada de abstracao entre o codigo e o banco
-* Ruim, porque perde os beneficios de Unit of Work e Identity Map do SQLAlchemy
-* Ruim, porque exige mapeamento manual entre resultados de queries e objetos de dominio
-* Ruim, porque aumenta significativamente o volume de codigo nos repositorios
+* Bom, porque dá controle total sobre as queries executadas
+* Bom, porque não há nenhuma camada de abstração entre o código e o banco
+* Ruim, porque perde os benefícios de Unit of Work e Identity Map do SQLAlchemy
+* Ruim, porque exige mapeamento manual entre resultados de queries e objetos de domínio
+* Ruim, porque aumenta significativamente o volume de código nos repositórios
 
-## Consequencias
+## Consequências
 
 ### Positivas
 
-* Entidades de dominio sao classes Python puras, sem heranca de ORM
-* A camada de dominio nao importa nada do SQLAlchemy
-* Testes unitarios de dominio rodam sem banco de dados e sem configuracao de ORM
-* A separacao explicita entre dominio e persistencia respeita a Arquitetura Hexagonal
+* Entidades de domínio são classes Python puras, sem herança de ORM
+* A camada de domínio não importa nada do SQLAlchemy
+* Testes unitários de domínio rodam sem banco de dados e sem configuração de ORM
+* A separação explícita entre domínio e persistência respeita a Arquitetura Hexagonal
 
 ### Negativas
 
-* Menos exemplos e documentacao na comunidade para o padrao imperativo
-* A funcao `iniciar_mapeamentos()` concentra toda a configuracao de relacionamentos, podendo ficar extensa
-* O guard de idempotencia adiciona complexidade na inicializacao
-* Desenvolvedores familiarizados apenas com o declarativo precisarao de tempo de adaptacao
+* Menos exemplos e documentação na comunidade para o padrão imperativo
+* A função `iniciar_mapeamentos()` concentra toda a configuração de relacionamentos, podendo ficar extensa
+* O guard de idempotência adiciona complexidade na inicialização
+* Desenvolvedores familiarizados apenas com o declarativo precisarão de tempo de adaptação

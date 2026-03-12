@@ -53,6 +53,8 @@ graph LR
     A -.->|middleware| E
 ```
 
+OHS = Open Host Service (padrão DDD de integração). Ver [Glossário](../../requisitos/glossario.md).
+
 | Contexto | Classificação | Responsabilidade |
 |---|---|---|
 | Ordem de Serviço | Core | Máquina de estados da OS, orçamentos, orquestração cross-contexto |
@@ -84,6 +86,7 @@ erDiagram
         varchar nome
         varchar documento UK
         varchar tipo_documento
+        varchar contato
         boolean ativo
     }
     veiculos {
@@ -144,6 +147,8 @@ erDiagram
     servicos_oferecidos ||--o{ itens_da_ordem : "referencia"
     itens_estoque ||--o{ itens_da_ordem : "referencia"
 ```
+
+> **Nota**: As foreign keys cross-contexto (`cliente_id`, `veiculo_id` em `ordens_de_servico`) são um trade-off consciente: num monolito com banco único, a integridade referencial do PostgreSQL simplifica o MVP. Em evolução para microsserviços, essas FKs seriam removidas.
 
 ### API
 

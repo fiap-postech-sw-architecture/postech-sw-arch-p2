@@ -38,7 +38,7 @@ Fluxo de gerenciamento do estoque da oficina: cadastro de itens, controle de qua
 | 🔵 Comando | `AjustarQuantidade(item_id, nova_quantidade)` |
 | 🟡 Agregado | `ItemEstoque` |
 | 🟠 Evento | `QuantidadeAjustadaEvent(item_id, quantidade_anterior, quantidade_nova)` |
-| 🩷 Política | Nova quantidade deve ser > 0. |
+| 🩷 Política | Nova quantidade deve ser >= 0. Ajuste para 0 permitido para preparar desativação. |
 
 **Contexto**: Admin repõe estoque ou corrige quantidades após inventário. O ajuste substitui a quantidade atual pela nova quantidade informada.
 
@@ -84,7 +84,7 @@ Fluxo de gerenciamento do estoque da oficina: cadastro de itens, controle de qua
 | 🔵 Comando | `ListarItensEstoque(filtros, paginacao)` |
 | 🟣 Read Model | Lista paginada de itens com nome, quantidade disponível e preço unitário. |
 | 🔵 Comando | `ConsultarItemEstoque(item_id)` |
-| 🟣 Read Model | Detalhe do item com histórico de movimentações. |
+| 🟣 Read Model | Detalhe do item com nome, quantidade disponível e preço unitário. |
 
 **Contexto**: Admin consulta o estoque para verificar disponibilidade e planejar reposição. A paginação segue o padrão offset-based (default 20, max 100).
 

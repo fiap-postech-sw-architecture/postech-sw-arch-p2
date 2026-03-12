@@ -32,7 +32,7 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 | Marca | `marca: str` | Atributo do veículo (ex: Fiat, Volkswagen). |
 | Modelo | `modelo: str` | Atributo do veículo (ex: Uno, Gol). |
 | Ano | `ano: int` | Ano de fabricação do veículo. |
-| CPF | `CPF` | Objeto de valor com validação algorítmica. Implementa o protocolo `Documento`. Sem acentos no identificador. |
+| CPF | `CPF` | Objeto de valor com validação algorítmica. Implementa o protocolo `Documento`. |
 | CNPJ | `CNPJ` | Objeto de valor com validação algorítmica. Implementa o protocolo `Documento`. |
 | Documento (protocolo) | `Documento` | Protocol Python que define `formatado() -> str` e `mascarado() -> str`. Implementado por CPF e CNPJ. Específico do contexto Cliente. |
 

@@ -5,77 +5,77 @@
 
 ## Contexto e Problema
 
-Quando multiplas Ordens de Servico sao aprovadas simultaneamente, elas podem tentar reservar as mesmas pecas do estoque. Sem controle de concorrencia, o sistema pode aprovar reservas que excedem a quantidade disponivel. Como garantir a atomicidade da reserva de estoque sob concorrencia?
+Quando múltiplas Ordens de Servico são aprovadas simultaneamente, elas podem tentar reservar as mesmas peças do estoque. Sem controle de concorrência, o sistema pode aprovar reservas que excedem a quantidade disponível. Como garantir a atomicidade da reserva de estoque sob concorrência?
 
-## Decisao
+## Decisão
 
-Adotar bloqueio pessimista com `SELECT FOR UPDATE NOWAIT` sobre `ItemEstoque`, com ordenacao de locks e transacao unica compartilhada entre OS e Estoque.
+Adotar bloqueio pessimista com `SELECT FOR UPDATE NOWAIT` sobre `ItemEstoque`, com ordenação de locks e transação única compartilhada entre OS e Estoque.
 
 **Mecanismo:**
 
-1. Ao aprovar uma OS que consome pecas, o sistema executa `SELECT FOR UPDATE NOWAIT` nos registros de `ItemEstoque` envolvidos
-2. Se algum item ja estiver bloqueado por outra transacao, o `NOWAIT` faz a operacao falhar imediatamente em vez de aguardar, levantando `EstoqueInsuficienteException`
-3. Se todos os itens estiverem disponiveis e em quantidade suficiente, a reserva e efetuada atomicamente
+1. Ao aprovar uma OS que consome peças, o sistema executa `SELECT FOR UPDATE NOWAIT` nos registros de `ItemEstoque` envolvidos
+2. Se algum item já estiver bloqueado por outra transação, o `NOWAIT` faz a operação falhar imediatamente em vez de aguardar, levantando `EstoqueInsuficienteException`
+3. Se todos os itens estiverem disponíveis e em quantidade suficiente, a reserva é efetuada atomicamente
 
-**Prevencao de deadlock:**
+**Prevenção de deadlock:**
 
-Todos os locks sao adquiridos em ordem crescente de `item_id`, independentemente da ordem em que os itens aparecem na OS. Isso garante que duas transacoes concorrentes nunca adquiram locks em ordens opostas, eliminando deadlocks por definicao.
+Todos os locks são adquiridos em ordem crescente de `item_id`, independentemente da ordem em que os itens aparecem na OS. Isso garante que duas transações concorrentes nunca adquiram locks em ordens opostas, eliminando deadlocks por definição.
 
 **Atomicidade com UnitOfWork compartilhado:**
 
-A reserva de estoque e a atualizacao do status da OS compartilham o mesmo `UnitOfWork`. Se a reserva falhar, a OS nao avanca de status. Se a OS falhar apos a reserva, o estoque e revertido. Tudo acontece em uma unica transacao.
+A reserva de estoque e a atualização do status da OS compartilham o mesmo `UnitOfWork`. Se a reserva falhar, a OS não avança de status. Se a OS falhar após a reserva, o estoque é revertido. Tudo acontece em uma única transação.
 
-**Semantica all-or-nothing:**
+**Semântica all-or-nothing:**
 
-Ou todos os itens da OS sao reservados com sucesso, ou nenhum e reservado. Nao ha reserva parcial.
+Ou todos os itens da OS são reservados com sucesso, ou nenhum é reservado. Não há reserva parcial.
 
 ## Alternativas Consideradas
 
 * SELECT FOR UPDATE NOWAIT (bloqueio pessimista)
-* Locking otimista com coluna de versao
-* Mutex na camada de aplicacao
+* Locking otimista com coluna de versão
+* Mutex na camada de aplicação
 
 ### SELECT FOR UPDATE NOWAIT (bloqueio pessimista)
 
-Bloqueia as linhas de `ItemEstoque` no banco durante a transacao, falhando imediatamente se o lock nao puder ser adquirido.
+Bloqueia as linhas de `ItemEstoque` no banco durante a transação, falhando imediatamente se o lock não puder ser adquirido.
 
-* Bom, porque garante consistencia forte — nao ha janela para oversell
-* Bom, porque o modelo mental e simples: quem chega primeiro reserva
-* Bom, porque a ordenacao por `item_id` elimina deadlocks por construcao
-* Bom, porque `NOWAIT` falha rapido em vez de bloquear threads indefinidamente
-* Ruim, porque gera contencao sob alta concorrencia (aceitavel para escala de oficina mecanica)
+* Bom, porque garante consistência forte — não há janela para oversell
+* Bom, porque o modelo mental é simples: quem chega primeiro reserva
+* Bom, porque a ordenação por `item_id` elimina deadlocks por construção
+* Bom, porque `NOWAIT` falha rápido em vez de bloquear threads indefinidamente
+* Ruim, porque gera contenção sob alta concorrência (aceitável para escala de oficina mecânica)
 
-### Locking otimista com coluna de versao
+### Locking otimista com coluna de versão
 
-Cada `ItemEstoque` tem uma coluna `versao`. Ao atualizar, o sistema verifica se a versao nao mudou desde a leitura.
+Cada `ItemEstoque` tem uma coluna `versao`. Ao atualizar, o sistema verifica se a versão não mudou desde a leitura.
 
-* Bom, porque nao bloqueia linhas no banco durante a leitura
-* Bom, porque funciona bem quando colisoes sao raras
-* Ruim, porque exige logica de retry quando a versao diverge
-* Ruim, porque o retry para multiplos itens e complexo — todos os itens precisam ser re-verificados a cada tentativa
-* Ruim, porque sob concorrencia moderada os retries degradam a experiencia do usuario
+* Bom, porque não bloqueia linhas no banco durante a leitura
+* Bom, porque funciona bem quando colisões são raras
+* Ruim, porque exige lógica de retry quando a versão diverge
+* Ruim, porque o retry para múltiplos itens é complexo — todos os itens precisam ser re-verificados a cada tentativa
+* Ruim, porque sob concorrência moderada os retries degradam a experiência do usuário
 
-### Mutex na camada de aplicacao
+### Mutex na camada de aplicação
 
-Lock em memoria (ou distribuido) na camada de aplicacao para serializar acessos ao estoque.
+Lock em memória (ou distribuído) na camada de aplicação para serializar acessos ao estoque.
 
-* Bom, porque e simples de implementar em uma unica instancia
-* Ruim, porque nao funciona com multiplas instancias da aplicacao
-* Ruim, porque um mutex distribuido (Redis, ZooKeeper) adiciona infraestrutura e complexidade
-* Ruim, porque serializa todas as operacoes de estoque, mesmo as que nao competem pelos mesmos itens
+* Bom, porque é simples de implementar em uma única instância
+* Ruim, porque não funciona com múltiplas instâncias da aplicação
+* Ruim, porque um mutex distribuído (Redis, ZooKeeper) adiciona infraestrutura e complexidade
+* Ruim, porque serializa todas as operações de estoque, mesmo as que não competem pelos mesmos itens
 
-## Consequencias
+## Consequências
 
 ### Positivas
 
-* Consistencia forte garantida pelo banco de dados — impossivel aprovar reservas que excedam o estoque
+* Consistência forte garantida pelo banco de dados — impossível aprovar reservas que excedam o estoque
 * Modelo mental simples para desenvolvedores: lock, verifica, reserva ou falha
-* Deadlock eliminado por construcao graças a ordenacao por `item_id`
+* Deadlock eliminado por construção graças à ordenação por `item_id`
 * Fail-fast com `NOWAIT` evita threads bloqueadas e timeouts longos
 * Atomicidade garantida pelo `UnitOfWork` compartilhado entre OS e Estoque
 
 ### Negativas
 
-* Contencao sob alta concorrencia em itens populares (aceitavel para a escala de uma oficina mecanica no MVP)
-* Depende de funcionalidade especifica do PostgreSQL (`SELECT FOR UPDATE NOWAIT`) — nao portavel para bancos que nao suportam essa sintaxe
-* O `UnitOfWork` compartilhado entre BCs (OS e Estoque) cria acoplamento transacional que pode precisar ser revisado em arquiteturas distribuidas futuras
+* Contenção sob alta concorrência em itens populares (aceitável para a escala de uma oficina mecânica no MVP)
+* Depende de funcionalidade específica do PostgreSQL (`SELECT FOR UPDATE NOWAIT`) — não portável para bancos que não suportam essa sintaxe
+* O `UnitOfWork` compartilhado entre BCs (OS e Estoque) cria acoplamento transacional que pode precisar ser revisado em arquiteturas distribuídas futuras

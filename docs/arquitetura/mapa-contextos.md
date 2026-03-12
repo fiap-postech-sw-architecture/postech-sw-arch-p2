@@ -1,6 +1,6 @@
 # Mapa de Contextos
 
-Representação dos 5 contextos delimitados e seus padrões de integração, conforme definido no ADR-007.
+Representação dos 5 contextos delimitados e seus padrões de integração, conforme definido no [ADR-007](adr/007-organizacao-contextos-delimitados.md).
 
 ## Diagrama
 
@@ -27,11 +27,13 @@ graph LR
     A -.->|middleware| E
 ```
 
+> Direção das setas: fornecedor → consumidor (upstream → downstream).
+
 ## Contextos Delimitados
 
 | Contexto | Classificação | Agregados | Responsabilidade |
 |---|---|---|---|
-| **Ordem de Serviço** | Core | `OrdemDeServico`, `ItemDaOrdem`, `Orcamento` | Ciclo de vida da OS (7 status), geração de orçamento, orquestração cross-contexto |
+| **Ordem de Serviço** | Core | `OrdemDeServico` | Ciclo de vida da OS (7 status), geração de orçamento, orquestração cross-contexto |
 | **Cliente + Veículo** | Suporte | `Cliente`, `Veiculo` | Cadastro e validação de clientes (CPF/CNPJ) e seus veículos |
 | **Catálogo de Serviços** | Suporte | `ServicoOferecido` | Tipos de serviço disponíveis com preços |
 | **Estoque** | Suporte | `ItemEstoque` | Peças e insumos com reserva pessimista e controle de quantidade |

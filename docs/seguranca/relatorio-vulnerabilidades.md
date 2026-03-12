@@ -29,8 +29,8 @@ Ferramentas utilizadas:
 
 | Aspecto | Status MVP | Plano de Evolução |
 |---|---|---|
-| Mascaramento de dados sensíveis em respostas | Implementado (CPF/CNPJ mascarado em listagens) | — |
-| Remoção de PII em logs | Implementado (processador structlog) | Criptografia em nível de campo |
+| Mascaramento de dados sensíveis em respostas | Planejado (CPF/CNPJ mascarado em listagens) | — |
+| Remoção de PII em logs | Planejado (processador structlog) | Criptografia em nível de campo |
 | Armazenamento de CPF/CNPJ | Texto plano (risco aceito, Art. 46) | Criptografia via pgcrypto |
 | Direito de acesso (Art. 18, I) | Não implementado | Endpoint `GET /clientes/{id}/dados-pessoais` |
 | Portabilidade (Art. 18, V) | Não implementado | Endpoint de exportação JSON |
