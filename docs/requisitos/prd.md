@@ -18,9 +18,8 @@ O sistema proposto é um MVP back-end que digitaliza a gestão de ordens de serv
 ## Não-Objetivos
 
 - Interface gráfica (front-end)
-- Notificações push, email ou SMS
+- Notificações reais (push, email, SMS) — stub via `LogNotificacaoAdapter`
 - Integração com sistemas externos (ERP, contabilidade)
-- Múltiplos orçamentos ou orçamentos complementares durante execução
 - Agendamento de serviços
 - Pagamento ou faturamento
 - Relatórios gerenciais além do tempo médio de execução
@@ -123,28 +122,37 @@ O sistema proposto é um MVP back-end que digitaliza a gestão de ordens de serv
 - Rate limiting nos endpoints
 - Scanning de segurança (bandit, pip-audit, gitleaks, trivy)
 - Relatório de vulnerabilidades
+- Encriptação de PII (CPF/CNPJ) — TD-001
+- Revogação de JWT (tabela blacklist + JTI) — TD-003
+- Refresh tokens — TD-006
+- Papel Mecânico diferenciado via Enum (RBAC) — TD-005
+- Endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) — TD-002
+- Transactional outbox para eventos de domínio — TD-011, TD-012
+- Docker Compose secrets para JWT — TD-009
 
 ### Could Have (Opcional)
 
-- Mutation testing (mutmut)
+- Mutation testing (mutmut) como requisito hard — TD-015
 - Contract testing (schemathesis)
 - Logging estruturado com PII filtering
+- Histórico de orçamentos (array JSONB) — TD-007
+- Orçamentos complementares durante execução — TD-008
+- Índices GIN para orçamento JSONB — TD-014
+- Consentimento explícito LGPD — TD-004
+- CSP headers — TD-010
+- Notificações stub (LogNotificacaoAdapter) — TD-013
 
-### Won't Have (Fora de Escopo no MVP)
+### Won't Have (Fora de Escopo)
 
 - Front-end ou interface gráfica
-- Notificações (push, email, SMS)
-- Papel Mecânico diferenciado (usa Admin)
-- Refresh tokens ou revogação de JWT
-- Orçamentos complementares durante execução
+- Notificações reais (push, email, SMS)
 - Integração com sistemas externos
 - Agendamento de serviços
 - Pagamento ou faturamento
-- Endpoints LGPD Art. 18 (acesso, portabilidade, exclusão de dados)
 
 ## Critérios de Sucesso
 
-1. Todos os requisitos funcionais (RF-001 a RF-010) implementados e testados
+1. Requisitos funcionais RF-001 a RF-010 implementados e testados. RF-011 a RF-019 conforme estratégia de corte em tech-debt.md
 2. Cobertura de testes >= 80% nos domínios críticos
 3. Docker-compose funcional com `docker-compose up` e migrações automáticas
 4. Swagger UI acessível em desenvolvimento com todos os endpoints documentados

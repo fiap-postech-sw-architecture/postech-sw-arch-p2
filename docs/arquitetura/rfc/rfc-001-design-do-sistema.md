@@ -156,7 +156,7 @@ RESTful sob `/api/v1/`. Paginação offset-based (padrão 20, máximo 100). Tran
 
 ## 4. Máquina de Estados da OS
 
-7 status com 9 transições válidas:
+8 status com 12 transições válidas:
 
 ```mermaid
 stateDiagram-v2
@@ -167,6 +167,9 @@ stateDiagram-v2
     AguardandoAprovacao --> Cancelada: cancelar()
     EmExecucao --> Finalizada: finalizar_servico()
     EmExecucao --> Cancelada: cancelar() [libera estoque]
+    EmExecucao --> AguardandoAprovacaoComplementar: gerar_orcamento_complementar()
+    AguardandoAprovacaoComplementar --> EmExecucao: aprovar_orcamento_complementar() [reserva estoque complementar]
+    AguardandoAprovacaoComplementar --> EmExecucao: rejeitar_orcamento_complementar()
     Finalizada --> Entregue: registrar_entrega()
     Recebida --> Cancelada: cancelar()
     EmDiagnostico --> Cancelada: cancelar()
@@ -220,8 +223,9 @@ total = Σ (item.preco_unitario × item.quantidade)
 | Segredo | `openssl rand -hex 32`, variável de ambiente, >= 32 chars, validado no startup |
 | Claims | `sub` (user_id), `papel` (Enum: Admin), `exp`, `iat` |
 | Entrega | Somente header `Authorization: Bearer` — sem cookies |
-| Revogação | Nenhuma (tokens curtos). Risco aceito e documentado. |
-| RBAC | Admin (tudo) vs não-autenticado (consulta pública). `exigir_papel()` como dependência FastAPI. |
+| Revogação | Tabela `tokens_revogados` com JTI. Verificação no middleware. Logout revoga token corrente (RF-012). |
+| Refresh tokens | Refresh token com rotação. TTL configurável via `JWT_REFRESH_TOKEN_EXPIRE_DAYS` (padrão: 7). Endpoint `POST /autenticacao/refresh` (RF-013). |
+| RBAC | Admin e Mecanico (Enum Papel). `exigir_papel()` como dependência FastAPI. Mecânico não pode cadastrar clientes nem gerenciar estoque (RF-014). |
 
 **Política de senha**: 12+ chars, rejeição top-10000 (SecLists), lockout 5 falhas/15 min, bloqueio IP 15 falhas/30 min.
 
@@ -290,6 +294,39 @@ DomainException (base)
 6. **Estoque**: reserva atômica, lock failure, tudo-ou-nada, liberação no cancelamento
 7. **E2E**: ciclo completo Recebida → Entregue, cancelamento com liberação, consulta pública
 8. **Segurança**: rate limiting, CORS, headers, Swagger condicional
+
+## 9. Orçamento Complementar (RF-016)
+
+Durante a execução, serviços adicionais podem ser identificados. O fluxo adiciona uma transição:
+
+```
+EmExecucao → AguardandoAprovacaoComplementar → EmExecucao
+```
+
+- Itens complementares adicionados em `AguardandoAprovacaoComplementar`
+- Orçamento complementar gerado com os novos itens
+- Aprovação reserva estoque dos itens complementares
+- Orçamentos anteriores mantidos como histórico (array JSONB com timestamp) — RF-017
+- Rejeição do complementar retorna para `EmExecucao` (sem cancelamento da OS)
+
+## 10. Transactional Outbox (RF-018)
+
+Eventos de domínio persistidos na tabela `outbox` dentro da mesma transação da operação de domínio:
+
+```
+outbox {
+    uuid id PK
+    varchar tipo_evento
+    jsonb payload
+    timestamp criado_em
+    timestamp processado_em
+}
+```
+
+- Background task (loop ou scheduler) lê eventos não processados e despacha
+- Falha de despacho não causa rollback — o evento permanece na tabela para retry
+- Garante consistência entre estado do domínio e eventos emitidos
+- No MVP, o "despacho" é in-process (sem broker externo)
 
 ## Referências
 

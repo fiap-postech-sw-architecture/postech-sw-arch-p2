@@ -14,6 +14,15 @@
 | RF-008 | Tempo médio de execução por serviço | Endpoint `GET /api/v1/ordens-de-servico/metricas`. Calcula média ponderada por tempo de execução das OS finalizadas. OS sem itens excluída da agregação. | "Monitoramento do tempo médio de execução dos serviços" |
 | RF-009 | Autenticação JWT | Login com credenciais retorna token JWT HS256 (15 min). Endpoints administrativos protegidos. Papel (Enum) no payload. Enforcement explícito de algoritmo no decode. | "Implementação de autenticação JWT para APIs administrativas" |
 | RF-010 | CRUD de serviços oferecidos | Cadastro, listagem, atualização e desativação de serviços do catálogo. Serviço referenciado por OS históricas não pode ser excluído (soft delete via flag `ativo`). | "CRUD de serviços" |
+| RF-011 | Encriptação de PII (CPF/CNPJ) | CPF/CNPJ armazenado com encriptação (pgcrypto ou app-level). Decriptação sob demanda para consultas autorizadas. | LGPD Art. 46 (TD-001) |
+| RF-012 | Revogação de JWT | Tabela de blacklist com JTI. Token revogado antes do `exp` é rejeitado. Logout invalida o token corrente. | Segurança (TD-003) |
+| RF-013 | Refresh tokens | Endpoint de renovação de token via refresh token com rotação. Refresh token com TTL configurável. | Segurança (TD-006) |
+| RF-014 | RBAC com Enum Papel | Papéis Admin e Mecanico com permissões diferenciadas. Mecânico não pode cadastrar clientes nem gerenciar estoque. | Auth (TD-005) |
+| RF-015 | Endpoints LGPD Art. 18 | Endpoints para acesso, portabilidade (export JSON) e exclusão (anonimização) dos dados pessoais do cliente. Cross-contexto. | LGPD Art. 18 (TD-002) |
+| RF-016 | Orçamento complementar | Transição EmExecucao → AguardandoAprovacaoComplementar → EmExecucao para serviços adicionais durante execução. | Domínio (TD-008) |
+| RF-017 | Histórico de orçamentos | Orçamentos anteriores mantidos como array JSONB com timestamp. Consulta do histórico via endpoint da OS. | Domínio (TD-007) |
+| RF-018 | Transactional outbox | Eventos de domínio persistidos em tabela `outbox` na mesma transação. Background task despacha eventos. | Observabilidade (TD-011, TD-012) |
+| RF-019 | Consentimento explícito | Registro de consentimento do cliente para tratamento de dados pessoais. Revogação via endpoint. | LGPD (TD-004) |
 
 ## Requisitos Não-Funcionais
 
@@ -52,7 +61,7 @@
 | RN-012 | Bloqueio pessimista de estoque via `SELECT FOR UPDATE NOWAIT`. Locks adquiridos em ordem crescente de `item_id` para prevenir deadlocks. | Estoque |
 | RN-013 | Orçamento é objeto de valor imutável. Quando itens mudam, um novo orçamento substitui o anterior (sem histórico no MVP). | Ordem de Serviço |
 | RN-014 | "Envio do orçamento ao cliente" = disponibilização via API para consulta e aprovação. Sem push notification/email no MVP. | Ordem de Serviço |
-| RN-015 | Orçamentos complementares durante execução estão fora de escopo no MVP. | Ordem de Serviço |
+| RN-015 | Orçamentos complementares durante execução transitam via AguardandoAprovacaoComplementar (RF-016). Estoque do complementar é reservado na aprovação. | Ordem de Serviço |
 | RN-016 | Uma vez gerado o orçamento, itens não podem ser alterados. Para modificar itens, a OS deve ser cancelada e uma nova OS criada. | Ordem de Serviço |
 | RN-017 | Para alterar quantidade de um item da OS, remover e adicionar novamente com a nova quantidade (não há endpoint de atualização de item). | Ordem de Serviço |
 
@@ -64,8 +73,10 @@ Base: `/api/v1/`
 
 | Método | Endpoint | Descrição | Auth |
 |---|---|---|---|
-| POST | `/autenticacao/login` | Login com credenciais, retorna JWT | Não |
+| POST | `/autenticacao/login` | Login com credenciais, retorna JWT + refresh token | Não |
 | POST | `/autenticacao/registrar` | Registrar novo usuário (admin) | Admin |
+| POST | `/autenticacao/refresh` | Renovar token via refresh token (RF-013) | Não |
+| POST | `/autenticacao/logout` | Revogar token corrente (RF-012) | Admin |
 
 ### Clientes
 
@@ -124,6 +135,23 @@ Base: `/api/v1/`
 |---|---|---|---|
 | GET | `/acompanhamento` | Consultar status por placa + documento | Não |
 
+### Clientes — LGPD
+
+| Método | Endpoint | Descrição | Auth |
+|---|---|---|---|
+| GET | `/clientes/{id}/dados-pessoais` | Acesso aos dados pessoais (LGPD Art. 18, RF-015) | Admin |
+| GET | `/clientes/{id}/dados-pessoais/exportar` | Portabilidade JSON (LGPD Art. 18, RF-015) | Admin |
+| DELETE | `/clientes/{id}/dados-pessoais` | Anonimização (LGPD Art. 18, RF-015) | Admin |
+| POST | `/clientes/{id}/consentimento` | Registrar consentimento (RF-019) | Admin |
+| DELETE | `/clientes/{id}/consentimento` | Revogar consentimento (RF-019) | Admin |
+
+### Ordens de Serviço — Orçamento Complementar
+
+| Método | Endpoint | Descrição | Auth |
+|---|---|---|---|
+| POST | `/ordens-de-servico/{id}/orcamento-complementar` | Gerar orçamento complementar em EmExecucao (RF-016) | Admin |
+| POST | `/ordens-de-servico/{id}/aprovacao-complementar` | Aprovar orçamento complementar (RF-016) | Admin |
+
 ### Saúde
 
 | Método | Endpoint | Descrição | Auth |
@@ -151,6 +179,15 @@ Todos os endpoints de listagem suportam paginação offset-based:
 | RF-008 | Gestão administrativa → Tempo médio de execução | Ordem de Serviço | Finalizada |
 | RF-009 | Segurança → Autenticação JWT | Autenticação | — |
 | RF-010 | Gestão administrativa → CRUD de serviços | Catálogo de Serviços | — |
+| RF-011 | LGPD Art. 46 → Encriptação PII | Cliente + Veículo | — |
+| RF-012 | Segurança → Revogação JWT | Autenticação | — |
+| RF-013 | Segurança → Refresh tokens | Autenticação | — |
+| RF-014 | Segurança → RBAC diferenciado | Autenticação | — |
+| RF-015 | LGPD Art. 18 → Direitos do titular | Cliente + Veículo / Cross-contexto | — |
+| RF-016 | Orçamento complementar durante execução | Ordem de Serviço | EmExecucao |
+| RF-017 | Histórico de orçamentos | Ordem de Serviço | — |
+| RF-018 | Transactional outbox → Eventos de domínio | Cross-contexto | — |
+| RF-019 | LGPD → Consentimento explícito | Cliente + Veículo | — |
 
 ## Premissas
 
