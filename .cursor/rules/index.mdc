@@ -1,0 +1,19 @@
+---
+description: "Regras do repo postech-sw-arch-p1"
+alwaysApply: true
+---
+
+# Regras deste Repositório
+
+Leia `../postech-ai-helper/ai/rules-index.md` para o índice de todas as regras canônicas.
+
+## Contexto deste Repo
+
+Projeto Fase 1 — Tech Challenge: MVP back-end de oficina mecânica usando DDD.
+
+- Stack: Python 3.12, FastAPI, SQLAlchemy 2.0 (mapeamento imperativo), PostgreSQL 16
+- 5 contextos delimitados: Cliente+Veiculo, Catalogo de Servicos, Estoque, Ordem de Servico (core), Autenticacao (generico)
+- DDD com Onion Architecture: dominio/, aplicacao/, infraestrutura/, interfaces/
+- 80% cobertura de testes em dominios criticos, JWT, Swagger, Docker
+- Regras Python: ver `ai/python/` (code-style, ddd-tactical-python, testing, security)
+- Regras DDD: ver `ai/ddd/` (strategic, tactical)
