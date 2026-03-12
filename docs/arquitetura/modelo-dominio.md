@@ -21,7 +21,7 @@ classDiagram
         +aprovar_orcamento()
         +finalizar_servico()
         +registrar_entrega()
-        +cancelar(motivo: str)
+        +cancelar(motivo: str | None)
         +adicionar_item(item: ItemDaOrdem)
         +remover_item(item_id: UUID)
     }

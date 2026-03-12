@@ -189,7 +189,7 @@ stateDiagram-v2
 - De Recebida/EmDiagnostico: sem efeitos
 - De AguardandoAprovacao: sem estoque a liberar
 - De EmExecucao: liberar estoque reservado
-- De Finalizada: bloqueado
+- De Finalizada/Entregue/Cancelada: bloqueado (estados terminais ou pós-terminal)
 
 ## 5. Algoritmo de Orçamento
 
@@ -201,7 +201,8 @@ total = Σ (item.preco_unitario × item.quantidade)
 
 - `preco_unitario` é `Dinheiro` (Decimal, 2 casas, `ROUND_HALF_UP`, BRL)
 - Cada `ItemDaOrdem` obtém o preço do `CatalogoPort` no momento da adição
-- O `Orcamento` (objeto de valor) é imutável: qualquer mudança nos itens gera um novo
+- O campo `orcamento` da OS é `None` até o comando explícito `gerar_orcamento()` (transição EmDiagnostico → AguardandoAprovacao). Não há cálculo automático ao adicionar/remover itens.
+- O `Orcamento` (objeto de valor) é imutável. Após RN-016, itens não podem ser alterados uma vez gerado o orçamento — para modificar, cancelar a OS e criar uma nova.
 - Armazenamento como JSONB com `versao_schema: 1` para compatibilidade futura
 - Não há histórico de orçamentos no MVP
 
@@ -281,7 +282,7 @@ DomainException (base)
 
 ### Categorias principais
 
-1. **Máquina de estados**: 9 transições válidas, 40 inválidas, 7 guardas, testes de concorrência
+1. **Máquina de estados**: 9 transições válidas, 40 inválidas (7×7 − 9 = 40, incluindo auto-transições como inválidas), 7 guardas, testes de concorrência. Verificação explícita de que estados terminais (Cancelada, Entregue) rejeitam qualquer transição.
 2. **Cancelamento**: efeitos colaterais por estado de origem
 3. **Objetos de valor**: igualdade, imutabilidade, hashability, round-trip JSONB
 4. **CPF/CNPJ/Placa**: fronteiras (válido, inválido, formatação, dígitos iguais)

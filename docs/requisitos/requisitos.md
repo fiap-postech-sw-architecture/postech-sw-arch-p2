@@ -10,7 +10,7 @@
 | RF-004 | Geração automática de orçamento | Orçamento calculado a partir dos itens da OS. Objeto de valor imutável armazenado como JSONB. Requer pelo menos 1 item. Transiciona de EmDiagnostico para AguardandoAprovacao. | "Orçamento gerado automaticamente com base nos serviços e peças" |
 | RF-005 | Máquina de estados da OS (7 status) | 7 status: Recebida, EmDiagnostico, AguardandoAprovacao, EmExecucao, Finalizada, Entregue, Cancelada. 9 transições válidas. Transições inválidas retornam 409. Cancelamento libera estoque se em EmExecucao. | "Status da OS" + "Alteração automática dos status" |
 | RF-006 | Gestão de estoque (peças e insumos) | CRUD de itens de estoque com controle de quantidade. Reserva via `SELECT FOR UPDATE NOWAIT` na aprovação do orçamento. Tudo-ou-nada. Locks em ordem crescente de `item_id`. | "CRUD de peças e insumos, com controle de estoque" |
-| RF-007 | Consulta pública de acompanhamento | Consulta por placa + CPF/CNPJ sem autenticação. Retorna status atual da OS e serviços incluídos. | "Permitir consulta por parte do cliente via API" |
+| RF-007 | Consulta pública de acompanhamento | Consulta por placa + CPF/CNPJ sem autenticação. Retorna status atual da OS e serviços incluídos. Se houver múltiplas OS para a mesma placa+documento, retorna a mais recente (maior `criado_em`). | "Permitir consulta por parte do cliente via API" |
 | RF-008 | Tempo médio de execução por serviço | Endpoint `GET /api/v1/ordens-de-servico/metricas`. Calcula média ponderada por tempo de execução das OS finalizadas. OS sem itens excluída da agregação. | "Monitoramento do tempo médio de execução dos serviços" |
 | RF-009 | Autenticação JWT | Login com credenciais retorna token JWT HS256 (15 min). Endpoints administrativos protegidos. Papel (Enum) no payload. Enforcement explícito de algoritmo no decode. | "Implementação de autenticação JWT para APIs administrativas" |
 | RF-010 | CRUD de serviços oferecidos | Cadastro, listagem, atualização e desativação de serviços do catálogo. Serviço referenciado por OS históricas não pode ser excluído (soft delete via flag `ativo`). | "CRUD de serviços" |
@@ -39,7 +39,7 @@
 | RN | Descrição | Contexto |
 |---|---|---|
 | RN-001 | Transições de status da OS seguem máquina de estados com 7 status e 9 transições válidas. Transição inválida levanta `TransicaoStatusInvalidaException` (409). | Ordem de Serviço |
-| RN-002 | Cancelamento possível a partir de Recebida, EmDiagnostico, AguardandoAprovacao e EmExecucao. Cancelamento de Finalizada bloqueado. Motivo obrigatório quando cancelando em EmExecucao. | Ordem de Serviço |
+| RN-002 | Cancelamento possível a partir de Recebida, EmDiagnostico, AguardandoAprovacao e EmExecucao. Cancelamento de Finalizada e Entregue bloqueado (estados terminais junto com Cancelada). Motivo obrigatório quando cancelando em EmExecucao; nos demais estados de origem, motivo é opcional. | Ordem de Serviço |
 | RN-003 | Cancelamento em EmExecucao libera estoque reservado. Nos demais status, sem efeitos colaterais de estoque. | Ordem de Serviço / Estoque |
 | RN-004 | Estoque reservado no momento da aprovação do orçamento (AguardandoAprovacao → EmExecucao), não antes. Reserva tudo-ou-nada. | Estoque |
 | RN-005 | Um cliente por CPF/CNPJ (unique). Tentativa de duplicata retorna 409. | Cliente |
