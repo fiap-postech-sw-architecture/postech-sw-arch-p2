@@ -42,7 +42,7 @@ Branch `main` é protegida — todo conteúdo entra via PR com squash merge.
 make test              # Testes unitários e integração
 make test-docker       # Testes com Docker (testcontainers)
 make lint              # Ruff + mypy
-make security-scan     # bandit + pip-audit + gitleaks + trivy
+make security-scan     # SonarQube + OWASP ZAP + bandit + pip-audit + gitleaks + trivy
 ```
 
 Cobertura mínima por faixa:

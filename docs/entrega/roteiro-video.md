@@ -6,7 +6,7 @@ Duração alvo: ~14 minutos (1 min de folga dentro do limite de 15 min).
 
 ### 1. Introdução (1 min)
 
-- Apresentação: nome, turma 15SOAT, projeto solo
+- Apresentação: nome, turma 15SOAT, projeto individual
 - Visão geral: MVP back-end de oficina mecânica com DDD
 - Stack: Python 3.12, FastAPI, SQLAlchemy 2.0, PostgreSQL 16
 - Objetivo: demonstrar domínio de DDD, qualidade e segurança
@@ -34,7 +34,7 @@ Duração alvo: ~14 minutos (1 min de folga dentro do limite de 15 min).
 - Walkthrough do fluxo 2: gestão de estoque
   - Reserva na aprovação, liberação no cancelamento
   - Bloqueio pessimista (SELECT FOR UPDATE NOWAIT)
-- Mostrar diagramas Mermaid renderizados
+- Mostrar board Miro com os fluxos de Event Storming
 
 ### 5. Demo ao Vivo (5 min)
 
@@ -67,7 +67,7 @@ Demonstrar o fluxo completo via Swagger UI:
 
 - `docker-compose up` com migrações automáticas (Alembic)
 - Testes: `make test` com cobertura por faixa
-- Scans: bandit, pip-audit, gitleaks, trivy
+- Scans: SonarQube, OWASP ZAP, bandit, pip-audit, gitleaks, trivy
 - Mostrar relatório de cobertura (pytest-cov)
 - Mostrar output do bandit (sem vulnerabilidades críticas)
 - Setup: `README.md` com instruções completas

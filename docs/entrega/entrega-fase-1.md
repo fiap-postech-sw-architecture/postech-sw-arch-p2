@@ -15,6 +15,7 @@
 |---|---|
 | Documentação | [docs/](../../docs/) (neste repositório) |
 | Repositório | [github.com/jbamaral/postech-sw-arch-p1](https://github.com/jbamaral/postech-sw-arch-p1) |
+| Event Storming (Miro) | *(link a ser adicionado após criação do board)* |
 | Vídeo | *(link a ser adicionado)* |
 
 ## Entregáveis
@@ -30,7 +31,7 @@
 ### Arquitetura
 
 - [RFC-001: Design do Sistema](../arquitetura/rfc/rfc-001-design-do-sistema.md)
-- [ADRs (000-009)](../arquitetura/adr/)
+- [ADRs (000-011)](../arquitetura/adr/)
 
 ### Requisitos
 
@@ -47,7 +48,7 @@
 - README.md com instruções de uso
 - Dockerfile e docker-compose.yml
 - APIs RESTful documentadas via Swagger
-- Testes automatizados com cobertura >= 80% nos domínios críticos
+- Testes automatizados com cobertura >= 90% nos domínios principais
 
 ## Relatório de Vulnerabilidades (Resumo)
 

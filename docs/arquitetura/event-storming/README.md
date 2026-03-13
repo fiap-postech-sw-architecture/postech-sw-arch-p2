@@ -28,7 +28,7 @@ Os diagramas detalhados estão representados em Mermaid dentro de cada arquivo d
 - Máquina de estados (stateDiagram)
 - Sequência de eventos (sequenceDiagram)
 
-Boards visuais em Excalidraw (PNG) podem ser adicionados futuramente para apresentação no vídeo.
+Board visual no Miro: *(link a ser adicionado após criação do board)*
 
 ## Relação com Outros Documentos
 

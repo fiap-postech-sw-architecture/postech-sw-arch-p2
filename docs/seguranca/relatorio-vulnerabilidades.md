@@ -9,6 +9,8 @@ Análise de segurança do MVP back-end do sistema de oficina mecânica (Fase 1).
 Referência: OWASP API Security Top 10 (2023).
 
 Ferramentas utilizadas:
+- **SonarQube** — Análise estática de código e qualidade (SAST, code smells, cobertura)
+- **OWASP ZAP** — Teste dinâmico de segurança de aplicações (DAST/pentest automatizado)
 - **bandit** — Análise estática de segurança Python (SAST)
 - **pip-audit** — Auditoria de dependências vulneráveis
 - **gitleaks** — Detecção de segredos no histórico Git
@@ -18,12 +20,10 @@ Ferramentas utilizadas:
 
 | # | Severidade | Descrição | CVSS | Status | Mitigação |
 |---|---|---|---|---|---|
-| 1 | Baixa | CPF/CNPJ armazenado em texto plano | 3.1 | Risco aceito | Documentado. Remediação planejada com pgcrypto pós-MVP. |
+| 1 | Baixa | CPF/CNPJ armazenado em texto plano | 3.1 | Risco aceito | Remediação planejada com pgcrypto pós-MVP. |
 | 2 | Informativo | Sem endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) | — | Risco aceito | Cronograma de implementação pós-MVP documentado. |
 | 3 | Informativo | Sem mecanismo de consentimento explícito | — | Risco aceito | Escopo do MVP não inclui coleta de consentimento. |
 | 4 | Informativo | JWT sem revogação | 2.0 | Risco aceito | Tokens de 15 min. Tabela blacklist JTI planejada. |
-
-> Tabela a ser atualizada com achados reais dos scans na fase de implementação.
 
 ## Conformidade LGPD
 
@@ -36,6 +36,18 @@ Ferramentas utilizadas:
 | Portabilidade (Art. 18, V) | Não implementado | Endpoint de exportação JSON |
 | Exclusão (Art. 18, VI) | Não implementado | Anonimização com preservação de histórico de OS |
 | Consentimento | Não implementado | Mecanismo de opt-in na criação de cliente |
+
+## Análise Estática e Qualidade (SonarQube)
+
+```
+(Output do SonarQube a ser inserido após execução)
+```
+
+## Teste Dinâmico de Segurança (OWASP ZAP)
+
+```
+(Output do OWASP ZAP a ser inserido após execução)
+```
 
 ## Análise Estática (bandit)
 

@@ -40,12 +40,7 @@ docker-compose up
 
 A API estará disponível em `http://localhost:8000/docs` (Swagger UI).
 
-## Decisões de Arquitetura (ADR)
-
-As decisões técnicas significativas do projeto estão registradas como
-**Architecture Decision Records (ADR)** — um padrão de documentação que
-captura o contexto, as alternativas avaliadas, a decisão tomada e suas
-consequências. Usamos o formato [MADR 3.0](https://adr.github.io/madr/).
+## Decisões de Arquitetura (ADR — [MADR 3.0](https://adr.github.io/madr/))
 
 | ADR | Título | Status |
 |---|---|---|
@@ -60,10 +55,13 @@ consequências. Usamos o formato [MADR 3.0](https://adr.github.io/madr/).
 | [008](docs/arquitetura/adr/008-bloqueio-pessimista-estoque.md) | Bloqueio pessimista de estoque | Aceito |
 | [009](docs/arquitetura/adr/009-decisao-de-idioma.md) | Modelo híbrido de idioma | Aceito |
 | [010](docs/arquitetura/adr/010-resolver-tech-debt-em-f1.md) | Resolver tech debt em F1 via MVPs | Aceito |
+| [011](docs/arquitetura/adr/011-validacao-documentos-brutils.md) | Validação CPF/CNPJ/Placa com brutils | Aceito |
 
 ## Documentação
 
 A documentação de planejamento e arquitetura está na pasta [`docs/`](docs/).
+
+Event Storming (Miro): *(link a ser adicionado após criação do board)*
 
 ## Curso
 
