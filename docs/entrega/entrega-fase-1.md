@@ -22,6 +22,8 @@
 
 ### Documentação DDD
 
+- [Domain Storytelling — Diagramas](../arquitetura/domain-storytelling/)
+- [Especialistas de Domínio — Entrevistas](../arquitetura/domain-storytelling/especialistas-de-dominio.md)
 - [Event Storming — Fluxo 1: Ciclo de Vida da OS](../arquitetura/event-storming/fluxo-1-ciclo-os.md)
 - [Event Storming — Fluxo 2: Gestão de Estoque](../arquitetura/event-storming/fluxo-2-gestao-estoque.md)
 - [Glossário — Linguagem Ubíqua](../requisitos/glossario.md)

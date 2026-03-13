@@ -31,6 +31,16 @@ A classificação segue a árvore de decisão de subdomínios (Aula 01 — Intro
 | Estoque | Não | Lógica não-trivial: reserva pessimista com SELECT FOR UPDATE NOWAIT na transição AguardandoAprovacao→EmExecucao | **Principal** |
 | Autenticação | Sim | Substituível sem impacto no domínio | Genérico |
 
+> **Trade-off documentado — Estoque como Principal:**
+>
+> Pela teoria de DDD (Evans, Vernon), estoque de peças seria Suporte — não gera vantagem competitiva direta. Neste projeto, foi promovido a Principal por três razões:
+>
+> 1. O Tech Challenge exige Event Storming dedicado para "Gestão de peças e insumos"
+> 2. Reserva pessimista com `SELECT FOR UPDATE NOWAIT` introduz complexidade de domínio real (ADR-008)
+> 3. Para uma oficina de médio porte, falta de peça trava o elevador e bloqueia capacidade produtiva
+>
+> Consequência: aumenta a superfície de testes (90% vs 80%) mas reflete a importância operacional do contexto.
+
 **Veículo dentro de Cliente:**
 
 Veículos não têm ciclo de vida independente do cliente. Um veículo não existe no sistema sem um cliente associado. Por isso, `Veiculo` é uma entidade dentro do Bounded Context de `Cliente`, não um BC separado.

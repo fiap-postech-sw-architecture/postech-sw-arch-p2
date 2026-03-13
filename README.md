@@ -59,9 +59,14 @@ A API estará disponível em `http://localhost:8000/docs` (Swagger UI).
 
 ## Documentação
 
-A documentação de planejamento e arquitetura está na pasta [`docs/`](docs/).
-
-Event Storming (Miro): *(link a ser adicionado após criação do board)*
+| Artefato | Descrição |
+|---|---|
+| [Domain Storytelling](docs/arquitetura/domain-storytelling/) | 5 cenários no egon.io + entrevistas com especialistas de domínio |
+| [Event Storming](docs/arquitetura/event-storming/) | 2 fluxos detalhados (ciclo da OS e gestão de estoque) |
+| [Mapa de Contextos](docs/arquitetura/mapa-contextos.md) | 5 contextos delimitados com padrões de integração |
+| [Modelo de Domínio](docs/arquitetura/modelo-dominio.md) | Diagramas de classes por agregado |
+| [Glossário](docs/requisitos/glossario.md) | Linguagem Ubíqua — termos de domínio |
+| [Entrega Fase 1](docs/entrega/entrega-fase-1.md) | Índice completo dos entregáveis |
 
 ## Curso
 
