@@ -1,18 +1,18 @@
 # Mapa de Contextos
 
-Representação dos 5 contextos delimitados e seus padrões de integração, conforme definido no [ADR-007](adr/007-organizacao-contextos-delimitados.md).
+5 contextos delimitados com padrões de integração DDD. Decisão de organização: [ADR-007](adr/007-organizacao-contextos-delimitados.md).
 
 ## Diagrama
 
 ```mermaid
 graph LR
-    subgraph Nucleo
+    subgraph Principal
         OS[Ordem de Servico<br/><i>Principal</i>]
+        E[Estoque<br/><i>Principal</i>]
     end
     subgraph Suporte
         C[Cliente + Veiculo<br/><i>Suporte</i>]
         CS[Catalogo de Servicos<br/><i>Suporte</i>]
-        E[Estoque<br/><i>Suporte</i>]
     end
     subgraph Generico
         A[Autenticacao<br/><i>Generico</i>]
@@ -36,7 +36,7 @@ graph LR
 | **Ordem de Serviço** | Principal | `OrdemDeServico` | Ciclo de vida da OS (7 status), geração de orçamento, orquestração cross-contexto |
 | **Cliente + Veículo** | Suporte | `Cliente`, `Veiculo` | Cadastro e validação de clientes (CPF/CNPJ) e seus veículos |
 | **Catálogo de Serviços** | Suporte | `ServicoOferecido` | Tipos de serviço disponíveis com preços |
-| **Estoque** | Suporte | `ItemEstoque` | Peças e insumos com reserva pessimista e controle de quantidade |
+| **Estoque** | Principal | `ItemEstoque` | Peças e insumos com reserva pessimista e controle de quantidade |
 | **Autenticação** | Genérico | `Usuario` | JWT, credenciais, RBAC. Substituível por Auth0/Keycloak. |
 
 ## Padrões de Integração
@@ -69,7 +69,7 @@ A Linguagem Publicada é o `ServicoOferecidoDTO` — tipo compartilhado que desa
 
 ### Consulta Reversa (Downstream → Upstream)
 
-Os contextos Cliente e Estoque precisam verificar se existem OS ativas antes de permitir exclusão (RN-009, RN-011). Como a direção principal de dependência é OS → Suporte, uma porta reversa é necessária.
+Os contextos Cliente e Estoque precisam verificar se existem OS ativas antes de permitir exclusão (RN-009, RN-011). Como a direção principal de dependência é OS → fornecedores, uma porta reversa é necessária.
 
 A porta `OrdemDeServicoPort` é definida pelos contextos consumidores (Cliente, Estoque) na sua camada de aplicação:
 - `existe_os_ativa_para_cliente(cliente_id) -> bool` — usada por Cliente (RN-009)

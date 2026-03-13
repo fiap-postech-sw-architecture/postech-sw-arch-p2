@@ -32,13 +32,13 @@ Arquitetura em camadas simples (permitida pelo tech challenge: "é possível cri
 
 ```mermaid
 graph LR
-    subgraph Nucleo
+    subgraph Principal
         OS[Ordem de Servico]
+        E[Estoque]
     end
     subgraph Suporte
         C[Cliente + Veiculo]
         CS[Catalogo de Servicos]
-        E[Estoque]
     end
     subgraph Generico
         A[Autenticacao]
@@ -60,7 +60,7 @@ OHS = Open Host Service (padrão DDD de integração). Ver [Glossário](../../re
 | Ordem de Serviço | Principal | Máquina de estados da OS, orçamentos, orquestração cross-contexto |
 | Cliente + Veículo | Suporte | Cadastro de clientes e veículos, validação de CPF/CNPJ |
 | Catálogo de Serviços | Suporte | Tipos de serviço disponíveis, preços |
-| Estoque | Suporte | Peças e insumos, reserva pessimista, controle de quantidade |
+| Estoque | Principal | Peças e insumos, reserva pessimista, controle de quantidade |
 | Autenticação | Genérico | JWT, credenciais, RBAC. Substituível por Auth0/Keycloak. |
 
 **Comunicação**: in-process via portas e adaptadores. Portas definidas pelo consumidor (Ordem de Serviço). Adaptadores na infraestrutura. Transações cross-contexto via `UnitOfWork` compartilhada quando necessário (reserva de estoque).
@@ -148,7 +148,7 @@ erDiagram
     itens_estoque ||--o{ itens_da_ordem : "referencia"
 ```
 
-> **Nota**: As foreign keys cross-contexto (`cliente_id`, `veiculo_id` em `ordens_de_servico`) são um trade-off consciente: num monolito com banco único, a integridade referencial do PostgreSQL simplifica o MVP. Em evolução para microsserviços, essas FKs seriam removidas.
+> As foreign keys cross-contexto (`cliente_id`, `veiculo_id` em `ordens_de_servico`) são um trade-off consciente: num monolito com banco único, a integridade referencial do PostgreSQL simplifica o MVP. Em evolução para microsserviços, essas FKs seriam removidas.
 
 ### API
 
@@ -269,6 +269,7 @@ DomainException (base)
 | Escopo | Linha | Branch |
 |---|---|---|
 | `ordem_de_servico/dominio/` + `aplicacao/` | 90%+ | 85%+ |
+| `estoque/dominio/` + `aplicacao/` | 90%+ | 85%+ |
 | Outros `*/dominio/` | 80%+ | 70%+ |
 | `compartilhado/dominio/` | 85%+ | 75%+ |
 | `*/infraestrutura/` + `*/interfaces/` | 65%+ | 50%+ |
@@ -284,7 +285,7 @@ DomainException (base)
 | mutmut | Mutation testing no domínio (meta 70%+, piso 50%) |
 | schemathesis | Contract testing de endpoints (code freeze) |
 
-### Categorias principais
+### Categorias de teste
 
 1. **Máquina de estados**: 9 transições válidas, 40 inválidas (7×7 − 9 = 40, incluindo auto-transições como inválidas), 7 guardas, testes de concorrência. Verificação explícita de que estados terminais (Cancelada, Entregue) rejeitam qualquer transição.
 2. **Cancelamento**: efeitos colaterais por estado de origem

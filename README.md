@@ -24,7 +24,7 @@ Sistema de gestão de ordens de serviço para uma oficina mecânica de médio po
 | Ordem de Serviço | Principal | Ciclo de vida da OS, orçamentos, máquina de estados |
 | Cliente + Veículo | Suporte | Cadastro de clientes e veículos vinculados |
 | Catálogo de Serviços | Suporte | Serviços oferecidos pela oficina |
-| Estoque | Suporte | Peças e insumos com controle de quantidade |
+| Estoque | Principal | Peças e insumos com controle de quantidade |
 | Autenticação | Genérico | JWT, controle de acesso por papel |
 
 ## Pré-requisitos

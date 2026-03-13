@@ -5,17 +5,17 @@
 
 ## Contexto e Problema
 
-O sistema de oficina mecânica precisa de fronteiras claras entre seus subdomínios. Como organizar os Bounded Contexts para refletir a realidade do negócio, manter o acoplamento baixo entre contextos e definir qual é o domínio principal do projeto?
+O sistema de oficina mecânica precisa de fronteiras claras entre seus subdomínios. Como organizar os Bounded Contexts para refletir a realidade do negócio, manter o acoplamento baixo entre contextos e definir quais contextos são de domínio principal?
 
 ## Decisão
 
-Organizar o domínio em 5 Bounded Contexts com responsabilidades bem definidas:
+Organizar o domínio em 5 Bounded Contexts:
 
 | Bounded Context | Tipo | Responsabilidade |
 |---|---|---|
 | **Cliente + Veiculo** | Suporte | Cadastro de clientes e seus veículos |
 | **Catalogo de Servicos** | Suporte | Serviços oferecidos pela oficina, com ciclo de vida próprio (ativação/desativação) |
-| **Estoque** | Suporte | Peças e insumos disponíveis, com controle de quantidade e reserva |
+| **Estoque** | Principal | Peças e insumos disponíveis, com controle de quantidade e reserva |
 | **Ordem de Servico** | Principal | Fluxo completo da OS: abertura, diagnóstico, orçamento, aprovação, execução, conclusão |
 | **Autenticação** | Genérico | Autenticação e autorização via JWT |
 
@@ -28,7 +28,7 @@ A classificação segue a árvore de decisão de subdomínios (Aula 01 — Intro
 | Ordem de Serviço | Não | Lógica complexa: máquina de estados com 7 status, orçamento e orquestração cross-contexto | **Principal** |
 | Cliente + Veículo | Não | Lógica simples: cadastro com validação de CPF/CNPJ | Suporte |
 | Catálogo de Serviços | Não | Lógica simples: CRUD com ativação/desativação | Suporte |
-| Estoque | Não | Lógica simples: controle de quantidade com reserva pessimista | Suporte |
+| Estoque | Não | Lógica não-trivial: reserva pessimista com SELECT FOR UPDATE NOWAIT na transição AguardandoAprovacao→EmExecucao | **Principal** |
 | Autenticação | Sim | Substituível sem impacto no domínio | Genérico |
 
 **Veículo dentro de Cliente:**
@@ -85,7 +85,7 @@ Manter apenas os 6 status definidos no enunciado do Tech Challenge, sem adiciona
 
 ### Positivas
 
-* Fronteiras claras entre contextos, com um único domínio principal (Ordem de Servico)
+* Fronteiras claras entre contextos, com dois domínios principais (Ordem de Servico e Estoque)
 * Complexidade gerenciável — 5 BCs é suficiente para o escopo do MVP sem fragmentação excessiva
 * Veículo dentro de Cliente simplifica o modelo e reflete a realidade do negócio
 * Catálogo separado permite evolução independente de preços e serviços oferecidos
@@ -95,4 +95,4 @@ Manter apenas os 6 status definidos no enunciado do Tech Challenge, sem adiciona
 
 * O Value Object `Dinheiro` é usado em múltiplos BCs (Catalogo, Estoque, OS), podendo se tornar um Shared Kernel se divergir entre contextos
 * A comunicação entre BCs exige contratos claros (eventos de domínio ou interfaces anti-corrupção)
-* A inclusão de Cancelada como 7o status precisa ser justificada explicitamente na entrega do Tech Challenge
+* Cancelada como 7o status diverge do enunciado original (6 status) — justificativa documentada neste ADR

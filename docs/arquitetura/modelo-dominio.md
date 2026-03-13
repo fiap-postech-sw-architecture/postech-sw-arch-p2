@@ -1,6 +1,6 @@
 # Modelo de Domínio
 
-Diagramas de classes por agregado, mostrando entidades, objetos de valor e relacionamentos dentro das fronteiras de cada agregado.
+Diagramas de classes por agregado.
 
 ## Agregado: OrdemDeServico (Principal)
 
@@ -134,7 +134,7 @@ classDiagram
     Veiculo --> Placa : placa
 ```
 
-## Agregado: ItemEstoque (Suporte)
+## Agregado: ItemEstoque (Principal)
 
 ```mermaid
 classDiagram

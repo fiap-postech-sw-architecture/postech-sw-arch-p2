@@ -43,7 +43,7 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 | Serviço Oferecido | `ServicoOferecido` | Agregado raiz que representa um tipo de serviço disponível na oficina (ex: troca de óleo, alinhamento). Pode ser desativado sem afetar OS históricas. |
 | DTO de Serviço Oferecido | `ServicoOferecidoDTO` | Tipo de retorno da `CatalogoPort`. Representa dados do catálogo consumidos pelo contexto Ordem de Serviço. |
 
-## Contexto: Estoque (Suporte)
+## Contexto: Estoque (Principal)
 
 | Termo do Domínio | Identificador no Código | Definição |
 |---|---|---|

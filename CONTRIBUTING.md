@@ -46,7 +46,7 @@ make security-scan     # bandit + pip-audit + gitleaks + trivy
 ```
 
 Cobertura mínima por faixa:
-- 90%+ em `ordem_de_servico/dominio/`
+- 90%+ em `ordem_de_servico/dominio/` e `estoque/dominio/` (domínios principais)
 - 80%+ nos demais `*/dominio/`
 - 65%+ em `*/infraestrutura/` e `*/interfaces/`
 

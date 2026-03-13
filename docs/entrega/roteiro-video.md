@@ -15,7 +15,7 @@ Duração alvo: ~14 minutos (1 min de folga dentro do limite de 15 min).
 
 - Monolito modular com DDD e Onion Architecture
 - 5 contextos delimitados: mostrar mapa de contextos (Mermaid renderizado)
-  - Ordem de Serviço (principal), Cliente+Veículo, Catálogo, Estoque, Autenticação
+  - Ordem de Serviço e Estoque (principais), Cliente+Veículo, Catálogo, Autenticação
 - 4 camadas por contexto: domínio, aplicação, infraestrutura, interfaces
 - Comunicação via portas e adaptadores (in-process)
 - Mostrar diagrama de classes do agregado OrdemDeServico

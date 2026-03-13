@@ -21,8 +21,8 @@ Ferramentas e práticas:
 
 Metas de cobertura:
 
-- 90%+ para o domínio OrdemDeServico (contexto principal)
-- 80%+ para os demais domínios (Cliente+Veiculo, Catalogo, Estoque)
+- 90%+ para os domínios principais (OrdemDeServico e Estoque)
+- 80%+ para os demais domínios (Cliente+Veiculo, Catalogo)
 - 65%+ para infraestrutura e interfaces
 
 ## Alternativas Consideradas

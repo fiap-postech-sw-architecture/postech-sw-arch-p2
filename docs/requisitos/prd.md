@@ -12,7 +12,7 @@ O sistema proposto é um MVP back-end que digitaliza a gestão de ordens de serv
 - Aplicar Domain-Driven Design com Linguagem Ubíqua em português
 - Controlar estoque de peças com reserva atômica na aprovação de orçamento
 - Permitir consulta pública de status por placa + documento
-- Garantir 90%+ de cobertura de testes no domínio principal (Ordem de Serviço) e 80%+ nos demais domínios
+- Garantir 90%+ de cobertura de testes nos domínios principais (Ordem de Serviço e Estoque) e 80%+ nos demais domínios
 - Proteger endpoints administrativos com JWT
 
 ## Não-Objetivos
@@ -111,7 +111,7 @@ O sistema proposto é um MVP back-end que digitaliza a gestão de ordens de serv
 - Autenticação JWT
 - CRUD de serviços oferecidos
 - Validação de dados sensíveis
-- Testes com 80%+ cobertura nos domínios críticos
+- Testes com 90%+ nos domínios principais e 80%+ nos demais
 - Dockerfile e docker-compose
 - Documentação DDD (Event Storming, glossário, diagramas)
 
@@ -153,7 +153,7 @@ O sistema proposto é um MVP back-end que digitaliza a gestão de ordens de serv
 ## Critérios de Sucesso
 
 1. Requisitos funcionais RF-001 a RF-010 implementados e testados. RF-011 a RF-019 conforme estratégia de corte em tech-debt.md
-2. Cobertura de testes >= 80% nos domínios críticos
+2. Cobertura de testes >= 90% nos domínios principais (OS e Estoque), >= 80% nos demais
 3. Docker-compose funcional com `docker-compose up` e migrações automáticas
 4. Swagger UI acessível em desenvolvimento com todos os endpoints documentados
 5. Consulta pública de acompanhamento funcional sem autenticação
@@ -165,6 +165,6 @@ O sistema proposto é um MVP back-end que digitaliza a gestão de ordens de serv
 |---|---|---|
 | SQLAlchemy imperative mapping com complexidade inesperada | Alto | Spike de 4h com go/no-go gates. Fallback para declarative mapping (ADR-006). |
 | Deadlocks na reserva de estoque | Médio | Locks em ordem crescente de `item_id`. `NOWAIT` para falhar rápido. Testes de concorrência. |
-| Cobertura de 90% no domínio principal pode exigir tempo desproporcional em edge cases | Médio | Mutation testing para priorizar testes de maior valor. Metas por faixa, não globais. |
+| Cobertura de 90% nos domínios principais pode exigir tempo desproporcional em edge cases | Médio | Mutation testing para priorizar testes de maior valor. Metas por faixa, não globais. |
 | Tempo insuficiente para todos os entregáveis | Alto | Priorização MoSCoW. Feature freeze S5. EMV (entrega mínima viável) definida. |
 | CPF armazenado em texto plano (LGPD) | Baixo (MVP) | Documentado como risco aceito no relatório de vulnerabilidades. Remediação planejada com pgcrypto. |

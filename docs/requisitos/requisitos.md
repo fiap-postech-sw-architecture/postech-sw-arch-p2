@@ -37,7 +37,7 @@
 | RNF-006 | Segurança | Mass assignment prevenido com Pydantic `extra="forbid"`. |
 | RNF-007 | Segurança | Swagger UI desabilitado em produção (`ENVIRONMENT=production` → 404). |
 | RNF-008 | Privacidade | CPF/CNPJ mascarado em respostas de listagem. PII removido de logs via processador structlog. |
-| RNF-009 | Qualidade | Cobertura de testes: 90%+ no domínio principal (Ordem de Serviço), 80%+ nos demais domínios, 65%+ em infraestrutura/interfaces. |
+| RNF-009 | Qualidade | Cobertura de testes: 90%+ nos domínios principais (Ordem de Serviço e Estoque), 80%+ nos demais domínios, 65%+ em infraestrutura/interfaces. |
 | RNF-010 | Qualidade | Scanning de segurança: bandit (SAST), pip-audit (dependências), gitleaks (segredos), trivy (imagem Docker). |
 | RNF-011 | Infraestrutura | Dockerfile multi-stage + docker-compose.yml. Migrações automáticas no startup (Alembic). |
 | RNF-012 | API | RESTful, documentada via Swagger/OpenAPI. Paginação offset-based (padrão 20, máximo 100). |
