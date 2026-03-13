@@ -207,7 +207,7 @@ total = Σ (item.preco_unitario × item.quantidade)
 - O campo `orcamento` da OS é `None` até o comando explícito `gerar_orcamento()` (transição EmDiagnostico → AguardandoAprovacao). Não há cálculo automático ao adicionar/remover itens.
 - O `Orcamento` (objeto de valor) é imutável. Após RN-016, itens não podem ser alterados uma vez gerado o orçamento — para modificar, cancelar a OS e criar uma nova.
 - Armazenamento como JSONB com `versao_schema: 1` para compatibilidade futura
-- Não há histórico de orçamentos no MVP
+- Orçamentos anteriores mantidos como histórico (array JSONB com timestamp) — RF-017
 
 **Tempo médio de execução** (RF-008):
 - Calculado por tipo de serviço sobre OS finalizadas
@@ -221,7 +221,7 @@ total = Σ (item.preco_unitario × item.quantidade)
 | Algoritmo | HS256 com `algorithms=["HS256"]` explícito no decode |
 | Lifespan | 15 min (configurável via `JWT_ACCESS_TOKEN_EXPIRE_MINUTES`) |
 | Segredo | `openssl rand -hex 32`, variável de ambiente, >= 32 chars, validado no startup |
-| Claims | `sub` (user_id), `papel` (Enum: Admin), `exp`, `iat` |
+| Claims | `sub` (user_id), `papel` (Enum: Admin), `exp`, `iat`, `jti` (UUID, usado para revogação) |
 | Entrega | Somente header `Authorization: Bearer` — sem cookies |
 | Revogação | Tabela `tokens_revogados` com JTI. Verificação no middleware. Logout revoga token corrente (RF-012). |
 | Refresh tokens | Refresh token com rotação. TTL configurável via `JWT_REFRESH_TOKEN_EXPIRE_DAYS` (padrão: 7). Endpoint `POST /autenticacao/refresh` (RF-013). |

@@ -59,9 +59,9 @@
 | RN-010 | Serviço referenciado por ItemDaOrdem (incluindo OS históricas) não pode ser excluído. Pode ser desativado (soft delete). | Catálogo |
 | RN-011 | ItemEstoque com quantidade > 0 ou referenciado por OS ativas não pode ser excluído. | Estoque |
 | RN-012 | Bloqueio pessimista de estoque via `SELECT FOR UPDATE NOWAIT`. Locks adquiridos em ordem crescente de `item_id` para prevenir deadlocks. | Estoque |
-| RN-013 | Orçamento é objeto de valor imutável. Quando itens mudam, um novo orçamento substitui o anterior (sem histórico no MVP). | Ordem de Serviço |
+| RN-013 | Orçamento é objeto de valor imutável. Se itens forem alterados antes da geração do orçamento, o próximo `gerar_orcamento()` produz um novo orçamento. Orçamentos anteriores mantidos como histórico (RF-017). Ver RN-016 para restrição pós-geração. | Ordem de Serviço |
 | RN-014 | "Envio do orçamento ao cliente" = disponibilização via API para consulta e aprovação. Sem push notification/email no MVP. | Ordem de Serviço |
-| RN-015 | Orçamentos complementares durante execução transitam via AguardandoAprovacaoComplementar (RF-016). Estoque do complementar é reservado na aprovação. | Ordem de Serviço |
+| RN-015 | Orçamentos complementares (serviços adicionais descobertos durante execução) transitam via status AguardandoAprovacaoComplementar (ver RF-016 e diagrama de estados). Estoque do complementar é reservado na aprovação. | Ordem de Serviço |
 | RN-016 | Uma vez gerado o orçamento, itens não podem ser alterados. Para modificar itens, a OS deve ser cancelada e uma nova OS criada. | Ordem de Serviço |
 | RN-017 | Para alterar quantidade de um item da OS, remover e adicionar novamente com a nova quantidade (não há endpoint de atualização de item). | Ordem de Serviço |
 

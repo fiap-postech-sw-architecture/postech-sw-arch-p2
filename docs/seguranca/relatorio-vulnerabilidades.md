@@ -1,5 +1,7 @@
 # Relatório de Vulnerabilidades
 
+> **Status**: Parcial — seções de ferramentas automatizadas aguardam execução do pipeline CI.
+
 ## Escopo
 
 Análise de segurança do MVP back-end do sistema de oficina mecânica (Fase 1).
@@ -20,10 +22,10 @@ Ferramentas utilizadas:
 
 | # | Severidade | Descrição | CVSS | Status | Mitigação |
 |---|---|---|---|---|---|
-| 1 | Baixa | CPF/CNPJ armazenado em texto plano | 3.1 | Risco aceito | Remediação planejada com pgcrypto pós-MVP. |
-| 2 | Informativo | Sem endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) | — | Risco aceito | Cronograma de implementação pós-MVP documentado. |
+| 1 | Baixa | CPF/CNPJ armazenado em texto plano | 3.1 | Em remediação | Encriptação via pgcrypto no MVP (RF-011, ADR-010). |
+| 2 | Informativo | Sem endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) | — | Em remediação | Implementação no MVP (RF-015, ADR-010). |
 | 3 | Informativo | Sem mecanismo de consentimento explícito | — | Risco aceito | Escopo do MVP não inclui coleta de consentimento. |
-| 4 | Informativo | JWT sem revogação | 2.0 | Risco aceito | Tokens de 15 min. Tabela blacklist JTI planejada. |
+| 4 | Informativo | JWT ainda sem revogação e sem refresh tokens implementados | 2.0 | Em remediação | Tabela `tokens_revogados` com JTI e refresh tokens com rotação (RF-012, RF-013, ADR-010). |
 
 ## Conformidade LGPD
 
@@ -31,10 +33,10 @@ Ferramentas utilizadas:
 |---|---|---|
 | Mascaramento de dados sensíveis em respostas | Planejado (CPF/CNPJ mascarado em listagens) | — |
 | Remoção de PII em logs | Planejado (processador structlog) | Criptografia em nível de campo |
-| Armazenamento de CPF/CNPJ | Texto plano (risco aceito, Art. 46) | Criptografia via pgcrypto |
-| Direito de acesso (Art. 18, I) | Não implementado | Endpoint `GET /clientes/{id}/dados-pessoais` |
-| Portabilidade (Art. 18, V) | Não implementado | Endpoint de exportação JSON |
-| Exclusão (Art. 18, VI) | Não implementado | Anonimização com preservação de histórico de OS |
+| Armazenamento de CPF/CNPJ | Em remediação — encriptação via pgcrypto (RF-011, ADR-010) | — |
+| Direito de acesso (Art. 18, I) | Em remediação (RF-015, ADR-010) | Endpoint `GET /clientes/{id}/dados-pessoais` |
+| Portabilidade (Art. 18, V) | Em remediação (RF-015, ADR-010) | Endpoint de exportação JSON |
+| Exclusão (Art. 18, VI) | Em remediação (RF-015, ADR-010) | Anonimização com preservação de histórico de OS |
 | Consentimento | Não implementado | Mecanismo de opt-in na criação de cliente |
 
 ## Análise Estática e Qualidade (SonarQube)
@@ -75,10 +77,7 @@ Ferramentas utilizadas:
 
 ## Recomendações para Produção
 
-1. Implementar criptografia de CPF/CNPJ via pgcrypto
-2. Adicionar endpoints LGPD Art. 18
-3. Implementar revogação de JWT (tabela blacklist JTI)
-4. Adicionar WAF com rate limiting por usuário autenticado
-5. Migrar segredo JWT para KMS
-6. Adicionar CSP headers
-7. Implementar mecanismo de consentimento
+1. Adicionar WAF com rate limiting por usuário autenticado
+2. Migrar segredo JWT para KMS
+3. Adicionar CSP headers
+4. Implementar mecanismo de consentimento explícito
