@@ -41,6 +41,7 @@ As histórias vieram de entrevistas com 5 especialistas de domínio fictícios (
 ## Relação com Outros Documentos
 
 - [Event Storming](../event-storming/) — Fluxos detalhados derivados das mesmas histórias
+- [Workshop de Event Storming](../event-storming/workshop-event-storming.md) — Workshop progressivo com os mesmos especialistas
 - [Glossário](../../requisitos/glossario.md) — Linguagem Ubíqua com todos os termos de domínio
 - [Mapa de Contextos](../mapa-contextos.md) — Relação entre os 5 contextos delimitados
 - [ADR-007](../adr/007-organizacao-contextos-delimitados.md) — Organização dos contextos delimitados

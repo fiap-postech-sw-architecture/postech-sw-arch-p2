@@ -15,7 +15,7 @@
 |---|---|
 | Documentação | [docs/](../../docs/) (neste repositório) |
 | Repositório | [github.com/jbamaral/postech-sw-arch-p1](https://github.com/jbamaral/postech-sw-arch-p1) |
-| Event Storming (Miro) | *(link a ser adicionado após criação do board)* |
+| Event Storming | [Workshop de Event Storming](../arquitetura/event-storming/workshop-event-storming.md) |
 | Vídeo | *(link a ser adicionado)* |
 
 ## Entregáveis
@@ -26,6 +26,7 @@
 - [Especialistas de Domínio — Entrevistas](../arquitetura/domain-storytelling/especialistas-de-dominio.md)
 - [Event Storming — Fluxo 1: Ciclo de Vida da OS](../arquitetura/event-storming/fluxo-1-ciclo-os.md)
 - [Event Storming — Fluxo 2: Gestão de Estoque](../arquitetura/event-storming/fluxo-2-gestao-estoque.md)
+- [Workshop de Event Storming](../arquitetura/event-storming/workshop-event-storming.md)
 - [Glossário — Linguagem Ubíqua](../requisitos/glossario.md)
 - [Mapa de Contextos](../arquitetura/mapa-contextos.md)
 - [Modelo de Domínio](../arquitetura/modelo-dominio.md)

@@ -9,9 +9,10 @@ Fluxo principal do sistema: desde o recebimento do veículo até a entrega ao cl
 | 🟠 Laranja | Evento de Domínio | Fato que aconteceu no passado |
 | 🔵 Azul | Comando | Intenção de ação disparada por um ator |
 | 🟡 Amarelo | Agregado | Entidade raiz que processa o comando |
-| 🟣 Lilás | Read Model | Projeção de dados para consulta |
+| 🟢 Verde | Read Model | Projeção de dados consultada antes de um comando |
+| 🟣 Lilás | Política | Regra reativa — ao observar um evento, dispara outro comando |
 | 🔴 Vermelho | Hotspot | Decisão pendente ou ponto de atenção |
-| 🩷 Rosa | Política | Regra que reage a um evento e dispara outro comando |
+| 🩷 Rosa | Sistema Externo | Sistema fora da fronteira do domínio |
 
 ## Atores
 
@@ -60,7 +61,7 @@ stateDiagram-v2
 | 🔵 Comando | `CriarOrdemDeServico(cliente_id, veiculo_id)` |
 | 🟡 Agregado | `OrdemDeServico` |
 | 🟠 Evento | `OrdemRecebidaEvent(ordem_id, cliente_id, veiculo_id)` |
-| 🩷 Política | Verificar se cliente e veículo existem via `ClientePort` antes de criar a OS. |
+| 🟣 Política | Verificar se cliente e veículo existem via `ClientePort` antes de criar a OS. |
 
 **Contexto**: Admin cria a OS associando um cliente e veículo existentes. A OS nasce no status **Recebida** com zero itens — itens são adicionados depois. A verificação cross-contexto usa `ClientePort.cliente_existe()` e `ClientePort.veiculo_existe()`.
 
@@ -71,7 +72,7 @@ stateDiagram-v2
 | 🔵 Comando | `AdicionarItemAOrdem(ordem_id, servico_catalogo_id, item_estoque_id?, quantidade)` |
 | 🟡 Agregado | `OrdemDeServico` |
 | 🟠 Evento | `ItemAdicionadoAOrdemEvent(ordem_id, item_id, servico_catalogo_id)` |
-| 🩷 Política | Só aceito nos status Recebida ou EmDiagnostico. Consultar `CatalogoPort.obter_servico()` para obter preço. |
+| 🟣 Política | Só aceito nos status Recebida ou EmDiagnostico. Consultar `CatalogoPort.obter_servico()` para obter preço. |
 
 **Contexto**: Admin ou mecânico adiciona serviços e peças à OS. Cada `ItemDaOrdem` referencia um `ServicoOferecido` do catálogo (obrigatório) e opcionalmente um `ItemEstoque`. O preço unitário vem do catálogo no momento da adição.
 
@@ -92,8 +93,8 @@ stateDiagram-v2
 | 🔵 Comando | `GerarOrcamento(ordem_id)` |
 | 🟡 Agregado | `OrdemDeServico` → delega a `MaquinaDeStatus` |
 | 🟠 Evento | `OrcamentoGeradoEvent(ordem_id, total: Dinheiro, qtd_itens: int)` |
-| 🩷 Política | OS deve ter pelo menos um item. Orçamento é objeto de valor imutável calculado a partir dos itens. |
-| 🟣 Read Model | Detalhe do orçamento com linhas, quantidades e valores para apresentação ao cliente. |
+| 🟣 Política | OS deve ter pelo menos um item. Orçamento é objeto de valor imutável calculado a partir dos itens. |
+| 🟢 Read Model | Detalhe do orçamento com linhas, quantidades e valores para apresentação ao cliente. |
 
 **Contexto**: O sistema calcula o orçamento somando os itens da OS. O `Orcamento` (objeto de valor) é criado com `LinhaOrcamento[]` e `total: Dinheiro`. Armazenado como JSONB. O status transiciona de EmDiagnostico para AguardandoAprovacao.
 
@@ -104,7 +105,7 @@ stateDiagram-v2
 | 🔵 Comando | `AprovarOrcamento(ordem_id)` |
 | 🟡 Agregado | `OrdemDeServico` → delega a `MaquinaDeStatus` |
 | 🟠 Evento | `OrcamentoAprovadoEvent(ordem_id, total_aprovado: Dinheiro)` |
-| 🩷 Política | Reservar estoque via `EstoquePort.reservar()` na mesma transação. Tudo-ou-nada. |
+| 🟣 Política | Reservar estoque via `EstoquePort.reservar()` na mesma transação. Tudo-ou-nada. |
 | 🟡 Agregado | `ItemEstoque` (contexto Estoque) |
 | 🟠 Evento | `EstoqueReservadoEvent(item_id, ordem_id, quantidade)` |
 | 🔴 Hotspot | Bloqueio pessimista (`SELECT FOR UPDATE NOWAIT`). Locks em ordem crescente de `item_id` para prevenir deadlocks. |
@@ -118,7 +119,7 @@ stateDiagram-v2
 | 🔵 Comando | `CancelarOrdem(ordem_id, motivo)` |
 | 🟡 Agregado | `OrdemDeServico` → delega a `MaquinaDeStatus` |
 | 🟠 Evento | `OrdemCanceladaEvent(ordem_id, status_origem: StatusOrdem, motivo: str)` |
-| 🩷 Política | Se cancelada em EmExecucao: liberar estoque reservado via `EstoquePort.liberar()`. |
+| 🟣 Política | Se cancelada em EmExecucao: liberar estoque reservado via `EstoquePort.liberar()`. |
 | 🟡 Agregado | `ItemEstoque` (se havia reserva) |
 | 🟠 Evento | `EstoqueLiberadoEvent(item_id, ordem_id, quantidade)` (se havia reserva) |
 
@@ -135,7 +136,7 @@ stateDiagram-v2
 | 🔵 Comando | `FinalizarServico(ordem_id)` |
 | 🟡 Agregado | `OrdemDeServico` → delega a `MaquinaDeStatus` |
 | 🟠 Evento | `OrdemFinalizadaEvent(ordem_id)` |
-| 🟣 Read Model | Resumo da OS para notificação ao cliente. |
+| 🟢 Read Model | Resumo da OS para notificação ao cliente. |
 
 **Contexto**: Mecânico informa que todos os serviços foram concluídos. O status muda de EmExecucao para Finalizada. O veículo está pronto para retirada.
 
@@ -154,8 +155,8 @@ stateDiagram-v2
 | Elemento | Detalhe |
 |---|---|
 | 🔵 Comando | `ConsultarStatusOS(placa, documento)` |
-| 🟣 Read Model | Status atual da OS, serviços incluídos. |
-| 🩷 Política | Sem autenticação JWT. Identificação por placa + CPF/CNPJ via `ClientePort.obter_veiculo_por_placa_e_documento()`. |
+| 🟢 Read Model | Status atual da OS, serviços incluídos. |
+| 🟣 Política | Sem autenticação JWT. Identificação por placa + CPF/CNPJ via `ClientePort.obter_veiculo_por_placa_e_documento()`. |
 
 **Contexto**: Cliente consulta o andamento da OS pela API pública usando placa do veículo e documento (CPF/CNPJ). Não requer login — a combinação placa + documento funciona como identificação.
 

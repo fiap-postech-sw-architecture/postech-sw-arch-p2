@@ -627,6 +627,7 @@ Regras não formalizadas, descobertas durante as entrevistas:
 
 - [Domain Storytelling — Diagramas](README.md) — Índice dos 5 diagramas no egon.io
 - [Event Storming](../event-storming/) — Fluxos detalhados derivados das entrevistas
+- [Workshop de Event Storming](../event-storming/workshop-event-storming.md) — Workshop progressivo de 10 passos com os mesmos especialistas
 - [Glossário](../../requisitos/glossario.md) — Linguagem Ubíqua com todos os termos de domínio
 - [Mapa de Contextos](../mapa-contextos.md) — Relação entre os 5 contextos delimitados
 - [Modelo de Domínio](../modelo-dominio.md) — Diagramas de classes por agregado
