@@ -41,6 +41,7 @@
 - [Requisitos Funcionais e Não-Funcionais](../requisitos/requisitos.md)
 - [PRD](../requisitos/prd.md)
 - [Tech Challenge (original)](../requisitos/desafio-tech-fase-1.md)
+- [Levantamento de Requisitos](../requisitos/levantamento-de-requisitos.md)
 
 ### Segurança
 
