@@ -6,7 +6,7 @@ Uma oficina mecânica de médio porte opera com anotações manuais e planilhas,
 
 O sistema proposto é um MVP back-end que digitaliza a gestão de ordens de serviço, clientes, veículos, catálogo de serviços e estoque de peças, permitindo ao cliente acompanhar o andamento do serviço via API.
 
-Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa metodológica com jornadas atual e da solução.
+Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa metodológica, [Refinamento Técnico](refinamento-tecnico.md) para a especificação técnica e [DoR/DoD](dor-dod.md) para os gates de qualidade.
 
 ## Objetivos
 

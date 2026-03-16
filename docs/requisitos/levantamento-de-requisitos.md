@@ -230,4 +230,6 @@ RODRIGO, T. Documento de requisitos de produto (PRD) — o que é e como fazer u
 - [Event Storming — Workshop](../arquitetura/event-storming/workshop-event-storming.md) — Workshop progressivo de 10 passos
 - [Event Storming — Fluxo OS](../arquitetura/event-storming/fluxo-1-ciclo-os.md) — Máquina de estados e fluxo de eventos
 - [Especialistas de Domínio](../arquitetura/domain-storytelling/especialistas-de-dominio.md) — Entrevistas com os 5 especialistas
+- [Refinamento Técnico](refinamento-tecnico.md) — Especificação técnica derivada desta jornada
+- [DoR / DoD](dor-dod.md) — Gates de qualidade para desenvolvimento
 - [Mapa de Contextos](../arquitetura/mapa-contextos.md) — Relação entre os 5 contextos delimitados

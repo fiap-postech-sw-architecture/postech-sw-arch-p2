@@ -42,6 +42,8 @@
 - [PRD](../requisitos/prd.md)
 - [Tech Challenge (original)](../requisitos/desafio-tech-fase-1.md)
 - [Levantamento de Requisitos](../requisitos/levantamento-de-requisitos.md)
+- [Refinamento Técnico](../requisitos/refinamento-tecnico.md)
+- [Definition of Ready / Definition of Done](../requisitos/dor-dod.md)
 
 ### Segurança
 
