@@ -339,4 +339,4 @@ outbox {
 - [ADR-003](../adr/003-arquitetura-ddd-onion.md) — Arquitetura DDD + Onion
 - [ADR-004](../adr/004-autenticacao-jwt.md) — Autenticação JWT
 - [ADR-008](../adr/008-bloqueio-pessimista-estoque.md) — Bloqueio pessimista de estoque
-- [ADR-010](../adr/010-resolver-tech-debt-em-f1.md) — Resolução de tech debt na F1
+

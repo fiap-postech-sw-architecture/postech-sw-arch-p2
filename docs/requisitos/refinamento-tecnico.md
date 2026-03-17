@@ -11,7 +11,7 @@ Retomando a [Jornada da Solução](levantamento-de-requisitos.md) (11 passos), d
 
 | # | Etapa | Consideração técnica | Decisão/Documento |
 |---|---|---|---|
-| 01 | Cadastrar cliente | CPF/CNPJ como Value Object com validação algorítmica via brutils | [ADR-011](../arquitetura/adr/011-validacao-documentos-brutils.md) |
+| 01 | Cadastrar cliente | CPF/CNPJ como Value Object com validação algorítmica via brutils | [ADR-010](../arquitetura/adr/010-validacao-documentos-brutils.md) |
 | 02 | Adicionar veículo | Placa como Value Object, unique constraint cross-clientes. Veículo é entidade filha do agregado Cliente | [Modelo de Domínio](../arquitetura/modelo-dominio.md) |
 | 03 | Criar OS | ClientePort.cliente_existe() e veiculo_existe() — Customer-Supplier pattern | [Mapa de Contextos](../arquitetura/mapa-contextos.md) |
 | 04 | Iniciar diagnóstico | MaquinaDeStatus valida transição Recebida → EmDiagnostico | [Fluxo OS](../arquitetura/event-storming/fluxo-1-ciclo-os.md) |
@@ -34,7 +34,7 @@ Spikes e POCs validam soluções técnicas antes do desenvolvimento. Registramos
 | Imperative Mapping SQLAlchemy 2.0 | Validar mapeamento imperativo sem poluir agregados de domínio | Go — `mapper_registry.map_imperatively()` mantém domínio puro. Spike de 4h com critérios go/no-go | [ADR-006](../arquitetura/adr/006-mapeamento-imperativo-sqlalchemy.md) |
 | Bloqueio pessimista estoque | Validar `SELECT FOR UPDATE NOWAIT` com locks ordenados para prevenir deadlocks | Go — locks em ordem crescente de `item_id` previnem deadlocks entre transações concorrentes | [ADR-008](../arquitetura/adr/008-bloqueio-pessimista-estoque.md) |
 | Orçamento como JSONB | Validar imutabilidade e performance de query com campo JSONB | Go — substituição integral (sem diff parcial), `versao_schema` para evoluções futuras | [RFC-001 §5](../arquitetura/rfc/rfc-001-design-do-sistema.md) |
-| Validação CPF/CNPJ/Placa | Validar brutils para cálculo algorítmico de documentos | Go — brutils cobre CPF, CNPJ e Placa (Mercosul + antigo) | [ADR-011](../arquitetura/adr/011-validacao-documentos-brutils.md) |
+| Validação CPF/CNPJ/Placa | Validar brutils para cálculo algorítmico de documentos | Go — brutils cobre CPF, CNPJ e Placa (Mercosul + antigo) | [ADR-010](../arquitetura/adr/010-validacao-documentos-brutils.md) |
 
 ---
 

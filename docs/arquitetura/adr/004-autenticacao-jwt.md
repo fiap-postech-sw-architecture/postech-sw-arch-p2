@@ -15,8 +15,8 @@ Adotar JWT com as seguintes especificações:
 - **Tempo de vida**: 15 minutos por token
 - **Claims customizados**: `Papel` (Enum do domínio) incluído no payload
 - **Transporte**: exclusivamente via header `Authorization: Bearer <token>` (sem cookies)
-- **Refresh tokens**: token de renovação com rotação e TTL configurável (RF-013, resolvido via ADR-010)
-- **Revogação**: tabela `tokens_revogados` com JTI; logout invalida o token corrente (RF-012, resolvido via ADR-010)
+- **Refresh tokens**: token de renovação com rotação e TTL configurável (RF-013)
+- **Revogação**: tabela `tokens_revogados` com JTI; logout invalida o token corrente (RF-012)
 
 ## Alternativas Consideradas
 
@@ -74,4 +74,4 @@ Delegação de autenticação para um provedor de identidade (Keycloak, Auth0, e
 
 ## Decisões Relacionadas
 
-- [ADR-010](010-resolver-tech-debt-em-f1.md): Resolver dívida técnica em F1 — refresh tokens (TD-006) e revogação JWT (TD-003) resolvidos como itens de tech debt dentro da Fase 1
+

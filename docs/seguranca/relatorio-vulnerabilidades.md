@@ -22,10 +22,10 @@ Ferramentas utilizadas:
 
 | # | Severidade | Descrição | CVSS | Status | Mitigação |
 |---|---|---|---|---|---|
-| 1 | Baixa | CPF/CNPJ armazenado em texto plano | 3.1 | Em remediação | Encriptação via pgcrypto no MVP (RF-011, ADR-010). |
-| 2 | Informativo | Sem endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) | — | Em remediação | Implementação no MVP (RF-015, ADR-010). |
+| 1 | Baixa | CPF/CNPJ armazenado em texto plano | 3.1 | Em remediação | Encriptação via pgcrypto no MVP (RF-011). |
+| 2 | Informativo | Sem endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) | — | Em remediação | Implementação no MVP (RF-015). |
 | 3 | Informativo | Sem mecanismo de consentimento explícito | — | Risco aceito | Escopo do MVP não inclui coleta de consentimento. |
-| 4 | Informativo | JWT ainda sem revogação e sem refresh tokens implementados | 2.0 | Em remediação | Tabela `tokens_revogados` com JTI e refresh tokens com rotação (RF-012, RF-013, ADR-010). |
+| 4 | Informativo | JWT ainda sem revogação e sem refresh tokens implementados | 2.0 | Em remediação | Tabela `tokens_revogados` com JTI e refresh tokens com rotação (RF-012, RF-013). |
 
 ## Conformidade LGPD
 
@@ -33,10 +33,10 @@ Ferramentas utilizadas:
 |---|---|---|
 | Mascaramento de dados sensíveis em respostas | Planejado (CPF/CNPJ mascarado em listagens) | — |
 | Remoção de PII em logs | Planejado (processador structlog) | Criptografia em nível de campo |
-| Armazenamento de CPF/CNPJ | Em remediação — encriptação via pgcrypto (RF-011, ADR-010) | — |
-| Direito de acesso (Art. 18, I) | Em remediação (RF-015, ADR-010) | Endpoint `GET /clientes/{id}/dados-pessoais` |
-| Portabilidade (Art. 18, V) | Em remediação (RF-015, ADR-010) | Endpoint de exportação JSON |
-| Exclusão (Art. 18, VI) | Em remediação (RF-015, ADR-010) | Anonimização com preservação de histórico de OS |
+| Armazenamento de CPF/CNPJ | Em remediação — encriptação via pgcrypto (RF-011) | — |
+| Direito de acesso (Art. 18, I) | Em remediação (RF-015) | Endpoint `GET /clientes/{id}/dados-pessoais` |
+| Portabilidade (Art. 18, V) | Em remediação (RF-015) | Endpoint de exportação JSON |
+| Exclusão (Art. 18, VI) | Em remediação (RF-015) | Anonimização com preservação de histórico de OS |
 | Consentimento | Não implementado | Mecanismo de opt-in na criação de cliente |
 
 ## Análise Estática e Qualidade (SonarQube)
@@ -86,5 +86,5 @@ Ferramentas utilizadas:
 
 - [Tech Debt](../tech-debt.md) — Dívida técnica e mapeamento MVP
 - [ADR-004](../arquitetura/adr/004-autenticacao-jwt.md) — Autenticação JWT
-- [ADR-010](../arquitetura/adr/010-resolver-tech-debt-em-f1.md) — Resolução de tech debt na F1
+
 - [Requisitos](../requisitos/requisitos.md) — RF-011, RF-012, RF-013, RF-015, RF-019

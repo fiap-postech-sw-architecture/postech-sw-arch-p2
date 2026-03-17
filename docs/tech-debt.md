@@ -1,6 +1,6 @@
 # Dívida Técnica
 
-Registro de decisões conscientes de simplificação no MVP que serão endereçadas em versões iterativas dentro da Fase 1. Ver [ADR-010](arquitetura/adr/010-resolver-tech-debt-em-f1.md) para a decisão e justificativa.
+Registro de decisões conscientes de simplificação no MVP que serão endereçadas em versões iterativas dentro da Fase 1.
 
 ## Versões MVP
 

@@ -85,4 +85,4 @@ Todo o código em português, incluindo padrões técnicos: `RepositorioOrdemDeS
 
 ## Decisões Relacionadas
 
-- [ADR-011](011-validacao-documentos-brutils.md): Validação com brutils — encapsula API em inglês da biblioteca dentro de Value Objects com interface em português, seguindo este ADR
+- [ADR-010](010-validacao-documentos-brutils.md): Validação com brutils — encapsula API em inglês da biblioteca dentro de Value Objects com interface em português, seguindo este ADR

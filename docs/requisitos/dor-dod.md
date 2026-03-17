@@ -41,7 +41,7 @@ Mapeamento de cada user story contra os checklists DoR e DoD:
 
 | US | Descrição | DoR atendido? | Evidência DoR | DoD checklist |
 |---|---|---|---|---|
-| US-001 | Cadastrar cliente CPF/CNPJ | Sim | RF-001, ADR-011, US com AC | Código + testes + PR + Docker |
+| US-001 | Cadastrar cliente CPF/CNPJ | Sim | RF-001, ADR-010, US com AC | Código + testes + PR + Docker |
 | US-002 | Vincular veículos | Sim | RF-002, modelo de domínio | Código + testes + PR + Docker |
 | US-003 | Criar OS | Sim | RF-003, mapa de contextos (ClientePort) | Código + testes cross-context + PR |
 | US-004 | Adicionar itens à OS | Sim | RF-003, RN-007, CatalogoPort | Código + testes + guard validado |

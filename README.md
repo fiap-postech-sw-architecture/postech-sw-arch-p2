@@ -54,8 +54,7 @@ A API estará disponível em `http://localhost:8000/docs` (Swagger UI).
 | [007](docs/arquitetura/adr/007-organizacao-contextos-delimitados.md) | Organização dos contextos delimitados | Aceito |
 | [008](docs/arquitetura/adr/008-bloqueio-pessimista-estoque.md) | Bloqueio pessimista de estoque | Aceito |
 | [009](docs/arquitetura/adr/009-decisao-de-idioma.md) | Modelo híbrido de idioma | Aceito |
-| [010](docs/arquitetura/adr/010-resolver-tech-debt-em-f1.md) | Resolver tech debt em F1 via MVPs | Aceito |
-| [011](docs/arquitetura/adr/011-validacao-documentos-brutils.md) | Validação CPF/CNPJ/Placa com brutils | Aceito |
+| [010](docs/arquitetura/adr/010-validacao-documentos-brutils.md) | Validação CPF/CNPJ/Placa com brutils | Proposta |
 
 ## Documentação
 
