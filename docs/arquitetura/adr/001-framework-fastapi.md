@@ -1,6 +1,6 @@
 # Usar FastAPI como framework web
 
-* Status: Aceito
+* Status: Proposta
 * Data: 2026-03-11
 
 ## Contexto e Problema

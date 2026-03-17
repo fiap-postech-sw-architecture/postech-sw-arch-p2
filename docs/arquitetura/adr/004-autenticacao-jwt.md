@@ -1,6 +1,6 @@
 # Usar JWT HS256 para autenticacao
 
-* Status: Aceito
+* Status: Proposta
 * Data: 2026-03-11
 
 ## Contexto e Problema

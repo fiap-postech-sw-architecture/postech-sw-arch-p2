@@ -1,6 +1,6 @@
 # Usar PostgreSQL 16 como banco de dados
 
-* Status: Aceito
+* Status: Proposta
 * Data: 2026-03-11
 
 ## Contexto e Problema
