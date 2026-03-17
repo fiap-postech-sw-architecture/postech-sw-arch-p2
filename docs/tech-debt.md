@@ -2,54 +2,17 @@
 
 > **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
 
-Registro de decisões conscientes de simplificação no MVP que serão endereçadas em versões iterativas dentro da Fase 1.
+Tech debt são decisões conscientes de débito — itens que sabemos estar incompletos ou ausentes na entrega atual e que aceitamos como limitação conhecida. Não são requisitos adiados nem funcionalidades desejadas; são simplificações deliberadas cujo custo de correção é aceito para o escopo do MVP.
 
-## Versões MVP
-
-| Versão | Foco | Semana | Tech Debt Incorporado |
-|---|---|---|---|
-| MVP-0.01 | Scaffolding: Docker, middlewares | S2 | TD-009, TD-010 |
-| MVP-0.02 | Spike: mapeamento imperativo go/no-go | S2 | — |
-| MVP-0.03 | Cliente + Veículo | S3 | TD-001, TD-005 |
-| MVP-0.04 | Catálogo + OS + orçamento complementar | S4 | TD-007, TD-008, TD-014 |
-| MVP-0.05 | Estoque + Auth (JWT, RBAC) | S5 | TD-003, TD-005 (RBAC completo), TD-006 |
-| MVP-0.06 | Integração cross-contexto, LGPD | S5–S6 | TD-002, TD-004, TD-011, TD-012 |
-| MVP-0.07 | Endurecimento: scans, cobertura | S6–S7 | TD-013, TD-015 |
-| MVP-1.0 | Docs + entrega | S8 | Consolidação |
+Funcionalidades que não serão implementadas no MVP estão classificadas como Could Have no [PRD](requisitos/prd.md). Requisitos que serão implementados estão nos respectivos RFs em [requisitos.md](requisitos/requisitos.md).
 
 ## Itens
 
-| # | Área | Descrição | Severidade | Versão MVP |
+| # | Área | Descrição | Severidade | Justificativa |
 |---|---|---|---|---|
-| TD-001 | Segurança | CPF/CNPJ armazenado em texto plano (LGPD Art. 46) | Alta | MVP-0.03 |
-| TD-002 | Segurança | Sem endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) | Alta | MVP-0.06 |
-| TD-003 | Segurança | JWT sem revogação (tokens curtos de 15 min) | Média | MVP-0.05 |
-| TD-004 | Segurança | Sem mecanismo de consentimento explícito | Média | MVP-0.06 |
-| TD-005 | Auth | Papel único (Admin). Mecânico usa Admin. | Baixa | MVP-0.03 / MVP-0.05 |
-| TD-006 | Auth | Sem refresh tokens | Baixa | MVP-0.05 |
-| TD-007 | Domínio | Sem histórico de orçamentos (substituição total) | Baixa | MVP-0.04 |
-| TD-008 | Domínio | Sem orçamentos complementares durante execução | Baixa | MVP-0.04 |
-| TD-009 | Infra | Segredo JWT em variável de ambiente (não em secrets) | Média | MVP-0.01 |
-| TD-010 | Infra | Sem CSP headers | Baixa | MVP-0.01 |
-| TD-011 | Observabilidade | Eventos de domínio despachados sincronamente in-process | Média | MVP-0.06 |
-| TD-012 | Observabilidade | Falha de despacho de evento não causa rollback | Média | MVP-0.06 |
-| TD-013 | API | Sem notificações push/email/SMS | Baixa | MVP-0.07 |
-| TD-014 | Domínio | Orcamento JSONB sem índices GIN (consultas limitadas) | Baixa | MVP-0.04 |
-| TD-015 | Testes | Mutation testing como meta, não requisito hard | Baixa | MVP-0.07 |
-
-## Estratégia de Corte
-
-Se o tempo apertar, cortar na ordem reversa de prioridade:
-
-1. TD-013 (notificações stub)
-2. TD-015 (mutation testing hard)
-3. TD-004 (consentimento LGPD)
-4. TD-007 (histórico orçamento)
-
-Inegociáveis: TD-001, TD-002, TD-003, TD-005, TD-006, TD-008, TD-009, TD-010, TD-011, TD-012, TD-014.
-
-## Critérios de Priorização
-
-- **Alta**: Risco de conformidade (LGPD) ou segurança.
-- **Média**: Limitação técnica com workaround aceitável.
-- **Baixa**: Melhoria de qualidade.
+| TD-001 | Segurança | Sem mecanismo de consentimento explícito LGPD | Média | Sabemos que é necessário para conformidade plena, mas aceitamos a limitação no MVP. Risco baixo sem coleta ativa de dados sensíveis além do cadastro. |
+| TD-002 | Domínio | Sem histórico de orçamentos (substituição total do JSONB) | Baixa | Orçamento existe como Value Object imutável, mas sem versionamento em array JSONB com timestamp. Funcionalidade parcial aceita. |
+| TD-003 | Infra | Sem CSP headers (Content-Security-Policy) | Baixa | Boa prática de segurança, mas sem front-end servido pela API o impacto é mínimo. Headers básicos (X-Content-Type-Options, HSTS) estão presentes. |
+| TD-004 | API | Notificações via stub (LogNotificacaoAdapter) | Baixa | Decisão consciente: o sistema funciona sem notificações reais (push, email, SMS). O adapter de log permite evolução futura sem mudança no domínio. |
+| TD-005 | Domínio | Orçamento JSONB sem índices GIN | Baixa | Performance aceitável no MVP com volume baixo de dados. Índices GIN seriam otimização prematura sem métricas de produção. |
+| TD-006 | Testes | Mutation testing como meta, não requisito hard | Baixa | Cobertura de linha (90%+) e branch (85%+) nos domínios principais já garante qualidade. Mutmut é bônus para validação adicional. |
