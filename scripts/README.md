@@ -1,15 +1,17 @@
 # Scripts
 
-Scripts utilitários para o projeto.
+Scripts de build e conversão de artefatos para a entrega da Fase 1.
 
 ## export-egn-to-svg.js
 
-Converte diagramas [egon.io](https://egon.io) (`.egn`) para SVG usando Puppeteer (headless Chrome).
+Converte diagramas [egon.io](https://egon.io) (`.egn`) para SVG usando Puppeteer (headless Chrome). Usado na entrega da Fase 1 para incluir os diagramas Domain Storytelling no PDF.
 
 ### Pré-requisitos
 
 - Node.js 18+
 - Puppeteer: `npm install puppeteer`
+
+O Puppeteer baixa automaticamente uma versão do Chromium (várias centenas de MB).
 
 ### Uso
 
@@ -21,21 +23,16 @@ node scripts/export-egn-to-svg.js
 node scripts/export-egn-to-svg.js --egn-dir path/to/egn --out-dir path/to/output
 ```
 
+O script encerra com código 1 se o diretório ou arquivos `.egn` não existirem.
+
 ### Como funciona
 
-1. Abre o egon.io em headless Chrome via Puppeteer
-2. Carrega cada arquivo `.egn` pelo input de upload da página
-3. Extrai o SVG renderizado diretamente do DOM
-4. Se a extração SVG falhar, salva um PNG como fallback
+Abre o egon.io em headless Chrome, carrega cada `.egn` pelo input de upload e extrai o SVG do DOM. Se a extração falhar, salva um screenshot PNG como fallback.
 
 ### Saída
 
-Um arquivo `.svg` por `.egn` no diretório de saída:
+Gera um `.svg` (ou `.png` em fallback) por `.egn` no diretório de saída, com o mesmo nome base.
 
-| Entrada | Saída |
-|---|---|
-| `oficina-recepcao-os.egn` | `oficina-recepcao-os.svg` |
-| `oficina-diagnostico-orcamento.egn` | `oficina-diagnostico-orcamento.svg` |
-| `oficina-execucao-entrega.egn` | `oficina-execucao-entrega.svg` |
-| `oficina-gestao-estoque.egn` | `oficina-gestao-estoque.svg` |
-| `oficina-acompanhamento-cliente.egn` | `oficina-acompanhamento-cliente.svg` |
+### Alternativa manual
+
+Se Puppeteer não estiver disponível, abrir cada `.egn` em https://egon.io, File → Export → SVG, salvar em `docs/entrega/assets/`.
