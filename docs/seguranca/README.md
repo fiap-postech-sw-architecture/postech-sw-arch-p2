@@ -1,5 +1,7 @@
 # Seguranca
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 Documentacao de seguranca do projeto, incluindo analise de vulnerabilidades e evidencias de scanning.
 
 ## Documentos

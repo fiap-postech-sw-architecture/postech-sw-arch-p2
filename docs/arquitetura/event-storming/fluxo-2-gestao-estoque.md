@@ -1,5 +1,7 @@
 # Event Storming — Fluxo 2: Gestão de Peças e Insumos
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 Fluxo de gerenciamento do estoque da oficina: cadastro de itens, controle de quantidade, reserva durante aprovação de orçamento e liberação em caso de cancelamento.
 
 ## Convenção de Cores

@@ -1,5 +1,7 @@
 # PRD — Sistema Integrado de Atendimento e Execução de Serviços
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 ## Declaração do Problema
 
 Uma oficina mecânica de médio porte opera com anotações manuais e planilhas, gerando erros na priorização de atendimentos, falhas no controle de peças, dificuldade no acompanhamento de serviços, perda de histórico e ineficiência nos fluxos de orçamento.

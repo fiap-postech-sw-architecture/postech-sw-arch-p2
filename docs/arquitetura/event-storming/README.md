@@ -1,5 +1,7 @@
 # Event Storming
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 Documentação do Event Storming do projeto, conforme exigido pelo Tech Challenge Fase 1.
 
 ## Fluxos

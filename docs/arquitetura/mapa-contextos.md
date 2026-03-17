@@ -1,5 +1,7 @@
 # Mapa de Contextos
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 5 contextos delimitados com padrões de integração DDD. Decisão de organização: [ADR-007](adr/007-organizacao-contextos-delimitados.md).
 
 ## Diagrama

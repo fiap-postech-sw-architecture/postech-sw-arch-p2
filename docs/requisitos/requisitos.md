@@ -1,5 +1,7 @@
 # Requisitos — Sistema Integrado de Atendimento e Execução de Serviços
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 ## Requisitos Funcionais
 
 | RF | Descrição | Critérios de Aceite | Origem Tech Challenge |

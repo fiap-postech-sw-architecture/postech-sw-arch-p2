@@ -1,5 +1,7 @@
 # Documento de Entrega — Fase 1
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 ## FIAP Pos Tech — Software Architecture (15SOAT)
 
 ---

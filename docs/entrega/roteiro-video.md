@@ -1,5 +1,7 @@
 # Roteiro do Vídeo — Fase 1
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 Duração alvo: ~14 minutos (1 min de folga dentro do limite de 15 min).
 
 ## Estrutura

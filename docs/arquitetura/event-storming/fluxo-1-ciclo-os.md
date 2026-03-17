@@ -1,5 +1,7 @@
 # Event Storming — Fluxo 1: Ciclo de Vida da Ordem de Serviço
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 Fluxo principal do sistema: desde o recebimento do veículo até a entrega ao cliente, incluindo operações CRUD administrativas de clientes, veículos e serviços.
 
 ## Convenção de Cores

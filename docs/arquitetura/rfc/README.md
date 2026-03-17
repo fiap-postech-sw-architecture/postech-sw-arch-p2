@@ -1,5 +1,7 @@
 # RFCs (Request for Comments)
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 Documentos de design tecnico que detalham decisoes arquiteturais significativas do sistema.
 
 ## Documentos

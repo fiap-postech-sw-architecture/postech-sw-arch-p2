@@ -1,5 +1,7 @@
 # Documento de Entrega — Fase 1
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 ## Dados do Grupo
 
 | Campo | Valor |

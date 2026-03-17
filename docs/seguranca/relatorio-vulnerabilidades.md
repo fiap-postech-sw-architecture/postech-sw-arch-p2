@@ -1,5 +1,7 @@
 # Relatório de Vulnerabilidades
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 > **Status**: Parcial — seções de ferramentas automatizadas aguardam execução do pipeline CI.
 
 ## Escopo

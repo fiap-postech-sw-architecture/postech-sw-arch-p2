@@ -1,5 +1,7 @@
 # Definition of Ready e Definition of Done — Oficina Mecânica
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 > Documento gerado com assistência de IA (Claude) e revisado pela equipe PytStop.
 > Segue os conceitos da Aula 09 aplicados ao projeto da oficina mecânica.
 

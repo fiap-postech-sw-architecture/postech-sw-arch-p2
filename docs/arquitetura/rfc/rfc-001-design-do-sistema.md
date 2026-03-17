@@ -4,6 +4,8 @@
 **Data**: 2026-03-11
 **Equipe**: PytStop (João Amaral, Allan Aurélio, Carlos Silva, Guilherme Sousa, Nicolas Gerbi)
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 ## 1. Arquitetura (DDD + Onion)
 
 ### Abordagem

@@ -1,5 +1,7 @@
 # Requisitos
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 Documentacao de requisitos do projeto, desde o desafio original ate o refinamento tecnico e criterios de qualidade.
 
 ## Documentos

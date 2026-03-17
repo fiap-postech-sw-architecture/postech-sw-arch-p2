@@ -1,5 +1,7 @@
 # Modelo de Domínio
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 Diagramas de classes por agregado.
 
 ## Agregado: OrdemDeServico (Principal)

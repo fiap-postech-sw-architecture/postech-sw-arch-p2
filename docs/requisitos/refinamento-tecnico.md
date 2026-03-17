@@ -1,5 +1,7 @@
 # Refinamento Técnico — Oficina Mecânica
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 > Refinamento técnico gerado com assistência de IA (Claude) e revisado pela equipe PytStop.
 > Segue a metodologia da Aula 08 aplicada ao domínio da oficina mecânica.
 

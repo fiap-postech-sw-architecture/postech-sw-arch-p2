@@ -1,5 +1,7 @@
 # Glossário — Linguagem Ubíqua
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 Termos do domínio mapeados para identificadores no código, seguindo o modelo híbrido (ADR-009): termos de negócio em português sem acentos, sufixos de padrão técnico em inglês.
 
 "OS" é a abreviação aceita para "Ordem de Serviço" em documentação, nomes de arquivo e mensagens de log.

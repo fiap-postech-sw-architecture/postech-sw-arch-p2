@@ -1,5 +1,7 @@
 # Domain Storytelling
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 Diagramas pictográficos que capturam histórias do dia a dia da oficina: quem faz o quê, com quais objetos de trabalho, em que sequência.
 
 > Diagramas gerados com assistência de IA (Claude) e revisados manualmente pela equipe no [egon.io](https://egon.io).

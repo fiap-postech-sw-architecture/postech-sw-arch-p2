@@ -1,5 +1,7 @@
 # Dívida Técnica
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 Registro de decisões conscientes de simplificação no MVP que serão endereçadas em versões iterativas dentro da Fase 1.
 
 ## Versões MVP

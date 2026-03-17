@@ -1,5 +1,7 @@
 # Workshop de Event Storming — Oficina Mecânica
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 > Workshop simulado com especialistas fictícios representando papéis típicos de uma oficina
 > mecânica de médio porte. Gerado com assistência de IA (Claude) e revisado pela equipe PytStop.
 > [Perfis completos](../domain-storytelling/especialistas-de-dominio.md).

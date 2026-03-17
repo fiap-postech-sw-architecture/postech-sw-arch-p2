@@ -1,5 +1,7 @@
 # Entrega
 
+> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+
 Artefatos relacionados a entrega da Fase 1 do Tech Challenge FIAP.
 
 ## Documentos
