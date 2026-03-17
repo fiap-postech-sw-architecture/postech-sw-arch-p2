@@ -2,7 +2,7 @@
 
 **Status**: Aceito
 **Data**: 2026-03-11
-**Autor**: João Amaral
+**Equipe**: PytStop (João Amaral, Allan Aurélio, Carlos Silva, Guilherme Sousa, Nicolas Gerbi)
 
 ## 1. Arquitetura (DDD + Onion)
 
