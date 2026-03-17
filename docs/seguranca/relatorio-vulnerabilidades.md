@@ -80,13 +80,13 @@ Ferramentas utilizadas:
 ## Recomendações para Produção
 
 1. Adicionar WAF com rate limiting por usuário autenticado
-2. Migrar segredo JWT para KMS (mitigado no MVP via validação de comprimento no startup — TD-009)
-3. Adicionar CSP headers (implementado no MVP — TD-010)
-4. Implementar mecanismo de consentimento explícito (planejado no MVP — RF-019, TD-004)
+2. Migrar segredo JWT para KMS (mitigado no MVP via validação de comprimento no startup)
+3. Adicionar CSP headers (TD-003)
+4. Implementar mecanismo de consentimento explícito (RF-019, TD-001)
 
 ## Referências
 
-- [Tech Debt](../tech-debt.md) — Dívida técnica e mapeamento MVP
+- [Tech Debt](../tech-debt.md) — Dívida técnica
 - [ADR-004](../arquitetura/adr/004-autenticacao-jwt.md) — Autenticação JWT
 
 - [Requisitos](../requisitos/requisitos.md) — RF-011, RF-012, RF-013, RF-015, RF-019
