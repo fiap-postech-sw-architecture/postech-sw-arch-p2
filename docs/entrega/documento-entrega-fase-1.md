@@ -8,10 +8,18 @@
 
 | Campo | Valor |
 |---|---|
-| Nome | Solo (individual) |
-| Participante | João Amaral |
-| Discord | jbamaral |
+| Nome do grupo | PytStop |
 | Turma | 15SOAT |
+
+#### Membros
+
+| Nome | Discord |
+|---|---|
+| João Amaral | jbamaral |
+| Allan Aurélio | PLACEHOLDER |
+| Carlos Silva | PLACEHOLDER |
+| Guilherme Sousa | PLACEHOLDER |
+| Nicolas Gerbi | PLACEHOLDER |
 
 ---
 
