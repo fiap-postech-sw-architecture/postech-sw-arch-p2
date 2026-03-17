@@ -59,6 +59,100 @@ Todas as user stories atendem ao DoR: cada uma tem requisito funcional mapeado, 
 
 ---
 
+## 4. DoR e DoD por Entregável
+
+Além das user stories, cada artefato da entrega tem seus próprios critérios de prontidão e conclusão.
+
+### 4.1 Documentação DDD
+
+**DoR — Pronto para documentar:**
+
+- [ ] Aulas 01-09 assistidas e anotadas
+- [ ] Domínio da oficina compreendido (entrevistas com especialistas realizadas)
+- [ ] Ferramentas de diagramação disponíveis (egon.io, Mermaid)
+- [ ] Glossário de termos de domínio iniciado
+
+**DoD — Documentação concluída:**
+
+- [ ] Glossário com todos os termos da linguagem ubíqua ([glossario.md](glossario.md))
+- [ ] Mapa de contextos delimitados com padrões de integração ([mapa-contextos.md](../arquitetura/mapa-contextos.md))
+- [ ] 5 diagramas de Domain Storytelling em .egn ([domain-storytelling/](../arquitetura/domain-storytelling/))
+- [ ] Event Storming com 2 fluxos detalhados ([event-storming/](../arquitetura/event-storming/))
+- [ ] Modelo de domínio com agregados e value objects ([modelo-dominio.md](../arquitetura/modelo-dominio.md))
+- [ ] ADRs para decisões relevantes ([adr/](../arquitetura/adr/))
+- [ ] RFC de design do sistema ([RFC-001](../arquitetura/rfc/rfc-001-design-do-sistema.md))
+- [ ] Referências bibliográficas em todos os documentos
+
+### 4.2 Codigo-fonte
+
+**DoR — Pronto para implementar:**
+
+- [ ] Documentação DDD concluída (DoD 4.1 atendido)
+- [ ] Arquitetura definida em ADR-003 (DDD + Onion)
+- [ ] User stories com critérios de aceite no PRD
+- [ ] Ambiente de desenvolvimento configurado (Python 3.12+, Docker)
+
+**DoD — Codigo-fonte concluído:**
+
+- [ ] Todos os bounded contexts implementados seguindo Onion Architecture
+- [ ] Cobertura de testes >= 80% nos domínios críticos (Ordem de Servico, Estoque)
+- [ ] Testes unitários e de integração passando
+- [ ] Autenticação JWT funcional
+- [ ] Swagger/OpenAPI gerado automaticamente
+- [ ] Docker Compose funcional (`docker-compose up` sobe todo o sistema)
+- [ ] Migrações de banco aplicadas automaticamente no startup
+- [ ] Code review aprovado em todas as PRs
+
+### 4.3 Relatorio de vulnerabilidades
+
+**DoR — Pronto para análise:**
+
+- [ ] Código-fonte concluído (DoD 4.2 atendido)
+- [ ] Ferramentas de scanning configuradas (bandit, pip-audit, trivy)
+- [ ] Docker image buildada
+
+**DoD — Relatório concluído:**
+
+- [ ] Scanning estático de código executado (bandit)
+- [ ] Auditoria de dependências executada (pip-audit)
+- [ ] Scanning de container executado (trivy)
+- [ ] Vulnerabilidades críticas e altas resolvidas ou justificadas
+- [ ] Relatório documentado com evidências ([relatorio-vulnerabilidades.md](../seguranca/relatorio-vulnerabilidades.md))
+
+### 4.4 Video de demonstração
+
+**DoR — Pronto para gravar:**
+
+- [ ] Código-fonte concluído (DoD 4.2 atendido)
+- [ ] Roteiro do vídeo escrito ([roteiro-video.md](../entrega/roteiro-video.md))
+- [ ] Ambiente de demonstração funcional
+- [ ] Ferramenta de gravação preparada
+
+**DoD — Video concluído:**
+
+- [ ] Duração dentro do limite estabelecido
+- [ ] Demonstração de todos os fluxos principais (CRUD cliente, ciclo OS, estoque)
+- [ ] Arquitetura explicada brevemente
+- [ ] Qualidade de áudio e vídeo adequada
+- [ ] Upload realizado na plataforma indicada
+
+### 4.5 PDF de entrega
+
+**DoR — Pronto para montar:**
+
+- [ ] Todos os entregáveis anteriores concluídos (DoD 4.1-4.4)
+- [ ] Template de entrega disponível
+
+**DoD — PDF concluído:**
+
+- [ ] Link do repositório GitHub incluso
+- [ ] Links de documentação acessíveis
+- [ ] Link do vídeo incluso
+- [ ] Checklist de entrega preenchido ([entrega-fase-1.md](../entrega/entrega-fase-1.md))
+- [ ] PDF exportado e submetido na plataforma FIAP
+
+---
+
 ## Referências
 
 ARAUJO, V. Definition of Ready (DoR) — Mais qualidade no Product Backlog. 2021. Disponível em: <https://www.zup.com.br/blog/definition-of-ready-dor>.
