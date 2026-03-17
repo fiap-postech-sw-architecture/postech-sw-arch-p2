@@ -15,7 +15,7 @@ Marty Cagan identifica 4 riscos no desenvolvimento de produtos digitais (CAGAN, 
 | Risco | Aplicação à Oficina | Mitigação | Status |
 |---|---|---|---|
 | **Valor** | O sistema resolve dores reais? Seu Carlos: "saber onde cada carro está". Dona Marta: "achar informação — perco quinze minutos". Fabio: "três dias sem saber de nada" | Entrevistas com 5 especialistas validaram as dores. Domain Storytelling confirmou os fluxos | Mitigado |
-| **Negócio** | Agrega ao objetivo da oficina? Viável financeiramente? Risco legal? | Back-end MVP sem front-end. LGPD considerada (Technical Debt TD-001 encriptacao PII, TD-002 endpoints Art. 18). Stack open source sem custo de licenciamento | Mitigado |
+| **Negócio** | Agrega ao objetivo da oficina? Viável financeiramente? Risco legal? | Back-end MVP sem front-end. LGPD considerada (RF-011 encriptação PII, RF-015 endpoints Art. 18). Stack open source sem custo de licenciamento | Mitigado |
 | **Usabilidade** | Solução será adotada? Experiência intuitiva? | MVP é API-only (sem UI). Consulta pública simples (placa + documento). Swagger para admins | Risco aceito (sem UI no MVP) |
 | **Técnico** | Time tem recursos? Stack viável? | Python 3.12 + FastAPI + SQLAlchemy 2.0 + PostgreSQL. Spike de 4h para imperative mapping ([ADR-006](../arquitetura/adr/006-mapeamento-imperativo-sqlalchemy.md)) | Mitigado via ADRs |
 
