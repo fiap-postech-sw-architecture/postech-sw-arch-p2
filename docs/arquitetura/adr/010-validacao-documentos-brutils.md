@@ -1,6 +1,6 @@
 # Usar brutils para validação de CPF, CNPJ e Placa
 
-* Status: Aceito
+* Status: Proposta
 * Data: 2026-03-12
 
 ## Contexto e Problema
