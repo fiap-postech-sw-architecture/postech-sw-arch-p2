@@ -33,7 +33,7 @@ graph LR
 
 | Contexto | Classificação | Agregados | Responsabilidade |
 |---|---|---|---|
-| **Ordem de Serviço** | Principal | `OrdemDeServico` | Ciclo de vida da OS (7 status), geração de orçamento, orquestração cross-contexto |
+| **Ordem de Serviço** | Principal | `OrdemDeServico` | Ciclo de vida da OS (7+1 status), geração de orçamento, orquestração cross-contexto |
 | **Cliente + Veículo** | Suporte | `Cliente`, `Veiculo` | Cadastro e validação de clientes (CPF/CNPJ) e seus veículos |
 | **Catálogo de Serviços** | Suporte | `ServicoOferecido` | Tipos de serviço disponíveis com preços |
 | **Estoque** | Principal | `ItemEstoque` | Peças e insumos com reserva pessimista e controle de quantidade |

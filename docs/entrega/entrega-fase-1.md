@@ -54,7 +54,7 @@
 - README.md com instruções de uso
 - Dockerfile e docker-compose.yml
 - APIs RESTful documentadas via Swagger
-- Testes automatizados com cobertura >= 90% nos domínios principais
+- Testes automatizados com cobertura >= 80% nos domínios críticos (meta interna: 90%+ em OS e Estoque)
 
 ## Relatório de Vulnerabilidades (Resumo)
 

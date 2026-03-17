@@ -64,6 +64,12 @@ Biblioteca para validação de documentos brasileiros. Suporta CPF, CNPJ, CNH, R
 * Dependências transitivas (`holidays`, `num2words`) aumentam superfície de atualização
 * Nomes de API em inglês (`is_valid_cpf`) no meio de código em português — mitigado pelo encapsulamento nos Value Objects, que expõem apenas a interface em português (ADR-009)
 
+## Decisões Relacionadas
+
+- [ADR-003](003-arquitetura-ddd-onion.md): DDD com Arquitetura Onion — exceção justificada à regra de isolar dependências externas do domínio
+- [ADR-005](005-estrategia-testes.md): Estratégia de testes — `generate_cpf`/`generate_cnpj` do brutils alinhados com a estratégia de dados de teste
+- [ADR-009](009-decisao-de-idioma.md): Modelo híbrido de idioma — API em inglês do brutils encapsulada por Value Objects com interface em português
+
 ## Notas
 
 * PyPI: https://pypi.org/project/brutils/

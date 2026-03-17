@@ -56,6 +56,10 @@
 * [consequência negativa 2]
 * …
 
+## Decisões Relacionadas
+
+- [ADR-NNN](NNN-exemplo.md): Descrição curta da relação com esta decisão
+
 ## Notas
 
 [Informações adicionais, links, referências.]

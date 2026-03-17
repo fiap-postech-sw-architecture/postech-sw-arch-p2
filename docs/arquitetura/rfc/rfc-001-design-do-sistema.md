@@ -287,7 +287,7 @@ DomainException (base)
 
 ### Categorias de teste
 
-1. **Máquina de estados**: 9 transições válidas, 40 inválidas (7×7 − 9 = 40, incluindo auto-transições como inválidas), 7 guardas, testes de concorrência. Verificação explícita de que estados terminais (Cancelada, Entregue) rejeitam qualquer transição.
+1. **Máquina de estados**: 12 transições válidas (9 base + 3 do orçamento complementar RF-016), 52 inválidas (8×8 − 12 = 52, incluindo auto-transições como inválidas), 7 guardas, testes de concorrência. Verificação explícita de que estados terminais (Cancelada, Entregue) rejeitam qualquer transição.
 2. **Cancelamento**: efeitos colaterais por estado de origem
 3. **Objetos de valor**: igualdade, imutabilidade, hashability, round-trip JSONB
 4. **CPF/CNPJ/Placa**: fronteiras (válido, inválido, formatação, dígitos iguais)
@@ -336,3 +336,7 @@ outbox {
 - [PRD](../../requisitos/prd.md) — Personas, user stories
 - [Event Storming](../event-storming/) — Fluxos de domínio
 - [Tech Challenge](../../requisitos/desafio-tech-fase-1.md) — Especificação original
+- [ADR-003](../adr/003-arquitetura-ddd-onion.md) — Arquitetura DDD + Onion
+- [ADR-004](../adr/004-autenticacao-jwt.md) — Autenticação JWT
+- [ADR-008](../adr/008-bloqueio-pessimista-estoque.md) — Bloqueio pessimista de estoque
+- [ADR-010](../adr/010-resolver-tech-debt-em-f1.md) — Resolução de tech debt na F1

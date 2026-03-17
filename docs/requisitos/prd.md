@@ -106,7 +106,7 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 ### Must Have (Obrigatório — Entregáveis do Tech Challenge)
 
 - Cadastro e gestão de clientes (CPF/CNPJ) e veículos
-- Ciclo completo da OS (7 status, máquina de estados)
+- Ciclo completo da OS (7 status base, máquina de estados)
 - Geração e aprovação de orçamento
 - Gestão de estoque com reserva atômica
 - Consulta pública de acompanhamento
@@ -154,7 +154,7 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 
 ## Critérios de Sucesso
 
-1. Requisitos funcionais RF-001 a RF-010 implementados e testados. RF-011 a RF-019 conforme estratégia de corte em tech-debt.md
+1. Requisitos funcionais RF-001 a RF-010 implementados e testados. RF-011 a RF-019 conforme estratégia de corte em [tech-debt.md](../tech-debt.md)
 2. Cobertura de testes >= 90% nos domínios principais (OS e Estoque), >= 80% nos demais
 3. Docker-compose funcional com `docker-compose up` e migrações automáticas
 4. Swagger UI acessível em desenvolvimento com todos os endpoints documentados

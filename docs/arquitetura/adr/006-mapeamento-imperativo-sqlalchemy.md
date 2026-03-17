@@ -82,3 +82,8 @@ Usar queries SQL diretamente nos repositórios, sem mapeamento objeto-relacional
 * A função `iniciar_mapeamentos()` concentra toda a configuração de relacionamentos, podendo ficar extensa
 * O guard de idempotência adiciona complexidade na inicialização
 * Desenvolvedores familiarizados apenas com o declarativo precisarão de tempo de adaptação
+
+## Decisões Relacionadas
+
+- [ADR-003](003-arquitetura-ddd-onion.md): DDD com Arquitetura Onion — o mapeamento imperativo é a técnica que viabiliza o isolamento do domínio exigido pela Onion Architecture
+- [ADR-002](002-banco-postgresql.md): PostgreSQL como banco de dados — o mapeamento imperativo usa Table() com tipos específicos do PostgreSQL (ENUM, JSONB)

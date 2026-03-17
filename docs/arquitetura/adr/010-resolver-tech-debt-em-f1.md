@@ -1,6 +1,6 @@
 # Resolver toda a dívida técnica dentro da Fase 1 via MVPs iterativos
 
-* Status: aceito
+* Status: Aceito
 * Data: 2026-03-12
 
 ## Contexto e Problema

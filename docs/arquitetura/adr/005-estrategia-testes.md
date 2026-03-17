@@ -74,3 +74,8 @@ Substituir o repositório real por mocks em todos os testes de integração.
 * Testes são mais lentos que alternativas in-memory, mesmo com paralelismo
 * Testcontainers exige Docker instalado e em execução no ambiente de desenvolvimento e no CI
 * Configuração inicial do ambiente de testes é mais complexa que SQLite ou mocks
+
+## Decisões Relacionadas
+
+- [ADR-002](002-banco-postgresql.md): PostgreSQL como banco de dados — testcontainers garante que testes exercitam o mesmo banco de produção, incluindo ENUM e SELECT FOR UPDATE
+- [ADR-008](008-bloqueio-pessimista-estoque.md): Bloqueio pessimista — testes de integração com PostgreSQL real validam o comportamento de SELECT FOR UPDATE NOWAIT

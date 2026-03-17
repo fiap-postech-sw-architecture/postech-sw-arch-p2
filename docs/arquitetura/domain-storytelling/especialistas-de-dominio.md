@@ -421,7 +421,7 @@ Termos que surgiram nas entrevistas e que compõem a **Linguagem Ubíqua** do pr
 
 ### 8.3 Etapas do Fluxo (Estados da OS)
 
-> Os especialistas descreveram 11 estados nas entrevistas. O sistema implementa 7 — os demais foram combinados ou absorvidos em transições internas. Ver [Glossário (`StatusOrdem`)](../../requisitos/glossario.md) e [ADR-007](../adr/007-organizacao-contextos-delimitados.md).
+> Os especialistas descreveram 11 estados nas entrevistas. O sistema implementa 8 (7 base + AguardandoAprovacaoComplementar via RF-016) — os demais foram combinados ou absorvidos em transições internas. Ver [Glossário (`StatusOrdem`)](../../requisitos/glossario.md) e [ADR-007](../adr/007-organizacao-contextos-delimitados.md).
 
 1. **Aguardando Serviço** — OS aberta, veículo na fila
 2. **Em Diagnóstico** — mecânico investigando o problema

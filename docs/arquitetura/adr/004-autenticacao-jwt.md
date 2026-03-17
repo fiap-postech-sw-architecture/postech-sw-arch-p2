@@ -71,3 +71,7 @@ Delegação de autenticação para um provedor de identidade (Keycloak, Auth0, e
 * Refresh tokens com rotação aumentam a superfície de ataque se o token de renovação for comprometido
 * HS256 usa chave simétrica compartilhada; em cenários multi-serviço, RS256 seria mais adequado
 * O tempo de vida curto (15 min) pode impactar a experiência do usuário em operações longas
+
+## Decisões Relacionadas
+
+- [ADR-010](010-resolver-tech-debt-em-f1.md): Resolver dívida técnica em F1 — refresh tokens (TD-006) e revogação JWT (TD-003) resolvidos como itens de tech debt dentro da Fase 1

@@ -44,7 +44,7 @@ Se o tempo apertar, cortar na ordem reversa de prioridade:
 3. TD-004 (consentimento LGPD)
 4. TD-007 (histórico orçamento)
 
-Inegociáveis: TD-001, TD-003, TD-006, TD-009, TD-010, TD-011, TD-012, TD-014.
+Inegociáveis: TD-001, TD-002, TD-003, TD-005, TD-006, TD-008, TD-009, TD-010, TD-011, TD-012, TD-014.
 
 ## Critérios de Priorização
 

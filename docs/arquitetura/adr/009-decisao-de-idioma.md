@@ -82,3 +82,7 @@ Todo o código em português, incluindo padrões técnicos: `RepositorioOrdemDeS
 * A mistura de idiomas exige disciplina e convenções claras para manter a consistência
 * Novos desenvolvedores precisam consultar o glossário para entender a convenção (mitigado por documentação em CONTRIBUTING.md)
 * Ferramentas de linting e spell-check podem sinalizar falsos positivos com palavras em português
+
+## Decisões Relacionadas
+
+- [ADR-011](011-validacao-documentos-brutils.md): Validação com brutils — encapsula API em inglês da biblioteca dentro de Value Objects com interface em português, seguindo este ADR

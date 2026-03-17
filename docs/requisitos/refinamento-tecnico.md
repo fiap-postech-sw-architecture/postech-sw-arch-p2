@@ -40,7 +40,7 @@ Spikes e POCs validam soluções técnicas antes do desenvolvimento. Registramos
 
 ## 3. Desenho da Arquitetura
 
-O sistema segue DDD com Onion Architecture em 4 camadas ([ADR-003](../arquitetura/adr/003-ddd-onion-architecture.md)):
+O sistema segue DDD com Onion Architecture em 4 camadas ([ADR-003](../arquitetura/adr/003-arquitetura-ddd-onion.md)):
 
 ```mermaid
 flowchart TD

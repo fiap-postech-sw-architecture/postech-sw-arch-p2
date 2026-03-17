@@ -79,3 +79,8 @@ Lock em memória (ou distribuído) na camada de aplicação para serializar aces
 * Contenção sob alta concorrência em itens populares (aceitável para a escala de uma oficina mecânica no MVP)
 * Depende de funcionalidade específica do PostgreSQL (`SELECT FOR UPDATE NOWAIT`) — não portável para bancos que não suportam essa sintaxe
 * O `UnitOfWork` compartilhado entre BCs (OS e Estoque) cria acoplamento transacional que pode precisar ser revisado em arquiteturas distribuídas futuras
+
+## Decisões Relacionadas
+
+- [ADR-002](002-banco-postgresql.md): PostgreSQL como banco de dados — `SELECT FOR UPDATE NOWAIT` é funcionalidade específica do PostgreSQL
+- [ADR-007](007-organizacao-contextos-delimitados.md): Organização dos contextos delimitados — a complexidade do bloqueio pessimista justifica Estoque como domínio Principal

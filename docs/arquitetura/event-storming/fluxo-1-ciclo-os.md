@@ -8,6 +8,7 @@ Fluxo principal do sistema: desde o recebimento do veículo até a entrega ao cl
 |---|---|---|
 | 🟠 Laranja | Evento de Domínio | Fato que aconteceu no passado |
 | 🔵 Azul | Comando | Intenção de ação disparada por um ator |
+| 🟡 Amarelo claro | Ator | Pessoa ou papel que dispara um comando |
 | 🟡 Amarelo | Agregado | Entidade raiz que processa o comando |
 | 🟢 Verde | Read Model | Projeção de dados consultada antes de um comando |
 | 🟣 Lilás | Política | Regra reativa — ao observar um evento, dispara outro comando |
@@ -205,3 +206,10 @@ sequenceDiagram
     Cli-->>OS: (cliente_id, veiculo_id)
     OS-->>Cliente: Status atual da OS
 ```
+
+## Relação com Outros Documentos
+
+- [Fluxo 2 — Gestão de Estoque](fluxo-2-gestao-estoque.md) — Detalhamento da reserva/liberação de estoque referenciada nos passos 6 e 7
+- [Workshop de Event Storming](workshop-event-storming.md) — Sessão que originou este fluxo
+- [Glossário — Linguagem Ubíqua](../../requisitos/glossario.md) — Termos de domínio mapeados para código
+- [Mapa de Contextos](../mapa-contextos.md) — Padrões de integração entre os 5 BCs

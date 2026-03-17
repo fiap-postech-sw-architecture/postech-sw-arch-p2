@@ -34,7 +34,7 @@ Duração alvo: ~14 minutos (1 min de folga dentro do limite de 15 min).
 - Walkthrough do fluxo 2: gestão de estoque
   - Reserva na aprovação, liberação no cancelamento
   - Bloqueio pessimista (SELECT FOR UPDATE NOWAIT)
-- Mostrar board Miro com os fluxos de Event Storming
+- Mostrar diagramas de Event Storming na documentação (Mermaid renderizado)
 
 ### 5. Demo ao Vivo (5 min)
 
@@ -54,6 +54,11 @@ Demonstrar o fluxo completo via Swagger UI:
 12. **Entregar**: `POST /ordens-de-servico/{id}/entrega`
 13. **Consulta pública**: `GET /acompanhamento?placa=ABC1D23&documento=12345678901`
 14. **Métricas**: `GET /ordens-de-servico/metricas`
+
+Demonstrar cancelamento (segunda OS):
+
+15. **Criar segunda OS** e avançar até EmExecucao (verificar estoque decrementado)
+16. **Cancelar OS em execução**: `POST /ordens-de-servico/{id}/cancelamento` (verificar estoque restaurado)
 
 ### 6. Code Walkthrough (2 min)
 

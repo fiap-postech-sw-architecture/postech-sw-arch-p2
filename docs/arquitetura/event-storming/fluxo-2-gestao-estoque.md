@@ -8,6 +8,7 @@ Fluxo de gerenciamento do estoque da oficina: cadastro de itens, controle de qua
 |---|---|---|
 | 🟠 Laranja | Evento de Domínio | Fato que aconteceu no passado |
 | 🔵 Azul | Comando | Intenção de ação disparada por um ator |
+| 🟡 Amarelo claro | Ator | Pessoa ou papel que dispara um comando |
 | 🟡 Amarelo | Agregado | Entidade raiz que processa o comando |
 | 🟢 Verde | Read Model | Projeção de dados consultada antes de um comando |
 | 🟣 Lilás | Política | Regra reativa — ao observar um evento, dispara outro comando |
@@ -95,6 +96,7 @@ Fluxo de gerenciamento do estoque da oficina: cadastro de itens, controle de qua
 |---|---|
 | 🔵 Comando | `DesativarItemEstoque(item_id)` |
 | 🟡 Agregado | `ItemEstoque` |
+| 🟠 Evento | `ItemEstoqueDesativadoEvent(item_id)` |
 | 🟣 Política | Rejeitado se quantidade > 0 ou se referenciado por OS ativas. Soft delete (flag `ativo = False`). |
 
 **Contexto**: Item de estoque só pode ser desativado quando não tem quantidade restante e não é referenciado por nenhuma OS ativa (Recebida → EmExecucao).
@@ -147,3 +149,10 @@ stateDiagram-v2
     Ativo --> Inativo: DesativarItemEstoque [qtd=0, sem OS ativas]
     Inativo --> [*]
 ```
+
+## Relação com Outros Documentos
+
+- [Fluxo 1 — Ciclo de Vida da OS](fluxo-1-ciclo-os.md) — Fluxo que aciona reserva (passo 6) e liberação (passo 7) de estoque
+- [Workshop de Event Storming](workshop-event-storming.md) — Sessão que originou este fluxo
+- [Glossário — Linguagem Ubíqua](../../requisitos/glossario.md) — Termos de domínio mapeados para código
+- [Mapa de Contextos](../mapa-contextos.md) — Padrões de integração entre os 5 BCs

@@ -72,3 +72,8 @@ Organização baseada em portas (interfaces) e adaptadores (implementações), s
 * Curva de aprendizado mais íngreme para membros da equipe sem experiência em DDD
 * Mais arquivos e indireções (ports, adapters, use cases) comparado a uma abordagem simples
 * Risco de over-engineering se a disciplina de camadas não for mantida ao longo do desenvolvimento
+
+## Decisões Relacionadas
+
+- [ADR-006](006-mapeamento-imperativo-sqlalchemy.md): Mapeamento imperativo do SQLAlchemy — garante que entidades de domínio permanecem como classes puras, sem herança de ORM
+- [ADR-007](007-organizacao-contextos-delimitados.md): Organização dos contextos delimitados — define as fronteiras dos Bounded Contexts dentro da estrutura Onion

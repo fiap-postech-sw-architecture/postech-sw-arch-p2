@@ -106,3 +106,8 @@ Manter apenas os 6 status definidos no enunciado do Tech Challenge, sem adiciona
 * O Value Object `Dinheiro` é usado em múltiplos BCs (Catalogo, Estoque, OS), podendo se tornar um Shared Kernel se divergir entre contextos
 * A comunicação entre BCs exige contratos claros (eventos de domínio ou interfaces anti-corrupção)
 * Cancelada como 7o status diverge do enunciado original (6 status) — justificativa documentada neste ADR
+
+## Decisões Relacionadas
+
+- [ADR-003](003-arquitetura-ddd-onion.md): DDD com Arquitetura Onion — os Bounded Contexts são organizados dentro da estrutura de camadas Onion
+- [ADR-008](008-bloqueio-pessimista-estoque.md): Bloqueio pessimista — detalha a complexidade técnica que justifica Estoque como domínio Principal

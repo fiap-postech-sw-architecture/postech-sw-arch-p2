@@ -37,7 +37,7 @@ O DoD define os critérios para considerar uma user story concluída. Todos os i
 
 ## 3. Aplicação ao Projeto
 
-Mapeamento de cada user story Must-Have contra os checklists DoR e DoD:
+Mapeamento de cada user story contra os checklists DoR e DoD:
 
 | US | Descrição | DoR atendido? | Evidência DoR | DoD checklist |
 |---|---|---|---|---|
@@ -55,7 +55,7 @@ Mapeamento de cada user story Must-Have contra os checklists DoR e DoD:
 | US-012 | Finalizar serviço | Sim | RF-005 | Código + teste transição |
 | US-013 | Consulta pública | Sim | RF-007, ClientePort | Código + teste sem auth |
 
-Todas as user stories Must-Have atendem ao DoR: cada uma tem requisito funcional mapeado, critérios de aceite no PRD, decisões técnicas em ADRs, e estimativa em story points.
+Todas as user stories atendem ao DoR: cada uma tem requisito funcional mapeado, critérios de aceite no PRD, decisões técnicas em ADRs, e estimativa em story points.
 
 ---
 

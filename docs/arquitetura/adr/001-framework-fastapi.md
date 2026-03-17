@@ -69,3 +69,7 @@ Framework completo construído sobre o Django, com serializers, viewsets e brows
 * Ecossistema menor que o Django para funcionalidades prontas (admin, CMS, etc.)
 * Menos battle-tested para monolitos grandes em produção comparado ao Django
 * Equipe pode precisar de tempo de adaptação se tiver experiência apenas com Flask ou Django
+
+## Decisões Relacionadas
+
+- [ADR-003](003-arquitetura-ddd-onion.md): DDD com Arquitetura Onion — a injeção de dependências nativa do FastAPI facilita a inversão de dependências exigida pela Onion Architecture

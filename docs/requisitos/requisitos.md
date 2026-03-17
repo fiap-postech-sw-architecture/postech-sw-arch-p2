@@ -8,7 +8,7 @@
 | RF-002 | Vinculação de veículo a cliente | Veículo criado via `POST /api/v1/clientes/{id}/veiculos` com placa, marca, modelo, ano. Placa única entre todos os clientes. Veículo sem ciclo de vida independente. | "Cadastro de veículo (placa, marca, modelo, ano)" + "CRUD de veículos" |
 | RF-003 | Criação de OS com itens | OS criada com status Recebida e zero itens. Itens adicionados/removidos em Recebida ou EmDiagnostico. Cada item referencia um serviço do catálogo e opcionalmente um item de estoque. | "Inclusão dos serviços solicitados" + "Possibilidade de incluir peças e insumos" |
 | RF-004 | Geração automática de orçamento | Orçamento calculado a partir dos itens da OS. Objeto de valor imutável armazenado como JSONB. Requer pelo menos 1 item. Transiciona de EmDiagnostico para AguardandoAprovacao. | "Orçamento gerado automaticamente com base nos serviços e peças" |
-| RF-005 | Máquina de estados da OS (7 status) | 7 status: Recebida, EmDiagnostico, AguardandoAprovacao, EmExecucao, Finalizada, Entregue, Cancelada. 9 transições válidas. Transições inválidas retornam 409. Cancelamento libera estoque se em EmExecucao. | "Status da OS" + "Alteração automática dos status" |
+| RF-005 | Máquina de estados da OS (7+1 status) | 7 status base: Recebida, EmDiagnostico, AguardandoAprovacao, EmExecucao, Finalizada, Entregue, Cancelada. 9 transições base. RF-016 adiciona AguardandoAprovacaoComplementar (8.o status, +3 transições). Transições inválidas retornam 409. Cancelamento libera estoque se em EmExecucao. | "Status da OS" + "Alteração automática dos status" |
 | RF-006 | Gestão de estoque (peças e insumos) | CRUD de itens de estoque com controle de quantidade. Reserva via `SELECT FOR UPDATE NOWAIT` na aprovação do orçamento. Tudo-ou-nada. Locks em ordem crescente de `item_id`. | "CRUD de peças e insumos, com controle de estoque" |
 | RF-007 | Consulta pública de acompanhamento | Consulta por placa + CPF/CNPJ sem autenticação. Retorna status atual da OS e serviços incluídos. Se houver múltiplas OS para a mesma placa+documento, retorna a mais recente (maior `criado_em`). | "Permitir consulta por parte do cliente via API" |
 | RF-008 | Tempo médio de execução por serviço | Endpoint `GET /api/v1/ordens-de-servico/metricas`. Calcula média ponderada por tempo de execução das OS finalizadas. OS sem itens excluída da agregação. | "Monitoramento do tempo médio de execução dos serviços" |
@@ -47,12 +47,12 @@
 
 | RN | Descrição | Contexto |
 |---|---|---|
-| RN-001 | Transições de status da OS seguem máquina de estados com 7 status e 9 transições válidas. Transição inválida levanta `TransicaoStatusInvalidaException` (409). | Ordem de Serviço |
-| RN-002 | Cancelamento possível a partir de Recebida, EmDiagnostico, AguardandoAprovacao e EmExecucao. Cancelamento de Finalizada e Entregue bloqueado (estados terminais junto com Cancelada). Motivo obrigatório quando cancelando em EmExecucao; nos demais estados de origem, motivo é opcional. | Ordem de Serviço |
+| RN-001 | Transições de status da OS seguem máquina de estados com 7 status base e 9 transições base (8 status e 12 transições com RF-016). Transição inválida levanta `TransicaoStatusInvalidaException` (409). | Ordem de Serviço |
+| RN-002 | Cancelamento possível a partir de Recebida, EmDiagnostico, AguardandoAprovacao e EmExecucao. Cancelamento bloqueado em Finalizada, Entregue e Cancelada (Entregue e Cancelada são estados terminais; Finalizada só transita para Entregue). Motivo obrigatório quando cancelando em EmExecucao; nos demais estados de origem, motivo é opcional. | Ordem de Serviço |
 | RN-003 | Cancelamento em EmExecucao libera estoque reservado. Nos demais status, sem efeitos colaterais de estoque. | Ordem de Serviço / Estoque |
 | RN-004 | Estoque reservado no momento da aprovação do orçamento (AguardandoAprovacao → EmExecucao), não antes. Reserva tudo-ou-nada. | Estoque |
 | RN-005 | Um cliente por CPF/CNPJ (unique). Tentativa de duplicata retorna 409. | Cliente |
-| RN-006 | Placa é única entre todos os clientes. Duplicata retorna 409. | Cliente |
+| RN-006 | Placa é única entre todos os clientes. Duplicata retorna 409. | Cliente + Veículo |
 | RN-007 | Itens da OS só podem ser adicionados/removidos nos status Recebida ou EmDiagnostico. | Ordem de Serviço |
 | RN-008 | Orçamento requer pelo menos 1 item para ser gerado. | Ordem de Serviço |
 | RN-009 | Cliente com OS ativas (Recebida → EmExecucao) não pode ser excluído. Soft delete quando todas as OS estão finalizadas/entregues/canceladas. | Cliente |
@@ -151,6 +151,7 @@ Base: `/api/v1/`
 |---|---|---|---|
 | POST | `/ordens-de-servico/{id}/orcamento-complementar` | Gerar orçamento complementar em EmExecucao (RF-016) | Admin |
 | POST | `/ordens-de-servico/{id}/aprovacao-complementar` | Aprovar orçamento complementar (RF-016) | Admin |
+| POST | `/ordens-de-servico/{id}/rejeicao-complementar` | Rejeitar orçamento complementar, retorna a EmExecucao (RF-016) | Admin |
 
 ### Saúde
 

@@ -29,6 +29,7 @@ Workshop estruturado em 10 passos progressivos, seguindo o método de Alberto Br
 |---|---|---|
 | 🟠 Laranja | Evento de Domínio | Fato que aconteceu no passado, nomeado no particípio |
 | 🔵 Azul | Comando | Intenção de ação disparada por um ator ou política |
+| 🟡 Amarelo claro | Ator | Pessoa ou papel que dispara um comando |
 | 🟡 Amarelo | Agregado | Entidade raiz que recebe o comando e emite o evento |
 | 🟢 Verde | Read Model | Projeção de dados consultada antes de um comando |
 | 🟣 Lilás | Política | Regra reativa — ao observar um evento, dispara outro comando |

@@ -9,7 +9,7 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 | Termo do Domínio | Identificador no Código | Definição |
 |---|---|---|
 | Ordem de Serviço (OS) | `OrdemDeServico` | Agregado raiz que representa o ciclo completo de atendimento a um veículo, desde o recebimento até a entrega. Contém itens e orçamento. |
-| Status da Ordem | `StatusOrdem` | Enum Python que define os 7 estados possíveis da OS no ciclo de vida. |
+| Status da Ordem | `StatusOrdem` | Enum Python que define os 8 estados possíveis da OS no ciclo de vida (7 base + AguardandoAprovacaoComplementar via RF-016). |
 | Recebida | `StatusOrdem.Recebida` | Estado inicial da OS, quando o veículo é registrado no sistema. |
 | Em diagnóstico | `StatusOrdem.EmDiagnostico` | Mecânico está avaliando o veículo para identificar serviços necessários. |
 | Aguardando aprovação | `StatusOrdem.AguardandoAprovacao` | Orçamento gerado e enviado ao cliente para aprovação. |
@@ -17,6 +17,7 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 | Finalizada | `StatusOrdem.Finalizada` | Todos os serviços concluídos; veículo pronto para retirada. |
 | Entregue | `StatusOrdem.Entregue` | Veículo devolvido ao cliente. Estado terminal. |
 | Cancelada | `StatusOrdem.Cancelada` | OS cancelada por rejeição de orçamento ou abandono. Estado terminal. Se cancelada em execução, estoque reservado é liberado. |
+| Aguardando aprovação complementar | `StatusOrdem.AguardandoAprovacaoComplementar` | Serviços adicionais descobertos durante execução aguardam aprovação do cliente (RF-016). Transita de EmExecucao e retorna a EmExecucao. |
 | Orçamento | `Orcamento` | Objeto de valor imutável com os itens precificados da OS. Armazenado como JSONB. Substituído integralmente quando itens mudam. |
 | Linha do Orçamento | `LinhaOrcamento` | Objeto de valor que representa uma linha individual do orçamento (serviço ou peça com quantidade e preço). |
 | Item da OS | `ItemDaOrdem` | Entidade dentro do agregado OrdemDeServico. Referencia um serviço do catálogo e opcionalmente um item de estoque. |

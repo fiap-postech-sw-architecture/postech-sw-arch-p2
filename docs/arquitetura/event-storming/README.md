@@ -18,6 +18,7 @@ Segue a convenção padrão de Event Storming (Alberto Brandolini):
 |---|---|---|
 | 🟠 Laranja | Evento de Domínio | Fato que aconteceu no passado, nomeado no particípio (ex: `OrcamentoAprovadoEvent`) |
 | 🔵 Azul | Comando | Intenção de ação disparada por um ator ou política (ex: `AprovarOrcamento`) |
+| 🟡 Amarelo claro | Ator | Pessoa ou papel que dispara um comando (ex: Admin, Mecânico, Cliente) |
 | 🟡 Amarelo | Agregado | Entidade raiz que recebe o comando e emite o evento (ex: `OrdemDeServico`) |
 | 🟢 Verde | Read Model | Projeção de dados consultada antes de um comando |
 | 🟣 Lilás | Política | Regra reativa — ao observar um evento, dispara outro comando |
