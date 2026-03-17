@@ -10,21 +10,21 @@
 | RF-002 | Vinculação de veículo a cliente | Veículo criado via `POST /api/v1/clientes/{id}/veiculos` com placa, marca, modelo, ano. Placa única entre todos os clientes. Veículo sem ciclo de vida independente. | "Cadastro de veículo (placa, marca, modelo, ano)" + "CRUD de veículos" |
 | RF-003 | Criação de OS com itens | OS criada com status Recebida e zero itens. Itens adicionados/removidos em Recebida ou EmDiagnostico. Cada item referencia um serviço do catálogo e opcionalmente um item de estoque. | "Inclusão dos serviços solicitados" + "Possibilidade de incluir peças e insumos" |
 | RF-004 | Geração automática de orçamento | Orçamento calculado a partir dos itens da OS. Objeto de valor imutável armazenado como JSONB. Requer pelo menos 1 item. Transiciona de EmDiagnostico para AguardandoAprovacao. | "Orçamento gerado automaticamente com base nos serviços e peças" |
-| RF-005 | Máquina de estados da OS (7+1 status) | 7 status base: Recebida, EmDiagnostico, AguardandoAprovacao, EmExecucao, Finalizada, Entregue, Cancelada. 9 transições base. RF-016 adiciona AguardandoAprovacaoComplementar (8.o status, +3 transições). Transições inválidas retornam 409. Cancelamento libera estoque se em EmExecucao. | "Status da OS" + "Alteração automática dos status" |
+| RF-005 | Máquina de estados da OS (7+1 status) | 7 status base: Recebida, EmDiagnostico, AguardandoAprovacao, EmExecucao, Finalizada, Entregue, Cancelada. 9 transições base. RF-016 adiciona AguardandoAprovacaoComplementar (8º status, +3 transições). Transições inválidas retornam 409. Cancelamento libera estoque se em EmExecucao. | "Status da OS" + "Alteração automática dos status" |
 | RF-006 | Gestão de estoque (peças e insumos) | CRUD de itens de estoque com controle de quantidade. Reserva via `SELECT FOR UPDATE NOWAIT` na aprovação do orçamento. Tudo-ou-nada. Locks em ordem crescente de `item_id`. | "CRUD de peças e insumos, com controle de estoque" |
 | RF-007 | Consulta pública de acompanhamento | Consulta por placa + CPF/CNPJ sem autenticação. Retorna status atual da OS e serviços incluídos. Se houver múltiplas OS para a mesma placa+documento, retorna a mais recente (maior `criado_em`). | "Permitir consulta por parte do cliente via API" |
 | RF-008 | Tempo médio de execução por serviço | Endpoint `GET /api/v1/ordens-de-servico/metricas`. Calcula média ponderada por tempo de execução das OS finalizadas. OS sem itens excluída da agregação. | "Monitoramento do tempo médio de execução dos serviços" |
 | RF-009 | Autenticação JWT | Login com credenciais retorna token JWT HS256 (15 min). Endpoints administrativos protegidos. Papel (Enum) no payload. Enforcement explícito de algoritmo no decode. | "Implementação de autenticação JWT para APIs administrativas" |
 | RF-010 | CRUD de serviços oferecidos | Cadastro, listagem, atualização e desativação de serviços do catálogo. Serviço referenciado por OS históricas não pode ser excluído (soft delete via flag `ativo`). | "CRUD de serviços" |
-| RF-011 | Encriptação de PII (CPF/CNPJ) | CPF/CNPJ armazenado com encriptação (pgcrypto ou app-level). Decriptação sob demanda para consultas autorizadas. | LGPD Art. 46 (TD-001) |
-| RF-012 | Revogação de JWT | Tabela de blacklist com JTI. Token revogado antes do `exp` é rejeitado. Logout invalida o token corrente. | Segurança (TD-003) |
-| RF-013 | Refresh tokens | Endpoint de renovação de token via refresh token com rotação. Refresh token com TTL configurável. | Segurança (TD-006) |
-| RF-014 | RBAC com Enum Papel | Papéis Admin e Mecanico com permissões diferenciadas. Mecânico não pode cadastrar clientes nem gerenciar estoque. | Auth (TD-005) |
-| RF-015 | Endpoints LGPD Art. 18 | Endpoints para acesso, portabilidade (export JSON) e exclusão (anonimização) dos dados pessoais do cliente. Cross-contexto. | LGPD Art. 18 (TD-002) |
-| RF-016 | Orçamento complementar | Transição EmExecucao → AguardandoAprovacaoComplementar → EmExecucao para serviços adicionais durante execução. | Domínio (TD-008) |
-| RF-017 | Histórico de orçamentos | Orçamentos anteriores mantidos como array JSONB com timestamp. Consulta do histórico via endpoint da OS. | Domínio (TD-007) |
-| RF-018 | Transactional outbox | Eventos de domínio persistidos em tabela `outbox` na mesma transação. Background task despacha eventos. | Observabilidade (TD-011, TD-012) |
-| RF-019 | Consentimento explícito | Registro de consentimento do cliente para tratamento de dados pessoais. Revogação via endpoint. | LGPD (TD-004) |
+| RF-011 | Encriptação de PII (CPF/CNPJ) | CPF/CNPJ armazenado com encriptação (pgcrypto ou app-level). Decriptação sob demanda para consultas autorizadas. | LGPD Art. 46 |
+| RF-012 | Revogação de JWT | Tabela de blacklist com JTI. Token revogado antes do `exp` é rejeitado. Logout invalida o token corrente. | Segurança |
+| RF-013 | Refresh tokens | Endpoint de renovação de token via refresh token com rotação. Refresh token com TTL configurável. | Segurança |
+| RF-014 | RBAC com Enum Papel | Papéis Admin e Mecanico com permissões diferenciadas. Mecânico não pode cadastrar clientes nem gerenciar estoque. | Auth |
+| RF-015 | Endpoints LGPD Art. 18 | Endpoints para acesso, portabilidade (export JSON) e exclusão (anonimização) dos dados pessoais do cliente. Cross-contexto. | LGPD Art. 18 |
+| RF-016 | Orçamento complementar | Transição EmExecucao → AguardandoAprovacaoComplementar → EmExecucao para serviços adicionais durante execução. | Domínio |
+| RF-017 | Histórico de orçamentos | Orçamentos anteriores mantidos como array JSONB com timestamp. Consulta do histórico via endpoint da OS. | Domínio (TD-002) |
+| RF-018 | Transactional outbox | Eventos de domínio persistidos em tabela `outbox` na mesma transação. Background task despacha eventos. | Observabilidade |
+| RF-019 | Consentimento explícito | Registro de consentimento do cliente para tratamento de dados pessoais. Revogação via endpoint. | LGPD (TD-001) |
 
 ## Requisitos Não-Funcionais
 
@@ -49,15 +49,15 @@
 
 | RN | Descrição | Contexto |
 |---|---|---|
-| RN-001 | Transições de status da OS seguem máquina de estados com 7 status base e 9 transições base (8 status e 12 transições com RF-016). Transição inválida levanta `TransicaoStatusInvalidaException` (409). | Ordem de Serviço |
-| RN-002 | Cancelamento possível a partir de Recebida, EmDiagnostico, AguardandoAprovacao e EmExecucao. Cancelamento bloqueado em Finalizada, Entregue e Cancelada (Entregue e Cancelada são estados terminais; Finalizada só transita para Entregue). Motivo obrigatório quando cancelando em EmExecucao; nos demais estados de origem, motivo é opcional. | Ordem de Serviço |
+| RN-001 | Transições de status da OS seguem máquina de estados com 7 status base e 9 transições base (8 status e 12 transições com RF-016). Transição inválida levanta `TransicaoStatusInvalidaException` (409). Ver [RFC-001 §4](../arquitetura/rfc/rfc-001-design-do-sistema.md) para diagrama. | Ordem de Serviço |
+| RN-002 | Cancelamento possível a partir de Recebida, EmDiagnostico, AguardandoAprovacao e EmExecucao. Bloqueado em estados terminais (Entregue, Cancelada) e em Finalizada (que só transita para Entregue). Motivo obrigatório em EmExecucao; opcional nos demais. | Ordem de Serviço |
 | RN-003 | Cancelamento em EmExecucao libera estoque reservado. Nos demais status, sem efeitos colaterais de estoque. | Ordem de Serviço / Estoque |
 | RN-004 | Estoque reservado no momento da aprovação do orçamento (AguardandoAprovacao → EmExecucao), não antes. Reserva tudo-ou-nada. | Estoque |
 | RN-005 | Um cliente por CPF/CNPJ (unique). Tentativa de duplicata retorna 409. | Cliente |
 | RN-006 | Placa é única entre todos os clientes. Duplicata retorna 409. | Cliente + Veículo |
 | RN-007 | Itens da OS só podem ser adicionados/removidos nos status Recebida ou EmDiagnostico. | Ordem de Serviço |
 | RN-008 | Orçamento requer pelo menos 1 item para ser gerado. | Ordem de Serviço |
-| RN-009 | Cliente com OS ativas (Recebida → EmExecucao) não pode ser excluído. Soft delete quando todas as OS estão finalizadas/entregues/canceladas. | Cliente |
+| RN-009 | Cliente com OS ativas (Recebida, EmDiagnostico, AguardandoAprovacao ou EmExecucao) não pode ser excluído. Soft delete quando todas as OS estão finalizadas/entregues/canceladas. | Cliente |
 | RN-010 | Serviço referenciado por ItemDaOrdem (incluindo OS históricas) não pode ser excluído. Pode ser desativado (soft delete). | Catálogo |
 | RN-011 | ItemEstoque com quantidade > 0 ou referenciado por OS ativas não pode ser excluído. | Estoque |
 | RN-012 | Bloqueio pessimista de estoque via `SELECT FOR UPDATE NOWAIT`. Locks adquiridos em ordem crescente de `item_id` para prevenir deadlocks. | Estoque |
