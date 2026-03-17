@@ -40,7 +40,7 @@ docker-compose up
 
 A API estará disponível em `http://localhost:8000/docs` (Swagger UI).
 
-## Decisões de Arquitetura (ADR — [MADR 3.0](https://adr.github.io/madr/))
+## Decisões de Arquitetura (Architecture Decision Records — Reference: [MADR 4.0.0](https://adr.github.io/madr/))
 
 | ADR | Título | Status |
 |---|---|---|
