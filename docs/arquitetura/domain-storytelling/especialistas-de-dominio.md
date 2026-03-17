@@ -59,8 +59,8 @@ Cada papel na oficina carrega conhecimento tácito — regras nunca escritas, ma
 
 ### 1.4 Orçamentista / Comprador de Peças
 
-- Monta orçamentos, consulta fornecedores, controla o estoque de peças
-- Conecta o diagnóstico técnico ao custo financeiro — sabe onde comprar cada peça, prazos de entrega, alternativas (original vs. paralela vs. desmanche)
+- **O que faz**: monta orçamentos, consulta fornecedores, controla o estoque de peças
+- **Relevância**: conecta o diagnóstico técnico ao custo financeiro — sabe onde comprar cada peça, prazos de entrega, alternativas (original vs. paralela vs. desmanche)
 - **Conhecimento exclusivo**: preços reais de mercado, quais fornecedores entregam rápido, margem de cada peça
 
 ### 1.5 Cliente
@@ -404,7 +404,7 @@ Termos que surgiram nas entrevistas e que compõem a **Linguagem Ubíqua** do pr
 | Ordem de Serviço (OS) | Documento central que registra tudo sobre o serviço | - |
 | Orçamento | Proposta de preço enviada ao cliente para aprovação | "cotação" (informal) |
 | Diagnóstico | Avaliação técnica feita pelo mecânico | "investigação", "análise" |
-| Queixa do Cliente | Descrição do problema nas palavras do cliente | "reclamação", "sintoma" |
+| Queixa do Cliente | Descrição do problema nas palavras do cliente. Termo canônico; evitar "reclamação" e "sintoma" no código e documentação técnica. | "reclamação", "sintoma" |
 | Veículo | Carro do cliente, identificado por placa, modelo, ano | "carro" |
 | Cliente | Pessoa que traz o veículo | "dono do carro", "proprietário" |
 | Peça | Componente necessário para o reparo | "material" |
@@ -461,8 +461,8 @@ Termos que surgiram nas entrevistas e que compõem a **Linguagem Ubíqua** do pr
 | "Desmanche" | Loja de peças usadas / recicladas |
 | "Paralela" | Peça não-original de fabricante alternativo |
 | "Original" | Peça do fabricante do veículo (OEM) |
-| "Pendurado" | Cliente que tá devendo |
-| "Fiado" | Venda a prazo informal, sem cartão |
+| "Pendurado" | Cliente que tá devendo (conceito financeiro — fora do escopo do MVP) |
+| "Fiado" | Venda a prazo informal, sem cartão (conceito financeiro — fora do escopo do MVP) |
 | "Carbonado" | Bloco de OS com cópia em carbono |
 | "Scanner" | Equipamento de diagnóstico eletrônico |
 | "Código de erro" | Código que o computador do carro gera para indicar falha |
@@ -481,8 +481,7 @@ Termos que surgiram nas entrevistas e que compõem a **Linguagem Ubíqua** do pr
 
 ```
 Cliente chega -> Dona Marta recebe -> Coleta dados (nome, telefone,
-placa, km, queixa) -> Abre OS (bloquinho carbonado) -> Entrega via
-ao cliente -> Coloca OS no quadro (coluna "Aguardando Serviço")
+placa, km, queixa) -> Abre OS (bloquinho carbonado) -> Entrega cópia ao cliente -> Coloca OS no quadro (coluna "Aguardando Serviço")
 ```
 
 **Variante — Agendamento**: cliente manda WhatsApp antes. Marta combina dia. Dados já parcialmente coletados por mensagem.
@@ -566,7 +565,6 @@ Se defeito na peça: troca sem custo -> Se defeito no serviço: refaz
 sem custo -> Se problema diferente: abre nova OS (serviço cobrado)
 ```
 
-O prazo de 90 dias citado por Dona Marta corresponde à garantia legal do CDC (Art. 26, II) para serviços duráveis. A garantia deve constar por escrito na nota fiscal ou termo de garantia — cláusulas como "não damos garantia" são nulas.
 
 ---
 
