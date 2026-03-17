@@ -1,6 +1,5 @@
 # RFC-001: Design do Sistema — MVP Oficina Mecânica
 
-**Status**: Aceito
 **Data**: 2026-03-11
 **Equipe**: PytStop (João Amaral, Allan Aurélio, Carlos Silva, Guilherme Sousa, Nicolas Gerbi)
 
@@ -181,14 +180,15 @@ stateDiagram-v2
 
 **Colaborador `MaquinaDeStatus`**: stateless, instanciado pelo agregado. Valida transições, executa guardas e retorna eventos a emitir. O agregado delega `transicionar_para(novo_status)`.
 
-**Guardas**:
+**Guardas** (validadas pela `MaquinaDeStatus` no domínio):
 1. >= 1 item para gerar orçamento
 2. Orçamento existente para aprovar
 3. Estoque disponível na aprovação
 4. Status correto para adicionar/remover item (Recebida/EmDiagnostico)
 5. Status correto para cada transição
 6. Motivo obrigatório para cancelar em EmExecucao
-7. Admin autenticado (cross-cutting via middleware)
+
+**Pré-condição da camada de interfaces**: Admin autenticado (verificado no middleware FastAPI, não no domínio).
 
 **Efeitos colaterais do cancelamento**:
 - De Recebida/EmDiagnostico: sem efeitos
@@ -209,7 +209,7 @@ total = Σ (item.preco_unitario × item.quantidade)
 - O campo `orcamento` da OS é `None` até o comando explícito `gerar_orcamento()` (transição EmDiagnostico → AguardandoAprovacao). Não há cálculo automático ao adicionar/remover itens.
 - O `Orcamento` (objeto de valor) é imutável. Após RN-016, itens não podem ser alterados uma vez gerado o orçamento — para modificar, cancelar a OS e criar uma nova.
 - Armazenamento como JSONB com `versao_schema: 1` para compatibilidade futura
-- Orçamentos anteriores mantidos como histórico (array JSONB com timestamp) — RF-017
+- Orçamentos anteriores mantidos como histórico (array JSONB com timestamp) — RF-017 (Could Have)
 
 **Tempo médio de execução** (RF-008):
 - Calculado por tipo de serviço sobre OS finalizadas
@@ -225,9 +225,9 @@ total = Σ (item.preco_unitario × item.quantidade)
 | Segredo | `openssl rand -hex 32`, variável de ambiente, >= 32 chars, validado no startup |
 | Claims | `sub` (user_id), `papel` (Enum: Admin), `exp`, `iat`, `jti` (UUID, usado para revogação) |
 | Entrega | Somente header `Authorization: Bearer` — sem cookies |
-| Revogação | Tabela `tokens_revogados` com JTI. Verificação no middleware. Logout revoga token corrente (RF-012). |
-| Refresh tokens | Refresh token com rotação. TTL configurável via `JWT_REFRESH_TOKEN_EXPIRE_DAYS` (padrão: 7). Endpoint `POST /autenticacao/refresh` (RF-013). |
-| RBAC | Admin e Mecanico (Enum Papel). `exigir_papel()` como dependência FastAPI. Mecânico não pode cadastrar clientes nem gerenciar estoque (RF-014). |
+| Revogação | Tabela `tokens_revogados` com JTI. Verificação no middleware. Logout revoga token corrente (RF-012, Could Have). |
+| Refresh tokens | Refresh token com rotação. TTL configurável via `JWT_REFRESH_TOKEN_EXPIRE_DAYS` (padrão: 7). Endpoint `POST /autenticacao/refresh` (RF-013, Could Have). |
+| RBAC | Admin e Mecanico (Enum Papel). `exigir_papel()` como dependência FastAPI. Mecânico não pode cadastrar clientes nem gerenciar estoque (RF-014, Should Have). No MVP, o Enum pode conter apenas `Admin` até RF-014 ser implementado. |
 
 **Política de senha**: 12+ chars, rejeição top-10000 (SecLists), lockout 5 falhas/15 min, bloqueio IP 15 falhas/30 min.
 
@@ -298,7 +298,7 @@ DomainException (base)
 7. **E2E**: ciclo completo Recebida → Entregue, cancelamento com liberação, consulta pública
 8. **Segurança**: rate limiting, CORS, headers, Swagger condicional
 
-## 9. Orçamento Complementar (RF-016)
+## 9. Orçamento Complementar (RF-016, Could Have)
 
 Durante a execução, serviços adicionais podem ser identificados. O fluxo adiciona uma transição:
 
@@ -309,10 +309,10 @@ EmExecucao → AguardandoAprovacaoComplementar → EmExecucao
 - Itens complementares adicionados em `AguardandoAprovacaoComplementar`
 - Orçamento complementar gerado com os novos itens
 - Aprovação reserva estoque dos itens complementares
-- Orçamentos anteriores mantidos como histórico (array JSONB com timestamp) — RF-017
+- Orçamentos anteriores mantidos como histórico (array JSONB com timestamp) — RF-017 (Could Have)
 - Rejeição do complementar retorna para `EmExecucao` (sem cancelamento da OS)
 
-## 10. Transactional Outbox (RF-018)
+## 10. Transactional Outbox (RF-018, Could Have)
 
 Eventos de domínio persistidos na tabela `outbox` dentro da mesma transação da operação de domínio:
 
