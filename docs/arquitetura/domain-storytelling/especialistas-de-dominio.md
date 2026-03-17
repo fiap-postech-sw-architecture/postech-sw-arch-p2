@@ -467,6 +467,10 @@ Termos que surgiram nas entrevistas e que compõem a **Linguagem Ubíqua** do pr
 | "Scanner" | Equipamento de diagnóstico eletrônico |
 | "Código de erro" | Código que o computador do carro gera para indicar falha |
 | "Retífica" | Oficina especializada em restaurar peças de motor |
+| "Remanufaturada" | Peça usada com todas as partes defeituosas substituídas pelo fabricante; garantia de fábrica |
+| "Recondicionada" | Peça usada com pequenos ajustes/reparos; sem garantia de fábrica |
+| "Giro alto" / "Curva A" | Peça com alta rotatividade no estoque (filtros, óleos, pastilhas) |
+| "Estoque mínimo" | Quantidade abaixo da qual é preciso fazer novo pedido ao fornecedor |
 | "Pinça travada" | Componente do freio emperrado |
 
 ---
@@ -562,6 +566,8 @@ Se defeito na peça: troca sem custo -> Se defeito no serviço: refaz
 sem custo -> Se problema diferente: abre nova OS (serviço cobrado)
 ```
 
+O prazo de 90 dias citado por Dona Marta corresponde à garantia legal do CDC (Art. 26, II) para serviços duráveis. A garantia deve constar por escrito na nota fiscal ou termo de garantia — cláusulas como "não damos garantia" são nulas.
+
 ---
 
 ## 10. Regras implícitas descobertas
@@ -613,6 +619,25 @@ Regras não formalizadas, descobertas durante as entrevistas:
 ---
 
 ## 11. Fontes e referências
+
+### Validação de mercado
+
+Os fluxos descritos pelos especialistas foram validados contra funcionalidades de sistemas reais de gestão de oficinas mecânicas no Brasil:
+
+- [Ultracar](https://ultracar.com.br/) — sistema com quase 30 anos; fluxo entrada→diagnóstico→orçamento→execução→saída; baixa automática de estoque na aprovação
+- [Oficina Integrada](https://www.oficinaintegrada.com.br/) — controle de estoque com alertas, OS com alertas a funcionários, comissões por setor
+- [Soften Sistemas](https://www.softensistemas.com.br/sistema-para-oficina-mecanica) — baixa automática de estoque ao lançar peças na OS; geração de NFe e contas a receber na finalização
+- [WSoft](https://wsoft.dev.br/) — workflow completo com fotos, checklist e notificações automáticas
+- [GestãoClick](https://gestaoclick.com.br/programa-para-oficina-mecanica-e-auto-pecas/) — gestão ponta a ponta: orçamento→OS→peças→venda→financeiro
+
+Funcionalidades presentes em todos os sistemas que estão fora do escopo do MVP: agendamento online, gestão financeira (contas a pagar/receber), emissão de NFe/NFSe, CRM.
+
+### Regulamentações relevantes
+
+- **CDC Art. 26, II** — prazo de 90 dias para reclamar de defeitos em serviços duráveis (valida a regra de garantia citada por Dona Marta)
+- **CDC Art. 18-20** — responsabilidade por vícios do produto/serviço
+- **Código Civil Art. 593-609** — prestação de serviço; Art. 700 — empreitada (quando o serviço tem resultado definido)
+- **LGPD Art. 5, I; Art. 7; Art. 18; Art. 46** — CPF/CNPJ como dado pessoal, base legal para tratamento, direitos do titular, medidas de segurança
 
 ### DDD e Domain Storytelling
 
