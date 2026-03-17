@@ -2,7 +2,7 @@
 
 Diagramas pictográficos que capturam histórias do dia a dia da oficina: quem faz o quê, com quais objetos de trabalho, em que sequência.
 
-> Diagramas gerados com assistência de IA (Claude) e revisados manualmente no [egon.io](https://egon.io).
+> Diagramas gerados com assistência de IA (Claude) e revisados manualmente pela equipe no [egon.io](https://egon.io).
 > As histórias foram derivadas de [entrevistas simuladas com especialistas de domínio](especialistas-de-dominio.md).
 
 ## Diagramas

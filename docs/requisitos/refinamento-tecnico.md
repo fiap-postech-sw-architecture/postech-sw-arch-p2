@@ -1,6 +1,6 @@
 # Refinamento Técnico — Oficina Mecânica
 
-> Refinamento técnico gerado com assistência de IA (Claude) e revisado pelo autor.
+> Refinamento técnico gerado com assistência de IA (Claude) e revisado pela equipe PytStop.
 > Segue a metodologia da Aula 08 aplicada ao domínio da oficina mecânica.
 
 ---
@@ -122,7 +122,7 @@ Estimativa por user story usando a sequência de Fibonacci (1, 2, 3, 5, 8, 13), 
 
 O método de Monte Carlo complementa o Planning Poker ao calcular a probabilidade de entrega dentro de um prazo. Usa dados históricos de velocidade do time para simular cenários (HUSER-BERTA, 2023).
 
-Para este projeto individual sem dados históricos de sprints anteriores, o Monte Carlo não é aplicável diretamente. A estimativa de 43 story points serve como referência para planejamento de sprints e priorização MoSCoW.
+Para este projeto do grupo PytStop sem dados históricos de sprints anteriores, o Monte Carlo não é aplicável diretamente. A estimativa de 43 story points serve como referência para planejamento de sprints e priorização MoSCoW.
 
 ---
 

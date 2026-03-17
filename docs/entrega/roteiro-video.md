@@ -6,7 +6,7 @@ Duração alvo: ~14 minutos (1 min de folga dentro do limite de 15 min).
 
 ### 1. Introdução (1 min)
 
-- Apresentação: nome, turma 15SOAT, projeto individual
+- Apresentação: nome, turma 15SOAT, projeto do grupo PytStop
 - Visão geral: MVP back-end de oficina mecânica com DDD
 - Stack: Python 3.12, FastAPI, SQLAlchemy 2.0, PostgreSQL 16
 - Objetivo: demonstrar domínio de DDD, qualidade e segurança

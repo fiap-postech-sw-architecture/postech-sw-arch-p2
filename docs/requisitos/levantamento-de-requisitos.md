@@ -1,6 +1,6 @@
 # Levantamento de Requisitos — Oficina Mecânica
 
-> Levantamento de requisitos gerado com assistência de IA (Claude) e revisado pelo autor.
+> Levantamento de requisitos gerado com assistência de IA (Claude) e revisado pela equipe PytStop.
 > Segue a metodologia de Marty Cagan aplicada ao domínio da oficina mecânica.
 > Os especialistas de domínio são fictícios — ver [perfis completos](../arquitetura/domain-storytelling/especialistas-de-dominio.md).
 
