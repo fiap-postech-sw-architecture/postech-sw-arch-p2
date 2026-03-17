@@ -22,7 +22,7 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 ## Não-Objetivos
 
 - Interface gráfica (front-end)
-- Notificações reais (push, email, SMS) — stub via `LogNotificacaoAdapter`
+- Notificações reais (push, email, SMS)
 - Integração com sistemas externos (ERP, contabilidade)
 - Agendamento de serviços
 - Pagamento ou faturamento
@@ -86,9 +86,10 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 | US-005 | Como Admin, quero gerar o orçamento automaticamente para enviar ao cliente. | Total calculado dos itens. Requer >= 1 item. Status muda para AguardandoAprovacao. | Must |
 | US-006 | Como Admin, quero aprovar o orçamento para iniciar a execução. | Status muda para EmExecucao. Estoque reservado atomicamente. Estoque insuficiente bloqueia aprovação. | Must |
 | US-007 | Como Admin, quero cancelar uma OS para lidar com rejeições e abandonos. | Cancelamento possível de Recebida, EmDiagnostico, AguardandoAprovacao, EmExecucao. Estoque liberado se em execução. Motivo obrigatório em EmExecucao. | Must |
-| US-008 | Como Admin, quero gerenciar o estoque de peças para manter o controle de disponibilidade. | CRUD com quantidade. Quantidade > 0. Soft delete quando sem OS ativas. | Must |
+| US-008 | Como Admin, quero gerenciar o estoque de peças para manter o controle de disponibilidade. | CRUD com quantidade. Quantidade > 0. Exclusão lógica (soft delete) quando sem OS ativas. | Must |
 | US-009 | Como Admin, quero ver o tempo médio de execução por serviço para planejar a operação. | Endpoint de métricas. Média calculada de OS finalizadas. OS sem itens excluída. | Should |
 | US-010 | Como Admin, quero gerenciar o catálogo de serviços para definir o que a oficina oferece. | CRUD de serviços. Desativação soft delete. Serviço referenciado não pode ser excluído. | Must |
+| US-014 | Como Admin, quero registrar a entrega do veículo ao cliente para fechar o ciclo da OS. | Status muda de Finalizada para Entregue. Estado terminal — OS não aceita mais transições. | Must |
 
 ### Mecânico
 
@@ -101,7 +102,7 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 
 | ID | História | Critérios de Aceite | Prioridade |
 |---|---|---|---|
-| US-013 | Como Cliente, quero consultar o status da minha OS por placa e documento para acompanhar o andamento. | Consulta pública sem JWT. Retorna status atual e serviços. Identificação por placa + CPF/CNPJ. | Must |
+| US-013 | Como Cliente, quero consultar o status da minha OS por placa e documento para acompanhar o andamento. | Consulta pública sem JWT. Retorna status atual e serviços. Identificação por placa + CPF/CNPJ. Documento mascarado na resposta. Se múltiplas OS, retorna a mais recente. | Must |
 
 ## Priorização MoSCoW
 
@@ -117,34 +118,35 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 - Validação de dados sensíveis
 - Testes com 90%+ nos domínios principais e 80%+ nos demais
 - Dockerfile e docker-compose
+- README.md com instruções de uso e objetivos
 - Documentação DDD (Event Storming, glossário, diagramas)
 
 ### Should Have (Desejável)
 
 - Métricas de tempo médio de execução
-- Alerta de estoque baixo (evento de domínio, log) — sem RF correspondente, depende de implementação
 - Rate limiting nos endpoints
 - Scanning de segurança (bandit, pip-audit, gitleaks, trivy)
 - Relatório de vulnerabilidades
-- Encriptação de PII (CPF/CNPJ) — TD-001
-- Revogação de JWT (tabela blacklist + JTI) — TD-003
-- Refresh tokens — TD-006
-- Papel Mecânico diferenciado via Enum (RBAC) — TD-005
-- Endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) — TD-002
-- Transactional outbox para eventos de domínio — TD-011, TD-012
-- Docker Compose secrets para JWT — TD-009
+- Encriptação de dados pessoais identificáveis (PII): CPF/CNPJ — RF-011
+- Papel Mecânico diferenciado via Enum (RBAC) — RF-014
+- Docker Compose secrets para JWT
 
 ### Could Have (Opcional)
 
-- Mutation testing (mutmut) como requisito hard — TD-015
+- Revogação de JWT (tabela blacklist + JTI) — RF-012
+- Refresh tokens — RF-013
+- Endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) — RF-015
+- Orçamentos complementares durante execução — RF-016
+- Histórico de orçamentos (array JSONB) — RF-017, TD-002
+- Transactional outbox para eventos de domínio — RF-018
+- Consentimento explícito LGPD — RF-019, TD-001
+- Mutation testing (mutmut) como requisito hard — TD-006
 - Contract testing (schemathesis)
 - Logging estruturado com PII filtering
-- Histórico de orçamentos (array JSONB) — TD-007
-- Orçamentos complementares durante execução — TD-008
-- Índices GIN para orçamento JSONB — TD-014
-- Consentimento explícito LGPD — TD-004
-- CSP headers — TD-010
-- Notificações stub (LogNotificacaoAdapter) — TD-013
+- Índices GIN para orçamento JSONB — TD-005
+- CSP headers — TD-003
+- Alerta de estoque baixo (evento de domínio, log)
+- Notificações stub (LogNotificacaoAdapter) — TD-004
 
 ### Won't Have (Fora de Escopo)
 
@@ -156,7 +158,7 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 
 ## Critérios de Sucesso
 
-1. Requisitos funcionais RF-001 a RF-010 implementados e testados. RF-011 a RF-019 conforme estratégia de corte em [tech-debt.md](../tech-debt.md)
+1. Requisitos funcionais Must Have (RF-001 a RF-010) implementados e testados. Should Have e Could Have conforme priorização MoSCoW acima
 2. Cobertura de testes >= 90% nos domínios principais (OS e Estoque), >= 80% nos demais
 3. Docker-compose funcional com `docker-compose up` e migrações automáticas
 4. Swagger UI acessível em desenvolvimento com todos os endpoints documentados
@@ -170,5 +172,5 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 | SQLAlchemy imperative mapping com complexidade inesperada | Alto | Spike de 4h com go/no-go gates. Fallback para declarative mapping (ADR-006). |
 | Deadlocks na reserva de estoque | Médio | Locks em ordem crescente de `item_id`. `NOWAIT` para falhar rápido. Testes de concorrência. |
 | Cobertura de 90% nos domínios principais pode exigir tempo desproporcional em edge cases | Médio | Mutation testing para priorizar testes de maior valor. Metas por faixa, não globais. |
-| Tempo insuficiente para todos os entregáveis | Alto | Priorização MoSCoW. Feature freeze S5. EMV (entrega mínima viável) definida. |
-| CPF armazenado em texto plano (LGPD) | Baixo (MVP) | Documentado como risco aceito no relatório de vulnerabilidades. Remediação planejada com pgcrypto. |
+| Tempo insuficiente para todos os entregáveis | Alto | Priorização MoSCoW. Feature freeze na semana 5. Entrega mínima viável definida pelos Must Have. |
+| CPF armazenado em texto plano (LGPD) | Baixo | Risco aceito no MVP. Documentado no relatório de vulnerabilidades. Encriptação via pgcrypto planejada (RF-011, Should Have). |
