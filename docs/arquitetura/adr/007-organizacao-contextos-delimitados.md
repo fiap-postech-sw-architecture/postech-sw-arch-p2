@@ -1,6 +1,6 @@
 # Organização dos contextos delimitados do domínio
 
-* Status: Aceito
+* Status: Proposta
 * Data: 2026-03-11
 
 ## Contexto e Problema
