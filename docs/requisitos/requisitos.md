@@ -28,22 +28,28 @@
 
 ## Requisitos Não-Funcionais
 
-| RNF | Categoria | Descrição |
-|---|---|---|
-| RNF-001 | Desempenho | Endpoints de leitura respondem em < 500ms (p95) com até 1000 registros. |
-| RNF-002 | Segurança | Autenticação JWT HS256 com tokens de 15 min. Senhas com 12+ caracteres, rejeição de top-10000 comuns, lockout após 5 falhas. |
-| RNF-003 | Segurança | Rate limiting: 5/min login, 10/min consulta pública, 60/min global (por IP). |
-| RNF-003a | Segurança | Consulta pública (`/acompanhamento`) retorna resposta genérica quando combinação placa+documento não existe, para dificultar enumeração. |
-| RNF-004 | Segurança | Headers: X-Content-Type-Options, X-Frame-Options, HSTS, Cache-Control, X-Request-ID. |
-| RNF-005 | Segurança | CORS com whitelist configurável. `allow_origins=["*"]` proibido. |
-| RNF-006 | Segurança | Mass assignment prevenido com Pydantic `extra="forbid"`. |
-| RNF-007 | Segurança | Swagger UI desabilitado em produção (`ENVIRONMENT=production` → 404). |
-| RNF-008 | Privacidade | CPF/CNPJ mascarado em respostas de listagem. PII removido de logs via processador structlog. |
-| RNF-009 | Qualidade | Cobertura de testes: 90%+ nos domínios principais (Ordem de Serviço e Estoque), 80%+ nos demais domínios, 65%+ em infraestrutura/interfaces. |
-| RNF-010 | Qualidade | Scanning de segurança: SonarQube (SAST/qualidade), OWASP ZAP (DAST), bandit (SAST Python), pip-audit (dependências), gitleaks (segredos), trivy (imagem Docker). |
-| RNF-011 | Infraestrutura | Dockerfile multi-stage + docker-compose.yml. Migrações automáticas no startup (Alembic). |
-| RNF-012 | API | RESTful, documentada via Swagger/OpenAPI. Paginação offset-based (padrão 20, máximo 100). |
-| RNF-013 | Observabilidade | Logging estruturado (structlog JSON). Request ID propagado. Transições de status e reservas de estoque logadas em INFO. |
+Classificação conforme taxonomia da disciplina Software Architecture — Aula 3 (Figura 2: Mapa de Requisitos):
+
+- **Produto (DEUS)**: Dependabilidade, Eficiência, Usabilidade, Segurança
+- **Organizacionais (DOA)**: Desenvolvimento, Operacionais, Ambientais
+- **Externos (LER)**: Legais, Éticos, Reguladores
+
+| RNF | Categoria | Categoria RNF (Taxonomia) | Descrição | MoSCoW |
+|---|---|---|---|---|
+| RNF-001 | Desempenho | Eficiência (Produto) | Endpoints de leitura respondem em < 500ms (p95) com até 1000 registros. | Must |
+| RNF-002 | Segurança | Segurança (Produto) | Autenticação JWT HS256 com tokens de 15 min. Senhas com 12+ caracteres, rejeição de top-10000 comuns, lockout após 5 falhas. | Must |
+| RNF-003 | Segurança | Segurança (Produto) | Rate limiting: 5/min login, 10/min consulta pública, 60/min global (por IP). | Should |
+| RNF-003a | Segurança | Segurança (Produto) | Consulta pública (`/acompanhamento`) retorna resposta genérica quando combinação placa+documento não existe, para dificultar enumeração. | Should |
+| RNF-004 | Segurança | Segurança (Produto) | Headers: X-Content-Type-Options, X-Frame-Options, HSTS, Cache-Control, X-Request-ID. | Should |
+| RNF-005 | Segurança | Segurança (Produto) | CORS com whitelist configurável. `allow_origins=["*"]` proibido. | Should |
+| RNF-006 | Segurança | Segurança (Produto) | Mass assignment prevenido com Pydantic `extra="forbid"`. | Must |
+| RNF-007 | Segurança | Segurança (Produto) | Swagger UI desabilitado em produção (`ENVIRONMENT=production` → 404). | Must |
+| RNF-008 | Privacidade | Legais (Externos) | CPF/CNPJ mascarado em respostas de listagem. PII removido de logs via processador structlog. | Must |
+| RNF-009 | Qualidade | Desenvolvimento (Organizacionais) | Cobertura de testes: 90%+ nos domínios principais (Ordem de Serviço e Estoque), 80%+ nos demais domínios, 65%+ em infraestrutura/interfaces. | Must |
+| RNF-010 | Qualidade | Desenvolvimento (Organizacionais) | Scanning de segurança: SonarQube (SAST/qualidade), OWASP ZAP (DAST), bandit (SAST Python), pip-audit (dependências), gitleaks (segredos), trivy (imagem Docker). | Should |
+| RNF-011 | Infraestrutura | Operacionais (Organizacionais) | Dockerfile multi-stage + docker-compose.yml. Migrações automáticas no startup (Alembic). | Must |
+| RNF-012 | API | Usabilidade (Produto) | RESTful, documentada via Swagger/OpenAPI. Paginação offset-based (padrão 20, máximo 100). | Must |
+| RNF-013 | Observabilidade | Operacionais (Organizacionais) | Logging estruturado (structlog JSON). Request ID propagado. Transições de status e reservas de estoque logadas em INFO. | Could |
 
 ## Regras de Negócio
 
@@ -191,6 +197,8 @@ Todos os endpoints de listagem suportam paginação offset-based:
 | RF-017 | Histórico de orçamentos | Ordem de Serviço | — |
 | RF-018 | Transactional outbox → Eventos de domínio | Cross-contexto | — |
 | RF-019 | LGPD → Consentimento explícito | Cliente + Veículo | — |
+
+Ver [Matriz de Rastreabilidade](matriz-rastreabilidade.md) — histórias de usuário, critérios de teste e ADRs vinculados.
 
 ## Premissas
 
