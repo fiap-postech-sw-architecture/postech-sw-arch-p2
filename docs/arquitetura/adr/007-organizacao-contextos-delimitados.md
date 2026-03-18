@@ -1,6 +1,6 @@
 # Organização dos contextos delimitados do domínio
 
-* Status: Proposta
+* Status: Aceita
 * Data: 2026-03-11
 
 ## Contexto e Problema
@@ -21,11 +21,11 @@ Organizar o domínio em 5 Bounded Contexts:
 
 ### Classificação dos Subdomínios
 
-A classificação segue a árvore de decisão de subdomínios (Aula 01 — Introdução à DDD):
+A classificação segue a árvore de decisão de subdomínios (Aula 01 — Introdução à DDD). A coluna "Comprável?" indica se a solução poderia ser substituída por produto de mercado — critério que distingue Genérico dos demais tipos.
 
 | Bounded Context | Comprável? | Critério | Classificação |
 |---|---|---|---|
-| Ordem de Serviço | Não | Lógica complexa: máquina de estados com 7 status, orçamento e orquestração cross-contexto | **Principal** |
+| Ordem de Serviço | Não | Lógica complexa: máquina de estados com 8 status (7 base + AguardandoAprovacaoComplementar via RF-016), orçamento e orquestração cross-contexto | **Principal** |
 | Cliente + Veículo | Não | Lógica simples: cadastro com validação de CPF/CNPJ | Suporte |
 | Catálogo de Serviços | Não | Lógica simples: CRUD com ativação/desativação | Suporte |
 | Estoque | Não | Lógica não-trivial: reserva pessimista com SELECT FOR UPDATE NOWAIT na transição AguardandoAprovacao→EmExecucao | **Principal** |
@@ -49,14 +49,16 @@ Veículos não têm ciclo de vida independente do cliente. Um veículo não exis
 
 `ServicoOferecido` não é uma propriedade da Ordem de Servico. O catálogo tem ciclo de vida próprio — serviços podem ser ativados, desativados e ter preço atualizado independentemente de qualquer OS. A Ordem de Servico referencia itens do catálogo, mas não os controla.
 
-**Status Cancelada como 7o status:**
+**Status Cancelada e AguardandoAprovacaoComplementar:**
 
-O Tech Challenge define 6 status para a OS. A decisão inclui `Cancelada` como 7o status para cobrir dois cenários que não têm saída nos 6 status originais:
+O Tech Challenge define 6 status para a OS. A decisão inclui `Cancelada` como sétimo status para cobrir dois cenários que não têm saída nos 6 status originais:
 
 1. Cliente rejeita o orçamento — a OS precisa de um estado terminal
 2. Veículo abandonado — após período sem contato, a oficina precisa encerrar a OS
 
 Sem `Cancelada`, a OS ficaria presa em um estado intermediário indefinidamente.
+
+O oitavo status (`AguardandoAprovacaoComplementar`, via RF-016) suporta serviços adicionais descobertos durante a execução.
 
 ## Alternativas Consideradas
 
@@ -105,7 +107,7 @@ Manter apenas os 6 status definidos no enunciado do Tech Challenge, sem adiciona
 
 * O Value Object `Dinheiro` é usado em múltiplos BCs (Catalogo, Estoque, OS), podendo se tornar um Shared Kernel se divergir entre contextos
 * A comunicação entre BCs exige contratos claros (eventos de domínio ou interfaces anti-corrupção)
-* Cancelada como 7o status diverge do enunciado original (6 status) — justificativa documentada neste ADR
+* Cancelada e AguardandoAprovacaoComplementar divergem do enunciado original (6 status) — justificativa documentada neste ADR
 
 ## Decisões Relacionadas
 

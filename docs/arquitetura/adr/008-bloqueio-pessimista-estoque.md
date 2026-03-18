@@ -1,6 +1,6 @@
 # Bloqueio pessimista para reserva de estoque
 
-* Status: Proposta
+* Status: Aceita
 * Data: 2026-03-11
 
 ## Contexto e Problema
