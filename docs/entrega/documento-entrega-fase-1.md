@@ -158,6 +158,14 @@ Regra de dependência estrita: camadas internas nunca importam camadas externas.
 
 **Stack**: Python 3.12, FastAPI, SQLAlchemy 2.0 (imperative mapping), PostgreSQL 16, Alembic, pytest.
 
+#### Diagramas C4
+
+Diagramas de arquitetura seguindo o modelo C4 de Simon Brown (Software Architecture — Aula 2):
+
+- [Level 1 — Contexto](../arquitetura/c4/c4-contexto.md): PytStop com Admin como ator e sem sistemas externos no MVP
+- [Level 2 — Container](../arquitetura/c4/c4-container.md): Aplicação FastAPI + PostgreSQL 16
+- [Level 3 — Componentes](../arquitetura/c4/c4-componentes.md): detalhamento do contexto Ordem de Serviço (domínio principal)
+
 #### Decisões Arquiteturais
 
 | ADR | Decisão |
@@ -288,7 +296,9 @@ Detalhes: `docs/seguranca/relatorio-vulnerabilidades.md`.
 | Especialistas de Domínio | `docs/arquitetura/domain-storytelling/especialistas-de-dominio.md` |
 | Diagramas Domain Storytelling | `docs/arquitetura/domain-storytelling/` |
 | RFC-001: Design do Sistema | `docs/arquitetura/rfc/rfc-001-design-do-sistema.md` |
-| ADRs (000-011) | `docs/arquitetura/adr/` |
+| ADRs (000-010) | `docs/arquitetura/adr/` |
+| C4 — Diagramas de Arquitetura | `docs/arquitetura/c4/` |
+| Matriz de Rastreabilidade | `docs/requisitos/matriz-rastreabilidade.md` |
 | Requisitos (RF, RNF, RN) | `docs/requisitos/requisitos.md` |
 | Levantamento de Requisitos | `docs/requisitos/levantamento-de-requisitos.md` |
 | PRD | `docs/requisitos/prd.md` |

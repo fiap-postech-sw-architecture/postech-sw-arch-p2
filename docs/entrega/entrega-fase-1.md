@@ -44,7 +44,10 @@
 ### Arquitetura
 
 - [RFC-001: Design do Sistema](../arquitetura/rfc/rfc-001-design-do-sistema.md)
-- [ADRs (000-011)](../arquitetura/adr/)
+- [ADRs (000-010)](../arquitetura/adr/)
+- [C4 — Diagrama de Contexto](../arquitetura/c4/c4-contexto.md)
+- [C4 — Diagrama de Container](../arquitetura/c4/c4-container.md)
+- [C4 — Diagrama de Componentes](../arquitetura/c4/c4-componentes.md)
 
 ### Requisitos
 
@@ -54,6 +57,7 @@
 - [Levantamento de Requisitos](../requisitos/levantamento-de-requisitos.md)
 - [Refinamento Técnico](../requisitos/refinamento-tecnico.md)
 - [Definition of Ready / Definition of Done](../requisitos/dor-dod.md)
+- [Matriz de Rastreabilidade](../requisitos/matriz-rastreabilidade.md)
 
 ### Segurança
 
