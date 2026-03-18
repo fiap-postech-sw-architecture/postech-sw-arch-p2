@@ -96,7 +96,7 @@ graph LR
     end
 
     subgraph "Autenticacao (Generico)"
-        USR[Usuario<br/><i>Entity</i>]
+        USR[Usuario<br/><i>AggregateRoot</i>]
     end
 
     CLI -->|ClientePort<br/>Cliente-Fornecedor| OS
