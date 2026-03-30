@@ -31,8 +31,8 @@
 |---|---|
 | Repositório | [github.com/jbamaral/postech-sw-arch-p1](https://github.com/jbamaral/postech-sw-arch-p1) |
 | Documentação | `docs/` no repositório |
-| Event Storming (Miro) | PLACEHOLDER |
-| Domain Storytelling (Miro) | PLACEHOLDER |
+| Event Storming (Miro) | [Miro Board — Event Storming](https://miro.com/app/board/uXjVGqQ_lk4=/) |
+| Domain Storytelling (Miro) | [Miro Board — Domain Storytelling](https://miro.com/app/board/uXjVGqQ_lk4=/) |
 | Vídeo de apresentação | PLACEHOLDER |
 
 ---

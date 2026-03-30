@@ -26,6 +26,8 @@
 | Documentação | [docs/](../../docs/) (neste repositório) |
 | Repositório | [github.com/jbamaral/postech-sw-arch-p1](https://github.com/jbamaral/postech-sw-arch-p1) |
 | Event Storming | [Workshop de Event Storming](../arquitetura/event-storming/workshop-event-storming.md) |
+| Event Storming (Miro) | [Miro Board — Event Storming](https://miro.com/app/board/uXjVGqQ_lk4=/) |
+| Domain Storytelling (Miro) | [Miro Board — Domain Storytelling](https://miro.com/app/board/uXjVGqQ_lk4=/) |
 | Vídeo | *(link a ser adicionado)* |
 
 ## Entregáveis
