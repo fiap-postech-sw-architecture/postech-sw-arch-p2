@@ -1,7 +1,7 @@
 # Usar DDD com Arquitetura Onion
 
-* Status: Aceita
-* Data: 2026-03-11
+* Status: Proposta
+* Data: 2026-03-20
 
 ## Contexto e Problema
 

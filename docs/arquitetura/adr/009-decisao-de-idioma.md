@@ -1,7 +1,7 @@
 # Modelo híbrido de idioma para código e documentação
 
 * Status: Aceita
-* Data: 2026-03-11
+* Data: 2026-03-20
 
 ## Contexto e Problema
 

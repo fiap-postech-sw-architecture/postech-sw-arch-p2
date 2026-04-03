@@ -1,6 +1,6 @@
 # Estratégia de testes com cobertura realista
 
-* Status: Aceita
+* Status: Em Proposta
 * Data: 2026-03-11
 
 ## Contexto e Problema

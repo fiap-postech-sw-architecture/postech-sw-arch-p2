@@ -1,6 +1,6 @@
 # Mapeamento imperativo do SQLAlchemy para entidades de domínio
 
-* Status: Aceita
+* Status: Reprovado
 * Data: 2026-03-11
 
 ## Contexto e Problema
