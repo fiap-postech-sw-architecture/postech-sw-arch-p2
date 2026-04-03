@@ -2,7 +2,7 @@
 
 > **Status**: DRAFT — documento em elaboracao, sujeito a revisao pela equipe PytStop.
 
-Esta matriz estende a [tabela de rastreabilidade em requisitos.md](requisitos.md#tabela-de-rastreabilidade) com historias de usuario, criterios de teste e ADRs vinculados. Baseada na disciplina Software Architecture — Aula 3.
+Esta matriz estende a [tabela de rastreabilidade em requisitos.md](requisitos.md#tabela-de-rastreabilidade) com historias de usuario, criterios de teste e ADRs vinculados.
 
 ## Matriz
 
@@ -28,9 +28,19 @@ Esta matriz estende a [tabela de rastreabilidade em requisitos.md](requisitos.md
 | RF-018 | Transactional outbox | Requisito de plataforma — sem US associada | Eventos de dominio persistidos em tabela `outbox` na mesma transacao; background task despacha eventos | — |
 | RF-019 | Consentimento explicito | Requisito de plataforma — sem US associada | Registro de consentimento do cliente para tratamento de dados pessoais; revogacao via endpoint | — |
 
+## Requisitos Não-Funcionais (Rastreabilidade)
+
+| RNF | Descrição | ADR Vinculado | Disciplina |
+|---|---|---|---|
+| RNF-001 a RNF-013 | Requisitos de produto, organizacionais e externos | Ver [requisitos.md](requisitos.md) | DDD, SW-Arch |
+| RNF-014 | Análise estática de segurança (bandit) sem findings de severidade alta no CI | [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md) | Dev-Seguro (Aulas 04–05) |
+| RNF-015 | Dependências auditadas mensalmente (pip-audit); zero vulnerabilidades críticas | [ADR-012](../arquitetura/adr/012-licenciamento-software-sbom.md) | Dev-Seguro (Aula 03) |
+| RNF-016 | SBOM gerado via CycloneDX a cada release | [ADR-012](../arquitetura/adr/012-licenciamento-software-sbom.md) | Dev-Seguro (Aula 03) |
+
 ## Verificacoes de Integridade
 
 - **Cobertura**: todos os 19 RFs de [requisitos.md](requisitos.md) estao presentes na matriz
+- **Cobertura RNF**: RNF-014 a RNF-016 rastreados com ADRs 011–012
 - **Referencias validas**: todos os ADRs referenciados existem no diretorio `docs/arquitetura/adr/`
 - **Criterios de teste**: todos os RFs possuem criterios de aceitacao verificaveis
 

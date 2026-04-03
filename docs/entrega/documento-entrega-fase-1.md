@@ -41,7 +41,7 @@
 
 #### Event Storming
 
-Workshop simulado com 5 especialistas de domínio fictícios, seguindo a metodologia de Alberto Brandolini em 10 passos progressivos.
+Workshop simulado com 5 especialistas de domínio fictícios, seguindo a metodologia de Alberto Brandolini.
 
 O workshop produziu:
 
@@ -79,7 +79,7 @@ Das entrevistas foram extraídos termos de domínio, 9 entidades/agregados, 5 ob
 
 #### Linguagem Ubíqua
 
-Glossário completo com termos do domínio mapeados para identificadores no código, seguindo o modelo híbrido (ADR-009): termos de negócio em português sem acentos, sufixos técnicos em inglês.
+Glossário com termos do domínio mapeados para identificadores no código, seguindo o modelo híbrido de idioma (ADR-009).
 
 | Termo do Domínio | Código | Contexto |
 |---|---|---|
@@ -154,13 +154,13 @@ contexto/
 └── interfaces/      # Routers FastAPI, schemas Pydantic
 ```
 
-Regra de dependência estrita: camadas internas nunca importam camadas externas. O domínio não conhece infraestrutura nem framework.
+Regra de dependência estrita: camadas internas nunca importam camadas externas.
 
 **Stack**: Python 3.12, FastAPI, SQLAlchemy 2.0 (imperative mapping), PostgreSQL 16, Alembic, pytest.
 
 #### Diagramas C4
 
-Diagramas de arquitetura seguindo o modelo C4 de Simon Brown (Software Architecture — Aula 2):
+Diagramas de arquitetura seguindo o modelo C4:
 
 - [Level 1 — Contexto](../arquitetura/c4/c4-contexto.md): PytStop com Admin como ator e sem sistemas externos no MVP
 - [Level 2 — Container](../arquitetura/c4/c4-container.md): Aplicação FastAPI + PostgreSQL 16
@@ -174,6 +174,11 @@ Diagramas de arquitetura seguindo o modelo C4 de Simon Brown (Software Architect
 | ADR-006 | Mapeamento imperativo do SQLAlchemy (`map_imperatively()`) para manter entidades como classes Python puras |
 | ADR-008 | Bloqueio pessimista (`SELECT FOR UPDATE NOWAIT`) para reserva atômica de estoque com prevenção de deadlocks |
 | ADR-009 | Modelo híbrido de linguagem: negócio em PT, padrões técnicos em EN |
+| ADR-011 | Pipeline de segurança e análise estática (ruff, bandit, pip-audit, gitleaks, trivy) |
+| ADR-012 | Licenciamento de software e SBOM (CycloneDX, licenças permissivas) |
+| ADR-013 | Testes BDD com pytest-bdd e Gherkin em português |
+
+Todos os ADRs (000–013): `docs/arquitetura/adr/`
 
 #### Máquina de Estados da OS
 
@@ -215,7 +220,7 @@ Detalhes: `docs/arquitetura/rfc/rfc-001-design-do-sistema.md` e `docs/arquitetur
 
 Requisitos adicionais (Should/Could): encriptação de PII (RF-011), endpoints LGPD Art. 18 (RF-015), orçamento complementar (RF-016), histórico de orçamentos (RF-017), transactional outbox (RF-018), consentimento (RF-019).
 
-17 regras de negócio e 13 requisitos não-funcionais documentados.
+17 regras de negócio e 16 requisitos não-funcionais documentados.
 
 Detalhes: `docs/requisitos/requisitos.md`.
 
@@ -249,7 +254,7 @@ Detalhes: `docs/requisitos/levantamento-de-requisitos.md`.
 
 #### Metodologia
 
-Referência OWASP API Security Top 10 (2023). Ferramentas planejadas: SonarQube (SAST/qualidade), OWASP ZAP (DAST), bandit (SAST Python), pip-audit (dependências), gitleaks (segredos), trivy (imagem Docker).
+Referência OWASP API Security Top 10 (2023). Ferramentas: SonarQube (SAST/qualidade), OWASP ZAP (DAST), bandit (SAST Python), pip-audit (dependências), gitleaks (segredos), trivy (imagem Docker).
 
 #### Achados
 
@@ -272,7 +277,30 @@ Referência OWASP API Security Top 10 (2023). Ferramentas planejadas: SonarQube 
 
 Recomendações para produção: WAF com rate limiting, migrar segredo JWT para KMS, CSP headers, mecanismo de consentimento.
 
-Detalhes: `docs/seguranca/relatorio-vulnerabilidades.md`.
+Detalhes: `docs/seguranca/relatorio-vulnerabilidades.md` e `docs/seguranca/plano-seguranca.md`.
+
+---
+
+### Qualidade e Testes
+
+Estratégia de testes documentada em `docs/qualidade/estrategia-testes.md`, consolidando [ADR-005](../arquitetura/adr/005-estrategia-testes.md) e [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md):
+
+- **Pirâmide de testes**: muitos unitários (domínio), integração (TestClient + testcontainers), poucos E2E (BDD)
+- **TDD**: ciclo Red-Green-Refactor aplicado ao DDD (Value Objects → Entities → Aggregates)
+- **Test doubles**: Stub, Fake, Spy, Mock — taxonomia com exemplos do projeto
+- **BDD**: pytest-bdd com cenários Gherkin em português (linguagem ubíqua)
+- **Cobertura**: 90%+ OS/Estoque, 80%+ outros domínios, 65%+ infra/interfaces
+
+---
+
+### Documentação de Arquitetura
+
+Classificação dos artefatos de arquitetura:
+
+- **HLD**: RFC-001, C4 Contexto/Container, Mapa de Contextos
+- **LLD**: C4 Componentes, Modelo de Domínio, ADRs, Requisitos detalhados
+- **DAS**: [Documento de Aprovação da Solução](documento-aprovacao-solucao.md) — consolidação de todas as decisões
+- **Guia**: [Classificação HLD/LLD](../arquitetura/README.md)
 
 ---
 
@@ -296,13 +324,18 @@ Detalhes: `docs/seguranca/relatorio-vulnerabilidades.md`.
 | Especialistas de Domínio | `docs/arquitetura/domain-storytelling/especialistas-de-dominio.md` |
 | Diagramas Domain Storytelling | `docs/arquitetura/domain-storytelling/` |
 | RFC-001: Design do Sistema | `docs/arquitetura/rfc/rfc-001-design-do-sistema.md` |
-| ADRs (000-010) | `docs/arquitetura/adr/` |
+| ADRs (000-013) | `docs/arquitetura/adr/` |
 | C4 — Diagramas de Arquitetura | `docs/arquitetura/c4/` |
+| Guia de Documentação (HLD/LLD) | `docs/arquitetura/README.md` |
 | Matriz de Rastreabilidade | `docs/requisitos/matriz-rastreabilidade.md` |
 | Requisitos (RF, RNF, RN) | `docs/requisitos/requisitos.md` |
 | Levantamento de Requisitos | `docs/requisitos/levantamento-de-requisitos.md` |
 | PRD | `docs/requisitos/prd.md` |
 | Relatório de Vulnerabilidades | `docs/seguranca/relatorio-vulnerabilidades.md` |
+| Plano de Segurança | `docs/seguranca/plano-seguranca.md` |
+| Estratégia de Testes | `docs/qualidade/estrategia-testes.md` |
+| DAS — Documento de Aprovação | `docs/entrega/documento-aprovacao-solucao.md` |
+| Dívida Técnica | `docs/tech-debt.md` |
 | Entrega Fase 1 (links) | `docs/entrega/entrega-fase-1.md` |
 
 ---

@@ -46,10 +46,16 @@
 ### Arquitetura
 
 - [RFC-001: Design do Sistema](../arquitetura/rfc/rfc-001-design-do-sistema.md)
-- [ADRs (000-010)](../arquitetura/adr/)
+- [ADRs (000-013)](../arquitetura/adr/)
 - [C4 — Diagrama de Contexto](../arquitetura/c4/c4-contexto.md)
 - [C4 — Diagrama de Container](../arquitetura/c4/c4-container.md)
 - [C4 — Diagrama de Componentes](../arquitetura/c4/c4-componentes.md)
+- [Guia de Documentação de Arquitetura (HLD/LLD)](../arquitetura/README.md)
+- [DAS — Documento de Aprovação da Solução](documento-aprovacao-solucao.md)
+
+### Qualidade
+
+- [Estratégia de Testes](../qualidade/estrategia-testes.md)
 
 ### Requisitos
 
@@ -64,13 +70,14 @@
 ### Segurança
 
 - [Relatório de Vulnerabilidades](../seguranca/relatorio-vulnerabilidades.md)
+- [Plano de Segurança](../seguranca/plano-seguranca.md)
 
 ### Código
 
 - README.md com instruções de uso
 - Dockerfile e docker-compose.yml
 - APIs RESTful documentadas via Swagger
-- Testes automatizados com cobertura >= 80% nos domínios críticos (meta interna: 90%+ em OS e Estoque)
+- Testes automatizados com cobertura >= 80% nos domínios críticos
 
 ## Relatório de Vulnerabilidades (Resumo)
 

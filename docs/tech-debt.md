@@ -2,11 +2,11 @@
 
 > **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
 
-Tech debt são decisões conscientes de débito — itens que sabemos estar incompletos ou ausentes na entrega atual e que aceitamos como limitação conhecida. Não são requisitos adiados nem funcionalidades desejadas; são simplificações deliberadas cujo custo de correção é aceito para o escopo do MVP.
+Simplificações deliberadas cujo custo de correção é aceito para o escopo do MVP.
 
 Funcionalidades que não serão implementadas no MVP estão classificadas como Could Have no [PRD](requisitos/prd.md). Requisitos que serão implementados estão nos respectivos RFs em [requisitos.md](requisitos/requisitos.md).
 
-Classificação por tipo conforme disciplina Software Architecture — Aula 5: Gerenciamento de Débito Técnico:
+Classificação por tipo:
 
 - **Deliberado**: assumido conscientemente pela equipe para acelerar entrega ou validar hipóteses
 - **Acidental**: surge sem que a equipe perceba, por desconhecimento ou mudanças inesperadas
@@ -34,12 +34,36 @@ Débitos aceitáveis no MVP relacionados à conformidade tática do DDD:
 | TD-008 | Domínio | Dispatch síncrono de domain events | Planejado | Média | Médio | Sim | Crescente | O mecanismo de dispatch é deferido (RF-018 Transactional Outbox, Could Have); o payload dos eventos não é — cada evento deve carregar `agregado_id`, `ocorrido_em` e campos alterados conforme `DomainEvent` base. |
 | TD-009 | Domínio | Eventos mapeados no event storming sem emissão no código | Planejado | Baixa | Baixo | Não | Crescente | Eventos identificados mas ainda sem emissão: `ClienteCadastrado`, `VeiculoAdicionado`, `EstoqueReservado`, `EstoqueLiberado`, `ServicoCadastrado`. A serem implementados com o mecanismo de dispatch (TD-008). |
 
+## Segurança e Qualidade
+
+Débitos relacionados a segurança e qualidade de código.
+
+| # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
+|---|---|---|---|---|---|---|---|---|
+| TD-010 | Segurança | SonarQube não integrado no MVP (quality gate manual) | Deliberado | Baixa | Baixo | Não | Estável | Quality gate automatizado requer infraestrutura SonarQube. No MVP, análise estática local com ruff + bandit. Evolução para SonarCloud em fases posteriores. [ADR-011](arquitetura/adr/011-pipeline-seguranca-analise-estatica.md). |
+| TD-011 | Segurança | Sem DAST automatizado (OWASP ZAP manual) | Deliberado | Média | Médio | Não | Estável | Teste dinâmico requer aplicação em execução e configuração de pipeline. No MVP, execução manual sob demanda. Automação planejada para CI quando pipeline estiver maduro. |
+| TD-012 | Segurança | Sem SBOM automatizado no CI (geração manual) | Deliberado | Baixa | Baixo | Não | Estável | CycloneDX disponível via CLI, mas integração no CI requer configuração adicional. Geração manual por release no MVP. [ADR-012](arquitetura/adr/012-licenciamento-software-sbom.md). |
+| TD-013 | Testes | Sem testes BDD/Gherkin no MVP (pytest-bdd planejado) | Deliberado | Baixa | Baixo | Não | Estável | Testes E2E com Gherkin em português agregam rastreabilidade para requisitos, mas requerem feature files e steps adicionais. Prioridade para testes unitários e de integração no MVP. [ADR-013](arquitetura/adr/013-testes-bdd-pytest-bdd.md). |
+| TD-014 | Testes | Sem relatórios Allure no MVP (pytest-html como alternativa leve) | Deliberado | Baixa | Baixo | Não | Estável | Allure oferece relatórios visuais superiores, mas requer servidor dedicado. pytest-html atende necessidades do MVP com menor overhead. |
+
+## Considerações de Complexidade Algorítmica
+
+Complexidade das operações principais do sistema.
+
+| Operação | Complexidade | Estrutura | Justificativa |
+|---|---|---|---|
+| Bloqueio pessimista de estoque | O(n log n) ordenação + O(n) reserva | Array de `item_id` ordenado | Ordenação previne deadlocks ([ADR-008](arquitetura/adr/008-bloqueio-pessimista-estoque.md)). Custo aceitável para n < 100 itens por OS. |
+| Transição de status da OS | O(1) por transição | Lookup direto (dict/enum) | `MaquinaDeStatus` valida transição em tempo constante. |
+| Busca de OS por placa | O(log n) | Índice B-tree PostgreSQL | Índice na coluna `placa` garante busca logarítmica mesmo com volume alto. |
+| Cálculo de média de execução | O(n) | Agregação SQL | `AVG()` sobre OS finalizadas. Aceitável com índice em `status` + `finalizado_em`. |
+| Validação de CPF/CNPJ | O(1) | Cálculo aritmético | Dígitos verificadores calculados em tempo constante (brutils). |
+
+Otimizacoes (indices GIN para JSONB -- TD-005, particionamento) a avaliar com dados reais de producao.
+
 ## Estratégia de Pagamento
 
-Conforme recomendações da disciplina Software Architecture — Aula 5:
-
-1. **Boy Scout Rule**: cada alteração no código deve deixá-lo melhor do que encontrou. Refatorações incrementais junto com novas funcionalidades.
-2. **Refatorações incrementais**: não esperar uma janela de sprint exclusivamente técnica. Incluir melhorias técnicas nos sprints regulares, tratando débitos como parte do backlog priorizado.
-3. **Reserva de sprint técnico**: negociar com o Product Owner sprints técnicos no roadmap para lidar com débitos de maior impacto (TD-001 e TD-008 são candidatos prioritários).
-4. **ADRs como prevenção**: cada decisão técnica registrada em ADR ([ADR-001](arquitetura/adr/001-framework-fastapi.md) a [ADR-010](arquitetura/adr/010-validacao-documentos-brutils.md)) evita débitos invisíveis: decisões sem rastreabilidade cujo racional original se perde.
-5. **Métricas de fluxo**: monitorar lead time, cycle time e taxa de falhas para detectar crescimento do débito técnico e justificar refatorações para o negócio.
+1. **Boy Scout Rule**: cada alteracao deixa o codigo melhor do que encontrou
+2. **Refatoracoes incrementais**: melhorias tecnicas nos sprints regulares, como parte do backlog
+3. **Sprint tecnico**: negociar com o PO para debitos de maior impacto (TD-001, TD-008)
+4. **ADRs como prevencao**: decisoes registradas em ADR ([ADR-001](arquitetura/adr/001-framework-fastapi.md) a [ADR-013](arquitetura/adr/013-testes-bdd-pytest-bdd.md)) evitam debitos invisiveis
+5. **Metricas de fluxo**: lead time, cycle time e taxa de falhas para detectar crescimento do debito
