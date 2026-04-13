@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="logo-pytstop.png" width="128" alt="PytStop">
+</p>
+
 # Tech Challenge — Fase 1
 
 MVP de back-end para sistema de oficina mecânica, aplicando Domain-Driven Design (DDD).
