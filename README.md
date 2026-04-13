@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="logo-pytstop.png" width="128" alt="PytStop">
+  <img src="logo-pytstop.png" width="256" alt="PytStop">
 </p>
 
 # Tech Challenge — Fase 1
