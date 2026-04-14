@@ -98,19 +98,6 @@ module = [
 ]
 ignore_missing_imports = true
 
-[[tool.mypy.overrides]]
-module = "src.*.interfaces.*"
-disallow_untyped_defs = false
-disable_error_code = ["arg-type", "misc", "unused-ignore"]
-
-[[tool.mypy.overrides]]
-module = "src.*.infraestrutura.mapping"
-disable_error_code = ["attr-defined", "unused-ignore"]
-
-[[tool.mypy.overrides]]
-module = "src.compartilhado.infraestrutura.logging"
-disable_error_code = ["list-item", "unused-ignore"]
-
 [tool.pytest.ini_options]
 markers = [
     "serial: testes que nao podem rodar em paralelo",
