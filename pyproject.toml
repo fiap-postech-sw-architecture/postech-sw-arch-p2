@@ -1,0 +1,132 @@
+[project]
+name = "pytstop"
+version = "0.1.0"
+description = "Sistema Integrado de Atendimento e Execucao de Servicos"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0,<2.1",
+    "psycopg2-binary>=2.9",
+    "alembic>=1.14",
+    "pyjwt>=2.9",
+    "pwdlib[bcrypt]>=0.2",
+    "brutils>=2.3,<3",
+    "pydantic[email]>=2.0,<3",
+    "structlog>=24.0",
+    "slowapi>=0.1",
+    "cryptography>=42.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "pytest-xdist>=3.0",
+    "testcontainers[postgres]>=4.0",
+    "polyfactory>=2.0",
+    "httpx>=0.27",
+    "mutmut>=3.0",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "bandit>=1.7",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["src*"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "A",   # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "RUF", # ruff-specific
+    "S",   # flake8-bandit
+    "PT",  # flake8-pytest-style
+]
+fixable = ["ALL"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = ["S101", "S105", "S106", "TCH", "SIM105", "PT012", "RUF059"]
+"**/exceptions.py" = ["N818"]
+"**/interfaces/schemas.py" = ["S105", "TCH003"]
+"**/interfaces/router*.py" = ["B008"]
+"**/interfaces/middleware.py" = ["B008", "TCH002"]
+"**/interfaces/dependencies.py" = ["B008"]
+"migrations/**" = ["E402"]
+"**/dtos.py" = ["S105"]
+"migrations/env.py" = ["E402"]
+
+[tool.mypy]
+strict = true
+python_version = "3.12"
+warn_return_any = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "brutils.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pwdlib.*",
+    "slowapi.*",
+    "structlog.*",
+    "testcontainers.*",
+    "polyfactory.*",
+    "cryptography.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "src.*.interfaces.*"
+disallow_untyped_defs = false
+disable_error_code = ["arg-type", "misc", "unused-ignore"]
+
+[[tool.mypy.overrides]]
+module = "src.*.infraestrutura.mapping"
+disable_error_code = ["attr-defined", "unused-ignore"]
+
+[[tool.mypy.overrides]]
+module = "src.compartilhado.infraestrutura.logging"
+disable_error_code = ["list-item", "unused-ignore"]
+
+[tool.pytest.ini_options]
+markers = [
+    "serial: testes que nao podem rodar em paralelo",
+    "integracao: testes de integracao",
+    "e2e: testes end-to-end",
+    "lento: testes que demoram mais de 1s",
+]
+addopts = "--strict-markers"
+testpaths = ["tests"]
+
+[tool.coverage.run]
+source = ["src"]
+omit = ["tests/*", "*/migrations/*", "*/__init__.py"]
+
+[tool.coverage.report]
+fail_under = 80
+
+[tool.bandit]
+targets = ["src"]

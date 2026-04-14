@@ -1,0 +1,34 @@
+services:
+  app:
+    build: .
+    ports:
+      - "8000:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      - DATABASE_URL=postgresql://pytstop:pytstop@postgres:5432/pytstop
+      - JWT_SECRET=change-this-in-production
+      - JWT_EXPIRATION_MINUTES=30
+      - ENVIRONMENT=development
+      - CORS_ORIGINS=http://localhost:3000
+    entrypoint: ["./entrypoint.sh"]
+
+  postgres:
+    image: postgres:16
+    ports:
+      - "127.0.0.1:5432:5432"
+    environment:
+      - POSTGRES_DB=pytstop
+      - POSTGRES_USER=pytstop
+      - POSTGRES_PASSWORD=pytstop
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U pytstop"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  postgres_data:
