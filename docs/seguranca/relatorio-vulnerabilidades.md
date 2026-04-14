@@ -1,6 +1,6 @@
 # Relatorio de Vulnerabilidades
 
-> **Status**: DRAFT -- secoes de ferramentas automatizadas aguardam execucao do pipeline CI.
+> **Status**: DRAFT -- scans bandit e pip-audit executados em 12/04/2026. SonarQube, OWASP ZAP, gitleaks e trivy pendentes de configuracao no pipeline CI.
 
 ## Escopo
 
@@ -136,41 +136,57 @@ Licencas permissivas em todas as dependencias diretas (MIT, BSD, Apache 2.0). Ne
 | Exclusao (Art. 18, VI) | Em remediacao (RF-015) | Anonimizacao com preservacao de historico de OS |
 | Consentimento | Nao implementado | Mecanismo de opt-in na criacao de cliente |
 
-## Analise Estatica e Qualidade (SonarQube)
+## Resumo dos Scans Automatizados
 
-```
-(Output do SonarQube a ser inserido apos execucao)
-```
+Data do scan: 12/04/2026
 
-## Teste Dinamico de Seguranca (OWASP ZAP)
+| Severidade | Bandit | pip-audit | Total |
+|---|---|---|---|
+| HIGH | 0 | 0 | 0 |
+| MEDIUM | 1 | 0 | 1 |
+| LOW | 0 | 0 | 0 |
 
-```
-(Output do OWASP ZAP a ser inserido apos execucao)
-```
+Avaliacao geral de risco: **Baixo**. Nenhuma vulnerabilidade de severidade alta encontrada. O unico achado de severidade media e um binding a `0.0.0.0` no modo de desenvolvimento, sem impacto em producao.
 
 ## Analise Estatica (bandit)
 
-```
-(Output do bandit a ser inserido apos execucao)
-```
+Scan executado em 12/04/2026 com bandit 1.9.4 sobre 5.210 linhas de codigo.
+
+| # | Arquivo | Linha | ID | Severidade | Confianca | Descricao | Status |
+|---|---|---|---|---|---|---|---|
+| 1 | src/main.py | 93 | B104 | MEDIUM | MEDIUM | Binding a `0.0.0.0` (todas as interfaces) | ACEITO |
+
+**Detalhamento**:
+
+- **B104 (hardcoded_bind_all_interfaces)**: O trecho `uvicorn.run("src.main:app", host="0.0.0.0", ...)` vincula o servidor a todas as interfaces de rede. Risco aceito pois: (a) ocorre apenas no bloco `if __name__ == "__main__"` usado em desenvolvimento local; (b) em producao, o Docker Compose gerencia o binding via configuracao do container; (c) a linha ja possui anotacao `# noqa: S104`. CWE-605.
+
+Relatorio completo: `docs/seguranca/bandit-report.json`.
 
 ## Auditoria de Dependencias (pip-audit)
 
-```
-(Output do pip-audit a ser inserido apos execucao)
-```
+Scan executado em 12/04/2026 com pip-audit 2.10.0.
+
+**Resultado: nenhuma vulnerabilidade conhecida encontrada.**
+
+Todas as dependencias diretas e transitivas foram verificadas contra a base de dados de CVEs do PyPI. Nenhum pacote possui vulnerabilidade conhecida na versao instalada.
+
+Relatorio completo: `docs/seguranca/pip-audit-report.json`.
+
+## Analise Estatica e Qualidade (SonarQube)
+
+Pendente de execucao no pipeline CI. Configuracao planejada conforme ADR-011.
+
+## Teste Dinamico de Seguranca (OWASP ZAP)
+
+Pendente de execucao no pipeline CI. Configuracao planejada conforme ADR-011.
 
 ## Deteccao de Segredos (gitleaks)
 
-```
-(Output do gitleaks a ser inserido apos execucao)
-```
+Pendente de execucao no pipeline CI. Configuracao planejada conforme ADR-011.
 
 ## Scan de Imagem Docker (trivy)
 
-```
-(Output do trivy a ser inserido apos execucao)
-```
+Pendente de execucao no pipeline CI. Configuracao planejada conforme ADR-011.
 
 ## Recomendacoes para Producao
 

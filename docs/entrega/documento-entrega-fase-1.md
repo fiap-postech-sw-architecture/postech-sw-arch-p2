@@ -18,10 +18,10 @@
 | Nome | Discord |
 |---|---|
 | João Amaral | jbamaral |
-| Allan Aurélio | PLACEHOLDER |
-| Carlos Silva | PLACEHOLDER |
-| Guilherme Sousa | PLACEHOLDER |
-| Nicolas Gerbi | PLACEHOLDER |
+| Allan Aurelio | [PREENCHER] |
+| Carlos Silva | [PREENCHER] |
+| Guilherme Sousa | [PREENCHER] |
+| Nicolas Gerbi | [PREENCHER] |
 
 ---
 
@@ -33,7 +33,7 @@
 | Documentação | `docs/` no repositório |
 | Event Storming (Miro) | [Miro Board — Event Storming](https://miro.com/app/board/uXjVGqQ_lk4=/) |
 | Domain Storytelling (Miro) | [Miro Board — Domain Storytelling](https://miro.com/app/board/uXjVGqQ_lk4=/) |
-| Vídeo de apresentação | PLACEHOLDER |
+| Video de apresentacao | [PREENCHER] -- video de ate 10 minutos demonstrando o sistema em funcionamento |
 
 ---
 
@@ -283,13 +283,54 @@ Detalhes: `docs/seguranca/relatorio-vulnerabilidades.md` e `docs/seguranca/plano
 
 ### Qualidade e Testes
 
-Estratégia de testes documentada em `docs/qualidade/estrategia-testes.md`, consolidando [ADR-005](../arquitetura/adr/005-estrategia-testes.md) e [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md):
+Estrategia de testes documentada em `docs/qualidade/estrategia-testes.md`, consolidando [ADR-005](../arquitetura/adr/005-estrategia-testes.md) e [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md):
 
-- **Pirâmide de testes**: muitos unitários (domínio), integração (TestClient + testcontainers), poucos E2E (BDD)
-- **TDD**: ciclo Red-Green-Refactor aplicado ao DDD (Value Objects → Entities → Aggregates)
-- **Test doubles**: Stub, Fake, Spy, Mock — taxonomia com exemplos do projeto
-- **BDD**: pytest-bdd com cenários Gherkin em português (linguagem ubíqua)
-- **Cobertura**: 90%+ OS/Estoque, 80%+ outros domínios, 65%+ infra/interfaces
+- **Piramide de testes**: muitos unitarios (dominio), integracao (TestClient + testcontainers), poucos E2E (BDD)
+- **TDD**: ciclo Red-Green-Refactor aplicado ao DDD (Value Objects -> Entities -> Aggregates)
+- **Test doubles**: Stub, Fake, Spy, Mock -- taxonomia com exemplos do projeto
+- **BDD**: pytest-bdd com cenarios Gherkin em portugues (linguagem ubiqua)
+
+#### Resultados de Testes
+
+Execucao em 12/04/2026:
+
+| Metrica | Valor |
+|---|---|
+| Total de testes | 542 |
+| Aprovados | 542 |
+| Falhas | 0 |
+| Erros | 1 (integracao -- requer PostgreSQL via Docker) |
+| Tempo de execucao | ~3.7s |
+
+O erro de integracao ocorre em `test_repositories.py` quando o PostgreSQL nao esta disponivel via Docker; todos os testes unitarios passam.
+
+#### Cobertura de Testes
+
+Cobertura total: **77%** (meta global: 80%).
+
+Cobertura por contexto delimitado (camada de dominio):
+
+| Contexto | Dominio | Aplicacao | Infra | Interfaces |
+|---|---|---|---|---|
+| Ordem de Servico | 95%+ | 99% | 0-42% | 33-100% |
+| Cliente + Veiculo | 89-100% | 98-100% | 35-69% | 26-100% |
+| Catalogo de Servicos | 91-100% | 100% | 0-28% | 28-100% |
+| Estoque | 88-100% | 100% | 0-26% | 26-100% |
+| Autenticacao | 93-100% | 100% | 0-100% | 29-100% |
+| Compartilhado | 98-100% | -- | 0-100% | 38-100% |
+
+Camadas de dominio e aplicacao atingem cobertura acima de 80% em todos os contextos. Camadas de infraestrutura e interfaces possuem cobertura menor devido a dependencia de banco de dados e framework (testadas via integracao).
+
+#### Rastreabilidade de Requisitos
+
+| Requisito | Descricao | Status | Evidencia |
+|---|---|---|---|
+| DDD | Bounded contexts, agregados, entidades, value objects | Implementado | 5 contextos delimitados, 5 agregados, VOs (CPF, CNPJ, Dinheiro, Placa, Orcamento) |
+| Cobertura 80%+ | Cobertura de testes nos dominios criticos | Atendido parcialmente | 77% global; dominios criticos (OS, Estoque) acima de 88% |
+| JWT | Autenticacao com tokens JWT | Implementado | HS256 com revogacao via JTI, refresh tokens com rotacao |
+| Swagger | Documentacao de API via OpenAPI | Implementado | Disponivel em /docs com todos os endpoints documentados |
+| Docker | Containerizacao da aplicacao | Implementado | Dockerfile multi-stage + docker-compose.yml (app + PostgreSQL) |
+| Clean Architecture | Onion Architecture com DDD | Implementado | 4 camadas por contexto (dominio, aplicacao, infraestrutura, interfaces) |
 
 ---
 
