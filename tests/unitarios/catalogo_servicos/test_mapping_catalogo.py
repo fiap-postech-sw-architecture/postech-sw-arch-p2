@@ -82,6 +82,28 @@ class TestEventosMapeamentoServico:
             assert carregado._preco.moeda == "BRL"
             assert carregado.nome == "Troca de oleo"
 
+    def test_instancia_carregada_rejeita_mutacao_de_id(
+        self, engine_sqlite: object
+    ) -> None:
+        servico_id = uuid4()
+        with Session(engine_sqlite) as sessao_insert:  # type: ignore[arg-type]
+            servico = ServicoOferecido(
+                id=servico_id,
+                _nome="Alinhamento",
+                _descricao="Alinhamento completo",
+                _preco=Dinheiro(valor=Decimal("75.00"), moeda="BRL"),
+            )
+            sessao_insert.add(servico)
+            sessao_insert.commit()
+
+        with Session(engine_sqlite) as sessao_load:  # type: ignore[arg-type]
+            carregado = sessao_load.get(ServicoOferecido, servico_id)
+            assert carregado is not None
+            with pytest.raises(
+                AttributeError, match="nao pode ser alterada apos criacao"
+            ):
+                carregado.id = uuid4()
+
     def test_update_decompoe_preco(self, engine_sqlite: object) -> None:
         servico_id = uuid4()
         with Session(engine_sqlite) as sessao_insert:  # type: ignore[arg-type]

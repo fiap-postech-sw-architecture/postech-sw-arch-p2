@@ -87,7 +87,11 @@ def iniciar_mapeamentos() -> None:
 
     @event.listens_for(Veiculo, "load")
     def _reconstruir_placa(target: Veiculo, _context: object) -> None:
-        target.__dict__["_placa"] = Placa(valor=target._placa_valor)  # type: ignore[attr-defined]
+        placa_valor: str = target._placa_valor  # type: ignore[attr-defined]
+        object.__setattr__(target, "_placa", Placa(valor=placa_valor))
+        # Preserva o guard de imutabilidade de id em instancias carregadas
+        # (SQLAlchemy nao invoca __post_init__).
+        object.__setattr__(target, "_id_atribuido", True)
 
     @event.listens_for(Cliente, "load")
     def _reconstruir_documento(target: Cliente, _context: object) -> None:
@@ -104,7 +108,8 @@ def iniciar_mapeamentos() -> None:
         else:
             msg = f"tipo_documento invalido no banco: {tipo!r}"
             raise ValueError(msg)
-        target.__dict__["_documento"] = doc
+        object.__setattr__(target, "_documento", doc)
+        object.__setattr__(target, "_id_atribuido", True)
 
     @event.listens_for(Veiculo, "before_insert")
     @event.listens_for(Veiculo, "before_update")

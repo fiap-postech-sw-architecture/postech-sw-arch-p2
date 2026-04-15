@@ -56,6 +56,9 @@ def iniciar_mapeamentos() -> None:
         valor = target._preco_valor  # type: ignore[attr-defined]
         moeda = target._preco_moeda  # type: ignore[attr-defined]
         object.__setattr__(target, "_preco", Dinheiro(valor=valor, moeda=moeda))
+        # Preserva o guard de imutabilidade de id em instancias carregadas
+        # (SQLAlchemy nao invoca __post_init__).
+        object.__setattr__(target, "_id_atribuido", True)
 
     @event.listens_for(ServicoOferecido, "before_insert")
     @event.listens_for(ServicoOferecido, "before_update")

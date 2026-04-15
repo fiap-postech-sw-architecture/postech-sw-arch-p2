@@ -205,3 +205,57 @@ class TestEventosMapeamento:
             assert carregado is not None
             assert len(carregado.veiculos) == 1
             assert carregado.veiculos[0]._placa.valor == "ABC1D23"
+
+    def test_cliente_carregado_rejeita_mutacao_de_id(
+        self, engine_sqlite: object
+    ) -> None:
+        # Regressao: SQLAlchemy nao chama __post_init__ ao reidratar; o
+        # listener ``load`` precisa ativar _id_atribuido para que
+        # Entity.__setattr__ continue bloqueando mutacao de id.
+        cliente_id = uuid4()
+        with Session(engine_sqlite) as sessao_insert:  # type: ignore[arg-type]
+            cliente = Cliente(
+                id=cliente_id,
+                _nome="Joao",
+                _documento=CPF(numero="21249722519"),
+                _contato="11999990000",
+            )
+            sessao_insert.add(cliente)
+            sessao_insert.commit()
+
+        with Session(engine_sqlite) as sessao_load:  # type: ignore[arg-type]
+            carregado = sessao_load.get(Cliente, cliente_id)
+            assert carregado is not None
+            with pytest.raises(
+                AttributeError, match="nao pode ser alterada apos criacao"
+            ):
+                carregado.id = uuid4()
+
+    def test_veiculo_carregado_rejeita_mutacao_de_id(
+        self, engine_sqlite: object
+    ) -> None:
+        cliente_id = uuid4()
+        with Session(engine_sqlite) as sessao_insert:  # type: ignore[arg-type]
+            cliente = Cliente(
+                id=cliente_id,
+                _nome="Maria",
+                _documento=CPF(numero="21249722519"),
+                _contato="11988887777",
+            )
+            cliente.adicionar_veiculo(
+                placa=Placa(valor="XYZ9W87"),
+                marca="VW",
+                modelo="Gol",
+                ano=2019,
+            )
+            sessao_insert.add(cliente)
+            sessao_insert.commit()
+
+        with Session(engine_sqlite) as sessao_load:  # type: ignore[arg-type]
+            carregado = sessao_load.get(Cliente, cliente_id)
+            assert carregado is not None
+            veiculo = carregado.veiculos[0]
+            with pytest.raises(
+                AttributeError, match="nao pode ser alterada apos criacao"
+            ):
+                veiculo.id = uuid4()
