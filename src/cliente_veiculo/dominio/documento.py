@@ -8,11 +8,13 @@ class Documento(Protocol):
 
     Define a interface comum exigida pelo agregado Cliente e pelos repositorios.
     Implementacoes (CPF, CNPJ) satisfazem este Protocol estruturalmente: basta
-    expor `numero`, `formatado()` e `mascarado()`.
+    expor `numero` (read-only), `formatado()` e `mascarado()`.
     """
 
-    numero: str
-    """Numero puro do documento (sem mascara), usado para busca por hash."""
+    @property
+    def numero(self) -> str:
+        """Numero puro do documento (sem mascara), usado para busca por hash."""
+        ...
 
     def formatado(self) -> str:
         """Retorna o documento formatado por extenso para exibicao ao usuario."""
