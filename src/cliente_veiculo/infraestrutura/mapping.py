@@ -1,0 +1,129 @@
+from __future__ import annotations
+
+from sqlalchemy import (
+    Boolean,
+    Column,
+    ForeignKey,
+    Integer,
+    String,
+    Table,
+    Uuid,
+    event,
+)
+from sqlalchemy.orm import registry, relationship
+
+from src.cliente_veiculo.dominio.cliente import Cliente
+from src.cliente_veiculo.dominio.cnpj import CNPJ
+from src.cliente_veiculo.dominio.cpf import CPF
+from src.cliente_veiculo.dominio.placa import Placa
+from src.cliente_veiculo.dominio.veiculo import Veiculo
+from src.compartilhado.infraestrutura.database import metadata
+from src.compartilhado.infraestrutura.encryption import EncryptionService
+
+clientes_table = Table(
+    "clientes",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column("nome", String(255), nullable=False),
+    Column("documento", String(255), nullable=False),
+    Column("documento_hash", String(64), nullable=False, unique=True),
+    Column("tipo_documento", String(4), nullable=False),
+    Column("contato", String(255), nullable=False),
+    Column("ativo", Boolean, nullable=False, default=True),
+)
+
+veiculos_table = Table(
+    "veiculos",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column("placa", String(7), nullable=False, unique=True),
+    Column("marca", String(100), nullable=False),
+    Column("modelo", String(100), nullable=False),
+    Column("ano", Integer, nullable=False),
+    Column("cliente_id", Uuid, ForeignKey("clientes.id"), nullable=False),
+)
+
+_mapeamento_iniciado = False
+
+
+def iniciar_mapeamentos() -> None:
+    global _mapeamento_iniciado
+    if _mapeamento_iniciado:
+        return
+    _mapeamento_iniciado = True
+
+    mapper_registry = registry()
+
+    mapper_registry.map_imperatively(
+        Veiculo,
+        veiculos_table,
+        properties={
+            "id": veiculos_table.c.id,
+            "_placa_valor": veiculos_table.c.placa,
+            "_marca": veiculos_table.c.marca,
+            "_modelo": veiculos_table.c.modelo,
+            "_ano": veiculos_table.c.ano,
+        },
+    )
+
+    mapper_registry.map_imperatively(
+        Cliente,
+        clientes_table,
+        properties={
+            "id": clientes_table.c.id,
+            "_nome": clientes_table.c.nome,
+            "_documento_numero": clientes_table.c.documento,
+            "_documento_hash": clientes_table.c.documento_hash,
+            "_tipo_documento": clientes_table.c.tipo_documento,
+            "_contato": clientes_table.c.contato,
+            "_ativo": clientes_table.c.ativo,
+            "_veiculos": relationship(
+                Veiculo,
+                lazy="selectin",
+                cascade="all, delete-orphan",
+            ),
+        },
+    )
+
+    @event.listens_for(Veiculo, "load")
+    def _reconstruir_placa(target: Veiculo, _context: object) -> None:
+        target.__dict__["_placa"] = Placa(valor=target._placa_valor)  # type: ignore[attr-defined]
+
+    @event.listens_for(Cliente, "load")
+    def _reconstruir_documento(target: Cliente, _context: object) -> None:
+        numero: str = target._documento_numero  # type: ignore[attr-defined]
+        enc = EncryptionService.instance()
+        if numero and numero.startswith("gAAAAA"):
+            numero = enc.decrypt(numero)
+        tipo: str = target._tipo_documento  # type: ignore[attr-defined]
+        doc: CPF | CNPJ
+        if tipo == "cpf":
+            doc = CPF(numero=numero)
+        elif tipo == "cnpj":
+            doc = CNPJ(numero=numero)
+        else:
+            msg = f"tipo_documento invalido no banco: {tipo!r}"
+            raise ValueError(msg)
+        target.__dict__["_documento"] = doc
+
+    @event.listens_for(Veiculo, "before_insert")
+    @event.listens_for(Veiculo, "before_update")
+    def _decompor_placa(_mapper: object, _connection: object, target: Veiculo) -> None:
+        target._placa_valor = target._placa.valor
+
+    @event.listens_for(Cliente, "before_insert")
+    @event.listens_for(Cliente, "before_update")
+    def _decompor_documento(
+        _mapper: object, _connection: object, target: Cliente
+    ) -> None:
+        doc = target._documento
+        enc = EncryptionService.instance()
+        target._documento_numero = enc.encrypt(doc.numero)
+        target._documento_hash = enc.hash_deterministic(doc.numero)
+        if isinstance(doc, CPF):
+            target._tipo_documento = "cpf"
+        elif isinstance(doc, CNPJ):
+            target._tipo_documento = "cnpj"
+        else:
+            msg = f"Tipo de documento nao suportado: {type(doc).__name__}"
+            raise ValueError(msg)
