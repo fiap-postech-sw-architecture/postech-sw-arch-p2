@@ -3,6 +3,7 @@ from __future__ import annotations
 from sqlalchemy import (
     Boolean,
     Column,
+    DateTime,
     ForeignKey,
     Integer,
     String,
@@ -14,6 +15,7 @@ from sqlalchemy.orm import registry, relationship
 
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.cnpj import CNPJ
+from src.cliente_veiculo.dominio.consentimento import ConsentimentoCliente
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.placa import Placa
 from src.cliente_veiculo.dominio.veiculo import Veiculo
@@ -41,6 +43,21 @@ veiculos_table = Table(
     Column("modelo", String(100), nullable=False),
     Column("ano", Integer, nullable=False),
     Column("cliente_id", Uuid, ForeignKey("clientes.id"), nullable=False),
+)
+
+consentimentos_table = Table(
+    "consentimentos",
+    metadata,
+    Column("id", Uuid, primary_key=True),
+    Column(
+        "cliente_id",
+        Uuid,
+        ForeignKey("clientes.id", ondelete="CASCADE"),
+        nullable=False,
+    ),
+    Column("tipo", String(50), nullable=False),
+    Column("concedido_em", DateTime(timezone=True), nullable=False),
+    Column("revogado_em", DateTime(timezone=True), nullable=True),
 )
 
 _mapeamento_iniciado = False
@@ -85,12 +102,28 @@ def iniciar_mapeamentos() -> None:
         },
     )
 
+    mapper_registry.map_imperatively(
+        ConsentimentoCliente,
+        consentimentos_table,
+        properties={
+            "id": consentimentos_table.c.id,
+            "_cliente_id": consentimentos_table.c.cliente_id,
+            "_tipo": consentimentos_table.c.tipo,
+            "_concedido_em": consentimentos_table.c.concedido_em,
+            "_revogado_em": consentimentos_table.c.revogado_em,
+        },
+    )
+
     @event.listens_for(Veiculo, "load")
     def _reconstruir_placa(target: Veiculo, _context: object) -> None:
-        placa_valor: str = target._placa_valor  # type: ignore[attr-defined]
-        object.__setattr__(target, "_placa", Placa(valor=placa_valor))
-        # Preserva o guard de imutabilidade de id em instancias carregadas
-        # (SQLAlchemy nao invoca __post_init__).
+        # object.__setattr__ for slots-safety and consistency with other listeners.
+        object.__setattr__(target, "_placa", Placa(valor=target._placa_valor))  # type: ignore[attr-defined]
+        object.__setattr__(target, "_id_atribuido", True)
+
+    @event.listens_for(ConsentimentoCliente, "load")
+    def _reconstruir_consentimento(
+        target: ConsentimentoCliente, _context: object
+    ) -> None:
         object.__setattr__(target, "_id_atribuido", True)
 
     @event.listens_for(Cliente, "load")
@@ -100,16 +133,16 @@ def iniciar_mapeamentos() -> None:
         if numero and numero.startswith("gAAAAA"):
             numero = enc.decrypt(numero)
         tipo: str = target._tipo_documento  # type: ignore[attr-defined]
-        doc: CPF | CNPJ
         if tipo == "cpf":
-            doc = CPF(numero=numero)
+            doc: CPF | CNPJ = CPF(numero=numero)
         elif tipo == "cnpj":
             doc = CNPJ(numero=numero)
         else:
-            msg = f"tipo_documento invalido no banco: {tipo!r}"
+            msg = f"tipo_documento invalido ao reidratar Cliente: {tipo!r}"
             raise ValueError(msg)
         object.__setattr__(target, "_documento", doc)
         object.__setattr__(target, "_id_atribuido", True)
+        object.__setattr__(target, "_eventos_pendentes", [])
 
     @event.listens_for(Veiculo, "before_insert")
     @event.listens_for(Veiculo, "before_update")
@@ -131,4 +164,4 @@ def iniciar_mapeamentos() -> None:
             target._tipo_documento = "cnpj"
         else:
             msg = f"Tipo de documento nao suportado: {type(doc).__name__}"
-            raise ValueError(msg)
+            raise TypeError(msg)

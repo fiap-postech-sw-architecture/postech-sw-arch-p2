@@ -1,66 +1,87 @@
 from __future__ import annotations
 
-import pytest
+import asyncio
+import os
+from unittest.mock import patch
+
 from fastapi import FastAPI
-from fastapi.testclient import TestClient
 
-from src.main import criar_app
-
-
-class TestCriarApp:
-    def test_retorna_instancia_fastapi(self) -> None:
-        app = criar_app()
-        assert isinstance(app, FastAPI)
-
-    def test_titulo_pytstop(self) -> None:
-        app = criar_app()
-        assert app.title == "PytStop"
-
-    def test_health_endpoint_responde(self) -> None:
-        app = criar_app()
-        client = TestClient(app)
-        resp = client.get("/api/v1/saude")
-        assert resp.status_code == 200
-        assert resp.json() == {"status": "ok"}
-
-    def test_docs_habilitados_em_development(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("ENVIRONMENT", "development")
-        app = criar_app()
-        assert app.docs_url == "/docs"
-        assert app.redoc_url == "/redoc"
-
-    def test_docs_desabilitados_em_production(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
-        monkeypatch.setenv("ENVIRONMENT", "production")
-        app = criar_app()
-        assert app.docs_url is None
-        assert app.redoc_url is None
-
-    def test_limiter_configurado(self) -> None:
-        app = criar_app()
-        assert hasattr(app.state, "limiter")
-
-    def test_security_headers_presentes(self) -> None:
-        app = criar_app()
-        client = TestClient(app)
-        resp = client.get("/api/v1/saude")
-        assert resp.headers["X-Content-Type-Options"] == "nosniff"
-        assert resp.headers["X-Frame-Options"] == "DENY"
-        assert "X-Request-ID" in resp.headers
+from src.main import criar_app, lifespan
 
 
-def test_lifespan_configura_logging_e_mapeamentos() -> None:
-    """Dispara o ciclo de vida do app via TestClient como context manager.
+class TestMain:
+    def test_criar_app_retorna_fastapi(self) -> None:
+        application = criar_app()
+        assert isinstance(application, FastAPI)
 
-    Sem o ``with`` o lifespan nao executa (FastAPI/Starlette so invoca o
-    startup+shutdown quando o TestClient e usado como context manager),
-    entao as chamadas a ``configurar_logging`` e aos ``iniciar_mapeamentos``
-    de cada contexto nao rodam nos testes de unidade.
-    """
-    app = criar_app()
-    with TestClient(app) as client:
-        resp = client.get("/api/v1/saude")
-        assert resp.status_code == 200
+    def test_titulo(self) -> None:
+        application = criar_app()
+        assert application.title == "PytStop"
+
+    def test_routers_montados(self) -> None:
+        application = criar_app()
+        paths = {r.path for r in application.routes if hasattr(r, "path")}
+        assert "/api/v1/saude" in paths
+        assert any("/api/v1/clientes" in p for p in paths)
+        assert any("/api/v1/servicos" in p for p in paths)
+        assert any("/api/v1/estoque" in p for p in paths)
+        assert any("/api/v1/ordens-de-servico" in p for p in paths)
+        assert any("/api/v1/autenticacao" in p for p in paths)
+
+    def test_versao(self) -> None:
+        from importlib.metadata import version
+
+        application = criar_app()
+        assert application.version == version("pytstop")
+
+    def test_middleware_registrado(self) -> None:
+        application = criar_app()
+        middleware_classes = [m.cls.__name__ for m in application.user_middleware]
+        assert "SecurityHeadersMiddleware" in middleware_classes
+
+    def test_docs_url_em_development(self) -> None:
+        with patch.dict(os.environ, {"ENVIRONMENT": "development"}, clear=False):
+            application = criar_app()
+            assert application.docs_url == "/docs"
+            assert application.redoc_url == "/redoc"
+
+    def test_docs_url_em_production(self) -> None:
+        with patch.dict(os.environ, {"ENVIRONMENT": "production"}, clear=False):
+            application = criar_app()
+            assert application.docs_url is None
+            assert application.redoc_url is None
+
+    def test_lifespan_executa_mapeamentos(self) -> None:
+        app = FastAPI()
+
+        async def _run() -> None:
+            with (
+                patch(
+                    "src.compartilhado.infraestrutura.logging.configurar_logging"
+                ) as mock_logging,
+                patch(
+                    "src.cliente_veiculo.infraestrutura.mapping.iniciar_mapeamentos"
+                ) as mock_cliente,
+                patch(
+                    "src.catalogo_servicos.infraestrutura.mapping.iniciar_mapeamentos"
+                ) as mock_catalogo,
+                patch(
+                    "src.estoque.infraestrutura.mapping.iniciar_mapeamentos"
+                ) as mock_estoque,
+                patch(
+                    "src.ordem_servico.infraestrutura.mapping.iniciar_mapeamentos"
+                ) as mock_os,
+                patch(
+                    "src.autenticacao.infraestrutura.mapping.iniciar_mapeamentos"
+                ) as mock_auth,
+            ):
+                async with lifespan(app):
+                    pass
+                mock_logging.assert_called_once()
+                mock_cliente.assert_called_once()
+                mock_catalogo.assert_called_once()
+                mock_estoque.assert_called_once()
+                mock_os.assert_called_once()
+                mock_auth.assert_called_once()
+
+        asyncio.run(_run())

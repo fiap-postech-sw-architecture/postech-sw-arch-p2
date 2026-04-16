@@ -99,6 +99,7 @@ Documentacao interativa disponivel em `http://localhost:8000/docs` (Swagger UI).
 | JWT_EXPIRATION_MINUTES | Tempo de expiracao do token | 30 |
 | ENVIRONMENT | Ambiente (development/production) | development |
 | CORS_ORIGINS | Origens permitidas para CORS | http://localhost:3000 |
+| RUN_MIGRATIONS_ON_STARTUP | Executar migrations ao iniciar o app | false |
 
 ## Testes
 

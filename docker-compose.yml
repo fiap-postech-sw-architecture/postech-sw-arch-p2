@@ -12,6 +12,7 @@ services:
       - JWT_EXPIRATION_MINUTES=30
       - ENVIRONMENT=development
       - CORS_ORIGINS=http://localhost:3000
+      - RUN_MIGRATIONS_ON_STARTUP=true
     entrypoint: ["./entrypoint.sh"]
 
   postgres:

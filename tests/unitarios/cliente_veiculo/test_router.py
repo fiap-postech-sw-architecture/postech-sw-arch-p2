@@ -75,7 +75,7 @@ def _criar_app() -> FastAPI:
 
 class TestRouter:
     def test_quantidade_de_rotas(self) -> None:
-        assert len(router.routes) == 8
+        assert len(router.routes) == 13
 
     def test_rotas_registradas(self) -> None:
         # Compara conjunto de (path, method) ignorando HEAD (auto-adicionado
@@ -97,6 +97,11 @@ class TestRouter:
             ("/api/v1/clientes/{cliente_id}/veiculos", "POST"),
             ("/api/v1/clientes/{cliente_id}/veiculos", "GET"),
             ("/api/v1/clientes/{cliente_id}/veiculos/{veiculo_id}", "DELETE"),
+            ("/api/v1/clientes/{cliente_id}/dados-pessoais", "GET"),
+            ("/api/v1/clientes/{cliente_id}/dados-pessoais/exportar", "GET"),
+            ("/api/v1/clientes/{cliente_id}/dados-pessoais", "DELETE"),
+            ("/api/v1/clientes/{cliente_id}/consentimento", "POST"),
+            ("/api/v1/clientes/{cliente_id}/consentimento", "DELETE"),
         }
         assert paths_methods == esperado
 

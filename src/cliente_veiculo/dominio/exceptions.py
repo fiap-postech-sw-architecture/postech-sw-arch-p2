@@ -32,3 +32,10 @@ class DocumentoDuplicadoException(EntidadeDuplicadaException):
 
     def __init__(self, mensagem: str = "Documento ja cadastrado") -> None:
         super().__init__(mensagem=mensagem)
+
+
+class ConsentimentoNaoEncontradoException(EntidadeNaoEncontradaException):
+    """Levantada quando um consentimento nao existe para o par cliente+tipo."""
+
+    def __init__(self, mensagem: str = "Consentimento nao encontrado") -> None:
+        super().__init__(mensagem=mensagem)

@@ -100,3 +100,37 @@ class ClienteListaResponse(BaseModel):
     total: int
     offset: int
     limit: int
+
+
+class DadosPessoaisResponse(BaseModel):
+    """Dados pessoais exportados (LGPD direito de acesso)."""
+
+    id: UUID
+    nome: str
+    documento_formatado: str
+    tipo_documento: str
+    contato: str
+    veiculos: list[dict[str, object]]
+    ativo: bool
+
+
+class ConsentimentoRequest(BaseModel):
+    """Payload de entrada para registro de consentimento LGPD."""
+
+    model_config = ConfigDict(extra="forbid")
+    tipo: str = Field(
+        min_length=1,
+        max_length=50,
+        examples=["tratamento_dados", "marketing", "compartilhamento"],
+    )
+
+
+class ConsentimentoResponse(BaseModel):
+    """Representacao de consentimento LGPD."""
+
+    id: UUID
+    cliente_id: UUID
+    tipo: str
+    concedido_em: str
+    revogado_em: str | None
+    ativo: bool

@@ -6,42 +6,34 @@ if TYPE_CHECKING:
     from uuid import UUID
 
     from src.cliente_veiculo.dominio.cliente import Cliente
+    from src.cliente_veiculo.dominio.consentimento import ConsentimentoCliente
     from src.cliente_veiculo.dominio.documento import Documento
     from src.cliente_veiculo.dominio.placa import Placa
 
 
 class ClienteRepository(Protocol):
-    """Contrato de persistencia para o agregado Cliente.
+    def obter_por_id(self, cliente_id: UUID) -> Cliente | None: ...
 
-    Define as operacoes que qualquer implementacao (SQLAlchemy, in-memory, fake)
-    precisa oferecer.
-    """
+    def salvar(self, cliente: Cliente) -> None: ...
 
-    def obter_por_id(self, cliente_id: UUID) -> Cliente | None:
-        """Retorna o Cliente pela chave primaria ou None se nao existir."""
-        ...
+    def listar(self, offset: int = 0, limit: int = 20) -> list[Cliente]: ...
 
-    def salvar(self, cliente: Cliente) -> None:
-        """Persiste insercoes e atualizacoes do agregado Cliente."""
-        ...
+    def contar(self) -> int: ...
 
-    def listar(self, offset: int = 0, limit: int = 20) -> list[Cliente]:
-        """Lista clientes paginados (padrao: 20 por pagina)."""
-        ...
-
-    def contar(self) -> int:
-        """Retorna o total de clientes cadastrados."""
-        ...
-
-    def obter_por_documento(self, documento: Documento) -> Cliente | None:
-        """Busca por documento (CPF ou CNPJ) para verificacao de duplicacao."""
-        ...
+    def obter_por_documento(self, documento: Documento) -> Cliente | None: ...
 
     def placa_existe(
         self, placa: Placa, excluir_cliente_id: UUID | None = None
-    ) -> bool:
-        """Indica se a placa ja esta cadastrada em outro cliente.
+    ) -> bool: ...
 
-        `excluir_cliente_id` permite ignorar o proprio cliente durante updates.
-        """
-        ...
+    def obter_dados_pessoais(self, cliente_id: UUID) -> Cliente | None: ...
+
+    def anonimizar_dados(self, cliente_id: UUID) -> None: ...
+
+    def salvar_consentimento(self, consentimento: ConsentimentoCliente) -> None: ...
+
+    def obter_consentimento(
+        self, cliente_id: UUID, tipo: str
+    ) -> ConsentimentoCliente | None: ...
+
+    def revogar_consentimento(self, cliente_id: UUID, tipo: str) -> None: ...
