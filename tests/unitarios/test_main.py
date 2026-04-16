@@ -52,9 +52,15 @@ class TestCriarApp:
         assert "X-Request-ID" in resp.headers
 
 
-def test_lifespan_configura_logging() -> None:
+def test_lifespan_configura_logging_e_mapeamentos() -> None:
+    """Dispara o ciclo de vida do app via TestClient como context manager.
+
+    Sem o ``with`` o lifespan nao executa (FastAPI/Starlette so invoca o
+    startup+shutdown quando o TestClient e usado como context manager),
+    entao as chamadas a ``configurar_logging`` e aos ``iniciar_mapeamentos``
+    de cada contexto nao rodam nos testes de unidade.
+    """
     app = criar_app()
-    client = TestClient(app)
-    # Trigger lifespan by making a request
-    resp = client.get("/api/v1/saude")
-    assert resp.status_code == 200
+    with TestClient(app) as client:
+        resp = client.get("/api/v1/saude")
+        assert resp.status_code == 200

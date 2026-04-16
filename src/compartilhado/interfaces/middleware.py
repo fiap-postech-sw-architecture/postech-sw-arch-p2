@@ -5,6 +5,8 @@ from uuid import uuid4
 
 import structlog
 from fastapi import FastAPI
+from slowapi import Limiter
+from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
@@ -66,20 +68,35 @@ def configurar_cors(app: FastAPI) -> None:
     )
 
 
-def configurar_rate_limiting(app: FastAPI) -> None:
-    """Instala o SlowAPIMiddleware com limite padrao configuravel via RATE_LIMIT.
+# Singleton compartilhado entre todos os routers que queiram aplicar
+# rate limits por endpoint via ``@limiter.limit("...")``.
+#
+# CRITICO: o decorator do SlowAPI (``@limiter.limit(...)``) precisa
+# usar a MESMA instancia de ``Limiter`` que o ``SlowAPIMiddleware`` le
+# de ``app.state.limiter``. Caso contrario os contadores ficam em
+# instancias diferentes e o limite nunca e enforcado. Por isso
+# expomos este ``limiter`` em escopo de modulo e
+# ``configurar_rate_limiting`` apenas o anexa ao app + registra o
+# middleware/handler.
+#
+# O limite padrao e lido do env var ``RATE_LIMIT`` em tempo de
+# import — o processo ja deve ter as env vars setadas antes de
+# importar este modulo, o que e verdade no fluxo ``criar_app`` ->
+# ``configurar_rate_limiting``.
+_default_limit = os.environ.get("RATE_LIMIT", "60/minute")
+limiter = Limiter(key_func=get_remote_address, default_limits=[_default_limit])
 
-    Padrao `60/minute` por IP. O storage e em memoria, portanto cada replica tem
-    seu proprio contador; para producao multi-instancia configure um backend
-    compartilhado (Redis).
+
+def configurar_rate_limiting(app: FastAPI) -> None:
+    """Anexa o ``limiter`` compartilhado ao app e instala o SlowAPIMiddleware.
+
+    Storage em memoria (por-processo); para multi-replica considere um
+    backend compartilhado (Redis) via ``storage_uri``.
     """
-    from slowapi import Limiter, _rate_limit_exceeded_handler
+    from slowapi import _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded
     from slowapi.middleware import SlowAPIMiddleware
-    from slowapi.util import get_remote_address
 
-    default_limit = os.environ.get("RATE_LIMIT", "60/minute")
-    limiter = Limiter(key_func=get_remote_address, default_limits=[default_limit])
     app.state.limiter = limiter
     app.add_middleware(SlowAPIMiddleware)
     app.add_exception_handler(

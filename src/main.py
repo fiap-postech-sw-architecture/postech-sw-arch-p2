@@ -19,10 +19,36 @@ from src.compartilhado.interfaces.router_publico import router as router_publico
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
-    """Ciclo de vida do app: inicializa logging no startup e libera no shutdown."""
+    """Ciclo de vida do app: inicializa logging + mappings no startup."""
     from src.compartilhado.infraestrutura.logging import configurar_logging
 
     configurar_logging()
+
+    # Registra os imperative mappings de cada bounded context antes de
+    # aceitar requisicoes. Cada ``iniciar_mapeamentos`` e idempotente
+    # (guard interno via flag booleana), seguro para chamar em warm
+    # restarts e em testes. A ORDEM importa: contexts a montante devem
+    # vir primeiro porque OS referencia clientes/veiculos via FK, e
+    # estoque/catalogo nao podem depender de tabelas ainda ausentes
+    # no metadata. Ao adicionar um novo context, posicione seu
+    # ``iniciar_*()`` ANTES dos contexts que dependem dele.
+    from src.catalogo_servicos.infraestrutura.mapping import (
+        iniciar_mapeamentos as iniciar_catalogo,
+    )
+    from src.cliente_veiculo.infraestrutura.mapping import (
+        iniciar_mapeamentos as iniciar_cliente,
+    )
+    from src.estoque.infraestrutura.mapping import (
+        iniciar_mapeamentos as iniciar_estoque,
+    )
+    from src.ordem_servico.infraestrutura.mapping import (
+        iniciar_mapeamentos as iniciar_os,
+    )
+
+    iniciar_cliente()
+    iniciar_catalogo()
+    iniciar_estoque()
+    iniciar_os()
     yield
 
 
@@ -44,6 +70,20 @@ def criar_app() -> FastAPI:
     )
 
     application.include_router(router_publico)
+
+    # Importacoes dos routers sao locais (dentro de criar_app) para
+    # manter o ciclo de vida do app limpo em tempo de import e evitar
+    # instanciacao precoce de dependencias. Auth router sera registrado
+    # em PR 12 (Autenticacao Complete).
+    from src.catalogo_servicos.interfaces.router import router as catalogo_router
+    from src.cliente_veiculo.interfaces.router import router as cliente_router
+    from src.estoque.interfaces.router import router as estoque_router
+    from src.ordem_servico.interfaces.router import router as os_router
+
+    application.include_router(cliente_router)
+    application.include_router(catalogo_router)
+    application.include_router(estoque_router)
+    application.include_router(os_router)
 
     # Middleware execution order (Starlette "last added runs first" on request,
     # reversed on response). SecurityHeadersMiddleware is added last so it is
