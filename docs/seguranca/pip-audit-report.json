@@ -1,0 +1,6 @@
+{
+  "report_status": "not_generated",
+  "reason": "pip-audit nao esta instalado no venv do projeto. Instalar com 'pip install pip-audit' e regerar.",
+  "dependencies": null,
+  "vulnerabilities": null
+}
