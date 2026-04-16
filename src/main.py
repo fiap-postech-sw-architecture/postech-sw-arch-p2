@@ -32,6 +32,9 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     # estoque/catalogo nao podem depender de tabelas ainda ausentes
     # no metadata. Ao adicionar um novo context, posicione seu
     # ``iniciar_*()`` ANTES dos contexts que dependem dele.
+    from src.autenticacao.infraestrutura.mapping import (
+        iniciar_mapeamentos as iniciar_auth,
+    )
     from src.catalogo_servicos.infraestrutura.mapping import (
         iniciar_mapeamentos as iniciar_catalogo,
     )
@@ -49,6 +52,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     iniciar_catalogo()
     iniciar_estoque()
     iniciar_os()
+    iniciar_auth()
     yield
 
 
@@ -73,8 +77,8 @@ def criar_app() -> FastAPI:
 
     # Importacoes dos routers sao locais (dentro de criar_app) para
     # manter o ciclo de vida do app limpo em tempo de import e evitar
-    # instanciacao precoce de dependencias. Auth router sera registrado
-    # em PR 12 (Autenticacao Complete).
+    # instanciacao precoce de dependencias.
+    from src.autenticacao.interfaces.router import router as auth_router
     from src.catalogo_servicos.interfaces.router import router as catalogo_router
     from src.cliente_veiculo.interfaces.router import router as cliente_router
     from src.estoque.interfaces.router import router as estoque_router
@@ -84,6 +88,7 @@ def criar_app() -> FastAPI:
     application.include_router(catalogo_router)
     application.include_router(estoque_router)
     application.include_router(os_router)
+    application.include_router(auth_router)
 
     # Middleware execution order (Starlette "last added runs first" on request,
     # reversed on response). SecurityHeadersMiddleware is added last so it is

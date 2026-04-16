@@ -1,46 +1,67 @@
-# TODO(PR 12): replace stub with real JWT-backed authentication middleware
 from __future__ import annotations
 
-import os
-from typing import Any
+from typing import TYPE_CHECKING, Any
+
+from fastapi import Depends, HTTPException, status
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+from src.autenticacao.dominio.exceptions import (
+    TokenExpiradoException,
+    TokenInvalidoException,
+)
+from src.autenticacao.interfaces.dependencies import obter_jwt_service
+from src.compartilhado.interfaces.dependencies import obter_session
+
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
+
+_bearer_scheme = HTTPBearer(auto_error=False)
 
 
-def _impedir_uso_em_producao() -> None:
-    """Falha explicitamente se o stub for carregado em ambiente de producao.
-
-    O stub retorna sempre um usuario fictício com papel admin, o que e aceitavel
-    em testes e ambientes locais mas seria uma falha critica de seguranca em
-    producao. A variavel de ambiente `ENVIRONMENT=production` bloqueia o stub
-    e forca o deploy a carregar o middleware real (PR 12).
-    """
-    if os.environ.get("ENVIRONMENT") == "production":
-        msg = (
-            "autenticacao middleware stub invocado em producao. "
-            "Substitua pelo middleware JWT real do PR 12."
+def obter_usuario_atual(
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
+    session: Session = Depends(obter_session),
+) -> dict[str, object]:
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de autenticacao nao fornecido",
         )
-        raise RuntimeError(msg)
+    try:
+        jwt_service = obter_jwt_service()
+        payload = jwt_service.validar_token(credentials.credentials)
+        jti = payload.get("jti")
+        if jti is not None:
+            from src.autenticacao.infraestrutura.token_revogado_repository import (
+                TokenRevogadoSQLAlchemyRepository,
+            )
+
+            token_repo = TokenRevogadoSQLAlchemyRepository(session=session)
+            if token_repo.esta_revogado(str(jti)):
+                raise HTTPException(
+                    status_code=status.HTTP_401_UNAUTHORIZED,
+                    detail="Token revogado",
+                )
+        return payload
+    except (TokenExpiradoException, TokenInvalidoException) as e:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail=str(e.mensagem),
+        ) from None
 
 
-def obter_usuario_atual() -> dict[str, object]:
-    """Stub temporario ate o contexto Autenticacao (PR 12) prover o middleware real.
+def exigir_papel(
+    *papeis: str,
+) -> Any:
+    def verificar(
+        usuario: dict[str, object] = Depends(obter_usuario_atual),
+    ) -> dict[str, object]:
+        papel = usuario.get("papel", "")
+        if papel not in papeis:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Papel nao autorizado",
+            )
+        return usuario
 
-    Retorna um usuario fixo com papel admin para permitir que os routers das
-    fatias anteriores (Cliente+Veiculo, Catalogo, Estoque) executem em testes e
-    em ambientes locais. Substitui-lo no PR 12 pela validacao JWT completa.
-    Levanta `RuntimeError` se `ENVIRONMENT=production`, impedindo uso acidental.
-    """
-    _impedir_uso_em_producao()
-    return {"sub": "stub", "papel": "admin"}
-
-
-def exigir_papel(*_papeis: str) -> Any:
-    """Stub temporario de guard de papel. Retorna sempre o usuario stub.
-
-    Sera substituido no PR 12 por uma verificacao real contra os papeis
-    contidos no token JWT validado. Levanta `RuntimeError` em producao.
-    """
-
-    def _dependency() -> dict[str, object]:
-        return obter_usuario_atual()
-
-    return _dependency
+    return verificar

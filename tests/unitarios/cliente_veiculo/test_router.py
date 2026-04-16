@@ -6,6 +6,7 @@ from uuid import uuid4
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.autenticacao.interfaces.middleware import obter_usuario_atual
 from src.cliente_veiculo.aplicacao.dtos import (
     ClienteDTO,
     ClienteResumoDTO,
@@ -65,9 +66,10 @@ def _criar_app() -> FastAPI:
     app.include_router(router)
     mock_session = MagicMock()
     app.dependency_overrides[obter_session] = lambda: mock_session
-    # Note: nao sobrescrevemos `obter_usuario_atual` aqui porque o stub
-    # `exigir_papel` chama a funcao diretamente (nao via `Depends`); o stub
-    # retorna sempre um usuario admin valido em testes, entao as rotas passam.
+    app.dependency_overrides[obter_usuario_atual] = lambda: {
+        "sub": str(uuid4()),
+        "papel": "admin",
+    }
     return app
 
 

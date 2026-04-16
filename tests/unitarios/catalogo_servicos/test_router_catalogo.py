@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.autenticacao.interfaces.middleware import obter_usuario_atual
 from src.catalogo_servicos.aplicacao.dtos import ServicoDTO
 from src.catalogo_servicos.interfaces.router import (
     atualizar_servico,
@@ -37,6 +38,10 @@ def _criar_app() -> FastAPI:
     app.include_router(router)
     mock_session = MagicMock()
     app.dependency_overrides[obter_session] = lambda: mock_session
+    app.dependency_overrides[obter_usuario_atual] = lambda: {
+        "sub": str(uuid4()),
+        "papel": "admin",
+    }
     return app
 
 
