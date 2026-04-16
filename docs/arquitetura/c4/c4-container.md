@@ -1,6 +1,6 @@
 # C4 — Diagrama de Container (Level 2)
 
-> **Status**: DRAFT — documento em elaboracao, sujeito a revisao pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Mostra os containers que compõem o PytStop e como se comunicam. Baseado no modelo C4 de Simon Brown (Software Architecture — Aula 2).
 

@@ -1,6 +1,6 @@
 # Estrategia de Testes
 
-* Status: DRAFT
+* Versao: 1.0
 * Data: 2026-03-29
 
 ---
@@ -252,7 +252,25 @@ mutmut com meta de 70%+ de mutantes mortos. Meta indicativa, nao bloqueante (TD-
 
 Evolucao futura: Allure como framework de relatorios (TD-014).
 
-## 12. Referencias
+## 12. Resultados (Fase 1)
+
+Metricas finais da implementacao (16/04/2026):
+
+| Metrica | Valor |
+|---|---|
+| Total de testes | 970 |
+| Testes unitarios | ~920 |
+| Testes de integracao | ~30 |
+| Testes de seguranca | ~20 |
+| Cobertura global | 97.75% |
+| Meta global | 80% |
+| Cobertura dominios criticos | 95%+ |
+| Meta dominios criticos | 90% |
+| Tempo de execucao (unitarios) | ~6s |
+
+Todas as metas de cobertura atingidas. Testes de integracao usam testcontainers com PostgreSQL real e isolamento via SAVEPOINT.
+
+## 13. Referencias
 
 - [ADR-005](../arquitetura/adr/005-estrategia-testes.md): Estrategia de testes com cobertura realista
 - [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md): Pipeline de seguranca e analise estatica — bandit, pip-audit, gitleaks, trivy

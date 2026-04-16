@@ -1,6 +1,6 @@
 # Entrega
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Artefatos relacionados a entrega da Fase 1 do Tech Challenge FIAP.
 

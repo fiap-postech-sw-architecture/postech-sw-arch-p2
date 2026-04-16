@@ -1,6 +1,6 @@
 # Mapa de Contextos
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 5 contextos delimitados com padrões de integração DDD. Decisão de organização: [ADR-007](adr/007-organizacao-contextos-delimitados.md).
 

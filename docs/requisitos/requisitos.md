@@ -1,6 +1,6 @@
 # Requisitos — Sistema Integrado de Atendimento e Execução de Serviços
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 ## Requisitos Funcionais
 
@@ -50,7 +50,7 @@ Classificação por taxonomia:
 | RNF-011 | Infraestrutura | Operacionais (Organizacionais) | Dockerfile multi-stage + docker-compose.yml. Migrações automáticas no startup (Alembic). | Must |
 | RNF-012 | API | Usabilidade (Produto) | RESTful, documentada via Swagger/OpenAPI. Paginação offset-based (padrão 20, máximo 100). | Must |
 | RNF-013 | Observabilidade | Operacionais (Organizacionais) | Logging estruturado (structlog JSON). Request ID propagado. Transições de status e reservas de estoque logadas em INFO. | Could |
-| RNF-014 | Segurança | Desenvolvimento (Organizacionais) | Análise estática de segurança (bandit) deve passar sem findings de severidade alta no CI. | Should |
+| RNF-014 | Segurança | Desenvolvimento (Organizacionais) | Análise estática de segurança (bandit) deve passar sem achados de severidade alta no CI. | Should |
 | RNF-015 | Segurança | Desenvolvimento (Organizacionais) | Dependências auditadas mensalmente via pip-audit. Zero vulnerabilidades críticas em produção. | Should |
 | RNF-016 | Segurança | Operacionais (Organizacionais) | SBOM (Software Bill of Materials) gerado via CycloneDX a cada release. [ADR-012](../arquitetura/adr/012-licenciamento-software-sbom.md). | Could |
 

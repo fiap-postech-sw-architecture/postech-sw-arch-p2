@@ -1,6 +1,6 @@
 # PRD — Sistema Integrado de Atendimento e Execução de Serviços
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 ## Declaração do Problema
 

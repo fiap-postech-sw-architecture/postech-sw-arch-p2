@@ -1,6 +1,6 @@
 # Levantamento de Requisitos — Oficina Mecânica
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 > Levantamento de requisitos gerado com assistência de IA (Claude) e revisado pela equipe PytStop.
 > Segue a metodologia de Marty Cagan aplicada ao domínio da oficina mecânica.

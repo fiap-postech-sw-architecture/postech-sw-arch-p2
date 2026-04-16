@@ -1,6 +1,6 @@
 # Guia de Documentacao de Arquitetura
 
-> **Status**: DRAFT — documento em elaboracao, sujeito a revisao pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Classificacao dos documentos de arquitetura do projeto conforme HLD (High-Level Design) e LLD (Low-Level Design).
 

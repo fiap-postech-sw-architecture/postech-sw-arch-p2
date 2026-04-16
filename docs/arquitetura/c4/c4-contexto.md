@@ -1,6 +1,6 @@
 # C4 — Diagrama de Contexto (Level 1)
 
-> **Status**: DRAFT — documento em elaboracao, sujeito a revisao pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Visao de mais alto nivel do sistema, mostrando o PytStop e seus relacionamentos com atores e sistemas externos. Baseado no modelo C4 de Simon Brown (Software Architecture — Aula 2).
 

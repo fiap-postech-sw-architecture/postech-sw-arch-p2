@@ -1,6 +1,6 @@
 # RFCs (Request for Comments)
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Documentos de design tecnico que detalham decisoes arquiteturais significativas do sistema.
 

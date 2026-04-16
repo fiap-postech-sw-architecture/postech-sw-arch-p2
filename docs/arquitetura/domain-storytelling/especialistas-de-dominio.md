@@ -1,6 +1,6 @@
 # Especialistas de Domínio e Entrevistas — Oficina Mecânica
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 > Entrevistas simuladas geradas com assistência de IA (Claude) e revisadas pela equipe PytStop.
 > Os especialistas de domínio são fictícios — representam papéis típicos de uma oficina

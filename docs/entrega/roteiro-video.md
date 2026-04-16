@@ -1,6 +1,6 @@
 # Roteiro do Vídeo — Fase 1
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Duração alvo: ~14 minutos (1 min de folga dentro do limite de 15 min).
 

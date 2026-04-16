@@ -1,6 +1,6 @@
 # Documento de Entrega — Fase 1
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 ## Dados do Grupo
 
@@ -24,7 +24,7 @@
 | Recurso | URL |
 |---|---|
 | Documentação | [docs/](../../docs/) (neste repositório) |
-| Repositório | [github.com/jbamaral/postech-sw-arch-p1](https://github.com/jbamaral/postech-sw-arch-p1) |
+| Repositorio | [github.com/fiap-postech-sw-architecture/postech-sw-arch-p1](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1) |
 | Event Storming | [Workshop de Event Storming](../arquitetura/event-storming/workshop-event-storming.md) |
 | Event Storming (Miro) | [Miro Board — Event Storming](https://miro.com/app/board/uXjVGqQ_lk4=/) |
 | Domain Storytelling (Miro) | [Miro Board — Domain Storytelling](https://miro.com/app/board/uXjVGqQ_lk4=/) |
@@ -81,7 +81,7 @@
 
 ## Relatório de Vulnerabilidades (Resumo)
 
-*(Resumo a ser preenchido após execução dos scans de segurança na fase de implementação)*
+Verificacao bandit: 0 achados de severidade alta, 1 de severidade media (B104 — bind `0.0.0.0` em desenvolvimento, risco aceito). pip-audit, SonarQube, OWASP ZAP, gitleaks e trivy: pendentes de execucao. 4 achados iniciais (PII em texto plano, LGPD, consentimento, JWT) — todos mitigados ou implementados no MVP. Detalhes em `docs/seguranca/relatorio-vulnerabilidades.md`.
 
 ## Geração do PDF
 

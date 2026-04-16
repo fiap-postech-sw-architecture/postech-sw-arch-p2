@@ -1,6 +1,6 @@
 # Seguranca
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Documentacao de seguranca do projeto, incluindo analise de vulnerabilidades e evidencias de scanning.
 

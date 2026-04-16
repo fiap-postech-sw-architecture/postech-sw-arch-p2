@@ -1,6 +1,6 @@
 # Dívida Técnica
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Simplificações deliberadas cujo custo de correção é aceito para o escopo do MVP.
 
@@ -13,11 +13,16 @@ Classificação por tipo:
 - **Planejado**: equipe sabe que a solução não é ideal, documenta e planeja pagar depois
 - **Negligenciado**: débito ignorado por muito tempo, mesmo após identificação
 
-## Itens
+## Itens Resolvidos
+
+| # | Área | Descrição | Resolução |
+|---|---|---|---|
+| TD-001 | Segurança | Sem mecanismo de consentimento explícito LGPD | **Fechado** — Implementado no MVP via RF-019: endpoints `POST/DELETE /clientes/{id}/consentimento` com entidade `ConsentimentoCliente`. |
+
+## Itens Abertos
 
 | # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
 |---|---|---|---|---|---|---|---|---|
-| TD-001 | Segurança | Sem mecanismo de consentimento explícito LGPD | Deliberado | Média | Alto | Sim | Crescente | Necessário para conformidade plena com a LGPD, mas deferido no MVP. Risco baixo sem coleta ativa de dados sensíveis além do cadastro. |
 | TD-002 | Domínio | Sem histórico de orçamentos (substituição total do JSONB) | Deliberado | Baixa | Baixo | Não | Estável | Orçamento existe como Value Object imutável, mas sem versionamento em array JSONB com timestamp. Funcionalidade parcial aceita. RF-017 (Could Have). |
 | TD-003 | Infra | Sem CSP headers (Content-Security-Policy) | Deliberado | Baixa | Baixo | Não | Estável | Boa prática de segurança, mas sem front-end servido pela API o impacto é mínimo. Headers básicos (X-Content-Type-Options, HSTS) estão presentes (RNF-004). |
 | TD-004 | API | Notificações via stub (LogNotificacaoAdapter) | Deliberado | Baixa | Baixo | Não | Estável | Decisão consciente: o sistema funciona sem notificações reais (push, email, SMS). O adapter de log permite evolução futura sem mudança no domínio. [ADR-003](arquitetura/adr/003-arquitetura-ddd-onion.md): inversão de dependência viabiliza a troca sem impacto no domínio. |

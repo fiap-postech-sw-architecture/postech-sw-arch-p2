@@ -1,6 +1,6 @@
 # Event Storming
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Documentação do Event Storming do projeto, conforme exigido pelo Tech Challenge Fase 1.
 

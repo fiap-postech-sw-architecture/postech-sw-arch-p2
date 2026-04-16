@@ -1,6 +1,6 @@
 # Domain Storytelling
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Diagramas pictográficos que capturam histórias do dia a dia da oficina: quem faz o quê, com quais objetos de trabalho, em que sequência.
 

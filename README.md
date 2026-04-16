@@ -17,7 +17,7 @@ Sistema de gestao de ordens de servico para uma oficina mecanica de medio porte.
 ## Quick Start
 
 ```bash
-git clone https://github.com/soat-architecture/postech-sw-arch-p1.git
+git clone https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1.git
 cd postech-sw-arch-p1
 docker compose up -d
 # Aguardar o banco inicializar (~10s)
@@ -37,7 +37,7 @@ pip install -e ".[test]"
 ```bash
 make check      # lint + mypy + bandit + testes unitarios
 make test-integ # testes de integracao (requer Docker)
-make test-all   # todos os 900+ testes
+make test-all   # todos os 970+ testes
 make format     # auto-formata codigo
 make all        # format + check + integracao
 ```

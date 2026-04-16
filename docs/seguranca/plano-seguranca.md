@@ -1,6 +1,6 @@
 # Plano de Seguranca
 
-> **Status**: DRAFT -- documento em elaboracao, sujeito a revisao pela equipe PytStop.
+> **Versao**: 1.0 -- Fase 1 MVP.
 
 ## 1. Objetivo
 
@@ -119,8 +119,8 @@ Artigos aplicaveis da LGPD (Lei 13.709/2018) e status no MVP.
 |---|---|---|---|
 | Art. 6 | Principios (finalidade, adequacao, necessidade, etc.) | Parcial | Coleta limitada aos dados necessarios para o servico; acesso restrito por RBAC |
 | Art. 7 | Bases legais para tratamento | Parcial | Base legal: execucao de contrato (prestacao de servico mecanico) |
-| Art. 11 | Tratamento de dados sensiveis | Conforme | CPF/CNPJ encriptados via pgcrypto (RF-011); nao ha coleta de dados sensiveis alem de documentos |
-| Art. 18 | Direitos do titular | Em remediacao | Endpoints de acesso, portabilidade e exclusao planejados (RF-015) |
+| Art. 11 | Tratamento de dados sensiveis | Conforme | CPF/CNPJ protegidos via hash unidirecional + anonimizacao irreversivel (RF-011, RF-015); nao ha coleta de dados sensiveis alem de documentos |
+| Art. 18 | Direitos do titular | Implementado | Endpoints dados-pessoais, exportar e anonimizar implementados (RF-015); consentimento via RF-019 |
 | Art. 46 | Medidas de seguranca | Conforme | Encriptacao, RBAC, logging, pipeline de seguranca (ADR-011) |
 | Art. 48 | Comunicacao de incidentes | Planejado | Plano de resposta a incidentes documentado (secao 4 deste documento) |
 
@@ -128,8 +128,8 @@ Artigos aplicaveis da LGPD (Lei 13.709/2018) e status no MVP.
 
 | Dado | Classificacao | Armazenamento | Retencao |
 |---|---|---|---|
-| CPF | Dado pessoal | Encriptado (pgcrypto) | Enquanto cliente ativo; anonimizado na exclusao |
-| CNPJ | Dado pessoal (PJ) | Encriptado (pgcrypto) | Enquanto cliente ativo; anonimizado na exclusao |
+| CPF | Dado pessoal | Hash unidirecional (documento_hash) | Enquanto cliente ativo; anonimizado na exclusao |
+| CNPJ | Dado pessoal (PJ) | Hash unidirecional (documento_hash) | Enquanto cliente ativo; anonimizado na exclusao |
 | Nome | Dado pessoal | Texto plano | Enquanto cliente ativo; anonimizado na exclusao |
 | Telefone | Dado pessoal | Texto plano | Enquanto cliente ativo; removido na exclusao |
 | Endereco | Dado pessoal | Texto plano | Enquanto cliente ativo; removido na exclusao |

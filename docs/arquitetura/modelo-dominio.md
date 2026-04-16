@@ -1,6 +1,6 @@
 # Modelo de Domínio
 
-> **Status**: DRAFT — documento em elaboração, sujeito a revisão pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Diagramas de classes por agregado.
 

@@ -1,6 +1,6 @@
 # Matriz de Rastreabilidade — Requisitos Funcionais
 
-> **Status**: DRAFT — documento em elaboracao, sujeito a revisao pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Esta matriz estende a [tabela de rastreabilidade em requisitos.md](requisitos.md#tabela-de-rastreabilidade) com historias de usuario, criterios de teste e ADRs vinculados.
 
@@ -33,7 +33,7 @@ Esta matriz estende a [tabela de rastreabilidade em requisitos.md](requisitos.md
 | RNF | Descrição | ADR Vinculado | Disciplina |
 |---|---|---|---|
 | RNF-001 a RNF-013 | Requisitos de produto, organizacionais e externos | Ver [requisitos.md](requisitos.md) | DDD, SW-Arch |
-| RNF-014 | Análise estática de segurança (bandit) sem findings de severidade alta no CI | [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md) | Dev-Seguro (Aulas 04–05) |
+| RNF-014 | Análise estática de segurança (bandit) sem achados de severidade alta no CI | [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md) | Dev-Seguro (Aulas 04–05) |
 | RNF-015 | Dependências auditadas mensalmente (pip-audit); zero vulnerabilidades críticas | [ADR-012](../arquitetura/adr/012-licenciamento-software-sbom.md) | Dev-Seguro (Aula 03) |
 | RNF-016 | SBOM gerado via CycloneDX a cada release | [ADR-012](../arquitetura/adr/012-licenciamento-software-sbom.md) | Dev-Seguro (Aula 03) |
 

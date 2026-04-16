@@ -1,6 +1,6 @@
 # C4 — Diagrama de Componentes (Level 3)
 
-> **Status**: DRAFT — documento em elaboracao, sujeito a revisao pela equipe PytStop.
+> **Versao**: 1.0 — Fase 1 MVP.
 
 Detalha os componentes internos do bounded context principal (Ordem de Servico) dentro da Aplicacao FastAPI. Os demais bounded contexts sao mostrados em nivel resumido. Baseado no modelo C4 de Simon Brown (Software Architecture — Aula 2).
 

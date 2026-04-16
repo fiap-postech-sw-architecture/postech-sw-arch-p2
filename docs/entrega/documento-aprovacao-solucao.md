@@ -1,6 +1,6 @@
 # Documento de Aprovacao da Solucao (DAS)
 
-> **Status**: DRAFT — documento em elaboracao, sujeito a revisao pela equipe PytStop.
+> **Versao**: 1.0 -- Fase 1 MVP.
 
 Consolidacao dos artefatos de arquitetura e engenharia do projeto PytStop.
 
