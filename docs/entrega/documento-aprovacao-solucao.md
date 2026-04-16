@@ -116,10 +116,10 @@ Ver [inventario de endpoints](../requisitos/requisitos.md#inventário-de-endpoin
 
 **Documento completo**: [README.md](../../README.md)
 
-Execucao via Docker Compose:
+Execucao via Docker Compose (CLI v2, subcomando `docker compose`):
 
 ```
-docker-compose up
+docker compose up
 ```
 
 12 variaveis de ambiente (banco, JWT, CORS, etc.) com valores padrao para desenvolvimento local. Migracoes via Alembic na inicializacao do container.

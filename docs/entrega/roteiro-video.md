@@ -72,7 +72,7 @@ Demonstrar cancelamento (segunda OS):
 
 ### 7. DevOps + Segurança (1.5 min)
 
-- `docker-compose up` com migrações automáticas (Alembic)
+- `docker compose up` com migrações automáticas (Alembic)
 - Testes: `make test` com cobertura por faixa
 - Scans: SonarQube, OWASP ZAP, bandit, pip-audit, gitleaks, trivy
 - Mostrar relatório de cobertura (pytest-cov)
@@ -91,4 +91,4 @@ Demonstrar cancelamento (segunda OS):
 - Terminal com fonte grande (14pt+) para legibilidade
 - Swagger UI em tela cheia durante a demo
 - Ter dados de teste pré-preparados para evitar digitação ao vivo
-- Verificar que `docker-compose up` funciona antes de gravar
+- Verificar que `docker compose up` funciona antes de gravar

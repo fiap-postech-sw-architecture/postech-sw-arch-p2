@@ -14,8 +14,6 @@ sao expressos em centavos inteiros para evitar ambiguidade decimal no
 wire format.
 """
 
-from __future__ import annotations
-
 from datetime import datetime
 from uuid import UUID
 

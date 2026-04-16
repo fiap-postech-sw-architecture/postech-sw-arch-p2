@@ -90,7 +90,7 @@ Seguindo os 10 tópicos da metodologia de refinamento técnico:
 | **Escalabilidade** | Monolito modular com bloqueio pessimista. Paginação offset-based (max 100). Evolução para microsserviços planejada |
 | **Testes** | pytest + testcontainers + mutmut. 90%+ core domains, 80%+ demais, 65%+ infra. Scanning: bandit, pip-audit, trivy, SonarQube, OWASP ZAP |
 | **Documentação** | Swagger auto-gen (FastAPI), markdown no repo (11 ADRs, RFC, glossário, event storming), CLAUDE.md para IA |
-| **Implantação** | Dockerfile multi-stage + docker-compose. Alembic auto-migrate no startup. README com instruções |
+| **Implantação** | Dockerfile multi-stage + `docker-compose.yml`. Alembic auto-migrate no startup. README com instruções |
 | **Critérios de aceite** | RF-001 a RF-010 implementados e testados, cobertura ≥ 90% core, Docker funcional, Swagger acessível, consulta pública operacional |
 
 Ver [requisitos.md](requisitos.md) para a especificação completa (19 RFs, 13 RNFs, 17 RNs).

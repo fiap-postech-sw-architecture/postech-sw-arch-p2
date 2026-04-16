@@ -21,6 +21,7 @@ middleware de auth (rate-limited a 10/minute).
 from __future__ import annotations
 
 from typing import TYPE_CHECKING
+from uuid import UUID  # noqa: TC003
 
 from fastapi import APIRouter, Depends, Query, status
 
@@ -59,8 +60,6 @@ from src.ordem_servico.interfaces.schemas import (
 )
 
 if TYPE_CHECKING:
-    from uuid import UUID
-
     from sqlalchemy.orm import Session
 
     from src.ordem_servico.aplicacao.dtos import OrdemDeServicoDTO

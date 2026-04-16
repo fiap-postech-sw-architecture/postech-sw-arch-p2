@@ -32,7 +32,7 @@ O DoD define os critérios para considerar uma user story concluída. Todos os i
 - [ ] Code review aprovado (PR com squash merge)
 - [ ] Scanning de segurança sem vulnerabilidades críticas ou altas (bandit, pip-audit, trivy — [RNF-010](requisitos.md))
 - [ ] Documentação atualizada (Swagger auto-gen, README se necessário)
-- [ ] Docker build funcional (`docker-compose up` — [RNF-011](requisitos.md))
+- [ ] Docker Compose funcional (`docker compose up` — [RNF-011](requisitos.md))
 - [ ] Migrações Alembic aplicáveis automaticamente no startup
 
 ---
@@ -101,7 +101,7 @@ Além das user stories, cada artefato da entrega tem seus próprios critérios d
 - [ ] Testes unitários e de integração passando
 - [ ] Autenticação JWT funcional
 - [ ] Swagger/OpenAPI gerado automaticamente
-- [ ] Docker Compose funcional (`docker-compose up` sobe todo o sistema)
+- [ ] Docker Compose funcional (`docker compose up` sobe todo o sistema)
 - [ ] Migrações de banco aplicadas automaticamente no startup
 - [ ] Code review aprovado em todas as PRs
 

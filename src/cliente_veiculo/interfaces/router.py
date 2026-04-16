@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import dataclasses
 from typing import TYPE_CHECKING
+from uuid import UUID  # noqa: TC003
 
 from fastapi import APIRouter, Depends, Query, status
 
@@ -40,8 +41,6 @@ from src.cliente_veiculo.interfaces.schemas import (
 from src.compartilhado.interfaces.dependencies import obter_session
 
 if TYPE_CHECKING:
-    from uuid import UUID
-
     from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/v1/clientes", tags=["clientes"])

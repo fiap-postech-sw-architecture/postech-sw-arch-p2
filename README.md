@@ -55,6 +55,14 @@ export TESTCONTAINERS_RYUK_DISABLED=true
 
 Essas variaveis sao necessarias para o testcontainers (testes de integracao) encontrar o socket do Docker. Abra um novo terminal ou execute `source ~/.zshrc` para aplicar.
 
+O Quick Start usa `docker compose` (Compose v2 como plugin do Docker CLI). Com Docker via Homebrew, se aparecer `unknown command: docker compose`, use **uma** destas opcoes:
+
+1. **Registar o diretorio de plugins do Homebrew** (mantem `brew upgrade docker-compose`): adicione em `~/.docker/config.json` a chave `cliPluginsExtraDirs` com o valor `["$(brew --prefix)/lib/docker/cli-plugins"]` usando o prefixo retornado por `brew --prefix` (`/opt/homebrew` em Apple Silicon, `/usr/local` em Intel; veja `brew info docker-compose`).
+
+2. **Copiar o plugin para o diretorio padrao do usuario** (permite `brew uninstall docker-compose` e nao ter `docker-compose` no PATH): com a formula instalada, execute `mkdir -p ~/.docker/cli-plugins`, copie `$(brew --prefix docker-compose)/bin/docker-compose` para `~/.docker/cli-plugins/docker-compose`, `chmod +x`, confirme com `docker compose version`, e entao `brew uninstall docker-compose` se quiser apenas o subcomando `docker compose`.
+
+Para atualizar o Compose na opcao 2, repita a copia apos `brew install docker-compose` ou baixe o binario em [releases do Compose](https://github.com/docker/compose/releases).
+
 ## Arquitetura
 
 Monolito modular com DDD e Onion Architecture. Cada contexto delimitado e um modulo Python com 4 camadas:

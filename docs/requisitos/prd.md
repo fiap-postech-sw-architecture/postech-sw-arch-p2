@@ -117,7 +117,7 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 - CRUD de serviços oferecidos
 - Validação de dados sensíveis
 - Testes com 90%+ nos domínios principais e 80%+ nos demais
-- Dockerfile e docker-compose
+- Dockerfile e Docker Compose (`docker-compose.yml`)
 - README.md com instruções de uso e objetivos
 - Documentação DDD (Event Storming, glossário, diagramas)
 
@@ -160,7 +160,7 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 
 1. Requisitos funcionais Must Have (RF-001 a RF-010) implementados e testados. Should Have e Could Have conforme priorização MoSCoW acima
 2. Cobertura de testes >= 90% nos domínios principais (OS e Estoque), >= 80% nos demais
-3. Docker-compose funcional com `docker-compose up` e migrações automáticas
+3. Docker Compose funcional com `docker compose up` e migrações automáticas
 4. Swagger UI acessível em desenvolvimento com todos os endpoints documentados
 5. Consulta pública de acompanhamento funcional sem autenticação
 6. Scanning de segurança sem vulnerabilidades críticas ou altas

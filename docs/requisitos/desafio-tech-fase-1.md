@@ -88,7 +88,7 @@ Desenvolver a primeira versão (**MVP**) do back-end do sistema da oficina, com 
   - Linguagem Ubíqua aplicada.
 - **Código-fonte** no repositório privado, incluindo:
   - APIs conforme requisitos;
-  - Dockerfile e docker-compose configurados;
+  - Dockerfile e `docker-compose.yml` configurados;
   - README.md completo com instruções de uso e objetivos.
 - **Relatório com análise de vulnerabilidades:**
   - Adicionar no relatório a análise do scan realizado no código.

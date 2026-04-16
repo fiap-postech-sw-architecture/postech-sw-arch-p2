@@ -5,6 +5,7 @@ import os
 from unittest.mock import patch
 
 from fastapi import FastAPI
+from fastapi.testclient import TestClient
 
 from src.main import criar_app, lifespan
 
@@ -50,6 +51,21 @@ class TestMain:
             application = criar_app()
             assert application.docs_url is None
             assert application.redoc_url is None
+
+    def test_openapi_schema_gera_sem_erro(self) -> None:
+        """Garante que /openapi.json e gerado com sucesso.
+
+        Pega regressoes de from __future__ import annotations vs Pydantic
+        (ForwardRef nao resolvido) e qualquer schema Pydantic malformado
+        antes de chegar a producao.
+        """
+        app = criar_app()
+        client = TestClient(app)
+        resp = client.get("/openapi.json")
+        assert resp.status_code == 200
+        schema = resp.json()
+        assert schema["openapi"].startswith("3.")
+        assert len(schema["paths"]) > 0
 
     def test_lifespan_executa_mapeamentos(self) -> None:
         app = FastAPI()
