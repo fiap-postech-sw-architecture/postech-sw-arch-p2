@@ -20,9 +20,23 @@ from src.compartilhado.interfaces.router_publico import router as router_publico
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Ciclo de vida do app: inicializa logging + mappings no startup."""
+    from src.compartilhado.infraestrutura.database import (
+        criar_engine,
+        criar_session_factory,
+    )
     from src.compartilhado.infraestrutura.logging import configurar_logging
+    from src.compartilhado.interfaces.dependencies import configurar_session_factory
 
     configurar_logging()
+
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        msg = "DATABASE_URL nao configurada"
+        raise RuntimeError(msg)
+
+    engine = criar_engine(database_url)
+    session_factory = criar_session_factory(engine)
+    configurar_session_factory(session_factory)
 
     # Registra os imperative mappings de cada bounded context antes de
     # aceitar requisicoes. Cada ``iniciar_mapeamentos`` e idempotente
@@ -53,7 +67,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     iniciar_estoque()
     iniciar_os()
     iniciar_auth()
-    yield
+    try:
+        yield
+    finally:
+        engine.dispose()
 
 
 def criar_app() -> FastAPI:
