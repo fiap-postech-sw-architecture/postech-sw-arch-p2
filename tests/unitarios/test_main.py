@@ -4,6 +4,7 @@ import asyncio
 import os
 from unittest.mock import patch
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -90,7 +91,25 @@ class TestMain:
                 patch(
                     "src.autenticacao.infraestrutura.mapping.iniciar_mapeamentos"
                 ) as mock_auth,
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_engine"
+                ) as mock_engine,
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_session_factory"
+                ) as mock_factory,
+                patch(
+                    "src.compartilhado.interfaces.dependencies.configurar_session_factory"
+                ) as mock_configurar,
+                # Fixa ambiente de teste para que o ramo de fail-fast de
+                # DATABASE_URL em producao nao interfira (o ramo e coberto
+                # em test_lifespan_sem_database_url_em_producao_falha).
+                patch.dict(
+                    os.environ,
+                    {"ENVIRONMENT": "development"},
+                    clear=False,
+                ),
             ):
+                mock_engine.return_value.dispose = lambda: None
                 async with lifespan(app):
                     pass
                 mock_logging.assert_called_once()
@@ -99,5 +118,104 @@ class TestMain:
                 mock_estoque.assert_called_once()
                 mock_os.assert_called_once()
                 mock_auth.assert_called_once()
+                mock_engine.assert_called_once()
+                mock_factory.assert_called_once()
+                mock_configurar.assert_called_once()
 
         asyncio.run(_run())
+
+    def test_lifespan_configura_session_factory_com_database_url(self) -> None:
+        app = FastAPI()
+        url_customizada = "postgresql://custom:custom@remote:5433/db"
+
+        async def _run() -> None:
+            with (
+                patch("src.compartilhado.infraestrutura.logging.configurar_logging"),
+                patch("src.cliente_veiculo.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch(
+                    "src.catalogo_servicos.infraestrutura.mapping.iniciar_mapeamentos"
+                ),
+                patch("src.estoque.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.ordem_servico.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.autenticacao.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_engine"
+                ) as mock_engine,
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_session_factory"
+                ),
+                patch(
+                    "src.compartilhado.interfaces.dependencies.configurar_session_factory"
+                ),
+                patch.dict(os.environ, {"DATABASE_URL": url_customizada}, clear=False),
+            ):
+                mock_engine.return_value.dispose = lambda: None
+                async with lifespan(app):
+                    pass
+                mock_engine.assert_called_once_with(url_customizada)
+
+        asyncio.run(_run())
+
+    def test_lifespan_sem_database_url_em_development_usa_default(self) -> None:
+        app = FastAPI()
+        default_dev = "postgresql://pytstop:pytstop@localhost:5432/pytstop"
+        env_sem_db = {k: v for k, v in os.environ.items() if k != "DATABASE_URL"}
+        env_sem_db["ENVIRONMENT"] = "development"
+
+        async def _run() -> None:
+            with (
+                patch("src.compartilhado.infraestrutura.logging.configurar_logging"),
+                patch("src.cliente_veiculo.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch(
+                    "src.catalogo_servicos.infraestrutura.mapping.iniciar_mapeamentos"
+                ),
+                patch("src.estoque.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.ordem_servico.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.autenticacao.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_engine"
+                ) as mock_engine,
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_session_factory"
+                ),
+                patch(
+                    "src.compartilhado.interfaces.dependencies.configurar_session_factory"
+                ),
+                patch.dict(os.environ, env_sem_db, clear=True),
+            ):
+                mock_engine.return_value.dispose = lambda: None
+                async with lifespan(app):
+                    pass
+                mock_engine.assert_called_once_with(default_dev)
+
+        asyncio.run(_run())
+
+    def test_lifespan_sem_database_url_em_producao_falha(self) -> None:
+        app = FastAPI()
+        env_sem_db = {k: v for k, v in os.environ.items() if k != "DATABASE_URL"}
+        env_sem_db["ENVIRONMENT"] = "production"
+
+        async def _run() -> None:
+            with (
+                patch("src.compartilhado.infraestrutura.logging.configurar_logging"),
+                patch("src.cliente_veiculo.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch(
+                    "src.catalogo_servicos.infraestrutura.mapping.iniciar_mapeamentos"
+                ),
+                patch("src.estoque.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.ordem_servico.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.autenticacao.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.compartilhado.infraestrutura.database.criar_engine"),
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_session_factory"
+                ),
+                patch(
+                    "src.compartilhado.interfaces.dependencies.configurar_session_factory"
+                ),
+                patch.dict(os.environ, env_sem_db, clear=True),
+            ):
+                async with lifespan(app):
+                    pass
+
+        with pytest.raises(RuntimeError, match="DATABASE_URL obrigatoria"):
+            asyncio.run(_run())

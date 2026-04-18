@@ -113,7 +113,7 @@ source = ["src"]
 omit = ["tests/*", "*/migrations/*", "*/__init__.py"]
 
 [tool.coverage.report]
-fail_under = 80
+fail_under = 95
 
 [tool.bandit]
 targets = ["src"]

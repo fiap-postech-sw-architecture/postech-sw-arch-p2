@@ -17,4 +17,15 @@ def criar_engine(url: str) -> Engine:
 
 
 def criar_session_factory(engine: Engine) -> sessionmaker[Session]:
-    return sessionmaker(bind=engine, autocommit=False, autoflush=False)
+    # expire_on_commit=False mantem atributos utilizaveis apos uow.commit().
+    # Essencial porque use cases fazem: with uow: repo.salvar(x); uow.commit();
+    # return _dto(x). Com expire_on_commit=True (padrao), acessar x.id apos o
+    # commit dispara refresh em sessao ja fechada -> DetachedInstanceError.
+    # Se reverter este flag, todos os use cases precisam ser refatorados para
+    # ler os atributos ANTES do commit.
+    return sessionmaker(
+        bind=engine,
+        autocommit=False,
+        autoflush=False,
+        expire_on_commit=False,
+    )

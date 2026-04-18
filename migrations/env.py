@@ -4,14 +4,40 @@ import os
 from logging.config import fileConfig
 
 from alembic import context
-from sqlalchemy import MetaData, create_engine
+from sqlalchemy import create_engine
 
 config = context.config
 
 if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
-target_metadata = MetaData()
+# Carrega o metadata compartilhado e registra os mapeamentos imperativos de
+# cada bounded context. Sem isso, ``target_metadata`` fica vazio e o Alembic
+# autogenerate nao detecta as tabelas, levando a migrations stub.
+from src.autenticacao.infraestrutura.mapping import (
+    iniciar_mapeamentos as iniciar_auth,
+)
+from src.catalogo_servicos.infraestrutura.mapping import (
+    iniciar_mapeamentos as iniciar_catalogo,
+)
+from src.cliente_veiculo.infraestrutura.mapping import (
+    iniciar_mapeamentos as iniciar_cliente,
+)
+from src.compartilhado.infraestrutura.database import metadata
+from src.estoque.infraestrutura.mapping import (
+    iniciar_mapeamentos as iniciar_estoque,
+)
+from src.ordem_servico.infraestrutura.mapping import (
+    iniciar_mapeamentos as iniciar_os,
+)
+
+iniciar_cliente()
+iniciar_catalogo()
+iniciar_estoque()
+iniciar_os()
+iniciar_auth()
+
+target_metadata = metadata
 
 
 def get_url() -> str:

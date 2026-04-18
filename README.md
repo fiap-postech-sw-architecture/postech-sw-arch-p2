@@ -95,6 +95,27 @@ source .venv/bin/activate
 pip install -e ".[test]"
 ```
 
+### Loop de desenvolvimento rapido (uvicorn com hot reload)
+
+Para iterar rapidamente sem rebuilds do container da aplicacao, rode apenas o Postgres via `docker compose` e o FastAPI local com `--reload`:
+
+```bash
+cp .env.dev.example .env.dev           # (opcional) customize credenciais/porta
+docker compose up -d postgres          # Postgres na porta 5432
+.venv/bin/alembic upgrade head         # aplica migrations (so na primeira vez)
+./scripts/run-dev.sh                   # uvicorn em http://localhost:8001 com reload
+```
+
+Os defaults do `scripts/run-dev.sh` (`DATABASE_URL` apontando para `localhost:5432`, `JWT_SECRET` de dev com ≥32 bytes, etc.) funcionam sem configuracao adicional. Voce so precisa do `.env.dev` se quiser sobrescrever algo (por exemplo, `UVICORN_PORT=9000`) sem editar o script. Ao terminar, `docker compose down -v` encerra o Postgres.
+
+Usuarios com [Claude Code](https://docs.claude.com/en/docs/claude-code) podem iniciar os servidores diretamente via `.claude/launch.json` (`preview_start`):
+
+- `FastAPI (uvicorn dev server)` -- roda `scripts/run-dev.sh` na porta 8001
+- `PostgreSQL (docker compose)` -- sobe apenas o Postgres na porta 5432
+- `Full stack (docker compose)` -- sobe app + banco juntos na porta 8000
+
+Consulte [`docs/debugging-guide.md`](docs/debugging-guide.md) para troubleshooting (socket Docker no Colima, JWT_SECRET, 500s comuns, verificacao end-to-end).
+
 ### Checks locais (espelham o CI)
 
 ```bash

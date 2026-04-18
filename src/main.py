@@ -20,23 +20,9 @@ from src.compartilhado.interfaces.router_publico import router as router_publico
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     """Ciclo de vida do app: inicializa logging + mappings no startup."""
-    from src.compartilhado.infraestrutura.database import (
-        criar_engine,
-        criar_session_factory,
-    )
     from src.compartilhado.infraestrutura.logging import configurar_logging
-    from src.compartilhado.interfaces.dependencies import configurar_session_factory
 
     configurar_logging()
-
-    database_url = os.environ.get("DATABASE_URL")
-    if not database_url:
-        msg = "DATABASE_URL nao configurada"
-        raise RuntimeError(msg)
-
-    engine = criar_engine(database_url)
-    session_factory = criar_session_factory(engine)
-    configurar_session_factory(session_factory)
 
     # Registra os imperative mappings de cada bounded context antes de
     # aceitar requisicoes. Cada ``iniciar_mapeamentos`` e idempotente
@@ -67,6 +53,35 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     iniciar_estoque()
     iniciar_os()
     iniciar_auth()
+
+    # Configura a session factory global antes de aceitar requisicoes.
+    # Sem isso, todo endpoint que depende de ``obter_session`` falha com
+    # ``RuntimeError("Session factory nao configurada")``. O engine e
+    # descartado no shutdown para liberar o pool de conexoes.
+    from src.compartilhado.infraestrutura.database import (
+        criar_engine,
+        criar_session_factory,
+    )
+    from src.compartilhado.interfaces.dependencies import (
+        configurar_session_factory,
+    )
+
+    # Em producao, ausencia de DATABASE_URL e erro fatal: seguir com um
+    # default de localhost mascara misconfiguracao e pode conectar no banco
+    # errado. Em dev/test, um default ergonomico evita fricao no setup.
+    environment = os.environ.get("ENVIRONMENT", "development").lower()
+    database_url = os.environ.get("DATABASE_URL")
+    if not database_url:
+        if environment in {"development", "test"}:
+            database_url = "postgresql://pytstop:pytstop@localhost:5432/pytstop"
+        else:
+            msg = (
+                "DATABASE_URL obrigatoria quando ENVIRONMENT nao for "
+                "'development' ou 'test'."
+            )
+            raise RuntimeError(msg)
+    engine = criar_engine(database_url)
+    configurar_session_factory(criar_session_factory(engine))
     try:
         yield
     finally:
@@ -78,7 +93,7 @@ def criar_app() -> FastAPI:
 
     Docs (`/docs`, `/redoc`) sao desabilitados quando `ENVIRONMENT=production`.
     """
-    environment = os.environ.get("ENVIRONMENT", "development")
+    environment = os.environ.get("ENVIRONMENT", "development").lower()
     docs_url = "/docs" if environment != "production" else None
     redoc_url = "/redoc" if environment != "production" else None
 
