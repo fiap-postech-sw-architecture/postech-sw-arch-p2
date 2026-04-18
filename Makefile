@@ -1,4 +1,10 @@
-.PHONY: lint format typecheck security test test-integ test-all check all
+.PHONY: lint format typecheck security test test-integ test-all check all up down
+
+up:
+	@bash -c 'source scripts/docker-check.sh && docker compose up -d'
+
+down:
+	@bash -c 'source scripts/docker-check.sh && docker compose down'
 
 lint:
 	ruff check src/ tests/

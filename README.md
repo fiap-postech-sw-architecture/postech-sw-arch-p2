@@ -19,10 +19,73 @@ Sistema de gestao de ordens de servico para uma oficina mecanica de medio porte.
 ```bash
 git clone https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1.git
 cd postech-sw-arch-p1
-docker compose up -d
-# Aguardar o banco inicializar (~10s)
-# Acessar: http://localhost:8000/docs (Swagger UI)
 ```
+
+Em seguida, escolha **uma** das alternativas equivalentes para subir o ambiente:
+
+**Automatica** — detecta o socket do Docker e configura `DOCKER_HOST` para voce:
+
+```bash
+make up    # derrubar: make down
+```
+
+`make up` executa `scripts/docker-check.sh` (Docker Desktop, Colima, `/var/run`) antes de rodar `docker compose up -d`.
+
+**Manual** — se voce prefere controlar `DOCKER_HOST` explicitamente:
+
+```bash
+docker compose up -d    # derrubar: docker compose down
+```
+
+Se aparecer `failed to connect to the docker API ...docker.sock`, o socket nao esta no caminho padrao; consulte a secao [Troubleshooting: Docker socket](#troubleshooting-docker-socket) abaixo para configurar manualmente.
+
+Apos subir o ambiente:
+
+- Aguarde o banco inicializar (~10s)
+- Acesse http://localhost:8000/docs (Swagger UI)
+
+### Troubleshooting: Docker socket
+
+Se ao rodar `docker compose up -d` aparecer o erro:
+
+```
+failed to connect to the docker API at unix:///Users/<user>/.docker/run/docker.sock
+```
+
+O `docker compose` nao esta encontrando o socket do Docker. O caminho `~/.docker/run/docker.sock` e o padrao que o Docker configura no seu context, mas ele nem sempre existe. Abaixo estao as opcoes de correcao dependendo do seu ambiente.
+
+#### Opcao 1 — Docker Desktop: habilitar o socket padrao
+
+O Docker Desktop (4.13+) so cria o socket em `~/.docker/run/` se uma opcao estiver habilitada. Abra **Docker Desktop > Settings > Advanced** e marque:
+
+> **"Allow the default Docker socket to be used (requires password)"**
+
+Reinicie o Docker Desktop e rode `docker compose up -d` novamente. Essa e a solucao mais simples — nao exige variavel de ambiente nem alteracao no projeto.
+
+#### Opcao 2 — Docker Desktop: apontar para o socket alternativo
+
+Se preferir nao habilitar a opcao acima, o Docker Desktop sempre cria um socket em `~/.docker/desktop/docker.sock`. Basta exportar `DOCKER_HOST` no `~/.zshrc` (ou `~/.bashrc`):
+
+```bash
+export DOCKER_HOST="unix://${HOME}/.docker/desktop/docker.sock"
+```
+
+Execute `source ~/.zshrc` para aplicar no terminal atual.
+
+#### Opcao 3 — Colima
+
+Se usa [Colima](https://github.com/abiosoft/colima) como runtime Docker em vez do Docker Desktop, configure no `~/.zshrc`:
+
+```bash
+export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
+export TESTCONTAINERS_RYUK_DISABLED=true
+```
+
+`DOCKER_HOST` e necessario para que `docker compose` e o testcontainers encontrem o socket do Docker. `TESTCONTAINERS_RYUK_DISABLED` evita erros nos testes de integracao. Execute `source ~/.zshrc` ou abra um novo terminal para aplicar.
+
+#### Linux
+
+Verifique se o servico Docker esta ativo: `sudo systemctl start docker`.
 
 ## Desenvolvimento Local
 
@@ -44,16 +107,7 @@ make all        # format + check + integracao
 
 Ao rodar `pytest` diretamente, ruff/mypy/bandit executam automaticamente antes dos testes. Para pular os pre-checks: `pytest --no-lint`.
 
-### Docker no macOS com Colima
-
-Se usa [Colima](https://github.com/abersheeky/colima) como runtime Docker, configure no `~/.zshrc`:
-
-```bash
-export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
-export TESTCONTAINERS_RYUK_DISABLED=true
-```
-
-Essas variaveis sao necessarias para o testcontainers (testes de integracao) encontrar o socket do Docker. Abra um novo terminal ou execute `source ~/.zshrc` para aplicar.
+### Docker Compose via Homebrew
 
 O Quick Start usa `docker compose` (Compose v2 como plugin do Docker CLI). Com Docker via Homebrew, se aparecer `unknown command: docker compose`, use **uma** destas opcoes:
 
