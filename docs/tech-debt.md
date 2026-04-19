@@ -69,6 +69,6 @@ Otimizacoes (indices GIN para JSONB -- TD-005, particionamento) a avaliar com da
 
 1. **Boy Scout Rule**: cada alteracao deixa o codigo melhor do que encontrou
 2. **Refatoracoes incrementais**: melhorias tecnicas nos sprints regulares, como parte do backlog
-3. **Sprint tecnico**: negociar com o PO para debitos de maior impacto (TD-001, TD-008)
+3. **Sprint tecnico**: negociar com o PO para debitos de maior impacto (TD-008, TD-011)
 4. **ADRs como prevencao**: decisoes registradas em ADR ([ADR-001](arquitetura/adr/001-framework-fastapi.md) a [ADR-013](arquitetura/adr/013-testes-bdd-pytest-bdd.md)) evitam debitos invisiveis
 5. **Metricas de fluxo**: lead time, cycle time e taxa de falhas para detectar crescimento do debito

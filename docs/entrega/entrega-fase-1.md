@@ -14,10 +14,10 @@
 | Nome | Discord |
 |---|---|
 | João Amaral | jbamaral |
-| Allan Aurélio | PLACEHOLDER |
-| Carlos Silva | PLACEHOLDER |
-| Guilherme Sousa | PLACEHOLDER |
-| Nicolas Gerbi | PLACEHOLDER |
+| Allan Aurélio | [PREENCHER] |
+| Carlos Silva | [PREENCHER] |
+| Guilherme Sousa | [PREENCHER] |
+| Nicolas Gerbi | [PREENCHER] |
 
 ## Links
 

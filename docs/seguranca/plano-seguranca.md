@@ -24,7 +24,7 @@ Mapeamento de ativos, ameacas e mitigacoes por bounded context.
 |---|---|
 | **Ativos protegidos** | PII de clientes (CPF, CNPJ, nome, endereco, telefone); dados de veiculos (placa, chassi) |
 | **Ameacas principais** | Vazamento de dados pessoais (data breach); acesso nao autorizado a dados de outros clientes; violacao da LGPD |
-| **Mitigacoes** | Encriptacao de CPF/CNPJ via pgcrypto em repouso (RF-011); RBAC com autorizacao por endpoint (ADR-004); mascaramento de dados sensiveis em listagens; endpoints LGPD Art. 18 (RF-015); remocao de PII em logs via processador structlog |
+| **Mitigacoes** | Cifragem simetrica Fernet de CPF/CNPJ em repouso via `EncryptionService` (chave `ENCRYPTION_KEY`); hash deterministico HMAC-SHA256 (`documento_hash`) como indice de busca (RF-011); RBAC com autorizacao por endpoint (ADR-004); mascaramento de dados sensiveis em listagens; endpoints LGPD Art. 18 (RF-015); remocao de PII em logs via processador structlog |
 
 ### 2.3 Catalogo de Servicos
 
@@ -48,29 +48,30 @@ Mapeamento de ativos, ameacas e mitigacoes por bounded context.
 |---|---|
 | **Ativos protegidos** | Dados operacionais (diagnosticos, orcamentos, pecas utilizadas), valores financeiros |
 | **Ameacas principais** | Transicoes de estado nao autorizadas (ex: pular aprovacao de orcamento); manipulacao de valores de orcamento; acesso a OS de outros mecanicos |
-| **Mitigacoes** | Maquina de estados no Aggregate Root com validacao de transicoes permitidas; RBAC diferenciado (Admin aprova orcamento, Mecanico registra diagnostico); Value Object `Dinheiro` com validacao de precisao; logging estruturado de transicoes de estado em INFO (RNF-013) |
+| **Mitigacoes** | Maquina de estados no Aggregate Root com validacao de transicoes permitidas; RBAC com papeis diferenciados (Admin, Mecanico e Atendente) aplicado por endpoint via `exigir_papel(...)`; Value Object `Dinheiro` com validacao de precisao; logging estruturado de transicoes de estado em INFO (RNF-013) |
 
 ## 3. Controles de Acesso
 
 ### 3.1 Papeis e permissoes (RBAC)
 
-RBAC conforme ADR-004.
+RBAC conforme ADR-004. O enum `Papel` (`src/autenticacao/dominio/papel.py`) define tres valores: `admin`, `mecanico` e `atendente`. Cada endpoint declara os papeis autorizados via `Depends(exigir_papel(...))` (`src/autenticacao/interfaces/middleware.py`); permissoes derivam da composicao real dos routers.
 
-| Operacao | Admin | Mecanico |
-|---|---|---|
-| Gestao de usuarios | Sim | Nao |
-| CRUD de clientes e veiculos | Sim | Consulta apenas |
-| CRUD de catalogo de servicos | Sim | Consulta apenas |
-| Gestao de estoque (entrada, ajuste) | Sim | Nao |
-| Consulta de estoque | Sim | Sim |
-| Criacao de OS | Sim | Sim |
-| Diagnostico e orcamento | Sim | Sim (proprias OS) |
-| Aprovacao de orcamento | Sim | Nao |
-| Finalizacao de OS | Sim | Sim (proprias OS) |
+| Operacao | Admin | Mecanico | Atendente |
+|---|---|---|---|
+| Gestao de usuarios | Sim | Nao | Nao |
+| CRUD de clientes e veiculos | Sim | Nao | Sim |
+| CRUD de catalogo de servicos | Sim | Nao | Nao |
+| Consulta de catalogo | Sim | Sim | Sim |
+| Gestao de estoque (entrada, ajuste) | Sim | Nao | Nao |
+| Consulta/movimentacao de estoque | Sim | Sim | Nao |
+| Criacao de OS | Sim | Nao | Sim |
+| Diagnostico e execucao de OS | Sim | Sim | Nao |
+| Aprovacao de orcamento | Sim | Nao | Nao |
+| Consulta de OS | Sim | Sim | Sim |
 
 ### 3.2 Implementacao tecnica
 
-- Claim `Papel` no payload JWT identifica o papel do usuario autenticado
+- Claim `papel` (lowercase) no payload JWT identifica o papel do usuario autenticado
 - Dependencias FastAPI (`Depends`) verificam papel em cada endpoint protegido
 - Tokens com TTL de 15 minutos; refresh tokens com rotacao
 - Revogacao via tabela `tokens_revogados` com verificacao em cada request
@@ -119,17 +120,17 @@ Artigos aplicaveis da LGPD (Lei 13.709/2018) e status no MVP.
 |---|---|---|---|
 | Art. 6 | Principios (finalidade, adequacao, necessidade, etc.) | Parcial | Coleta limitada aos dados necessarios para o servico; acesso restrito por RBAC |
 | Art. 7 | Bases legais para tratamento | Parcial | Base legal: execucao de contrato (prestacao de servico mecanico) |
-| Art. 11 | Tratamento de dados sensiveis | Conforme | CPF/CNPJ protegidos via hash unidirecional + anonimizacao irreversivel (RF-011, RF-015); nao ha coleta de dados sensiveis alem de documentos |
+| Art. 11 | Tratamento de dados sensiveis | Conforme | CPF/CNPJ protegidos via cifragem simetrica Fernet em repouso (`EncryptionService`) + hash deterministico HMAC-SHA256 (`documento_hash`) como indice + anonimizacao irreversivel (RF-011, RF-015); nao ha coleta de dados sensiveis alem de documentos |
 | Art. 18 | Direitos do titular | Implementado | Endpoints dados-pessoais, exportar e anonimizar implementados (RF-015); consentimento via RF-019 |
-| Art. 46 | Medidas de seguranca | Conforme | Encriptacao, RBAC, logging, pipeline de seguranca (ADR-011) |
+| Art. 46 | Medidas de seguranca | Conforme | Cifragem simetrica Fernet (AES-128-CBC + HMAC-SHA256) de CPF/CNPJ em repouso + hash deterministico (HMAC-SHA256) como indice de busca (`EncryptionService`, chave via `ENCRYPTION_KEY`); bcrypt em senhas; TLS em transito; RBAC; logging; pipeline de seguranca (ADR-011) |
 | Art. 48 | Comunicacao de incidentes | Planejado | Plano de resposta a incidentes documentado (secao 4 deste documento) |
 
 ### 5.1 Dados pessoais tratados
 
 | Dado | Classificacao | Armazenamento | Retencao |
 |---|---|---|---|
-| CPF | Dado pessoal | Hash unidirecional (documento_hash) | Enquanto cliente ativo; anonimizado na exclusao |
-| CNPJ | Dado pessoal (PJ) | Hash unidirecional (documento_hash) | Enquanto cliente ativo; anonimizado na exclusao |
+| CPF | Dado pessoal | Cifrado com Fernet (AES-128-CBC + HMAC-SHA256) via `EncryptionService`; `documento_hash` (HMAC-SHA256) como indice deterministico de busca | Enquanto cliente ativo; anonimizado na exclusao |
+| CNPJ | Dado pessoal (PJ) | Cifrado com Fernet (AES-128-CBC + HMAC-SHA256) via `EncryptionService`; `documento_hash` (HMAC-SHA256) como indice deterministico de busca | Enquanto cliente ativo; anonimizado na exclusao |
 | Nome | Dado pessoal | Texto plano | Enquanto cliente ativo; anonimizado na exclusao |
 | Telefone | Dado pessoal | Texto plano | Enquanto cliente ativo; removido na exclusao |
 | Endereco | Dado pessoal | Texto plano | Enquanto cliente ativo; removido na exclusao |
@@ -147,8 +148,8 @@ Referencia para configuracao segura do ambiente:
 ### 6.2 ISO 27001/27002
 
 Controles aplicaveis ao MVP:
-- **A.9 Controle de acesso**: RBAC com dois papeis, autenticacao JWT (ADR-004)
-- **A.10 Criptografia**: pgcrypto para PII, bcrypt para senhas, TLS em transito
+- **A.9 Controle de acesso**: RBAC com papeis Admin, Mecanico e Atendente, autenticacao JWT (ADR-004)
+- **A.10 Criptografia**: cifragem simetrica Fernet (AES-128-CBC + HMAC-SHA256) de PII (`EncryptionService.encrypt`); hash deterministico HMAC-SHA256 (`documento_hash`) como indice de busca sem exposicao do valor original; bcrypt para senhas; TLS em transito
 - **A.12 Seguranca nas operacoes**: logging estruturado, pipeline de seguranca no CI (ADR-011)
 - **A.14 Aquisicao e desenvolvimento**: analise estatica (bandit), testes de seguranca, revisao de codigo
 

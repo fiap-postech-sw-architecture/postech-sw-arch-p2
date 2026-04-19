@@ -38,17 +38,20 @@ Detalhamento por contexto no [Plano de Seguranca](plano-seguranca.md).
 
 ### Minimizacao da superficie de ataque
 
-Endpoints expostos por papel:
+Endpoints expostos por papel (enum `Papel` em `src/autenticacao/dominio/papel.py`):
 
-- **Admin**: acesso completo a todos os endpoints de gestao (CRUD de clientes, veiculos, servicos, estoque, OS)
-- **Mecanico**: acesso restrito a operacoes do dia-a-dia (consulta de OS, atualizacao de diagnostico, consulta de estoque)
-- **Publico (nao autenticado)**: apenas endpoints de autenticacao (`POST /autenticacao/login`, `POST /autenticacao/refresh`) e consulta publica (`GET /acompanhamento`)
+- **Admin**: acesso completo -- gestao de usuarios, CRUD de catalogo, aprovacao de orcamento, ajuste de estoque, operacoes sensiveis.
+- **Atendente**: recepcao -- CRUD de clientes/veiculos, criacao de OS, consulta de catalogo e de estoque.
+- **Mecanico**: operacoes tecnicas -- diagnostico, execucao e finalizacao de OS, consulta e movimentacao de estoque, consulta de catalogo.
+- **Publico (nao autenticado)**: apenas endpoints de autenticacao (`POST /autenticacao/login`, `POST /autenticacao/refresh`) e consulta publica (`GET /acompanhamento`).
+
+Cada endpoint declara os papeis autorizados via `Depends(exigir_papel(...))`.
 
 Endpoints de documentacao Swagger sao desabilitados em producao (RNF-007).
 
 ### Principio do menor privilegio
 
-- **RBAC com dois papeis** (ADR-004): Admin e Mecanico, com permissoes granulares por endpoint
+- **RBAC diferenciado por papel** (ADR-004): tres papeis -- Admin, Mecanico, Atendente -- com permissoes granulares declaradas por endpoint via `exigir_papel(...)`
 - **Usuarios de banco de dados**: conexao com permissoes minimas (SELECT, INSERT, UPDATE nos schemas necessarios; sem DROP, TRUNCATE ou acesso a schemas de outros contextos)
 - **Segredo JWT**: acessivel apenas pelo modulo de autenticacao, validacao de comprimento minimo no startup
 
@@ -61,7 +64,7 @@ Endpoints de documentacao Swagger sao desabilitados em producao (RNF-007).
 
 ### Criptografia
 
-- **Dados em repouso (PII)**: hash unidirecional (`documento_hash`) para busca sem expor dado original; `field(repr=False)` em DTOs para prevenir vazamento em logs/tracebacks; anonimizacao irreversivel via SQLAlchemy Core com tombstone (RF-011, RF-015). Encriptacao app-level (pgcrypto ou similar) deferida para evolucao futura.
+- **Dados em repouso (PII)**: cifragem simetrica Fernet (AES-128-CBC + HMAC-SHA256) de CPF/CNPJ em repouso via `EncryptionService` (chave em `ENCRYPTION_KEY`); hash deterministico HMAC-SHA256 (`documento_hash`) como indice de busca sem expor o valor original; `field(repr=False)` em DTOs para prevenir vazamento em logs/tracebacks; anonimizacao irreversivel via SQLAlchemy Core com tombstone (RF-011, RF-015).
 - **Dados em transito**: TLS obrigatorio para todas as conexoes em producao
 - **Tokens JWT**: assinatura HS256 com enforcement explicito do algoritmo na validacao
 - **Senhas**: hashing via bcrypt com salt automatico (pwdlib)
@@ -72,8 +75,8 @@ Referencia: Dev-Seguro Aula 05.
 
 | # | Vulnerabilidade OWASP | Mitigacao no Projeto | Referencia |
 |---|---|---|---|
-| A01 | Broken Access Control | RBAC com dois papeis (Admin/Mecanico); autorizacao por endpoint com dependencias FastAPI; tokens JWT com claim `Papel` | ADR-004, RF-014 |
-| A02 | Cryptographic Failures | Hash unidirecional para PII em repouso + anonimizacao irreversivel (RF-011, RF-015); JWT HS256 com enforcement de algoritmo; hashing bcrypt via pwdlib; TLS em transito | RF-011, RF-015, ADR-004 |
+| A01 | Broken Access Control | RBAC com tres papeis (Admin/Mecanico/Atendente); autorizacao granular por endpoint via dependencias FastAPI; tokens JWT com claim `papel` | ADR-004 |
+| A02 | Cryptographic Failures | Cifragem Fernet de PII em repouso + hash deterministico HMAC-SHA256 como indice + anonimizacao irreversivel (RF-011, RF-015); JWT HS256 com enforcement de algoritmo; hashing bcrypt via pwdlib; TLS em transito | RF-011, RF-015, ADR-004 |
 | A03 | Injection | SQLAlchemy ORM com queries parametrizadas; Pydantic com `extra="forbid"`; unico uso de SQLAlchemy Core (`sqlalchemy.update()`) para anonimizacao LGPD, sem SQL string manual | ADR-006 |
 | A04 | Insecure Design | Arquitetura DDD + Onion impoe fronteiras entre camadas (ADR-003); modelo de ameacas por bounded context; Value Objects validam invariantes | ADR-003, ADR-007 |
 | A05 | Security Misconfiguration | Security headers configurados (RNF-004); Swagger desabilitado em producao (RNF-007); CORS com whitelist explicita (RNF-005); variaveis sensiveis via env vars | RNF-004, RNF-005, RNF-007 |
@@ -87,7 +90,7 @@ Referencia: Dev-Seguro Aula 05.
 
 | # | Severidade | Descricao | CVSS | Status | Mitigacao |
 |---|---|---|---|---|---|
-| 1 | Baixa | CPF/CNPJ armazenado em texto plano | 3.1 | Mitigado | PII protegido com hash unidirecional (`documento_hash`), `field(repr=False)` em DTOs, e anonimizacao via SQLAlchemy Core (RF-011, RF-015). Encriptacao app-level deferida. |
+| 1 | Baixa | CPF/CNPJ armazenado em texto plano | 3.1 | Mitigado | PII protegido com cifragem simetrica Fernet via `EncryptionService` + hash deterministico HMAC-SHA256 (`documento_hash`) como indice; `field(repr=False)` em DTOs; anonimizacao via SQLAlchemy Core (RF-011, RF-015). |
 | 2 | Informativo | Sem endpoints LGPD Art. 18 (acesso, portabilidade, exclusao) | -- | Implementado | Endpoints `GET /clientes/{id}/dados-pessoais`, `GET .../exportar` e `DELETE .../dados-pessoais` com anonimizacao irreversivel (RF-015). |
 | 3 | Informativo | Sem mecanismo de consentimento explicito | -- | Implementado | Endpoints `POST /clientes/{id}/consentimento` e `DELETE .../consentimento` com entidade `ConsentimentoCliente` (RF-019). |
 | 4 | Informativo | JWT ainda sem revogacao e sem refresh tokens implementados | 2.0 | Implementado | Tabela `tokens_revogados` com JTI, logout via `POST /autenticacao/logout`, refresh com rotacao via `POST /autenticacao/refresh` (RF-012, RF-013). |
@@ -130,7 +133,7 @@ Licencas permissivas em todas as dependencias diretas (MIT, BSD, Apache 2.0). Ne
 |---|---|---|
 | Mascaramento de dados sensiveis em respostas | Implementado | CPF/CNPJ mascarado via `mascarado()` nos schemas; `field(repr=False)` em DTOs |
 | Remocao de PII em logs | Implementado | `field(repr=False)` em todos os DTOs com PII (nome, documento, contato) |
-| Armazenamento de CPF/CNPJ | Mitigado | Hash unidirecional (`documento_hash`) para busca; encriptacao app-level deferida |
+| Armazenamento de CPF/CNPJ | Mitigado | Cifrado com Fernet via `EncryptionService`; `documento_hash` (HMAC-SHA256) como indice deterministico de busca |
 | Direito de acesso (Art. 18, I) | Implementado | `GET /clientes/{id}/dados-pessoais` |
 | Portabilidade (Art. 18, V) | Implementado | `GET /clientes/{id}/dados-pessoais/exportar` retorna JSON exportavel |
 | Exclusao (Art. 18, VI) | Implementado | `DELETE /clientes/{id}/dados-pessoais` anonimiza via SQLAlchemy Core com tombstone |
@@ -138,15 +141,15 @@ Licencas permissivas em todas as dependencias diretas (MIT, BSD, Apache 2.0). Ne
 
 ## Resumo dos Scans Automatizados
 
-Data do scan: 16/04/2026
+Data do scan bandit: 12/04/2026. pip-audit, SonarQube, OWASP ZAP, gitleaks e trivy pendentes de execucao.
 
-| Severidade | Bandit | pip-audit | Total |
+| Severidade | Bandit | pip-audit | Parcial (apenas Bandit) |
 |---|---|---|---|
 | HIGH | 0 | TODO | 0 |
 | MEDIUM | 1 | TODO | 1 |
 | LOW | 0 | TODO | 0 |
 
-Avaliacao geral de risco: **Baixo**. Nenhuma vulnerabilidade de severidade alta encontrada. O unico achado de severidade media e um binding a `0.0.0.0` no modo de desenvolvimento, sem impacto em producao.
+Avaliacao parcial de risco: baseada exclusivamente em bandit (SAST Python). pip-audit (CVEs em dependencias), SonarQube (qualidade/seguranca), OWASP ZAP (DAST), gitleaks (segredos) e trivy (CVEs de imagem) estao pendentes; risco global nao foi avaliado. Dentro do escopo do bandit, nenhuma vulnerabilidade alta foi encontrada e o unico achado medio e um binding a `0.0.0.0` no modo de desenvolvimento, sem impacto em producao.
 
 ## Analise Estatica (bandit)
 
@@ -160,7 +163,7 @@ Scan executado em 12/04/2026 com bandit 1.9.4 sobre 5.210 linhas de codigo.
 
 - **B104 (hardcoded_bind_all_interfaces)**: O trecho `uvicorn.run("src.main:app", host="0.0.0.0", ...)` vincula o servidor a todas as interfaces de rede. Risco aceito pois: (a) ocorre apenas no bloco `if __name__ == "__main__"` usado em desenvolvimento local; (b) em producao, o Docker Compose gerencia o binding via configuracao do container; (c) a linha ja possui anotacao `# noqa: S104`. CWE-605.
 
-Relatorio completo: `docs/seguranca/bandit-report.json`.
+Achados inline acima. Relatorio pode ser regenerado via `bandit -r src/ -f json -o docs/seguranca/bandit-report.json`.
 
 ## Auditoria de Dependencias (pip-audit)
 

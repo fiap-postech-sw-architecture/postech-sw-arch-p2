@@ -18,7 +18,7 @@
 | Nome | Discord |
 |---|---|
 | João Amaral | jbamaral |
-| Allan Aurelio | [PREENCHER] |
+| Allan Aurélio | [PREENCHER] |
 | Carlos Silva | [PREENCHER] |
 | Guilherme Sousa | [PREENCHER] |
 | Nicolas Gerbi | [PREENCHER] |
@@ -96,7 +96,7 @@ Glossário com termos do domínio mapeados para identificadores no código, segu
 | Peça / Insumo | `ItemEstoque` | Agregado raiz — bloqueio pessimista |
 | Dinheiro | `Dinheiro` | VO compartilhado (Decimal, 2 casas, BRL) |
 | Usuário | `Usuario` | Entidade do contexto Autenticação |
-| Papel | `Papel` | Enum (Admin, Mecanico) |
+| Papel | `Papel` | Enum (`admin`, `mecanico`, `atendente`) — papéis RBAC autorizados por endpoint via `exigir_papel(...)` |
 | Unidade de Trabalho | `UnitOfWork` | Gerencia transações cross-contexto |
 
 Glossário completo: `docs/requisitos/glossario.md`.
@@ -134,7 +134,7 @@ Principais agregados e seus relacionamentos:
 
 **ServicoOferecido** (agregado raiz): serviço disponível no catálogo com preço (`Dinheiro`). Soft delete para preservar referências de OS históricas.
 
-**Usuario** (entidade): operador do sistema com `Papel` (Admin ou Mecanico).
+**Usuario** (entidade): operador do sistema com `Papel` — enum com valores `admin`, `mecanico` e `atendente`, aplicados por endpoint via `exigir_papel(...)`.
 
 Diagramas de classes: `docs/arquitetura/modelo-dominio.md`.
 
@@ -195,7 +195,7 @@ Cancelamento em EmExecucao libera estoque reservado. Estados terminais: Entregue
 
 #### Autenticação
 
-JWT HS256 com tokens de 15 min, revogação via JTI, refresh tokens com rotação, RBAC com 2 papéis (Admin, Mecanico), rate limiting por endpoint.
+JWT HS256 com tokens de 15 min, revogação via JTI, refresh tokens com rotação, RBAC com três papéis (`admin`, `mecanico`, `atendente`) aplicados por endpoint via `exigir_papel(...)`, rate limiting por endpoint.
 
 Detalhes: `docs/arquitetura/rfc/rfc-001-design-do-sistema.md` e `docs/arquitetura/adr/`.
 
@@ -260,7 +260,7 @@ Referência OWASP API Security Top 10 (2023). Ferramentas: SonarQube (SAST/quali
 
 | # | Severidade | Descrição | Status |
 |---|---|---|---|
-| 1 | Baixa | CPF/CNPJ em texto plano (CVSS 3.1) | Mitigado — hash unidirecional + repr=False em DTOs (RF-011) |
+| 1 | Baixa | CPF/CNPJ em texto plano (CVSS 3.1) | Mitigado — cifragem Fernet em repouso + `documento_hash` como índice + `field(repr=False)` em DTOs (RF-011) |
 | 2 | Informativo | Sem endpoints LGPD Art. 18 | Implementado — dados-pessoais, exportar, anonimizar (RF-015) |
 | 3 | Informativo | Sem consentimento explicito | Implementado — registrar/revogar consentimento (RF-019) |
 | 4 | Informativo | JWT sem revogacao/refresh (CVSS 2.0) | Implementado — tokens_revogados + refresh com rotacao (RF-012, RF-013) |
@@ -271,7 +271,7 @@ Referência OWASP API Security Top 10 (2023). Ferramentas: SonarQube (SAST/quali
 |---|---|
 | Mascaramento de PII em respostas | Implementado — `mascarado()` em schemas de listagem |
 | Remocao de PII em logs | Implementado — `field(repr=False)` em DTOs com PII |
-| Protecao de CPF/CNPJ | Mitigado — hash unidirecional para busca (RF-011) |
+| Protecao de CPF/CNPJ | Mitigado — cifragem Fernet em repouso + `documento_hash` (HMAC-SHA256) como índice de busca (RF-011) |
 | Direitos do titular (Art. 18) | Implementado — 3 endpoints LGPD (RF-015) |
 | Consentimento | Implementado — registrar/revogar (RF-019) |
 
@@ -319,14 +319,14 @@ Cobertura por contexto delimitado (camada de dominio):
 | Autenticacao | 100% | 100% | 38-100% | 100% |
 | Compartilhado | 100% | -- | 100% | 100% |
 
-Todas as camadas atingem cobertura acima de 80%. Camadas de dominio e aplicacao 100% em todos os contextos. Camadas de infraestrutura e interfaces cobertas por testes unitarios com mocks e testes de integracao com testcontainers.
+Camadas de dominio e aplicacao atingem 100% em todos os contextos. Camadas de infraestrutura e interfaces variam entre 38-100% (cobertura unitaria com mocks), complementadas por testes de integracao com testcontainers que exercitam os caminhos restantes.
 
 #### Rastreabilidade de Requisitos
 
 | Requisito | Descricao | Status | Evidencia |
 |---|---|---|---|
 | DDD | Bounded contexts, agregados, entidades, value objects | Implementado | 5 contextos delimitados, 5 agregados, VOs (CPF, CNPJ, Dinheiro, Placa, Orcamento) |
-| Cobertura 80%+ | Cobertura de testes nos dominios criticos | Atendido | 97.75% global; todos os dominios criticos acima de 90% |
+| Cobertura 80%+ | Cobertura de testes nos dominios criticos | Atendido | 97.75% global; dominio e aplicacao 100% em todos os contextos (infra/interfaces complementada por testes de integracao) |
 | JWT | Autenticacao com tokens JWT | Implementado | HS256 com revogacao via JTI, refresh tokens com rotacao |
 | Swagger | Documentacao de API via OpenAPI | Implementado | Disponivel em /docs com todos os endpoints documentados |
 | Docker | Containerizacao da aplicacao | Implementado | Dockerfile multi-stage + docker-compose.yml (app + PostgreSQL) |
