@@ -6,13 +6,8 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
-    environment:
-      - DATABASE_URL=postgresql://pytstop:pytstop@postgres:5432/pytstop
-      - JWT_SECRET=change-this-in-production
-      - JWT_EXPIRATION_MINUTES=30
-      - ENVIRONMENT=development
-      - CORS_ORIGINS=http://localhost:3000
-      - RUN_MIGRATIONS_ON_STARTUP=true
+    env_file:
+      - .env.dev
     entrypoint: ["./entrypoint.sh"]
 
   postgres:
@@ -20,13 +15,13 @@ services:
     ports:
       - "127.0.0.1:5432:5432"
     environment:
-      - POSTGRES_DB=pytstop
-      - POSTGRES_USER=pytstop
-      - POSTGRES_PASSWORD=pytstop
+      - POSTGRES_DB=${POSTGRES_DB:-pytstop}
+      - POSTGRES_USER=${POSTGRES_USER:-pytstop}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-pytstop}
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U pytstop"]
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pytstop}"]
       interval: 5s
       timeout: 5s
       retries: 5

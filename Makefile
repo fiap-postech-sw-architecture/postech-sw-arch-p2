@@ -1,10 +1,13 @@
-.PHONY: lint format typecheck security test test-integ test-all check all up down
+.PHONY: lint format typecheck security test test-integ test-all check all up down seed
 
 up:
 	@bash -c 'source scripts/docker-check.sh && docker compose up -d'
 
 down:
 	@bash -c 'source scripts/docker-check.sh && docker compose down'
+
+seed:
+	@bash -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.dev ] && . ./.env.dev; set +a; python scripts/seed_admin.py'
 
 lint:
 	ruff check src/ tests/
