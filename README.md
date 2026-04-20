@@ -11,6 +11,7 @@ Sistema de gestao de ordens de servico para uma oficina mecanica de medio porte.
 ## Pre-requisitos
 
 - Python 3.12+
+- [uv](https://docs.astral.sh/uv/) (gerenciador de dependencias e ambientes virtuais) — veja [ADR-014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md) (Proposta, em discussao). Fallback com `venv + pip` documentado na secao Desenvolvimento Local.
 - Docker 24+ e Docker Compose v2
 - Git
 
@@ -89,11 +90,31 @@ Verifique se o servico Docker esta ativo: `sudo systemctl start docker`.
 
 ## Desenvolvimento Local
 
+Instale o [`uv`](https://docs.astral.sh/uv/getting-started/installation/) uma vez (qualquer uma das alternativas):
+
+```bash
+curl -LsSf https://astral.sh/uv/install.sh | sh   # macOS/Linux
+# ou: brew install uv
+# ou: pipx install uv
+```
+
+Em seguida, instale as dependencias do projeto a partir do lockfile:
+
+```bash
+uv sync --extra test --frozen  # usa versoes exatas fixadas em uv.lock
+```
+
+`--frozen` garante que a resolucao nao altere `uv.lock`; se o lockfile estiver desatualizado em relacao a `pyproject.toml`, o comando falha e o bump precisa ser feito explicitamente (veja [Atualizando dependencias](#atualizando-dependencias) abaixo). Sem `--frozen`, `uv sync` reconcilia o lockfile automaticamente — util em primeiras instalacoes, mas evite em CI e commits do dia a dia.
+
+Alternativa sem `uv` (pip + venv tradicional, enquanto a [ADR-014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md) esta em discussao):
+
 ```bash
 python -m venv .venv
 source .venv/bin/activate
 pip install -e ".[test]"
 ```
+
+Este fluxo nao consome `uv.lock` (pip resolve versoes novamente), entao pode divergir do ambiente do CI/producao. Use apenas se `uv` nao estiver disponivel.
 
 ### Loop de desenvolvimento rapido (uvicorn com hot reload)
 
@@ -102,9 +123,11 @@ Para iterar rapidamente sem rebuilds do container da aplicacao, rode apenas o Po
 ```bash
 cp .env.dev.example .env.dev           # (opcional) customize credenciais/porta
 docker compose up -d postgres          # Postgres na porta 5432
-.venv/bin/alembic upgrade head         # aplica migrations (so na primeira vez)
+uv run alembic upgrade head            # aplica migrations (so na primeira vez)
 ./scripts/run-dev.sh                   # uvicorn em http://localhost:8001 com reload
 ```
+
+`uv run <cmd>` executa no ambiente criado por `uv sync` sem exigir `source .venv/bin/activate`. Se preferir o fluxo tradicional, o equivalente e `.venv/bin/alembic upgrade head`.
 
 Os defaults do `scripts/run-dev.sh` (`DATABASE_URL` apontando para `localhost:5432`, `JWT_SECRET` de dev com ≥32 bytes, etc.) funcionam sem configuracao adicional. Voce so precisa do `.env.dev` se quiser sobrescrever algo (por exemplo, `UVICORN_PORT=9000`) sem editar o script. Ao terminar, `docker compose down -v` encerra o Postgres.
 
@@ -127,6 +150,32 @@ make all        # format + check + integracao
 ```
 
 Ao rodar `pytest` diretamente, ruff/mypy/bandit executam automaticamente antes dos testes. Para pular os pre-checks: `pytest --no-lint`.
+
+### Atualizando dependencias
+
+O `uv.lock` fixa versoes exatas e hashes SHA-256 de todas as dependencias (diretas e transitivas). Atualizacoes sao **sempre explicitas** — nunca acontecem durante `uv sync --frozen`. Use os comandos abaixo conforme a intencao:
+
+| Intencao | Comando | O que acontece |
+|---|---|---|
+| Reinstalar o que esta em `uv.lock` (fluxo diario) | `uv sync --extra test --frozen` | Nenhuma mudanca em `uv.lock`; falha se o lockfile estiver inconsistente com `pyproject.toml` |
+| Atualizar **todas** as transitivas dentro dos ranges de `pyproject.toml` | `uv lock --upgrade && uv sync --extra test` | Regenera `uv.lock` no patch/minor mais novo permitido pelos ranges; commita o `uv.lock` junto |
+| Atualizar **uma** dependencia especifica | `uv lock --upgrade-package <nome> && uv sync --extra test` | So bumpa `<nome>` (e suas transitivas); util para patches de seguranca pontuais |
+| Adicionar nova dependencia de producao | `uv add <pacote>` | Atualiza `pyproject.toml` **e** `uv.lock`; commita ambos |
+| Adicionar dependencia so para testes | `uv add --optional test <pacote>` | Atualiza `[project.optional-dependencies].test` + lockfile |
+| Remover dependencia | `uv remove <pacote>` | Limpa `pyproject.toml` e `uv.lock` |
+| Subir um range (ex.: `fastapi>=0.115` → `>=0.120`) | Edite `pyproject.toml`, depois `uv lock && uv sync --extra test` | Necessario quando o upgrade exige relaxar o range; review manual obrigatorio |
+| Ver o que mudaria sem aplicar | `uv lock --upgrade --dry-run` | Mostra o diff de `uv.lock` sem escrever o arquivo |
+| Auditoria de vulnerabilidades | `uv run --with pip-audit pip-audit` | Roda `pip-audit` em um ambiente efemero sem poluir o `.venv` |
+
+**Checklist apos qualquer upgrade** (antes de abrir a PR):
+
+1. `uv sync --extra test --frozen` — confirma que `uv.lock` resolve sem tocar nada.
+2. `make check` (lint + mypy + bandit + unitarios) — nenhuma regressao de tipo/estilo/segurancia.
+3. `make test-integ` — integracao com Postgres real sob as novas versoes.
+4. `uv run --with pip-audit pip-audit` — sem CVEs de severidade alta ou critica nas novas versoes.
+5. Commite `pyproject.toml` (se mudou) e `uv.lock` juntos, com mensagem do tipo `chore(deps): bump <pacote> to <versao>` ou `chore(deps): monthly lock refresh`.
+
+Para um refresh periodico completo (recomendado mensalmente ou apos qualquer CVE relevante): `uv lock --upgrade && uv sync --extra test && make all && uv run --with pip-audit pip-audit`.
 
 ### Docker Compose via Homebrew
 
@@ -226,6 +275,7 @@ pytest --cov=src --cov-report=html --no-lint  # com relatorio HTML
 | [011](docs/arquitetura/adr/011-pipeline-seguranca-analise-estatica.md) | Pipeline de seguranca e analise estatica | Aceito |
 | [012](docs/arquitetura/adr/012-licenciamento-software-sbom.md) | Licenciamento de software e SBOM | Aceito |
 | [013](docs/arquitetura/adr/013-testes-bdd-pytest-bdd.md) | Testes BDD com pytest-bdd | Aceito |
+| [014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md) | Gerenciador de pacotes uv | Proposta |
 
 ## Documentacao
 

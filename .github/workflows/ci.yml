@@ -18,39 +18,47 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v4
         with:
           python-version: "3.12"
-          cache: pip
-      - run: pip install -e ".[test]" ruff
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Verify uv.lock is up to date with pyproject.toml
+        run: uv lock --check
+      - name: Install dependencies from lockfile
+        run: uv sync --extra test --frozen
       - name: Ruff check
-        run: ruff check src/ tests/
+        run: uv run ruff check src/ tests/
       - name: Ruff format check
-        run: ruff format --check src/ tests/
+        run: uv run ruff format --check src/ tests/
 
   type-check:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v4
         with:
           python-version: "3.12"
-          cache: pip
-      - run: pip install -e ".[test]" mypy
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Install dependencies from lockfile
+        run: uv sync --extra test --frozen
       - name: Mypy
-        run: mypy src/
+        run: uv run mypy src/
 
   security:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v4
         with:
           python-version: "3.12"
-          cache: pip
-      - run: pip install -e ".[test]" bandit
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Install dependencies from lockfile
+        run: uv sync --extra test --frozen
       - name: Bandit security scan
-        run: bandit -r src/ -c pyproject.toml --severity-level high
+        run: uv run bandit -r src/ -c pyproject.toml --severity-level high
 
   test:
     runs-on: ubuntu-latest
@@ -70,14 +78,16 @@ jobs:
           --health-retries 5
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: astral-sh/setup-uv@v4
         with:
           python-version: "3.12"
-          cache: pip
-      - run: pip install -e ".[test]"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Install dependencies from lockfile
+        run: uv sync --extra test --frozen
       - name: Run unit tests with coverage
         run: |
-          pytest tests/unitarios/ \
+          uv run pytest tests/unitarios/ \
             --no-lint \
             --cov=src \
             --cov-report=term-missing \
@@ -88,7 +98,7 @@ jobs:
       - name: Run integration tests
         run: |
           set +e
-          pytest tests/integracao/ \
+          uv run pytest tests/integracao/ \
             --no-lint \
             -x \
             --tb=short

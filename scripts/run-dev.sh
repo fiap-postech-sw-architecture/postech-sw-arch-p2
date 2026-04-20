@@ -6,7 +6,9 @@
 #
 # Pre-requisitos:
 #   - Postgres rodando (veja docker-compose.yml: `docker compose up -d postgres`).
-#   - Migrations aplicadas (`.venv/bin/alembic upgrade head` ou
+#   - Dependencias instaladas via `uv sync --extra test --frozen` (ou fallback
+#     `python -m venv .venv && pip install -e ".[test]"`).
+#   - Migrations aplicadas (`uv run alembic upgrade head` ou
 #     `RUN_MIGRATIONS_ON_STARTUP=true` + entrypoint.sh).
 #   - Arquivo opcional `.env.dev` com overrides (nao versionado).
 #
@@ -38,6 +40,23 @@ fi
 export DATABASE_URL JWT_SECRET JWT_EXPIRATION_MINUTES ENVIRONMENT CORS_ORIGINS
 
 echo "Iniciando uvicorn em http://${UVICORN_HOST}:${UVICORN_PORT} (reload ativado)"
+
+# Prefere `uv run` (funciona sem ativar venv e garante o ambiente do uv.lock);
+# cai para `.venv/bin/uvicorn` se uv nao estiver disponivel (fallback
+# documentado na ADR-014).
+if command -v uv >/dev/null 2>&1; then
+    exec uv run uvicorn src.main:app \
+        --reload \
+        --host "${UVICORN_HOST}" \
+        --port "${UVICORN_PORT}"
+fi
+
+if [[ ! -x .venv/bin/uvicorn ]]; then
+    echo "ERRO: nem 'uv' nem '.venv/bin/uvicorn' encontrados." >&2
+    echo "  Rode 'uv sync --extra test --frozen' (ou 'python -m venv .venv && pip install -e \".[test]\"')." >&2
+    exit 1
+fi
+
 exec .venv/bin/uvicorn src.main:app \
     --reload \
     --host "${UVICORN_HOST}" \

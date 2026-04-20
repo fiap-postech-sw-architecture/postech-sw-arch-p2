@@ -811,16 +811,15 @@ class TestRBACRouteDeclarations:
         for dep in dependant.dependencies:
             call = getattr(dep, "call", None)
             if call is not None and "verificar" in getattr(call, "__name__", ""):
-                # exigir_papel captures *papeis in the closure
                 closure = getattr(call, "__closure__", None)
                 if closure:
                     for cell in closure:
                         val = cell.cell_contents
-                        is_str_tuple = isinstance(val, tuple) and all(
-                            isinstance(v, str) for v in val
-                        )
-                        if is_str_tuple:
-                            return set(val)
+                        if isinstance(val, tuple | frozenset | set) and val:
+                            try:
+                                return {str(v) for v in val}
+                            except TypeError:
+                                continue
         return set()
 
     @staticmethod

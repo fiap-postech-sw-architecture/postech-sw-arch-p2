@@ -1,6 +1,6 @@
 # Relatorio de Vulnerabilidades
 
-> **Versao**: 1.0 -- verificacao bandit executada em 16/04/2026; pip-audit pendente (ferramenta nao instalada no venv). SonarQube, OWASP ZAP, gitleaks e trivy pendentes de execucao.
+> **Versao**: 1.0 -- verificacao bandit executada em 16/04/2026; pip-audit pendente (rodar via `uv run --with pip-audit pip-audit`). SonarQube, OWASP ZAP, gitleaks e trivy pendentes de execucao.
 
 ## Escopo
 
@@ -167,7 +167,7 @@ Achados inline acima. Relatorio pode ser regenerado via `bandit -r src/ -f json 
 
 ## Auditoria de Dependencias (pip-audit)
 
-**TODO**: executar antes da entrega. Instalar com `pip install pip-audit` e rodar `pip-audit --format json --output docs/seguranca/pip-audit-report.json`.
+**TODO**: executar antes da entrega. Rodar em ambiente efemero (sem poluir o `.venv` gerenciado por `uv`): `uv run --with pip-audit pip-audit --format json --output docs/seguranca/pip-audit-report.json`. Sem `uv`, o equivalente e `pip install pip-audit && pip-audit --format json --output docs/seguranca/pip-audit-report.json`.
 
 Relatorio completo: `docs/seguranca/pip-audit-report.json`.
 

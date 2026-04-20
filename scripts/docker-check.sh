@@ -13,6 +13,7 @@ _docker_check_finish() {
 docker_check_main() {
   if [ -n "$DOCKER_HOST" ]; then
     _docker_check_finish 0
+    return 0
   fi
 
   local -a candidates=(
@@ -28,6 +29,7 @@ docker_check_main() {
       export DOCKER_HOST="unix://$sock"
       echo "Docker socket encontrado: $sock" >&2
       _docker_check_finish 0
+      return 0
     fi
   done
 

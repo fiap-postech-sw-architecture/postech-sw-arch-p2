@@ -32,7 +32,7 @@ Ideal para iteracao rapida em codigo Python. Evita rebuild do container a cada m
 ```bash
 cp .env.dev.example .env.dev           # (opcional) override de credenciais/porta
 docker compose up -d postgres          # Postgres na 5432
-.venv/bin/alembic upgrade head         # migrations
+uv run alembic upgrade head            # migrations (ou .venv/bin/alembic)
 ./scripts/run-dev.sh                   # uvicorn com --reload na 8001
 ```
 
@@ -106,16 +106,18 @@ Causa: o lifespan do FastAPI nao chamou `configurar_session_factory()`. Isso cos
 Causa: migrations nao foram aplicadas no banco apontado por `DATABASE_URL`. Solucao:
 
 ```bash
-.venv/bin/alembic current          # ve em que revisao esta
-.venv/bin/alembic upgrade head     # aplica pendentes
+uv run alembic current          # ve em que revisao esta
+uv run alembic upgrade head     # aplica pendentes
 ```
 
 Se `alembic current` disser `001 (head)` mas `\dt` no psql nao listar tabelas, o alembic pode ter marcado a revisao sem aplicar o DDL (bug de setup inicial). Resetar:
 
 ```bash
 docker exec -it <postgres> psql -U pytstop -d pytstop -c "DROP TABLE alembic_version"
-.venv/bin/alembic upgrade head
+uv run alembic upgrade head
 ```
+
+> Sem `uv`, os comandos acima equivalem a `.venv/bin/alembic <subcmd>` depois de `source .venv/bin/activate`.
 
 ### `sqlalchemy.orm.exc.DetachedInstanceError`
 
@@ -141,7 +143,7 @@ BASE=http://localhost:8000
 #    gen_random_uuid() e nativo em Postgres 13+. Em versoes anteriores,
 #    habilite a extensao pgcrypto antes (ver psql abaixo) ou gere o UUID em
 #    Python com `python -c "import uuid; print(uuid.uuid4())"`.
-HASH=$(.venv/bin/python -c "from src.autenticacao.infraestrutura.password_hasher import hash_senha; print(hash_senha('senhaforte1234'))")
+HASH=$(uv run python -c "from src.autenticacao.infraestrutura.password_hasher import hash_senha; print(hash_senha('senhaforte1234'))")
 PG_CONTAINER=$(docker ps --filter "name=postgres" --format "{{.Names}}" | head -1)
 docker exec -i "$PG_CONTAINER" \
   psql -U pytstop -d pytstop -c "CREATE EXTENSION IF NOT EXISTS pgcrypto;"
