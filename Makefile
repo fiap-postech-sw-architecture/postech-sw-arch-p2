@@ -34,7 +34,7 @@ security:
 	$(PY)bandit -r src/ -c pyproject.toml --severity-level high
 
 test:
-	$(PY)pytest tests/unitarios/ -x -q --no-lint --cov=src --cov-fail-under=80
+	$(PY)pytest tests/unitarios/ -x -q --no-lint --cov=src
 
 test-integ:
 	$(PY)pytest tests/integracao/ -x -q --no-lint --tb=short

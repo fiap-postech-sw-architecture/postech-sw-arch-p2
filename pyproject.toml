@@ -113,6 +113,7 @@ source = ["src"]
 omit = ["tests/*", "*/migrations/*", "*/__init__.py"]
 
 [tool.coverage.report]
+# Gate de cobertura -- fonte unica. Makefile e CI leem daqui; nao passar --cov-fail-under.
 fail_under = 95
 
 [tool.bandit]

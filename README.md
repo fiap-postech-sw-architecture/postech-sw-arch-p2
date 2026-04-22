@@ -236,7 +236,7 @@ Documentacao interativa disponivel em `http://localhost:8000/docs` (Swagger UI).
 ## Testes
 
 ```bash
-make test          # unitarios com cobertura (80%+ obrigatorio)
+make test          # unitarios com cobertura (95%+ obrigatorio; configurado em pyproject.toml)
 make test-integ    # integracao com testcontainers + PostgreSQL
 make test-all      # tudo (unitarios + integracao + e2e)
 

@@ -92,7 +92,6 @@ jobs:
             --cov=src \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
-            --cov-fail-under=80 \
             -x \
             --tb=short
       - name: Run integration tests
