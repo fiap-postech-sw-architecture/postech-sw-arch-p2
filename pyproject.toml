@@ -31,6 +31,13 @@ test = [
     "mypy>=1.13",
     "bandit>=1.7",
 ]
+full-test = [
+    "httpx>=0.27",
+    "pytest>=8",
+    "pytest-xdist>=3.5",
+    "python-dotenv>=1.0",
+    "sqlalchemy>=2.0",
+]
 
 [build-system]
 requires = ["setuptools>=75.0"]
@@ -68,6 +75,7 @@ known-first-party = ["src"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "TCH", "SIM105", "PT012", "RUF059"]
+"full-test/tests/**" = ["S101", "S105", "S106", "TCH", "SIM105", "PT012", "RUF059"]
 "**/exceptions.py" = ["N818"]
 "**/interfaces/schemas.py" = ["S105", "TCH003"]
 "**/interfaces/router*.py" = ["B008"]
@@ -104,6 +112,8 @@ markers = [
     "integracao: testes de integracao",
     "e2e: testes end-to-end",
     "lento: testes que demoram mais de 1s",
+    "slow: roda contra instancia viva (docker compose); nao entra em unit-tests puros",
+    "slowest: tem sleep obrigatorio >= 1s dentro da journey; NAO entra em CI — rodar apenas em make full-test",
 ]
 addopts = "--strict-markers"
 testpaths = ["tests"]

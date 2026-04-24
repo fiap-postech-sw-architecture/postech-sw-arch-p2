@@ -33,8 +33,10 @@ def _item_dto(item: ItemEstoque) -> ItemEstoqueDTO:
     )
 
 
-def _obter_ou_falhar(repo: ItemEstoqueRepository, item_id: UUID) -> ItemEstoque:
-    item = repo.obter_por_id(item_id)
+def _obter_ou_falhar(
+    repo: ItemEstoqueRepository, item_id: UUID, *, com_lock: bool = False
+) -> ItemEstoque:
+    item = repo.obter_por_id(item_id, com_lock=com_lock)
     if item is None:
         raise ItemEstoqueNaoEncontradoException()
     return item
@@ -101,7 +103,10 @@ class AjustarQuantidade:
 
     def executar(self, item_id: UUID, dto: AjustarQuantidadeDTO) -> ItemEstoqueDTO:
         with self._uow:
-            item = _obter_ou_falhar(self._repo, item_id)
+            # ``com_lock=True`` aplica SELECT FOR UPDATE — serializa writes
+            # concorrentes e evita lost-update detectado por
+            # ``full-test`` ``AdminConcurrencyJourney``.
+            item = _obter_ou_falhar(self._repo, item_id, com_lock=True)
             item.ajustar_quantidade(dto.nova_quantidade)
             self._repo.salvar(item)
             self._uow.commit()

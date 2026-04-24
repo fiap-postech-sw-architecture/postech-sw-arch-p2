@@ -9,7 +9,9 @@ if TYPE_CHECKING:
 
 
 class ItemEstoqueRepository(Protocol):
-    def obter_por_id(self, item_id: UUID) -> ItemEstoque | None: ...
+    def obter_por_id(
+        self, item_id: UUID, *, com_lock: bool = False
+    ) -> ItemEstoque | None: ...
 
     def obter_por_ids(self, ids: list[UUID]) -> list[ItemEstoque]: ...
 

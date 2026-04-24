@@ -68,6 +68,12 @@ def iniciar_mapeamentos() -> None:
         # de Entity.__setattr__ precisa ser ativado aqui para preservar
         # a imutabilidade de id em instancias carregadas.
         object.__setattr__(target, "_id_atribuido", True)
+        # AggregateRoot._eventos_pendentes tem init=False com default_factory,
+        # entao o mapper nao o inicializa na reidratacao. Sem isso,
+        # reservar()/liberar() crasham com AttributeError na primeira chamada
+        # apos load() (ver src/cliente_veiculo/infraestrutura/mapping.py:145
+        # para o mesmo padrao em Cliente).
+        object.__setattr__(target, "_eventos_pendentes", [])
 
     @event.listens_for(ItemEstoque, "before_insert")
     @event.listens_for(ItemEstoque, "before_update")

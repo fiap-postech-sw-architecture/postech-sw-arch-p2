@@ -81,13 +81,16 @@ class ClienteSQLAlchemyRepository:
         # PII. A direct UPDATE avoids this and guarantees erasure.
         # Use per-client tombstone on documento_hash to preserve the
         # unique constraint (multiple clients can be anonymized).
+        # Column name is ``documento`` in the table schema; the ORM attribute
+        # ``_documento_numero`` maps to it (see mapping.py:92). Raw UPDATE
+        # bypasses the ORM, so we must use the table column name here.
         stmt = (
             update(clientes_table)
             .where(clientes_table.c.id == cliente_id)
             .values(
                 nome="ANONIMIZADO",
                 contato="anonimizado@anonimizado.local",
-                documento_numero="ANONIMIZADO",
+                documento="ANONIMIZADO",
                 documento_hash=f"ANONIMIZADO:{cliente_id}",
                 ativo=False,
             )

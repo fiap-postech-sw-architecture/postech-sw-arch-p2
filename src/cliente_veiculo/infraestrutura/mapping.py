@@ -133,8 +133,17 @@ def iniciar_mapeamentos() -> None:
         if numero and numero.startswith("gAAAAA"):
             numero = enc.decrypt(numero)
         tipo: str = target._tipo_documento  # type: ignore[attr-defined]
-        if tipo == "cpf":
-            doc: CPF | CNPJ = CPF(numero=numero)
+        # Sentinela da anonimizacao LGPD (``repository.anonimizar_dados``):
+        # apos excluir dados pessoais, o documento e sobrescrito com o literal
+        # "ANONIMIZADO". O VO CPF/CNPJ rejeitaria esse valor via brutils, entao
+        # usamos um placeholder em-memoria que preserva o contrato do agregado
+        # sem crashar o mapping. Clientes anonimizados tem ``ativo=False``, so
+        # aparecem em caminhos admin-only.
+        if numero == "ANONIMIZADO":
+            doc: CPF | CNPJ = CPF.__new__(CPF)
+            object.__setattr__(doc, "numero", "ANONIMIZADO")
+        elif tipo == "cpf":
+            doc = CPF(numero=numero)
         elif tipo == "cnpj":
             doc = CNPJ(numero=numero)
         else:
@@ -155,6 +164,18 @@ def iniciar_mapeamentos() -> None:
         _mapper: object, _connection: object, target: Cliente
     ) -> None:
         doc = target._documento
+        # Guard da anonimizacao LGPD: se o VO veio da reidratacao de um
+        # Cliente anonimizado (``_reconstruir_documento`` monta um CPF com
+        # ``numero="ANONIMIZADO"`` via ``CPF.__new__`` — ver linhas acima),
+        # um re-save ingenuo chamaria ``enc.encrypt("ANONIMIZADO")`` e
+        # ``enc.hash_deterministic("ANONIMIZADO")``, gerando o MESMO hash
+        # para todos os clientes anonimizados e violando o ``unique=True``
+        # em ``documento_hash``. Essa branch preserva os tombstones escritos
+        # pelo ``anonimizar_dados`` (raw UPDATE com ``documento="ANONIMIZADO"``
+        # + ``documento_hash="ANONIMIZADO:{cliente_id}"``). Sem-op aqui e
+        # seguro: ``anonimizar_dados`` ja grava as colunas corretas no DB.
+        if doc.numero == "ANONIMIZADO":
+            return
         enc = EncryptionService.instance()
         target._documento_numero = enc.encrypt(doc.numero)
         target._documento_hash = enc.hash_deterministic(doc.numero)
