@@ -1,54 +1,41 @@
 name: Run Claude Code Action
-description: |
+description: >-
   Wrapper local que encapsula args, tools e secrets comuns do
-  `anthropics/claude-code-action@v1`. Mantem a configuracao em UM lugar
-  pra evitar drift entre `claude-code-review.yml` (auto-review em PR)
-  e `claude-on-demand.yml` (`@claude` mention + workflow_dispatch).
-
-  Uso:
-
-      - uses: ./.github/actions/claude
-        with:
-          oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          prompt: <prompt completo>             # opcional
-          trigger_phrase: "@claude"             # opcional
-          extra_allowed_tools: "tool_a,tool_b"  # opcional
-
-  O que NAO fica aqui (precisa estar no workflow chamador): trigger
-  (`on:`), `permissions:` no nivel do job, `concurrency`,
-  `timeout-minutes`, `if:` de gate (fork/draft), e o `actions/checkout`
-  step. Esses sao propriedades do job, nao do step composite.
+  anthropics/claude-code-action@v1. Mantem a configuracao em UM lugar
+  pra evitar drift entre os workflows de auto-review e on-demand.
+  Workflows chamadores passam secrets via inputs (oauth_token,
+  github_token) e parametros que variam (prompt, trigger_phrase,
+  extra_allowed_tools). Trigger, permissions, concurrency,
+  timeout-minutes, if-gate e checkout ficam no workflow chamador
+  (sao propriedades do job, nao do step composite).
 
 inputs:
   oauth_token:
     description: Claude Code OAuth token (Claude Max plan). Passar via secrets.
     required: true
   github_token:
-    description: |
-      GitHub token. Passar `${{ secrets.GITHUB_TOKEN }}` — auto-gerado
-      pelo runner. Workaround pro bug
-      https://github.com/anthropics/claude-code-action/issues/721
-      (sem ele a action tenta GitHub App OIDC e falha com 401 quando o
-      auth e via OAuth).
+    description: >-
+      GitHub token auto-gerado pelo runner — workaround pro bug
+      anthropics/claude-code-action#721 (sem ele a action tenta
+      GitHub App OIDC e falha com 401 quando o auth e via OAuth).
     required: true
   prompt:
-    description: |
-      Prompt completo. Pra `@claude` mention/issue_comment, deixe vazio
-      — a action detecta o texto pos-mencao automaticamente via
-      `trigger_phrase`.
+    description: >-
+      Prompt completo. Pra mention em comment/issue, deixe vazio —
+      a action detecta o texto pos-mencao automaticamente via
+      trigger_phrase.
     required: false
     default: ''
   trigger_phrase:
-    description: |
-      Texto que ativa a action em comments (ex.: "@claude"). So usado
+    description: >-
+      Texto que ativa a action em comments (ex.: @claude). So usado
       em on-demand. Vazio no auto-review.
     required: false
     default: ''
   extra_allowed_tools:
-    description: |
+    description: >-
       Tools adicionais a anexar ao set base (CSV). Ex.: on-demand
-      adiciona `Bash(gh issue comment:*),Bash(gh issue view:*)` pra
+      adiciona Bash(gh issue comment:*),Bash(gh issue view:*) pra
       responder em issues alem de PRs.
     required: false
     default: ''
@@ -83,6 +70,13 @@ runs:
 
     - name: Run Claude Code Action
       uses: anthropics/claude-code-action@v1
+      env:
+        # Timeouts internos do MCP. Defaults da action.yml podem ser
+        # curtos demais pra sub-agents (Task tool) em PRs grandes —
+        # subir explicitamente cobre o caso e fica bem dentro do
+        # timeout-minutes do job (20min = 1.2M ms).
+        MCP_TIMEOUT: "60000"
+        MCP_TOOL_TIMEOUT: "300000"
       with:
         claude_code_oauth_token: ${{ inputs.oauth_token }}
         github_token: ${{ inputs.github_token }}
@@ -90,6 +84,11 @@ runs:
         trigger_phrase: ${{ inputs.trigger_phrase }}
         track_progress: true
         use_sticky_comment: true
+        # display_report posta um summary no Step Summary do Actions
+        # (visivel via UI sem precisar abrir os logs). Ajuda debug
+        # sem ligar show_full_output (que pode vazar secrets, ver
+        # warning explicito do action.yml upstream).
+        display_report: true
         additional_permissions: |
           actions: read
         claude_args: ${{ steps.args.outputs.value }}
