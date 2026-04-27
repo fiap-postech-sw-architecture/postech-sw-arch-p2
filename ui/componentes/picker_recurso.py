@@ -2,14 +2,19 @@
 
 from __future__ import annotations
 
+import logging
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from nicegui import ui
 
+from ui.cliente_api import ApiError
+
 if TYPE_CHECKING:
     from collections.abc import Callable
+
+logger = logging.getLogger(__name__)
 
 
 @dataclass
@@ -54,6 +59,7 @@ class PickerRecurso:
     ) -> None:
         self._campo_id = campo_id
         self._campo_label = campo_label
+        self._rotulo = rotulo
         self._cache = CacheRecursos(ttl_seg=ttl_seg, fetcher=fetcher)
         options = self._obter_opcoes()
         with ui.row().classes("items-end gap-2"):
@@ -66,7 +72,20 @@ class PickerRecurso:
             ui.button(icon="refresh", on_click=self._refresh).props("flat dense")
 
     def _obter_opcoes(self) -> dict[str, str]:
-        itens = self._cache.obter()
+        try:
+            itens = self._cache.obter()
+        except ApiError as exc:
+            logger.warning(
+                "PickerRecurso falhou ao listar %s: %s (%s)",
+                self._rotulo,
+                exc,
+                type(exc).__name__,
+            )
+            ui.notify(
+                f"Falha ao listar {self._rotulo}: {exc}",
+                type="negative",
+            )
+            return {}
         return {str(i[self._campo_id]): str(i[self._campo_label]) for i in itens}
 
     def _refresh(self) -> None:
