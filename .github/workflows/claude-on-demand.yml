@@ -58,4 +58,13 @@ jobs:
           # prompt explicitamente via input.
           prompt: ${{ github.event_name == 'workflow_dispatch' && inputs.prompt || '' }}
           trigger_phrase: "@claude"
-          claude_args: "--max-turns 10"
+          # --model opus: alias do Opus mais recente (auto-atualiza
+          # quando sair Opus novo). Hoje aponta pra claude-opus-4-7 com
+          # 1M tokens nativos. --effort max: extended thinking maximo
+          # antes de cada acao. max-turns 50 cobre tarefas grandes sob
+          # demanda. Custo previsivel pelo `if:` que so executa em
+          # mencoes explicitas + workflow_dispatch.
+          claude_args: |
+            --model opus
+            --effort max
+            --max-turns 50

@@ -46,38 +46,57 @@ jobs:
         uses: anthropics/claude-code-action@v1
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # Limite de turns mantem o custo previsivel; aumenta se o PR
-          # tiver muitos arquivos e Claude precisar explorar mais.
-          claude_args: "--max-turns 10"
+          # --model opus: alias que aponta pro Opus mais recente
+          # disponivel — auto-atualiza quando a Anthropic libera Opus
+          # novo, sem precisar editar este workflow. Hoje resolve para
+          # claude-opus-4-7 (1M tokens nativos), util pra PRs grandes
+          # (UI inteira, ~50 arquivos) sem fragmentar contexto.
+          # --effort max: maximo de extended thinking antes de cada acao.
+          # Pra reviews de codigo, melhora o pesar de hipoteses concorrentes
+          # (decidir se um achado e critico vs sugestao).
+          # max-turns 50: cobre PRs grandes mesmo sem paralelizacao via
+          # Task tool. Sub-agents ajudam a economizar turns do main agent
+          # quando funcionam.
+          claude_args: |
+            --model opus
+            --effort max
+            --max-turns 50
           prompt: |
-            Faca code review deste pull request seguindo as convencoes do
-            projeto PytStop:
+            Code review deste PR seguindo as convencoes do PytStop.
 
-            **Convencoes obrigatorias** (ver `.claude/CLAUDE.md` na raiz):
-            - Hybrid PT/EN: termos de negocio em portugues SEM acentos
-              (ex.: `OrdemDeServico`, `aprovar_orcamento()`); patterns
-              tecnicos em ingles (Repository, Port, Event).
-            - DDD com bounded contexts isolados via Ports/Adapters.
-            - Cobertura: 95% no `src/` e em `ui/` (gate em CI).
+            **Estrategia de exploracao** (use Task tool pra paralelizar
+            quando o PR for grande):
 
-            **Foco da revisao**:
-            1. Bugs, edge cases e race conditions.
-            2. Aderencia ao DDD: agregados, eventos, ACL entre contextos.
-            3. Seguranca: JWT/auth, LGPD/PII em logs e responses, headers
-               e secrets.
-            4. Performance: N+1 queries, allocations desnecessarias,
-               loops O(n^2) sobre dados que crescem.
-            5. Testes: cobertura e qualidade dos casos (edge cases,
-               regressoes pinadas).
+            Se o PR mexe em mais de ~10 arquivos, dispare ate 4 sub-agents
+            em PARALELO via Task tool, cada um com foco unico:
 
-            **Formato esperado**: poste UM review estruturado por
-            severidade:
-            - 🔴 Criticos (bloqueiam o merge)
-            - 🟡 Sugestoes (melhorias nao-bloqueantes)
+            - subagent A: SEGURANCA — JWT/auth, LGPD/PII em logs e
+              responses, secrets, header leak, validacao de input.
+            - subagent B: DDD/ARQUITETURA — agregados, eventos,
+              cross-context imports, aderencia a Ports/Adapters,
+              violacoes de bounded context.
+            - subagent C: BUGS/PERFORMANCE — edge cases, race conditions,
+              N+1 queries, loops sobre dados que crescem, off-by-one.
+            - subagent D: TESTES — cobertura dos paths novos, qualidade
+              dos casos (edge cases reais ou trivials), regressoes.
+
+            Cada sub-agent retorna um relato de 200-400 palavras com
+            findings citados como `arquivo:linha`. Voce (main agent)
+            consolida em UM unico review estruturado.
+
+            Se o PR for pequeno (<=10 arquivos), revise inline sem
+            sub-agents.
+
+            **Convencoes** (ver `.claude/CLAUDE.md`): hybrid PT/EN
+            (termos de negocio em PT sem acentos, patterns em EN), DDD
+            com Ports/Adapters, cobertura 95%.
+
+            **Formato obrigatorio do review final** (poste como ULTIMA
+            acao, mesmo se algum sub-agent falhou):
+            - 🔴 Criticos (bloqueiam merge) — `arquivo:linha` em cada
+            - 🟡 Sugestoes (nao-bloqueantes) — `arquivo:linha` em cada
             - 🟢 Pontos fortes
-            - 📋 Resumo executivo (1-2 paragrafos)
+            - 📋 Resumo (1-2 paragrafos)
 
-            Cite `arquivo:linha` em cada item. Se algum thread ja foi
-            resolvido por outro reviewer (Copilot, humano), nao repita —
-            foque em achados novos. Em caso de duvida, prefira reportar
-            como sugestao em vez de critico.
+            Threads ja resolvidos por outro reviewer (Copilot, humano):
+            nao repita. Em duvida, marque como sugestao em vez de critico.
