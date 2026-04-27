@@ -246,6 +246,83 @@ pytest tests/integracao/ --no-lint -v         # integracao (requer Docker)
 pytest --cov=src --cov-report=html --no-lint  # com relatorio HTML
 ```
 
+## Code review automatizado pelo Claude
+
+O repositorio tem dois workflows GitHub Actions que rodam o
+[Claude Code Action](https://github.com/anthropics/claude-code-action)
+oficial usando o secret `CLAUDE_CODE_OAUTH_TOKEN`:
+
+| Workflow | Arquivo | Trigger | Quando usar |
+|---|---|---|---|
+| **Claude Code Review** | `.github/workflows/claude-code-review.yml` | `pull_request` (`opened` / `reopened`) com **alvo `main`** | Review unica e automatica na abertura de PR pra main |
+| **Claude On-Demand** | `.github/workflows/claude-on-demand.yml` | `issue_comment`, `pull_request_review_comment`, `workflow_dispatch` | Re-revisar apos mudancas, pedir tarefa especifica, ou rodar em PRs entre branches de feature |
+
+**Politica de auto-review**: roda **uma vez** por PR para `main` (na abertura
+ou reabertura). Pushes seguintes **nao** re-disparam — isso e proposital pra
+manter o custo previsivel. Se voce quiser nova review apos mudar codigo,
+acione manual (proxima secao).
+
+### Acionar manualmente
+
+**Opcao A — Comentar `@claude` no PR ou issue** (mais comum):
+
+Cole no comentario do PR/issue:
+
+```
+@claude faca code review novamente focando em seguranca de auth
+```
+
+```
+@claude tem alguma race condition em ui/cliente_api.py::_request?
+```
+
+A action detecta `@claude` no body do comentario e responde inline. Funciona
+em PRs, em issues, e em comments de review (linha especifica). **So funciona
+quando o workflow ja esta na branch `main`** (limitacao do GitHub: events
+`issue_comment` sempre executam o workflow do default branch).
+
+**Opcao B — Run workflow manual via GitHub UI**:
+
+1. Repo -> aba **Actions** -> **Claude On-Demand** (sidebar esquerda)
+2. Clique em **Run workflow** (canto direito)
+3. Em "Use workflow from", selecione a branch
+4. Em "Instrucao para o Claude", digite o que quer (ex.: `review PR #81 focando em LGPD`)
+5. **Run workflow**
+
+**Opcao C — `gh` CLI**:
+
+```bash
+gh workflow run claude-on-demand.yml \
+  --ref feat/minha-branch \
+  --field prompt="review este PR e foque em performance"
+```
+
+> ⚠️ **Limitacao do GitHub Actions**: tanto a Opcao B quanto a Opcao C
+> precisam que o arquivo `claude-on-demand.yml` ja exista **na default
+> branch (main)**. O `--ref` (ou o seletor "Use workflow from") so muda
+> o checkout durante a execucao — o lookup do workflow em si e sempre na
+> main. Se a action ainda nao foi mergeada, o comando retorna `HTTP 404
+> workflow not found on the default branch`.
+>
+> **Workaround antes do merge inicial**: re-acionar o auto-review fechando
+> e reabrindo o PR (dispara o trigger `reopened`):
+>
+> ```bash
+> gh pr close <numero> && gh pr reopen <numero>
+> ```
+
+### Custos e limites
+
+- Cada run consome creditos do plano Claude Max do owner do token.
+- Auto-review dispara **uma vez por PR para main** (na abertura/reabertura).
+  Pushes seguintes nao re-disparam — pra revisar de novo, use a secao
+  "Acionar manualmente" acima.
+- PRs entre branches de feature (target != main) nao disparam auto-review;
+  use Run workflow manual ou `@claude` mention quando quiser.
+- `--max-turns 10` limita a profundidade de exploracao por run.
+- Se quiser desabilitar o auto-review temporariamente, comente o bloco
+  `on.pull_request` em `claude-code-review.yml` (deixa so quando precisar).
+
 ## Stack
 
 - **Linguagem**: Python 3.12

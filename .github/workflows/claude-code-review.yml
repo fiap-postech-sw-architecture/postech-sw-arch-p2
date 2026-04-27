@@ -1,0 +1,83 @@
+name: Claude Code Review
+
+# Roda automaticamente APENAS quando um PR e aberto/reaberto com alvo main.
+# Sem trigger em "synchronize": pushes seguintes no mesmo PR nao re-revisam
+# automaticamente — pra pedir nova review apos mudancas, use "Claude
+# On-Demand" (workflow_dispatch ou comentario "@claude review"). Detalhes
+# no README.md secao "Code review automatizado pelo Claude".
+#
+# Filtro `branches` no `pull_request` mira o target do PR — PRs entre
+# branches de feature nao disparam. So PRs cujo merge e na main acionam.
+
+on:
+  pull_request:
+    types: [opened, reopened]
+    branches: [main]
+
+permissions:
+  contents: read
+  pull-requests: write
+  issues: write
+  # id-token: write e necessario mesmo com OAuth token — a action chama
+  # OidcClient.getCall internamente em setupGitHubToken antes de qualquer
+  # outra coisa. Sem isso falha com "Could not fetch an OIDC token".
+  id-token: write
+
+concurrency:
+  # Sem `synchronize` o concurrency raramente vai cancelar nada, mas se
+  # alguem reabrir o PR enquanto um review esta em andamento o segundo
+  # cancela o primeiro — bom seguro.
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    name: Claude reviews the PR
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          # fetch-depth: 0 garante o historico completo pra que o Claude
+          # consiga gerar diffs `base..head` precisos.
+          fetch-depth: 0
+
+      - name: Run Claude Code Review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          # Limite de turns mantem o custo previsivel; aumenta se o PR
+          # tiver muitos arquivos e Claude precisar explorar mais.
+          claude_args: "--max-turns 10"
+          prompt: |
+            Faca code review deste pull request seguindo as convencoes do
+            projeto PytStop:
+
+            **Convencoes obrigatorias** (ver `.claude/CLAUDE.md` na raiz):
+            - Hybrid PT/EN: termos de negocio em portugues SEM acentos
+              (ex.: `OrdemDeServico`, `aprovar_orcamento()`); patterns
+              tecnicos em ingles (Repository, Port, Event).
+            - DDD com bounded contexts isolados via Ports/Adapters.
+            - Cobertura: 95% no `src/` e em `ui/` (gate em CI).
+
+            **Foco da revisao**:
+            1. Bugs, edge cases e race conditions.
+            2. Aderencia ao DDD: agregados, eventos, ACL entre contextos.
+            3. Seguranca: JWT/auth, LGPD/PII em logs e responses, headers
+               e secrets.
+            4. Performance: N+1 queries, allocations desnecessarias,
+               loops O(n^2) sobre dados que crescem.
+            5. Testes: cobertura e qualidade dos casos (edge cases,
+               regressoes pinadas).
+
+            **Formato esperado**: poste UM review estruturado por
+            severidade:
+            - 🔴 Criticos (bloqueiam o merge)
+            - 🟡 Sugestoes (melhorias nao-bloqueantes)
+            - 🟢 Pontos fortes
+            - 📋 Resumo executivo (1-2 paragrafos)
+
+            Cite `arquivo:linha` em cada item. Se algum thread ja foi
+            resolvido por outro reviewer (Copilot, humano), nao repita —
+            foque em achados novos. Em caso de duvida, prefira reportar
+            como sugestao em vez de critico.
