@@ -1,32 +1,34 @@
 name: Claude Code Review
 
-# Roda automaticamente APENAS quando um PR e aberto/reaberto com alvo main.
-# Sem trigger em "synchronize": pushes seguintes no mesmo PR nao re-revisam
-# automaticamente — pra pedir nova review apos mudancas, use "Claude
+# Roda automaticamente APENAS quando um PR e aberto/reaberto/sai-de-draft
+# com alvo main. Sem trigger em "synchronize": pushes seguintes no mesmo
+# PR nao re-revisam — pra pedir nova review apos mudancas, use "Claude
 # On-Demand" (workflow_dispatch ou comentario "@claude review"). Detalhes
 # no README.md secao "Code review automatizado pelo Claude".
 #
-# Filtro `branches` no `pull_request` mira o target do PR — PRs entre
-# branches de feature nao disparam. So PRs cujo merge e na main acionam.
+# Args/tools/secrets comuns ficam em `.github/actions/claude/action.yml`
+# (composite local). Prompt fica em `.github/claude-prompts/code-review.md`.
 
 on:
   pull_request:
-    types: [opened, reopened]
+    types: [opened, reopened, ready_for_review]
     branches: [main]
+    paths-ignore:
+      - '**/*.md'
+      - 'docs/**'
+      - '**/*.png'
+      - '**/*.jpg'
+      - '**/*.svg'
+      - 'logo-*'
 
 permissions:
   contents: read
   pull-requests: write
   issues: write
-  # id-token: write e necessario mesmo com OAuth token — a action chama
-  # OidcClient.getCall internamente em setupGitHubToken antes de qualquer
-  # outra coisa. Sem isso falha com "Could not fetch an OIDC token".
   id-token: write
+  actions: read
 
 concurrency:
-  # Sem `synchronize` o concurrency raramente vai cancelar nada, mas se
-  # alguem reabrir o PR enquanto um review esta em andamento o segundo
-  # cancela o primeiro — bom seguro.
   group: claude-review-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
@@ -34,69 +36,35 @@ jobs:
   review:
     name: Claude reviews the PR
     runs-on: ubuntu-latest
+    timeout-minutes: 20
+    if: |
+      github.event.pull_request.head.repo.full_name == github.repository
+      && github.event.pull_request.draft == false
     steps:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          # fetch-depth: 0 garante o historico completo pra que o Claude
-          # consiga gerar diffs `base..head` precisos.
           fetch-depth: 0
 
-      - name: Run Claude Code Review
-        uses: anthropics/claude-code-action@v1
+      - name: Build review prompt
+        id: prompt
+        shell: bash
+        run: |
+          # Concatena cabecalho de contexto + corpo do prompt versionado.
+          # Iterar regras de review = editar `.github/claude-prompts/code-review.md`
+          # sem mexer neste workflow.
+          {
+            echo 'value<<EOF_PROMPT'
+            echo "REPO: ${{ github.repository }}"
+            echo "PR NUMBER: ${{ github.event.pull_request.number }}"
+            echo ""
+            cat .github/claude-prompts/code-review.md
+            echo 'EOF_PROMPT'
+          } >> "$GITHUB_OUTPUT"
+
+      - name: Run Claude
+        uses: ./.github/actions/claude
         with:
-          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
-          # --model opus: alias que aponta pro Opus mais recente
-          # disponivel — auto-atualiza quando a Anthropic libera Opus
-          # novo, sem precisar editar este workflow. Hoje resolve para
-          # claude-opus-4-7 (1M tokens nativos), util pra PRs grandes
-          # (UI inteira, ~50 arquivos) sem fragmentar contexto.
-          # --effort max: maximo de extended thinking antes de cada acao.
-          # Pra reviews de codigo, melhora o pesar de hipoteses concorrentes
-          # (decidir se um achado e critico vs sugestao).
-          # max-turns 50: cobre PRs grandes mesmo sem paralelizacao via
-          # Task tool. Sub-agents ajudam a economizar turns do main agent
-          # quando funcionam.
-          claude_args: |
-            --model opus
-            --effort max
-            --max-turns 50
-          prompt: |
-            Code review deste PR seguindo as convencoes do PytStop.
-
-            **Estrategia de exploracao** (use Task tool pra paralelizar
-            quando o PR for grande):
-
-            Se o PR mexe em mais de ~10 arquivos, dispare ate 4 sub-agents
-            em PARALELO via Task tool, cada um com foco unico:
-
-            - subagent A: SEGURANCA — JWT/auth, LGPD/PII em logs e
-              responses, secrets, header leak, validacao de input.
-            - subagent B: DDD/ARQUITETURA — agregados, eventos,
-              cross-context imports, aderencia a Ports/Adapters,
-              violacoes de bounded context.
-            - subagent C: BUGS/PERFORMANCE — edge cases, race conditions,
-              N+1 queries, loops sobre dados que crescem, off-by-one.
-            - subagent D: TESTES — cobertura dos paths novos, qualidade
-              dos casos (edge cases reais ou trivials), regressoes.
-
-            Cada sub-agent retorna um relato de 200-400 palavras com
-            findings citados como `arquivo:linha`. Voce (main agent)
-            consolida em UM unico review estruturado.
-
-            Se o PR for pequeno (<=10 arquivos), revise inline sem
-            sub-agents.
-
-            **Convencoes** (ver `.claude/CLAUDE.md`): hybrid PT/EN
-            (termos de negocio em PT sem acentos, patterns em EN), DDD
-            com Ports/Adapters, cobertura 95%.
-
-            **Formato obrigatorio do review final** (poste como ULTIMA
-            acao, mesmo se algum sub-agent falhou):
-            - 🔴 Criticos (bloqueiam merge) — `arquivo:linha` em cada
-            - 🟡 Sugestoes (nao-bloqueantes) — `arquivo:linha` em cada
-            - 🟢 Pontos fortes
-            - 📋 Resumo (1-2 paragrafos)
-
-            Threads ja resolvidos por outro reviewer (Copilot, humano):
-            nao repita. Em duvida, marque como sugestao em vez de critico.
+          oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          prompt: ${{ steps.prompt.outputs.value }}
