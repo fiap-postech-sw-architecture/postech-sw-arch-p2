@@ -324,10 +324,20 @@ O repositorio tem dois workflows GitHub Actions que rodam o
 [Claude Code Action](https://github.com/anthropics/claude-code-action)
 oficial usando o secret `CLAUDE_CODE_OAUTH_TOKEN`:
 
-| Workflow | Arquivo | Trigger | Quando usar |
-|---|---|---|---|
-| **Claude Code Review** | `.github/workflows/claude-code-review.yml` | `pull_request` (`opened` / `reopened`) com **alvo `main`** | Review unica e automatica na abertura de PR pra main |
-| **Claude On-Demand** | `.github/workflows/claude-on-demand.yml` | `issue_comment`, `pull_request_review_comment`, `workflow_dispatch` | Re-revisar apos mudancas, pedir tarefa especifica, ou rodar em PRs entre branches de feature |
+| Workflow | Arquivo | Trigger | Perfil | Quando usar |
+|---|---|---|---|---|
+| **Claude Code Review** | `.github/workflows/claude-code-review.yml` | `pull_request` (`opened` / `reopened`) com **alvo `main`** | **Rapido**: `sonnet` + `--effort medium` + `--max-turns 30` | Review unica e automatica na abertura de PR pra main |
+| **Claude On-Demand** | `.github/workflows/claude-on-demand.yml` | `issue_comment`, `pull_request_review_comment`, `workflow_dispatch` | **Profundo**: `opus` + `--effort max` + `--max-turns 50` | Re-revisar apos mudancas, pedir tarefa especifica, ou rodar em PRs entre branches de feature |
+
+**Por que dois perfis**: o auto-review dispara em **todo** PR pra `main` —
+otimizar pra latencia/custo (sonnet faz review competente em ~30-60s pra PR
+pequeno; benchmark: PR #94 com opus/max levou 2m53s/$0.78 em 32 LOC). Quando
+voce **explicitamente** pede review manual, o sinal e claro ("quero revisao
+profunda mesmo que demore mais") — dai o salto pra `opus` em `--effort max`,
+que tambem da folga a sub-agents (`Task` tool) em PR grande. Os defaults
+ficam centralizados em
+[`.github/actions/claude/action.yml`](.github/actions/claude/action.yml) e o
+`claude-on-demand.yml` sobrescreve via inputs.
 
 **Politica de auto-review**: roda **uma vez** por PR para `main` (na abertura
 ou reabertura). Pushes seguintes **nao** re-disparam — isso e proposital pra
@@ -391,7 +401,11 @@ gh workflow run claude-on-demand.yml \
   "Acionar manualmente" acima.
 - PRs entre branches de feature (target != main) nao disparam auto-review;
   use Run workflow manual ou `@claude` mention quando quiser.
-- `--max-turns 10` limita a profundidade de exploracao por run.
+- **Profundidade vs custo**: auto-review usa `--max-turns 30` (suficiente
+  pra `track_progress` + 4 eixos do prompt em PR tipico); on-demand usa
+  `--max-turns 50` pra dar folga a sub-agents (`Task` tool) em PR grande.
+  Se um run ficar batendo no limite, sobe o `max_turns` na chamada do
+  composite ao inves de subir o default global.
 - Se quiser desabilitar o auto-review temporariamente, comente o bloco
   `on.pull_request` em `claude-code-review.yml` (deixa so quando precisar).
 

@@ -64,3 +64,11 @@ jobs:
           # Tools extras pra responder em issues alem de PRs (composite
           # ja inclui as de PR no set base).
           extra_allowed_tools: 'Bash(gh issue comment:*),Bash(gh issue view:*)'
+          # On-demand assume "user pediu manual = quer revisao mais profunda
+          # mesmo que demore mais". Sobrescreve os defaults rapidos do
+          # composite (sonnet/medium/30) pelo perfil deep (opus/max/50) —
+          # ~3-4x mais lento por turn, mas explora mais hipoteses e
+          # paraleliza melhor com sub-agents em PR grande.
+          model: 'opus'
+          effort: 'max'
+          max_turns: '50'

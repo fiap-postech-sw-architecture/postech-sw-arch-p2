@@ -39,6 +39,33 @@ inputs:
       responder em issues alem de PRs.
     required: false
     default: ''
+  model:
+    description: >-
+      Modelo do Claude (sonnet | opus). Default sonnet — rapido e
+      barato pra reviews do dia-a-dia (~30-60s pra PR pequeno).
+      claude-on-demand.yml sobrescreve pra opus quando o usuario
+      pede review manual e aceita mais latencia em troca de
+      profundidade.
+    required: false
+    default: 'sonnet'
+  effort:
+    description: >-
+      Esforco de raciocinio (low | medium | high | max). Default
+      medium — extended thinking moderado, suficiente pra cobrir os
+      4 eixos do prompt (seg/DDD/bugs/testes) sem explodir o tempo
+      de run. On-demand sobe pra max pra explorar mais hipoteses.
+      Use high se quiser intermediario (ex.: PR medio com on-demand
+      sem o custo total do max).
+    required: false
+    default: 'medium'
+  max_turns:
+    description: >-
+      Numero maximo de turns (loop tool-use). Default 30 cobre o
+      caso tipico do auto-review com track_progress ligado (cada
+      checkbox atualizado consome 1 turn). On-demand sobe pra 50
+      pra dar folga a sub-agents (Task tool) em PR grande.
+    required: false
+    default: '30'
 
 runs:
   using: composite
@@ -46,24 +73,52 @@ runs:
     - name: Build claude_args
       id: args
       shell: bash
+      env:
+        # Inputs vao via env (nao via interpolacao YAML direta no shell)
+        # pra evitar shell injection caso algum dia esses inputs venham
+        # de fonte nao-confiavel (ex.: workflow_dispatch). Com `${{ }}`
+        # direto no `run:`, um valor como `sonnet" --evil "` quebraria
+        # quoting e injetaria comandos. Via env, o valor fica preso na
+        # variavel — ainda tem que validar (case/regex abaixo) pra
+        # rejeitar lixo, mas nao tem como escapar pra outro comando.
+        # Pattern recomendado pela propria GitHub:
+        # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
+        MODEL_INPUT: ${{ inputs.model }}
+        EFFORT_INPUT: ${{ inputs.effort }}
+        MAX_TURNS_INPUT: ${{ inputs.max_turns }}
+        EXTRA_TOOLS_INPUT: ${{ inputs.extra_allowed_tools }}
       run: |
+        # Whitelisting dos inputs (defesa em profundidade — mesmo que
+        # hoje os valores venham so dos workflows YAML do repo).
+        case "$MODEL_INPUT" in
+          sonnet|opus) ;;
+          *) echo "::error::model invalido: '$MODEL_INPUT' (use 'sonnet' ou 'opus')"; exit 1 ;;
+        esac
+        case "$EFFORT_INPUT" in
+          low|medium|high|max) ;;
+          *) echo "::error::effort invalido: '$EFFORT_INPUT' (use low|medium|high|max)"; exit 1 ;;
+        esac
+        if ! [[ "$MAX_TURNS_INPUT" =~ ^[0-9]+$ ]]; then
+          echo "::error::max_turns invalido: '$MAX_TURNS_INPUT' (esperado inteiro)"; exit 1
+        fi
+
         # Lista base de tools — alinhada com o template oficial
         # https://github.com/anthropics/claude-code-action/blob/v1/docs/solutions.md#automatic-pr-code-review
         # Sem essas tools, o Claude nao consegue publicar review (run
         # anterior em PR #81 gastou $9.59 sem postar nada).
         BASE_TOOLS="mcp__github_inline_comment__create_inline_comment,mcp__github_ci__get_ci_status,mcp__github_ci__download_job_log,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr checks:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Read,Grep,Glob,Task"
 
-        if [ -n "${{ inputs.extra_allowed_tools }}" ]; then
-          ALLOWED_TOOLS="${BASE_TOOLS},${{ inputs.extra_allowed_tools }}"
+        if [ -n "$EXTRA_TOOLS_INPUT" ]; then
+          ALLOWED_TOOLS="${BASE_TOOLS},${EXTRA_TOOLS_INPUT}"
         else
           ALLOWED_TOOLS="$BASE_TOOLS"
         fi
 
         {
           echo 'value<<EOF_ARGS'
-          echo "--model opus"
-          echo "--effort max"
-          echo "--max-turns 50"
+          echo "--model $MODEL_INPUT"
+          echo "--effort $EFFORT_INPUT"
+          echo "--max-turns $MAX_TURNS_INPUT"
           echo "--allowedTools \"${ALLOWED_TOOLS}\""
           echo 'EOF_ARGS'
         } >> "$GITHUB_OUTPUT"
