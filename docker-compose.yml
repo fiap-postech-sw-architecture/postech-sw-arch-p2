@@ -26,5 +26,18 @@ services:
       timeout: 5s
       retries: 5
 
+  ui:
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+    ports:
+      - "8080:8080"
+    depends_on:
+      app:
+        condition: service_started
+    environment:
+      - BACKEND_URL=http://app:8000
+      - UI_PORT=8080
+
 volumes:
   postgres_data:

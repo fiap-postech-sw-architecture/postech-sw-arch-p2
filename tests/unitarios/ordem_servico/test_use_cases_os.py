@@ -140,15 +140,21 @@ class StubCatalogoPort:
 
 
 class StubEstoquePort:
-    def __init__(self) -> None:
+    def __init__(self, item: object | None = None) -> None:
         self.reservas: list[tuple[UUID, int]] = []
         self.liberacoes: list[tuple[UUID, int]] = []
+        # ItemEstoqueDTO opcional: usado por AdicionarItem.executar quando
+        # a linha tem item_estoque_id (preco vem do estoque, nao do servico).
+        self._item = item
 
     def reservar(self, item_estoque_id: UUID, quantidade: int) -> None:
         self.reservas.append((item_estoque_id, quantidade))
 
     def liberar(self, item_estoque_id: UUID, quantidade: int) -> None:
         self.liberacoes.append((item_estoque_id, quantidade))
+
+    def obter_item(self, item_estoque_id: UUID) -> object | None:
+        return self._item
 
 
 def _servico_dto() -> ServicoOferecidoDTO:
@@ -209,8 +215,9 @@ class TestAdicionarItem:
         uow = FakeUnitOfWork()
         servico = _servico_dto()
         cp = StubCatalogoPort(servico=servico)
+        ep = StubEstoquePort()
         ordem = _criar_ordem_com_item(repo)
-        uc = AdicionarItem(repo=repo, uow=uow, catalogo_port=cp)
+        uc = AdicionarItem(repo=repo, uow=uow, catalogo_port=cp, estoque_port=ep)
         dto = AdicionarItemDTO(
             servico_catalogo_id=servico.id,
             item_estoque_id=None,
@@ -224,8 +231,9 @@ class TestAdicionarItem:
         repo = FakeOrdemDeServicoRepository()
         uow = FakeUnitOfWork()
         cp = StubCatalogoPort(servico=None)
+        ep = StubEstoquePort()
         ordem = _criar_ordem_com_item(repo)
-        uc = AdicionarItem(repo=repo, uow=uow, catalogo_port=cp)
+        uc = AdicionarItem(repo=repo, uow=uow, catalogo_port=cp, estoque_port=ep)
         dto = AdicionarItemDTO(
             servico_catalogo_id=uuid4(),
             item_estoque_id=None,
@@ -245,12 +253,71 @@ class TestAdicionarItem:
             ativo=False,
         )
         cp = StubCatalogoPort(servico=servico)
+        ep = StubEstoquePort()
         ordem = _criar_ordem_com_item(repo)
-        uc = AdicionarItem(repo=repo, uow=uow, catalogo_port=cp)
+        uc = AdicionarItem(repo=repo, uow=uow, catalogo_port=cp, estoque_port=ep)
         dto = AdicionarItemDTO(
             servico_catalogo_id=servico.id,
             item_estoque_id=None,
             descricao="X",
+            quantidade=1,
+        )
+        with pytest.raises(ViolacaoRegraDeNegocioException):
+            uc.executar(ordem.id, dto)
+
+    def test_item_estoque_id_usa_preco_do_estoque(self) -> None:
+        """Bug historico (corrigido): quando ``item_estoque_id`` era informado
+        o ``preco_unitario`` ainda vinha do servico — o preco da peca era
+        silenciosamente ignorado e o orcamento ficava subavaliado.
+
+        Agora o preco vem do estoque (linha de peca consumida), enquanto
+        servico.preco continua sendo usado pra linhas de mao de obra (sem
+        item_estoque_id)."""
+        from src.ordem_servico.aplicacao.ports import ItemEstoqueDTO
+
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        servico = _servico_dto()  # preco R$ 100.00 (mao de obra)
+        cp = StubCatalogoPort(servico=servico)
+        peca = ItemEstoqueDTO(
+            id=uuid4(),
+            nome="Filtro de oleo",
+            preco_unitario=Dinheiro(valor=Decimal("35.00")),
+        )
+        ep = StubEstoquePort(item=peca)
+        ordem = _criar_ordem_com_item(repo)
+        uc = AdicionarItem(repo=repo, uow=uow, catalogo_port=cp, estoque_port=ep)
+        dto = AdicionarItemDTO(
+            servico_catalogo_id=servico.id,
+            item_estoque_id=peca.id,
+            descricao="Filtro consumido",
+            quantidade=2,
+        )
+
+        result = uc.executar(ordem.id, dto)
+
+        # Linha nova: 2x R$ 35,00 = R$ 70,00 (NAO 2x R$ 100 = R$ 200)
+        nova = next(i for i in result.itens if i.descricao == "Filtro consumido")
+        assert nova.preco_unitario_centavos == 3500, (
+            "Bug regressado: preco_unitario veio do servico em vez do estoque"
+        )
+        assert nova.subtotal_centavos == 7000
+
+    def test_item_estoque_inexistente_levanta(self) -> None:
+        """``EstoquePort.obter_item`` retornando None deve resultar em
+        ViolacaoRegraDeNegocio (mapeada pra 409 no router) — alinhado com o
+        comportamento de servico-not-found."""
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        servico = _servico_dto()
+        cp = StubCatalogoPort(servico=servico)
+        ep = StubEstoquePort(item=None)  # obter_item retorna None
+        ordem = _criar_ordem_com_item(repo)
+        uc = AdicionarItem(repo=repo, uow=uow, catalogo_port=cp, estoque_port=ep)
+        dto = AdicionarItemDTO(
+            servico_catalogo_id=servico.id,
+            item_estoque_id=uuid4(),
+            descricao="Peca fantasma",
             quantidade=1,
         )
         with pytest.raises(ViolacaoRegraDeNegocioException):

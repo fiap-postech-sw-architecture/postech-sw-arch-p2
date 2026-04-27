@@ -12,7 +12,7 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from src.compartilhado.dominio.exceptions import EntidadeNaoEncontradaException
-from src.ordem_servico.aplicacao.ports import ServicoOferecidoDTO
+from src.ordem_servico.aplicacao.ports import ItemEstoqueDTO, ServicoOferecidoDTO
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -55,6 +55,22 @@ class EstoqueSQLAlchemyAdapter:
                 mensagem="Item de estoque nao encontrado"
             )
         item.liberar(quantidade)
+
+    def obter_item(self, item_estoque_id: UUID) -> ItemEstoqueDTO | None:
+        """Retorna ``ItemEstoqueDTO`` ou ``None`` se nao existe.
+
+        Usado pra resolver o preco da peca consumida em ``AdicionarItem``.
+        """
+        from src.estoque.dominio.item_estoque import ItemEstoque
+
+        item = self._session.get(ItemEstoque, item_estoque_id)
+        if item is None:
+            return None
+        return ItemEstoqueDTO(
+            id=item.id,
+            nome=item.nome,
+            preco_unitario=item.preco_unitario,
+        )
 
 
 class CatalogoSQLAlchemyAdapter:

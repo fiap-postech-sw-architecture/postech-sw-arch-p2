@@ -24,3 +24,10 @@ htmlcov/
 .vscode/
 *.swp
 .DS_Store
+
+# NiceGUI runtime storage (app.storage dumps)
+.nicegui/
+
+# Screenshots de E2E (Task 5.8a) — relatorio descritivo em jornadas.md.
+tests/e2e_ui/screenshots/*.png
+!tests/e2e_ui/screenshots/.gitkeep

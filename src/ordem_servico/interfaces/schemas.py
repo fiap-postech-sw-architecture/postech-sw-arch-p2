@@ -62,13 +62,31 @@ class CancelarOrdemRequest(BaseModel):
 
 
 class ItemDaOrdemResponse(BaseModel):
-    """Projecao de leitura de um item da ordem (centavos para moeda)."""
+    """Projecao de leitura de um item da ordem (centavos para moeda).
+
+    Inclui ``servico_nome`` e ``item_estoque_nome`` resolvidos no router via
+    lookup direto da session — assim a UI exibe ``Troca de oleo`` /
+    ``Filtro de oleo`` em vez de UUIDs sem precisar de chamadas extras pro
+    catalogo/estoque. Ambos sao nullable: pos anonimizacao/exclusao cascata
+    do servico/item, a OS continua valida mas o nome perdido vira ``None``.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     servico_catalogo_id: UUID
+    servico_nome: str | None = Field(
+        default=None,
+        description="Nome do servico no catalogo, resolvido server-side.",
+    )
     item_estoque_id: UUID | None
+    item_estoque_nome: str | None = Field(
+        default=None,
+        description=(
+            "Nome do item de estoque, resolvido server-side. None quando a "
+            "linha e mao de obra (sem item_estoque_id)."
+        ),
+    )
     descricao: str
     quantidade: int
     preco_unitario_centavos: int = Field(description="Preco unitario em centavos.")

@@ -10,6 +10,11 @@ Sistema de gestao de ordens de servico para uma oficina mecanica de medio porte.
 
 ## Pre-requisitos
 
+> **Setup do zero?** Guias passo a passo por plataforma:
+> [**Windows**](docs/setup/windows.md) - [**macOS**](docs/setup/macos.md) - [**Linux**](docs/setup/linux.md)
+
+Quem ja tem o ambiente pronto:
+
 - Python 3.12+
 - [uv](https://docs.astral.sh/uv/) (gerenciador de dependencias e ambientes virtuais) — veja [ADR-014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md) (Proposta, em discussao). Fallback com `venv + pip` documentado na secao Desenvolvimento Local.
 - Docker 24+ e Docker Compose v2
@@ -222,6 +227,71 @@ Documentacao interativa disponivel em `http://localhost:8000/docs` (Swagger UI).
 | Autenticacao | /api/v1/autenticacao | Login, registro, refresh, logout |
 | Saude | /api/v1/saude | Health check |
 
+## UI de Simulacao
+
+Sandbox em Python puro (NiceGUI) para testes manuais integrados da API.
+**Nao e artefato de producao** — nao entra no Dockerfile do backend, nao e
+promovida a entregavel. Coexiste com o Swagger UI (`/docs`): Swagger e
+referencia crua da API, a UI de simulacao e sandbox integrado.
+
+### Rodar em 3 comandos (tudo via docker)
+
+```bash
+make up                          # postgres + backend + UI em containers
+                                 # (auto-cria .env.dev dos defaults se ausente)
+make seed-users-docker           # popular os 3 usuarios seed (primeira vez)
+make seed-demo                   # popular dados de demo (clientes/OS/catalogo/estoque)
+open http://localhost:8080/login # atalhos Admin/Atendente/Mecanico prontos
+```
+
+> **Dados de demo:** `make seed-demo` cria 7 clientes (mix PF/PJ), 10
+> veiculos, 8 servicos, 14 itens de estoque (com alguns em baixo estoque
+> pra exibir o alerta amarelo) e 8 OS em 7 estados diferentes
+> (RECEBIDA/EM_DIAGNOSTICO/AGUARDANDO_APROVACAO/EM_EXECUCAO/FINALIZADA/
+> ENTREGUE/CANCELADA). Idempotente: pode rodar varias vezes sem duplicar.
+>
+> **Depois de `git pull`:** use `make rebuild` em vez de `make up` para
+> forcar rebuild das imagens e recriacao dos containers. `make up` sozinho
+> reaproveita imagens existentes, o que deixa codigo antigo rodando nos
+> containers. Detalhes em `ui/README.md`.
+>
+> **Resetar o banco do zero:** `make reset-db` (um unico comando) derruba a
+> stack, apaga o volume do postgres, rebuilda imagens, aguarda o backend
+> subir, repopula usuarios seed **e ja roda o seed-demo no final** — voce
+> fica com um banco populado e pronto pra testar. Pra pular o seed-demo
+> (DB so com usuarios, sem dados): `SKIP_DEMO=1 make reset-db`. **Perde
+> todos os dados do DB local.**
+
+### Credenciais seed (dev-only — abertas por design)
+
+`make seed-users-docker` popula os 3 usuarios abaixo no banco.
+Na tela `/login`, os atalhos `ADMIN` / `ATENDENTE` / `MECANICO` logam
+automaticamente sem precisar digitar.
+
+| Papel | E-mail | Senha |
+|---|---|---|
+| admin | `admin@pytstop.dev` | `admin-dev-pass-2026` |
+| atendente | `atendente@pytstop.dev` | `atendente-dev-pass-2026` |
+| mecanico | `mecanico@pytstop.dev` | `mecanico-dev-pass-2026` |
+
+Para os pares **(placa, CPF/CNPJ)** das 8 OS criadas pelo `make seed-demo` (uteis pra testar a tela publica `/acompanhamento`), veja [`ui/seed-users.md`](ui/seed-users.md).
+
+Ficam em codigo em `ui/config.py::_USUARIOS_SEED` (espelho de
+`scripts/seed_usuarios.py`). Sao **dev-only**: a UI de simulacao nao e
+artefato de producao e as senhas tem fins de teste manual — nao promover.
+
+Para alternativa hibrida (dev com hot-reload do backend), credenciais seed,
+troubleshooting completo, variaveis de ambiente e como usar cada fluxo,
+**veja o [guia completo em `ui/README.md`](ui/README.md)**.
+
+### URLs
+
+| Servico | Docker (`make up`) | Hibrido (postgres docker + backend local) |
+|---|---|---|
+| UI NiceGUI | http://localhost:8080 | http://localhost:8080 |
+| Backend Swagger | http://localhost:8000/docs | http://localhost:8001/docs |
+| Health probe | http://localhost:8000/api/v1/saude | http://localhost:8001/api/v1/saude |
+
 ## Variaveis de Ambiente
 
 | Variavel | Descricao | Padrao |
@@ -232,6 +302,8 @@ Documentacao interativa disponivel em `http://localhost:8000/docs` (Swagger UI).
 | ENVIRONMENT | Ambiente (development/production) | development |
 | CORS_ORIGINS | Origens permitidas para CORS | http://localhost:3000 |
 | RUN_MIGRATIONS_ON_STARTUP | Executar migrations ao iniciar o app | false |
+| BACKEND_URL | URL do backend consumida pela UI | http://localhost:8001 local / http://app:8000 docker |
+| UI_PORT | Porta da UI NiceGUI | 8080 |
 
 ## Testes
 

@@ -30,8 +30,22 @@ class ServicoOferecidoDTO:
     ativo: bool
 
 
+@dataclass(frozen=True, slots=True)
+class ItemEstoqueDTO:
+    """DTO imutavel devolvido por ``EstoquePort.obter_item``.
+
+    Snapshot do preco da peca no momento da consulta — usado por
+    ``AdicionarItem`` para registrar o preco da peca consumida (em vez
+    do preco do servico, que seria pra mao-de-obra).
+    """
+
+    id: UUID
+    nome: str
+    preco_unitario: Dinheiro
+
+
 class EstoquePort(Protocol):
-    """Porta para reserva e liberacao de itens no contexto Estoque."""
+    """Porta para reserva, liberacao e consulta de itens no contexto Estoque."""
 
     def reservar(self, item_estoque_id: UUID, quantidade: int) -> None:
         """Reserva ``quantidade`` unidades do item.
@@ -47,6 +61,15 @@ class EstoquePort(Protocol):
 
         Implementacoes devem rejeitar liberacoes que excedam a reserva
         ativa para o item.
+        """
+        ...
+
+    def obter_item(self, item_estoque_id: UUID) -> ItemEstoqueDTO | None:
+        """Retorna o DTO do item de estoque, ou ``None`` se nao existir.
+
+        Usado por ``AdicionarItem`` quando a linha da OS representa uma peca
+        consumida (item_estoque_id presente): o ``preco_unitario`` da
+        ItemDaOrdem precisa vir do estoque, nao do servico.
         """
         ...
 

@@ -8,6 +8,7 @@ Updated by AI agents at task end per `postech-ai-helper/ai/canonical/task-end-re
 
 ## Recent decisions
 
+- 2026-04-26 - Added the NiceGUI-based UI of simulation (`ui/`) as a sandbox for manual API testing -- not a production deliverable, dev-only, not packaged in `pyproject.toml` `setuptools.packages.find` -- PR #81
 - 2026-04-26 - Adopted unified harness pointers around `postech-ai-helper/ai/agent-bootstrap.md` -- prior per-harness configs duplicated content and drifted -- PR on `postech-ai-helper/feat/agent-bootstrap-and-memory`
 
 ## Discovered conventions
@@ -18,10 +19,11 @@ Updated by AI agents at task end per `postech-ai-helper/ai/canonical/task-end-re
 
 ## Gotchas
 
+- 2026-04-26 - On Git Bash (MSYS2) absolute Unix-style paths (`/tmp/foo`) passed as args to native Windows binaries (e.g. `docker.exe`) are auto-translated to Windows paths (`C:/Users/.../Temp/foo`); the Makefile prefixes `MSYS_NO_PATHCONV=1` on `docker compose cp/exec` lines that pass `/tmp/...` to keep the path literal inside the container. Without it, `make seed-users-docker` and `make reset-db` fail with `No such file or directory: /app/C:/Users/...` from python in the container
 - 2026-04-26 - The canonical workspace root is `~/git/fiap/postech-sw-architecture/` (per `postech-ai-helper/ai/canonical/workspace-structure.md`); cloning directly under `~/git/fiap/` still works for sibling-relative pointers, but the helper's `setup.sh` exits non-zero when run from a non-canonical workspace, and on Windows symlink creation requires Developer Mode regardless
-- 2026-04-26 - **[in-flight from PR #81]** On Windows, the project's Docker socket detection script must detect the named pipe (`\\.\pipe\docker_engine`) instead of probing only Unix sockets; the MINGW/MSYS/CYGWIN branch in `scripts/docker-check.sh` (added in PR #81) resolves this
-- 2026-04-26 - **[in-flight from PR #81]** Server-side render of NiceGUI `@ui.page` handlers runs before the client websocket connects; any handler-time HTTP call that writes to `app.storage.tab` raises `RuntimeError` unless the storage adapter is defensive (returns None and no-ops on writes when the backend is unreachable)
+- 2026-04-26 - On Windows, the project's Docker socket detection script must detect the named pipe (`\\.\pipe\docker_engine`) instead of probing only Unix sockets; the MINGW/MSYS/CYGWIN branch in `scripts/docker-check.sh` (added in PR #81) resolves this
+- 2026-04-26 - Server-side render of NiceGUI `@ui.page` handlers runs before the client websocket connects; any handler-time HTTP call that writes to `app.storage.tab` raises `RuntimeError` unless the storage adapter is defensive (returns None and no-ops on writes when the backend is unreachable)
 
 ## Tech debt / TODO
 
-- 2026-04-26 - LOW - **[in-flight from PR #81]** HTTP probes during initial render of a NiceGUI page should be deferred to a `client.on_connect` handler (or equivalent) so they execute with a client context instead of as side effects of import/render
+- 2026-04-26 - LOW - HTTP probes during initial render of a NiceGUI page should be deferred to a `client.on_connect` handler (or equivalent) so they execute with a client context instead of as side effects of import/render

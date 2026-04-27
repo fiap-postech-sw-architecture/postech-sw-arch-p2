@@ -159,24 +159,37 @@ class CriarOrdem:
 
 
 class AdicionarItem:
-    """Adiciona um item a uma ordem; consulta preco e status via ``CatalogoPort``."""
+    """Adiciona um item a uma ordem.
+
+    Resolve o ``preco_unitario`` da fonte certa:
+    - ``item_estoque_id`` presente => preco do estoque (linha de peca consumida).
+    - ``item_estoque_id`` ausente => preco do servico (linha de mao de obra).
+
+    Bug historico (corrigido aqui): o preco era SEMPRE ``servico.preco``,
+    mesmo quando ``item_estoque_id`` era informado, o que omitia o valor da
+    peca no orcamento. Agora a peca consumida e cobrada pelo seu proprio
+    preco no estoque.
+    """
 
     def __init__(
         self,
         repo: OrdemDeServicoRepository,
         uow: UnitOfWork,
         catalogo_port: CatalogoPort,
+        estoque_port: EstoquePort,
     ) -> None:
         self._repo = repo
         self._uow = uow
         self._catalogo_port = catalogo_port
+        self._estoque_port = estoque_port
 
     def executar(self, ordem_id: UUID, dto: AdicionarItemDTO) -> OrdemDeServicoDTO:
         """Delega ao agregado ``OrdemDeServico.adicionar_item``.
 
         Raises:
             OrdemNaoEncontradaException: ordem inexistente.
-            ViolacaoRegraDeNegocioException: servico inexistente ou inativo.
+            ViolacaoRegraDeNegocioException: servico inativo, servico/peca
+                inexistente.
         """
         from src.ordem_servico.dominio.item_da_ordem import ItemDaOrdem
 
@@ -188,12 +201,27 @@ class AdicionarItem:
             )
         if not servico.ativo:
             raise ViolacaoRegraDeNegocioException(mensagem="Servico inativo")
+
+        if dto.item_estoque_id is not None:
+            # Linha de peca consumida: preco vem do estoque (NAO do servico).
+            # Sem essa branch, o preco da peca seria silenciosamente ignorado
+            # e o orcamento ficaria subavaliado pra cada peca consumida.
+            peca = self._estoque_port.obter_item(dto.item_estoque_id)
+            if peca is None:
+                raise ViolacaoRegraDeNegocioException(
+                    mensagem="Item de estoque nao encontrado"
+                )
+            preco_unitario = peca.preco_unitario
+        else:
+            # Linha de mao de obra (servico puro): preco do catalogo.
+            preco_unitario = servico.preco
+
         item = ItemDaOrdem(
             _servico_catalogo_id=dto.servico_catalogo_id,
             _item_estoque_id=dto.item_estoque_id,
             _descricao=dto.descricao,
             _quantidade=dto.quantidade,
-            _preco_unitario=servico.preco,
+            _preco_unitario=preco_unitario,
         )
         ordem.adicionar_item(item)
         with self._uow:

@@ -31,6 +31,14 @@ test = [
     "mypy>=1.13",
     "bandit>=1.7",
 ]
+ui = [
+    "nicegui>=2.0,<3",
+    # httpx e usado direto por ui/cliente_api.py (wrapper HTTP da UI). NiceGUI
+    # 2.x nao puxa httpx transitivamente, entao precisa estar declarado aqui.
+    # Sem isso, `uv run --extra ui` (incluindo make ui, make seed-demo,
+    # scripts/seed_demo.py) explode com ModuleNotFoundError em fresh venv.
+    "httpx>=0.27",
+]
 full-test = [
     "httpx>=0.27",
     "pytest>=8",
@@ -45,6 +53,9 @@ build-backend = "setuptools.build_meta"
 
 [tool.setuptools.packages.find]
 where = ["."]
+# UI e dev-only: NAO e empacotada em wheels/sdists distribuiveis.
+# Docker do UI copia `ui/` e `src/` diretamente (ver `ui/Dockerfile`) e
+# roda via `python -m ui` com CWD no path, sem depender de `pip install`.
 include = ["src*"]
 
 [tool.ruff]
@@ -71,7 +82,7 @@ select = [
 fixable = ["ALL"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["src"]
+known-first-party = ["src", "ui"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = ["S101", "S105", "S106", "TCH", "SIM105", "PT012", "RUF059"]
@@ -106,6 +117,10 @@ module = [
 ]
 ignore_missing_imports = true
 
+[[tool.mypy.overrides]]
+module = "nicegui.*"
+ignore_missing_imports = true
+
 [tool.pytest.ini_options]
 markers = [
     "serial: testes que nao podem rodar em paralelo",
@@ -118,13 +133,9 @@ markers = [
 addopts = "--strict-markers"
 testpaths = ["tests"]
 
-[tool.coverage.run]
-source = ["src"]
-omit = ["tests/*", "*/migrations/*", "*/__init__.py"]
-
-[tool.coverage.report]
-# Gate de cobertura -- fonte unica. Makefile e CI leem daqui; nao passar --cov-fail-under.
-fail_under = 95
+# Configuracao do coverage.py esta em `.coveragerc` na raiz — coverage.py
+# prefere .coveragerc quando ambos existem. Consolidar em um unico arquivo
+# evita duplicacao divergente.
 
 [tool.bandit]
-targets = ["src"]
+targets = ["src", "ui"]

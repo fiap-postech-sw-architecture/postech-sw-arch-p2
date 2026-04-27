@@ -83,13 +83,20 @@ def obter_criar_ordem(session: Session) -> CriarOrdem:
 
 
 def obter_adicionar_item(session: Session) -> AdicionarItem:
-    """Wires ``AdicionarItem`` with ``CatalogoSQLAlchemyAdapter``."""
+    """Wires ``AdicionarItem`` com ``CatalogoSQLAlchemyAdapter`` e
+    ``EstoqueSQLAlchemyAdapter``.
+
+    O adapter de estoque e necessario porque, quando a linha tem
+    ``item_estoque_id``, o ``preco_unitario`` precisa vir do estoque em
+    vez do servico (linha de peca consumida vs mao de obra).
+    """
     from src.ordem_servico.aplicacao.use_cases import AdicionarItem
 
     return AdicionarItem(
         repo=_repo(session),
         uow=_uow(session),
         catalogo_port=CatalogoSQLAlchemyAdapter(session=session),
+        estoque_port=EstoqueSQLAlchemyAdapter(session=session),
     )
 
 

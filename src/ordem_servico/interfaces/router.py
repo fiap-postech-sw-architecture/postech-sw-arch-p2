@@ -67,15 +67,78 @@ if TYPE_CHECKING:
 router = APIRouter(prefix="/api/v1/ordens-de-servico", tags=["ordens-de-servico"])
 
 
-def _to_ordem_response(dto: OrdemDeServicoDTO) -> OrdemDeServicoResponse:
-    """Mapeia o DTO de aplicacao para a resposta Pydantic via ``model_validate``.
+def _to_ordem_response(
+    dto: OrdemDeServicoDTO, session: Session
+) -> OrdemDeServicoResponse:
+    """Mapeia o DTO de aplicacao para a resposta Pydantic e resolve nomes.
 
-    Centraliza o mapeamento para evitar ``**dto.__dict__`` splat
-    (fragil: silencia campos novos no DTO ou quebra se houver campo
-    privado). Usa ``from_attributes=True`` configurado em
-    ``OrdemDeServicoResponse``.
+    O DTO carrega apenas IDs (``servico_catalogo_id``, ``item_estoque_id``)
+    para nao acoplar a aplicacao a contextos vizinhos. O router enriquece
+    a resposta lendo os nomes via session — assim a UI consegue mostrar
+    ``Troca de oleo`` em vez de UUIDs sem precisar de chamadas extras.
+
+    O enriquecimento e delegado a ``_resolver_nomes_itens``, que faz
+    batch lookup dos IDs envolvidos (uma query para servicos e, se
+    necessario, uma para estoque), evitando N+1 por item da OS.
     """
-    return OrdemDeServicoResponse.model_validate(dto)
+    response = OrdemDeServicoResponse.model_validate(dto)
+    _resolver_nomes_itens(response, session)
+    return response
+
+
+def _resolver_nomes_itens(response: OrdemDeServicoResponse, session: Session) -> None:
+    """Preenche ``servico_nome`` e ``item_estoque_nome`` via batch lookup.
+
+    Coleta IDs unicos por entidade e faz UMA query por entidade (em vez de
+    1 por item da OS), evitando N+1 em ordens com muitos itens. Itens nao
+    encontrados (ex.: catalogo limpo apos OS criada) ficam com nome
+    ``None`` — caller decide se mostra placeholder ou esconde. Mutates a
+    resposta in-place.
+    """
+    from sqlalchemy import select
+
+    from src.catalogo_servicos.dominio.servico_oferecido import ServicoOferecido
+    from src.estoque.dominio.item_estoque import ItemEstoque
+
+    if not response.itens:
+        return
+
+    servico_ids = {item.servico_catalogo_id for item in response.itens}
+    estoque_ids = {
+        item.item_estoque_id
+        for item in response.itens
+        if item.item_estoque_id is not None
+    }
+
+    # `type: ignore[attr-defined]`: imperative mapping injeta `.in_()` no
+    # atributo `id` em runtime (SQLAlchemy ColumnProperty), mas o mypy ve
+    # apenas o tipo `UUID` declarado no AggregateRoot. Mesmo padrao de
+    # outros modulos imperative-mapped (ver src/.../mapping.py).
+    servicos_por_id = {
+        s.id: s
+        for s in session.execute(
+            select(ServicoOferecido).where(
+                ServicoOferecido.id.in_(servico_ids)  # type: ignore[attr-defined]
+            )
+        ).scalars()
+    }
+    estoque_por_id: dict[object, ItemEstoque] = {}
+    if estoque_ids:
+        estoque_por_id = {
+            e.id: e
+            for e in session.execute(
+                select(ItemEstoque).where(
+                    ItemEstoque.id.in_(estoque_ids)  # type: ignore[attr-defined]
+                )
+            ).scalars()
+        }
+
+    for item in response.itens:
+        servico = servicos_por_id.get(item.servico_catalogo_id)
+        item.servico_nome = servico.nome if servico is not None else None
+        if item.item_estoque_id is not None:
+            estoque = estoque_por_id.get(item.item_estoque_id)
+            item.item_estoque_nome = estoque.nome if estoque is not None else None
 
 
 @router.post(
@@ -93,7 +156,7 @@ def criar_ordem(
     uc = obter_criar_ordem(session)
     dto = CriarOrdemDTO(cliente_id=body.cliente_id, veiculo_id=body.veiculo_id)
     result = uc.executar(dto)
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)
 
 
 @router.get(
@@ -151,7 +214,7 @@ def obter_ordem(
     """Retorna a projecao completa da ordem (itens + orcamento + timestamps)."""
     uc = obter_obter_ordem(session)
     result = uc.executar(ordem_id)
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)
 
 
 @router.post(
@@ -175,7 +238,7 @@ def adicionar_item(
         quantidade=body.quantidade,
     )
     result = uc.executar(ordem_id, dto)
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)
 
 
 @router.delete(
@@ -196,7 +259,7 @@ def remover_item(
     """
     uc = obter_remover_item(session)
     result = uc.executar(ordem_id, item_id)
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)
 
 
 @router.post(
@@ -212,7 +275,7 @@ def iniciar_diagnostico(
     """Transita a ordem para ``EM_DIAGNOSTICO`` e emite ``DiagnosticoIniciadoEvent``."""
     uc = obter_iniciar_diagnostico(session)
     result = uc.executar(ordem_id)
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)
 
 
 @router.post(
@@ -228,7 +291,7 @@ def gerar_orcamento(
     """Calcula o orcamento e transita a ordem para ``AGUARDANDO_APROVACAO``."""
     uc = obter_gerar_orcamento(session)
     result = uc.executar(ordem_id)
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)
 
 
 @router.post(
@@ -244,7 +307,7 @@ def aprovar_orcamento(
     """Aprova o orcamento, reserva estoque e transita para ``EM_EXECUCAO``."""
     uc = obter_aprovar_orcamento(session)
     result = uc.executar(ordem_id)
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)
 
 
 @router.post(
@@ -260,7 +323,7 @@ def finalizar_servico(
     """Transita a ordem para ``FINALIZADA`` e emite ``ServicoFinalizadoEvent``."""
     uc = obter_finalizar_servico(session)
     result = uc.executar(ordem_id)
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)
 
 
 @router.post(
@@ -276,7 +339,7 @@ def registrar_entrega(
     """Transita a ordem para ``ENTREGUE`` e emite ``EntregaRegistradaEvent``."""
     uc = obter_registrar_entrega(session)
     result = uc.executar(ordem_id)
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)
 
 
 @router.post(
@@ -293,7 +356,7 @@ def cancelar_ordem(
     """Cancela a ordem e libera reservas de estoque ativas (se houver)."""
     uc = obter_cancelar_ordem(session)
     result = uc.executar(ordem_id, CancelarOrdemDTO(motivo=body.motivo))
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)
 
 
 @router.post(
@@ -309,7 +372,7 @@ def gerar_complementar(
     """Regenera o orcamento apos novos itens e transita para aprovacao complementar."""
     uc = obter_gerar_complementar(session)
     result = uc.executar(ordem_id)
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)
 
 
 @router.post(
@@ -325,7 +388,7 @@ def aprovar_complementar(
     """Aprova o orcamento complementar e retorna a ordem a ``EM_EXECUCAO``."""
     uc = obter_aprovar_complementar(session)
     result = uc.executar(ordem_id)
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)
 
 
 @router.post(
@@ -341,4 +404,4 @@ def rejeitar_complementar(
     """Rejeita o orcamento complementar e retorna a ordem a ``EM_EXECUCAO``."""
     uc = obter_rejeitar_complementar(session)
     result = uc.executar(ordem_id)
-    return _to_ordem_response(result)
+    return _to_ordem_response(result, session)

@@ -1,0 +1,29 @@
+# .coveragerc
+# Thresholds por path. `src/` mantem 95% (meta oficial do backend);
+# `ui/` fica em 95% tambem — modulos puros (config/estado/cliente_api/seed/
+# auth_guard) sao unit-testaveis sem NiceGUI, so pages/componentes/app.py
+# precisam de E2E (excluidos do gate abaixo). A separacao e enforcada
+# via dois `pytest --cov` distintos (ver Makefile e .github/workflows/ci.yml).
+
+[run]
+source = src, ui
+omit =
+    tests/*
+    */migrations/*
+    */__init__.py
+    # UI render modules exercised por Screen/Playwright (opt-in `-m lento`
+    # localmente + suite E2E em Task 5.8a); excluidos do gate unitario.
+    ui/paginas/*
+    ui/componentes/*
+    ui/app.py
+    ui/__main__.py
+
+[paths]
+src = src/
+ui = ui/
+
+[report]
+# Meta global: 95% no backend. UI tem meta de 95% tambem (gate em
+# `pytest --cov=ui --cov-fail-under=95`, ver CI).
+fail_under = 95
+show_missing = True

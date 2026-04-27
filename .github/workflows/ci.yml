@@ -26,11 +26,11 @@ jobs:
       - name: Verify uv.lock is up to date with pyproject.toml
         run: uv lock --check
       - name: Install dependencies from lockfile
-        run: uv sync --extra test --frozen
+        run: uv sync --extra test --extra ui --frozen
       - name: Ruff check
-        run: uv run ruff check src/ tests/
+        run: uv run ruff check src/ ui/ tests/
       - name: Ruff format check
-        run: uv run ruff format --check src/ tests/
+        run: uv run ruff format --check src/ ui/ tests/
 
   type-check:
     runs-on: ubuntu-latest
@@ -42,9 +42,9 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - name: Install dependencies from lockfile
-        run: uv sync --extra test --frozen
+        run: uv sync --extra test --extra ui --frozen
       - name: Mypy
-        run: uv run mypy src/
+        run: uv run mypy src/ ui/
 
   security:
     runs-on: ubuntu-latest
@@ -56,9 +56,9 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - name: Install dependencies from lockfile
-        run: uv sync --extra test --frozen
+        run: uv sync --extra test --extra ui --frozen
       - name: Bandit security scan
-        run: uv run bandit -r src/ -c pyproject.toml --severity-level high
+        run: uv run bandit -r src/ ui/ -c pyproject.toml --severity-level high
 
   test:
     runs-on: ubuntu-latest
@@ -84,7 +84,7 @@ jobs:
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - name: Install dependencies from lockfile
-        run: uv sync --extra test --frozen
+        run: uv sync --extra test --extra ui --frozen
       - name: Run unit tests with coverage
         run: |
           uv run pytest tests/unitarios/ \
@@ -92,6 +92,17 @@ jobs:
             --cov=src \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
+            -x \
+            --tb=short \
+            -m "not lento"
+      - name: Run UI unit tests with separate coverage gate
+        run: |
+          uv run pytest tests/unitarios/ui/ \
+            --no-lint \
+            --cov=ui \
+            --cov-report=term-missing \
+            --cov-fail-under=95 \
+            -m "not lento" \
             -x \
             --tb=short
       - name: Run integration tests
