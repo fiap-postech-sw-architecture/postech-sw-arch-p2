@@ -31,3 +31,21 @@ htmlcov/
 # Screenshots de E2E (Task 5.8a) — relatorio descritivo em jornadas.md.
 tests/e2e_ui/screenshots/*.png
 !tests/e2e_ui/screenshots/.gitkeep
+
+# Playwright MCP debug session artifacts (screenshots, console logs, page snapshots)
+.playwright-mcp/
+
+# Claude Code local state
+.claude/scheduled_tasks.lock
+
+# Ad-hoc UI screenshots dropped at repo root by manual sessions
+/dialog-*.png
+/orcamento-*.png
+/os-*.png
+/seed-*.png
+/clientes-*.png
+/estoque-*.png
+/cliente-expandido.png
+
+# Local AI agent plans (kept under ~/.claude/plans/, not in repo)
+docs/superpowers/plans/

@@ -51,11 +51,13 @@ inputs:
   effort:
     description: >-
       Esforco de raciocinio (low | medium | high | max). Default
-      medium — extended thinking moderado, suficiente pra cobrir os
-      4 eixos do prompt (seg/DDD/bugs/testes) sem explodir o tempo
-      de run. On-demand sobe pra max pra explorar mais hipoteses.
-      Use high se quiser intermediario (ex.: PR medio com on-demand
-      sem o custo total do max).
+      medium — extended thinking moderado, suficiente pra cobrir as
+      9 secoes do prompt single-shot (correctness/security/tests/
+      DDD/architecture/naming/ops/docs/ai-trace) sem explodir o
+      tempo de run. On-demand sobe pra max pra dar mais budget de
+      extended thinking (deep mode = pensar mais por turn, NAO
+      paralelismo nem evaluator-optimizer instrumentado — esses
+      patterns precisariam de prompt dedicado).
     required: false
     default: 'medium'
   max_turns:
@@ -63,7 +65,8 @@ inputs:
       Numero maximo de turns (loop tool-use). Default 30 cobre o
       caso tipico do auto-review com track_progress ligado (cada
       checkbox atualizado consome 1 turn). On-demand sobe pra 50
-      pra dar folga a sub-agents (Task tool) em PR grande.
+      pra dar folga em diffs grandes (mais arquivos pra ler com
+      Read/Grep, mais inline comments via mcp__github_inline_comment).
     required: false
     default: '30'
 
@@ -127,9 +130,9 @@ runs:
       uses: anthropics/claude-code-action@v1
       env:
         # Timeouts internos do MCP. Defaults da action.yml podem ser
-        # curtos demais pra sub-agents (Task tool) em PRs grandes —
-        # subir explicitamente cobre o caso e fica bem dentro do
-        # timeout-minutes do job (20min = 1.2M ms).
+        # curtos demais pra MCPs lentos (gh API, github inline comment)
+        # em PRs grandes — subir explicitamente cobre o caso e fica
+        # bem dentro do timeout-minutes do job (20min = 1.2M ms).
         MCP_TIMEOUT: "60000"
         MCP_TOOL_TIMEOUT: "300000"
       with:

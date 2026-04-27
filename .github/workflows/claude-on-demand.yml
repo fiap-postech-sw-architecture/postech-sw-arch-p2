@@ -67,8 +67,11 @@ jobs:
           # On-demand assume "user pediu manual = quer revisao mais profunda
           # mesmo que demore mais". Sobrescreve os defaults rapidos do
           # composite (sonnet/medium/30) pelo perfil deep (opus/max/50) —
-          # ~3-4x mais lento por turn, mas explora mais hipoteses e
-          # paraleliza melhor com sub-agents em PR grande.
+          # ~3-4x mais lento por turn, mas tem mais budget de extended
+          # thinking + max_turns altos pra explorar mais hipoteses.
+          # NAO paraleliza via sub-agents — o anti-rule do prompt
+          # `code-review.md` proibe paralelismo de review (literatura
+          # converge em coding tasks falham em coordenacao multi-agent).
           model: 'opus'
           effort: 'max'
           max_turns: '50'
