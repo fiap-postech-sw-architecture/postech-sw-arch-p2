@@ -8,6 +8,9 @@ Updated by AI agents at task end per `postech-ai-helper/ai/canonical/task-end-re
 
 ## Recent decisions
 
+- 2026-04-28 - Correção de inventário no apêndice de funcionalidades extras: o arquivo lista 19 features (5+3+2+3+3+3), não 14 como a entrada de 2026-04-27 indicou; entrada anterior preservada por add-only mas o número canônico no documento é 19
+- 2026-04-27 - Apêndice de funcionalidades extras criado em `docs/entrega/apendice-funcionalidades-extras.md`; documenta 14 features além do escopo mínimo do desafio FIAP, ancoradas em commits/PRs (#19, #62, #64, #65, #75, #81)
+- 2026-04-27 - 10 issues abertas (#99–#108) no `fiap-postech-sw-architecture/postech-sw-arch-p1` para fechar gaps de entrega (soat-architecture access, Discord, vídeo, PDF, 6 scans de segurança); cada issue formatada como playbook executável por agente (workflow A/B/C/D)
 - 2026-04-26 - Added the NiceGUI-based UI of simulation (`ui/`) as a sandbox for manual API testing -- not a production deliverable, dev-only, not packaged in `pyproject.toml` `setuptools.packages.find` -- PR #81
 - 2026-04-26 - Adopted unified harness pointers around `postech-ai-helper/ai/agent-bootstrap.md` -- prior per-harness configs duplicated content and drifted -- PR on `postech-ai-helper/feat/agent-bootstrap-and-memory`
 

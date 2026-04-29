@@ -378,6 +378,7 @@ Classificação dos artefatos de arquitetura:
 | DAS — Documento de Aprovação | `docs/entrega/documento-aprovacao-solucao.md` |
 | Dívida Técnica | `docs/tech-debt.md` |
 | Entrega Fase 1 (links) | `docs/entrega/entrega-fase-1.md` |
+| Apêndice A: Funcionalidades Extras | `docs/entrega/apendice-funcionalidades-extras.md` |
 
 ---
 
