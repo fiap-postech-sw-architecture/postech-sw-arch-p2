@@ -1,6 +1,6 @@
 {
   "errors": [],
-  "generated_at": "2026-04-16T21:26:52Z",
+  "generated_at": "2026-04-29T10:02:29Z",
   "metrics": {
     "_totals": {
       "CONFIDENCE.HIGH": 0,
@@ -11,7 +11,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 1,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 6143,
+      "loc": 6400,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -271,7 +271,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 56,
+      "loc": 86,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -297,7 +297,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 22,
+      "loc": 21,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -492,7 +492,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 26,
+      "loc": 25,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -635,7 +635,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 32,
+      "loc": 45,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -752,7 +752,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 149,
+      "loc": 154,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -817,7 +817,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 97,
+      "loc": 96,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -964,6 +964,19 @@
       "nosec": 0,
       "skipped_tests": 0
     },
+    "src/compartilhado/infraestrutura/bootstrap.py": {
+      "CONFIDENCE.HIGH": 0,
+      "CONFIDENCE.LOW": 0,
+      "CONFIDENCE.MEDIUM": 0,
+      "CONFIDENCE.UNDEFINED": 0,
+      "SEVERITY.HIGH": 0,
+      "SEVERITY.LOW": 0,
+      "SEVERITY.MEDIUM": 0,
+      "SEVERITY.UNDEFINED": 0,
+      "loc": 42,
+      "nosec": 0,
+      "skipped_tests": 0
+    },
     "src/compartilhado/infraestrutura/database.py": {
       "CONFIDENCE.HIGH": 0,
       "CONFIDENCE.LOW": 0,
@@ -973,7 +986,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 12,
+      "loc": 17,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1142,7 +1155,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 106,
+      "loc": 108,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1207,7 +1220,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 11,
+      "loc": 13,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1246,7 +1259,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 63,
+      "loc": 64,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1259,7 +1272,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 35,
+      "loc": 51,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1311,7 +1324,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 31,
+      "loc": 30,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1324,7 +1337,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 1,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 73,
+      "loc": 96,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1376,7 +1389,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 49,
+      "loc": 66,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1389,7 +1402,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 433,
+      "loc": 453,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1532,7 +1545,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 72,
+      "loc": 85,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1584,7 +1597,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 145,
+      "loc": 151,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1597,7 +1610,7 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 299,
+      "loc": 349,
       "nosec": 0,
       "skipped_tests": 0
     },
@@ -1610,14 +1623,14 @@
       "SEVERITY.LOW": 0,
       "SEVERITY.MEDIUM": 0,
       "SEVERITY.UNDEFINED": 0,
-      "loc": 119,
+      "loc": 135,
       "nosec": 0,
       "skipped_tests": 0
     }
   },
   "results": [
     {
-      "code": "109 if __name__ == \"__main__\":\n110     uvicorn.run(\"src.main:app\", host=\"0.0.0.0\", port=8000, reload=True)  # noqa: S104\n",
+      "code": "141 if __name__ == \"__main__\":\n142     uvicorn.run(\"src.main:app\", host=\"0.0.0.0\", port=8000, reload=True)  # noqa: S104\n",
       "col_offset": 37,
       "end_col_offset": 46,
       "filename": "src/main.py",
@@ -1628,9 +1641,9 @@
       },
       "issue_severity": "MEDIUM",
       "issue_text": "Possible binding to all interfaces.",
-      "line_number": 110,
+      "line_number": 142,
       "line_range": [
-        110
+        142
       ],
       "more_info": "https://bandit.readthedocs.io/en/1.9.4/plugins/b104_hardcoded_bind_all_interfaces.html",
       "test_id": "B104",

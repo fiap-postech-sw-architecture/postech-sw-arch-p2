@@ -1,6 +1,6 @@
 # Relatorio de Vulnerabilidades
 
-> **Versao**: 1.0 -- verificacao bandit executada em 16/04/2026; pip-audit pendente (rodar via `uv run --with pip-audit pip-audit`). SonarQube, OWASP ZAP, gitleaks e trivy pendentes de execucao.
+> **Versao**: 2.0 -- bateria de scans automatizados executada em 29/04/2026 (bandit, pip-audit, gitleaks, trivy fs+image). SonarQube e OWASP ZAP seguem pendentes (rastreados em [#107](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/107) e [#108](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/108)).
 
 ## Escopo
 
@@ -141,35 +141,49 @@ Licencas permissivas em todas as dependencias diretas (MIT, BSD, Apache 2.0). Ne
 
 ## Resumo dos Scans Automatizados
 
-Data do scan bandit: 12/04/2026. pip-audit, SonarQube, OWASP ZAP, gitleaks e trivy pendentes de execucao.
+Bateria executada em 29/04/2026. SonarQube e OWASP ZAP continuam pendentes (rastreados em [#107](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/107) e [#108](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/108)).
 
-| Severidade | Bandit | pip-audit | Parcial (apenas Bandit) |
-|---|---|---|---|
-| HIGH | 0 | TODO | 0 |
-| MEDIUM | 1 | TODO | 1 |
-| LOW | 0 | TODO | 0 |
+| Severidade | Bandit | pip-audit | gitleaks (wt) | gitleaks (hist) | trivy fs | trivy image |
+|---|---|---|---|---|---|---|
+| HIGH/CRITICAL | 0 | 0 | 0 | 0 | 3 | 6 |
+| MEDIUM | 1 | -- | -- | -- | (filtro HIGH+) | (filtro HIGH+) |
+| LOW | 0 | -- | -- | -- | (filtro HIGH+) | (filtro HIGH+) |
 
-Avaliacao parcial de risco: baseada exclusivamente em bandit (SAST Python). pip-audit (CVEs em dependencias), SonarQube (qualidade/seguranca), OWASP ZAP (DAST), gitleaks (segredos) e trivy (CVEs de imagem) estao pendentes; risco global nao foi avaliado. Dentro do escopo do bandit, nenhuma vulnerabilidade alta foi encontrada e o unico achado medio e um binding a `0.0.0.0` no modo de desenvolvimento, sem impacto em producao.
+Avaliacao consolidada do risco automatizado:
+
+- **Bandit (SAST Python)**: 0 HIGH / 1 MEDIUM aceito (B104 -- bind a `0.0.0.0` em modo dev) / 0 LOW. Sem regressao em relacao ao baseline de 16/04.
+- **pip-audit (CVE em dependencias diretas e transitivas)**: 98 deps auditadas, 0 vulnerabilidades.
+- **gitleaks (segredos no working tree e em todo o historico Git)**: 0 leaks apos `.gitleaks.toml` documentar 3 falsos positivos (template DEV-ONLY, runtime do NiceGUI, fixtures de senha de teste).
+- **trivy fs (CVE em deps Python via uv.lock)**: 3 HIGH em `nicegui 2.24.2` -- todas com fix em majors 3.x; aceitos como divida ([#112](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/112)) porque `ui/` e dev-only e nao roda em producao.
+- **trivy image (CVE em pacotes OS da imagem `pytstop:audit`)**: 6 HIGH (`ncurses` e `systemd`) sem fix upstream; aceitos como divida ([#113](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/113)) porque os pacotes nao sao usados pelo runtime FastAPI/uvicorn da app.
+
+SonarQube e OWASP ZAP nao alteram a avaliacao do MVP: o primeiro reforca metricas de qualidade (cobertura ja medida pelo gate do Makefile em 95%), o segundo exige stack rodando -- ambos planejados para Fase 2.
 
 ## Analise Estatica (bandit)
 
-Scan executado em 12/04/2026 com bandit 1.9.4 sobre 5.210 linhas de codigo.
+Scan executado em 29/04/2026 com bandit 1.9.4 sobre 6.400 linhas de codigo (`src/`).
 
 | # | Arquivo | Linha | ID | Severidade | Confianca | Descricao | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | src/main.py | 93 | B104 | MEDIUM | MEDIUM | Binding a `0.0.0.0` (todas as interfaces) | ACEITO |
+| 1 | src/main.py | 142 | B104 | MEDIUM | MEDIUM | Binding a `0.0.0.0` (todas as interfaces) | ACEITO |
 
 **Detalhamento**:
 
 - **B104 (hardcoded_bind_all_interfaces)**: O trecho `uvicorn.run("src.main:app", host="0.0.0.0", ...)` vincula o servidor a todas as interfaces de rede. Risco aceito pois: (a) ocorre apenas no bloco `if __name__ == "__main__"` usado em desenvolvimento local; (b) em producao, o Docker Compose gerencia o binding via configuracao do container; (c) a linha ja possui anotacao `# noqa: S104`. CWE-605.
 
-Achados inline acima. Relatorio pode ser regenerado via `bandit -r src/ -f json -o docs/seguranca/bandit-report.json`.
+Sem regressao em relacao ao baseline de 16/04 (0 HIGH / 1 MEDIUM aceito / 0 LOW). Relatorio JSON em `docs/seguranca/bandit-report.json`; regenerar com `uv run bandit -r src/ -f json -o docs/seguranca/bandit-report.json`.
 
 ## Auditoria de Dependencias (pip-audit)
 
-**TODO**: executar antes da entrega. Rodar em ambiente efemero (sem poluir o `.venv` gerenciado por `uv`): `uv run --with pip-audit pip-audit --format json --output docs/seguranca/pip-audit-report.json`. Sem `uv`, o equivalente e `pip install pip-audit && pip-audit --format json --output docs/seguranca/pip-audit-report.json`.
+Scan executado em 29/04/2026 via `uv run --with pip-audit pip-audit --format json --output docs/seguranca/pip-audit-report.json` (ambiente efemero, sem poluir o `.venv`).
 
-Relatorio completo: `docs/seguranca/pip-audit-report.json`.
+**Resultado**: 98 dependencias auditadas; **0 vulnerabilidades conhecidas**. O proprio pacote `pytstop` foi pulado (`Dependency not found on PyPI`) porque e um projeto local nao publicado.
+
+Relatorio JSON em `docs/seguranca/pip-audit-report.json`. Reproducao:
+
+```bash
+uv run --with pip-audit pip-audit --format json --output docs/seguranca/pip-audit-report.json
+```
 
 ## Analise Estatica e Qualidade (SonarQube)
 
@@ -181,11 +195,67 @@ Relatorio completo: `docs/seguranca/pip-audit-report.json`.
 
 ## Deteccao de Segredos (gitleaks)
 
-**TODO**: executar antes da entrega. Configuracao conforme ADR-011.
+Scan executado em 29/04/2026 com gitleaks 8.30.1 -- working tree (sem `--no-git`) e historico completo (`--log-opts="--all"`, 493 commits cobertos).
+
+**Resultado**: 0 leaks no working tree e 0 no historico apos aplicar `.gitleaks.toml` allowlist documentado.
+
+A allowlist cobre tres falsos positivos legitimos (Caso D do workflow A/B/C/D):
+
+1. `.env.dev` -- copia local DEV-ONLY do template, gitignorada (nao chega no repo).
+2. `.env.dev.example` -- template commitado com `ENCRYPTION_KEY` DEV-ONLY (o proprio comentario do arquivo declara: "Valor abaixo e DEV-ONLY: basta ser estavel entre restarts; nunca use em prod").
+3. `.nicegui/storage-user-*.json` -- runtime storage do NiceGUI (gitignored).
+4. `tests/unitarios/scripts/test_seed_admin.py` -- fixtures de senha (`"S3nh4-Bem-Forte"`) usadas pelos testes do seeder de admin para validar regras de complexidade; nao sao credenciais reais.
+
+Reproducao:
+
+```bash
+gitleaks detect --source . --no-git --config .gitleaks.toml \
+  --report-format json --report-path docs/seguranca/gitleaks-wt-report.json --redact
+
+gitleaks detect --source . --log-opts="--all" --config .gitleaks.toml \
+  --report-format json --report-path docs/seguranca/gitleaks-history-report.json --redact
+```
+
+Relatorios: `docs/seguranca/gitleaks-wt-report.json` e `docs/seguranca/gitleaks-history-report.json`.
 
 ## Scan de Imagem Docker (trivy)
 
-**TODO**: executar antes da entrega. Configuracao conforme ADR-011.
+Scans executados em 29/04/2026 com trivy 0.69.3, filtrando por `--severity HIGH,CRITICAL`. Imagem auditada: `pytstop:audit` (build do `Dockerfile` runtime stage `python:3.12-slim`, debian 13.4 trixie).
+
+### trivy fs (deps Python via uv.lock)
+
+**Resultado**: 3 HIGH em `nicegui 2.24.2`, todas com fix em majors 3.x:
+
+| CVE | Pacote | Versao | Fix | Tipo |
+|---|---|---|---|---|
+| CVE-2025-66645 | nicegui | 2.24.2 | 3.4.0 | Path traversal em `app.add_media_files()` (read) |
+| CVE-2026-21873 | nicegui | 2.24.2 | 3.5.0 | Zero-click XSS em `ui.sub_pages` |
+| CVE-2026-25732 | nicegui | 2.24.2 | 3.7.0 | Path traversal em `FileUpload.name` (write) |
+
+**Risco aceito** ([#112](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/112)): o `ui/` e dev-only (sandbox de teste manual, ver [#109](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/109) e [PR #81](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/pull/81)); nao roda em producao e nao esta empacotado pelo `pyproject.toml`. O upgrade nicegui 2->3 introduz breaking changes -- avaliacao programada para Fase 2.
+
+### trivy image (pacotes OS da imagem `pytstop:audit`)
+
+**Resultado**: 6 HIGH sem fix upstream (debian 13.4 trixie):
+
+| CVE | Severity | Pacotes | Fix | Tipo |
+|---|---|---|---|---|
+| CVE-2025-69720 | HIGH | libncursesw6, libtinfo6, ncurses-base, ncurses-bin (6.5+20250216-2) | n/a | ncurses: buffer overflow, possivel RCE |
+| CVE-2026-29111 | HIGH | libsystemd0, libudev1 (257.9-1~deb13u1) | n/a | systemd: RCE/DoS via IPC |
+
+**Risco aceito** ([#113](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/113)): ncurses nao e usado pelo runtime FastAPI/uvicorn da app (puxado por dep transitiva da imagem base) e systemd nao roda dentro do container (entrypoint e `uvicorn` direto). Avaliacao de mitigacao (distroless, alpine, bump da base) programada para Fase 2.
+
+Reproducao:
+
+```bash
+docker build -t pytstop:audit .
+trivy fs --severity HIGH,CRITICAL --format json \
+  --output docs/seguranca/trivy-fs-report.json .
+trivy image --severity HIGH,CRITICAL --format json \
+  --output docs/seguranca/trivy-image-report.json pytstop:audit
+```
+
+Relatorios: `docs/seguranca/trivy-fs-report.json` e `docs/seguranca/trivy-image-report.json`.
 
 ## Recomendacoes para Producao
 

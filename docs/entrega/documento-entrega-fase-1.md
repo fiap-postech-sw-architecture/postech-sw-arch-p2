@@ -33,7 +33,7 @@
 | Documentação | `docs/` no repositório |
 | Event Storming (Miro) | [Miro Board — Event Storming](https://miro.com/app/board/uXjVGqQ_lk4=/) |
 | Domain Storytelling (Miro) | [Miro Board — Domain Storytelling](https://miro.com/app/board/uXjVGqQ_lk4=/) |
-| Video de apresentacao | [PREENCHER] -- video de ate 10 minutos demonstrando o sistema em funcionamento |
+| Video de apresentacao | [PREENCHER] -- video de ate 15 minutos demonstrando o sistema em funcionamento |
 
 ---
 

@@ -1,0 +1,22 @@
+title = "PytStop gitleaks config"
+
+# Herda regras do baseline default do gitleaks (8.x).
+[extend]
+useDefault = true
+
+# Allowlist global -- aplicada em todas as regras.
+[allowlist]
+description = "Falsos positivos: dev templates, runtime storage, fixtures de teste"
+
+paths = [
+  # ENCRYPTION_KEY DEV-ONLY no template e na copia local. Local fica fora
+  # do git (.gitignore) e o template documenta no proprio comentario que o
+  # valor existe so para manter ciphertexts decifraveis entre restarts.
+  '''^\.env\.dev$''',
+  '''^\.env\.dev\.example$''',
+  # Storage runtime do NiceGUI (gitignored). Usado pela UI dev-only.
+  '''^\.nicegui/''',
+  # Fixtures de senha de teste em test_seed_admin.py validam regras de
+  # validacao de senha do seeder; nao sao credenciais reais.
+  '''^tests/unitarios/scripts/test_seed_admin\.py$''',
+]
