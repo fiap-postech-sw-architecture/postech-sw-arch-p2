@@ -480,12 +480,13 @@ Com a fase 1 e fase 2 prontas:
 ```bash
 git clone https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1.git
 cd postech-sw-arch-p1
-make up                          # postgres + backend + UI
-make seed-users-docker           # popula admin/atendente/mecanico
-make seed-demo                   # popula clientes/OS/catalogo/estoque
+make reset-db                    # postgres + backend + UI + seed (usuarios + demo)
 ```
 
-Detalhes de URLs, credenciais seed e demais comandos: veja o [README.md](../../README.md) na raiz.
+URLs, credenciais seed e variantes (`SKIP_DEMO=1`, `make rebuild`, etc.):
+veja o [Quick Start no README raiz](../../README.md#quick-start). Workflow
+de dev (uvicorn hot-reload, checks locais, atualizar deps):
+[`docs/desenvolvimento.md`](../desenvolvimento.md).
 
 ---
 

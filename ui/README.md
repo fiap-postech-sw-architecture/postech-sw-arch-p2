@@ -5,33 +5,12 @@ mecanica: clientes, veiculos, catalogo de servicos, estoque, ordens de
 servico). Dev-only — nao entra no deploy do backend; coexiste com o Swagger
 em `/docs`.
 
----
-
-## Quick start
-
-Requer Docker Desktop (ou Colima) e `make`. No Windows, use Git Bash/WSL —
-ver [Windows / sem make](#windows--sem-make).
-
-```bash
-make reset-db                     # sobe stack + popula DB (usuarios + demo)
-open http://localhost:8080/login  # atalhos Admin / Atendente / Mecanico
-```
-
-`make reset-db` derruba qualquer stack anterior, apaga o volume do postgres,
-rebuilda imagens, aguarda o backend ficar saudavel e popula usuarios + dados
-de demo (7 clientes, 10 veiculos, 8 servicos, 14 itens, 8 OS em estados
-variados). **Apaga todos os dados do DB local.**
-
-Rode depois de `git pull` ou quando quiser DB limpo. Pular os dados de demo:
-`SKIP_DEMO=1 make reset-db`. Derrubar tudo depois: `make down`.
-
-### URLs
-
-| Servico | URL |
-|---|---|
-| UI NiceGUI | http://localhost:8080 |
-| Backend Swagger | http://localhost:8000/docs |
-| Health probe | http://localhost:8000/api/v1/saude |
+> **Como rodar**: o stack inteiro (postgres + backend + UI + seed) sobe com
+> um unico `make reset-db` -- veja
+> [**Quick Start no README raiz**](../README.md#quick-start) para o caminho
+> canonico, URLs e credenciais seed. Esta pagina cobre o que e especifico da
+> UI: como usar as paginas, modo hibrido para hot-reload, troubleshooting da
+> UI e contribuicao.
 
 ---
 
@@ -98,9 +77,8 @@ Se voce nao rodou o seed, a tela `/login` mostra um aviso em laranja.
 
 ## Modo hibrido (banco docker, backend e UI locais)
 
-Para editar codigo com hot-reload no backend.
-
-Requer Docker, [`uv`](https://docs.astral.sh/uv/) e Python 3.12.
+Para editar codigo com hot-reload no backend, rode apenas o Postgres em
+container e suba backend (uvicorn) e UI (`make ui`) localmente:
 
 ```bash
 docker compose up -d postgres       # so o banco
@@ -111,37 +89,35 @@ make ui                             # UI em :8080
 ```
 
 Nesse modo o Swagger fica em http://localhost:8001/docs. A UI usa
-`BACKEND_URL=http://localhost:8001` por padrao (ver
-`ui/config.py`). No modo docker o compose sobrescreve para
-`http://app:8000` via rede interna.
+`BACKEND_URL=http://localhost:8001` por padrao (ver `ui/config.py`); no modo
+docker o compose sobrescreve para `http://app:8000` via rede interna.
+
+> Detalhes do dev loop completo (defaults do `run-dev.sh`, `.env.dev`,
+> `JWT_SECRET`, atualizar dependencias) em
+> [`docs/desenvolvimento.md`](../docs/desenvolvimento.md).
 
 ---
 
 ## Windows / sem `make`
 
-**Caminho recomendado:** Git Bash + `make`.
+Caminho recomendado: **Git Bash + `make`**. O setup do zero esta em
+[`docs/setup/windows.md`](../docs/setup/windows.md) (passo 7 instala `make`
+via winget; passo 8 cobre `uv` e Git Bash). Apos esse setup, os `make`
+abaixo rodam normalmente no Git Bash.
 
-1. [Git for Windows](https://git-scm.com/download/win) (inclui Git Bash)
-2. `make` via [Scoop](https://scoop.sh) (`scoop install make`) ou
-   [Chocolatey](https://chocolatey.org) (`choco install make`)
-3. Docker Desktop e [`uv`](https://docs.astral.sh/uv/getting-started/installation/#windows)
-4. Abra **Git Bash** (nao PowerShell/CMD) e rode os `make` normalmente
+**Alternativa sem `make`:** o repo traz `./run.sh`, um bash fallback que
+espelha os principais targets do Makefile. Roda em Git Bash sem instalar
+nada extra alem de Git for Windows + Docker Desktop:
 
-**Alternativas:**
-
-- **WSL2** (`wsl --install` + Docker Desktop com integracao WSL) — funciona
-  identico a macOS/Linux.
-- **Script `./run.sh`** — bash fallback que espelha os principais targets do
-  Makefile. Roda em Git Bash sem precisar instalar make:
-
-  ```bash
-  ./run.sh up              # make up
-  ./run.sh reset-db        # make reset-db
-  ./run.sh seed-demo       # make seed-demo
-  ./run.sh help            # lista os targets suportados
-  ```
+```bash
+./run.sh up              # make up
+./run.sh reset-db        # make reset-db
+./run.sh seed-demo       # make seed-demo
+./run.sh help            # lista os targets suportados
+```
 
 PowerShell e CMD puros **nao** sao suportados (os recipes dependem de bash).
+WSL2 funciona identico a Linux -- veja [`docs/setup/linux.md`](../docs/setup/linux.md).
 
 ---
 
@@ -179,8 +155,8 @@ lsof -ti:8080 | xargs -r kill -9
 
 ### Docker nao encontra o socket
 
-Ver **Troubleshooting: Docker socket** no README raiz (Docker Desktop,
-Colima, `DOCKER_HOST`).
+Ver [`docs/setup/troubleshooting.md`](../docs/setup/troubleshooting.md)
+(Docker Desktop, Colima, `DOCKER_HOST`).
 
 ### Hot-reload da UI nao funciona
 

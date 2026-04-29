@@ -16,7 +16,7 @@ Sistema de gestao de ordens de servico para uma oficina mecanica de medio porte.
 Quem ja tem o ambiente pronto:
 
 - Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (gerenciador de dependencias e ambientes virtuais) — veja [ADR-014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md) (Proposta, em discussao). Fallback com `venv + pip` documentado na secao Desenvolvimento Local.
+- [uv](https://docs.astral.sh/uv/) (gerenciador de dependencias e ambientes virtuais -- [ADR-014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md))
 - Docker 24+ e Docker Compose v2
 - Git
 
@@ -25,172 +25,73 @@ Quem ja tem o ambiente pronto:
 ```bash
 git clone https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1.git
 cd postech-sw-arch-p1
+make reset-db                          # postgres + backend + UI + seed completo
+open http://localhost:8080/login       # atalhos Admin / Atendente / Mecanico
 ```
 
-Em seguida, escolha **uma** das alternativas equivalentes para subir o ambiente:
+`make reset-db` derruba qualquer stack anterior, apaga o volume do postgres,
+rebuilda imagens, aguarda o backend ficar saudavel e popula usuarios + dados
+de demo (7 clientes, 10 veiculos, 8 servicos, 14 itens, 8 OS em estados
+variados). **Apaga todos os dados do DB local.**
 
-**Automatica** — detecta o socket do Docker e configura `DOCKER_HOST` para voce:
+Pra pular o seed de demo (DB so com usuarios): `SKIP_DEMO=1 make reset-db`.
+Derrubar tudo depois: `make down`. Apos `git pull`, prefira `make rebuild`
+(forca rebuild das imagens sem apagar o DB).
 
-```bash
-make up    # derrubar: make down
-```
+> Se aparecer `failed to connect to the docker API ...docker.sock`, o socket
+> nao esta no caminho padrao. Veja
+> [`docs/setup/troubleshooting.md`](docs/setup/troubleshooting.md) para
+> configurar manualmente (Docker Desktop, Colima, Linux).
 
-`make up` executa `scripts/docker-check.sh` (Docker Desktop, Colima, `/var/run`) antes de rodar `docker compose up -d`.
+### URLs
 
-**Manual** — se voce prefere controlar `DOCKER_HOST` explicitamente:
+| Servico | URL |
+|---|---|
+| UI NiceGUI | http://localhost:8080 |
+| Backend Swagger | http://localhost:8000/docs |
+| Health probe | http://localhost:8000/api/v1/saude |
 
-```bash
-docker compose up -d    # derrubar: docker compose down
-```
+### Credenciais seed (dev-only -- abertas por design)
 
-Se aparecer `failed to connect to the docker API ...docker.sock`, o socket nao esta no caminho padrao; consulte a secao [Troubleshooting: Docker socket](#troubleshooting-docker-socket) abaixo para configurar manualmente.
-
-Apos subir o ambiente:
-
-- Aguarde o banco inicializar (~10s)
-- Acesse http://localhost:8000/docs (Swagger UI)
-
-### Troubleshooting: Docker socket
-
-Se ao rodar `docker compose up -d` aparecer o erro:
-
-```
-failed to connect to the docker API at unix:///Users/<user>/.docker/run/docker.sock
-```
-
-O `docker compose` nao esta encontrando o socket do Docker. O caminho `~/.docker/run/docker.sock` e o padrao que o Docker configura no seu context, mas ele nem sempre existe. Abaixo estao as opcoes de correcao dependendo do seu ambiente.
-
-#### Opcao 1 — Docker Desktop: habilitar o socket padrao
-
-O Docker Desktop (4.13+) so cria o socket em `~/.docker/run/` se uma opcao estiver habilitada. Abra **Docker Desktop > Settings > Advanced** e marque:
-
-> **"Allow the default Docker socket to be used (requires password)"**
-
-Reinicie o Docker Desktop e rode `docker compose up -d` novamente. Essa e a solucao mais simples — nao exige variavel de ambiente nem alteracao no projeto.
-
-#### Opcao 2 — Docker Desktop: apontar para o socket alternativo
-
-Se preferir nao habilitar a opcao acima, o Docker Desktop sempre cria um socket em `~/.docker/desktop/docker.sock`. Basta exportar `DOCKER_HOST` no `~/.zshrc` (ou `~/.bashrc`):
-
-```bash
-export DOCKER_HOST="unix://${HOME}/.docker/desktop/docker.sock"
-```
-
-Execute `source ~/.zshrc` para aplicar no terminal atual.
-
-#### Opcao 3 — Colima
-
-Se usa [Colima](https://github.com/abiosoft/colima) como runtime Docker em vez do Docker Desktop, configure no `~/.zshrc`:
-
-```bash
-export DOCKER_HOST="unix://${HOME}/.colima/default/docker.sock"
-export TESTCONTAINERS_RYUK_DISABLED=true
-```
-
-`DOCKER_HOST` e necessario para que `docker compose` e o testcontainers encontrem o socket do Docker. `TESTCONTAINERS_RYUK_DISABLED` evita erros nos testes de integracao. Execute `source ~/.zshrc` ou abra um novo terminal para aplicar.
-
-#### Linux
-
-Verifique se o servico Docker esta ativo: `sudo systemctl start docker`.
-
-## Desenvolvimento Local
-
-Instale o [`uv`](https://docs.astral.sh/uv/getting-started/installation/) uma vez (qualquer uma das alternativas):
-
-```bash
-curl -LsSf https://astral.sh/uv/install.sh | sh   # macOS/Linux
-# ou: brew install uv
-# ou: pipx install uv
-```
-
-Em seguida, instale as dependencias do projeto a partir do lockfile:
-
-```bash
-uv sync --extra test --frozen  # usa versoes exatas fixadas em uv.lock
-```
-
-`--frozen` garante que a resolucao nao altere `uv.lock`; se o lockfile estiver desatualizado em relacao a `pyproject.toml`, o comando falha e o bump precisa ser feito explicitamente (veja [Atualizando dependencias](#atualizando-dependencias) abaixo). Sem `--frozen`, `uv sync` reconcilia o lockfile automaticamente — util em primeiras instalacoes, mas evite em CI e commits do dia a dia.
-
-Alternativa sem `uv` (pip + venv tradicional, enquanto a [ADR-014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md) esta em discussao):
-
-```bash
-python -m venv .venv
-source .venv/bin/activate
-pip install -e ".[test]"
-```
-
-Este fluxo nao consome `uv.lock` (pip resolve versoes novamente), entao pode divergir do ambiente do CI/producao. Use apenas se `uv` nao estiver disponivel.
-
-### Loop de desenvolvimento rapido (uvicorn com hot reload)
-
-Para iterar rapidamente sem rebuilds do container da aplicacao, rode apenas o Postgres via `docker compose` e o FastAPI local com `--reload`:
-
-```bash
-cp .env.dev.example .env.dev           # (opcional) customize credenciais/porta
-docker compose up -d postgres          # Postgres na porta 5432
-uv run alembic upgrade head            # aplica migrations (so na primeira vez)
-./scripts/run-dev.sh                   # uvicorn em http://localhost:8001 com reload
-```
-
-`uv run <cmd>` executa no ambiente criado por `uv sync` sem exigir `source .venv/bin/activate`. Se preferir o fluxo tradicional, o equivalente e `.venv/bin/alembic upgrade head`.
-
-Os defaults do `scripts/run-dev.sh` (`DATABASE_URL` apontando para `localhost:5432`, `JWT_SECRET` de dev com ≥32 bytes, etc.) funcionam sem configuracao adicional. Voce so precisa do `.env.dev` se quiser sobrescrever algo (por exemplo, `UVICORN_PORT=9000`) sem editar o script. Ao terminar, `docker compose down -v` encerra o Postgres.
-
-Usuarios com [Claude Code](https://docs.claude.com/en/docs/claude-code) podem iniciar os servidores diretamente via `.claude/launch.json` (`preview_start`):
-
-- `FastAPI (uvicorn dev server)` -- roda `scripts/run-dev.sh` na porta 8001
-- `PostgreSQL (docker compose)` -- sobe apenas o Postgres na porta 5432
-- `Full stack (docker compose)` -- sobe app + banco juntos na porta 8000
-
-Consulte [`docs/debugging-guide.md`](docs/debugging-guide.md) para troubleshooting (socket Docker no Colima, JWT_SECRET, 500s comuns, verificacao end-to-end).
-
-### Checks locais (espelham o CI)
-
-```bash
-make check      # lint + mypy + bandit + testes unitarios
-make test-integ # testes de integracao (requer Docker)
-make test-all   # todos os 970+ testes
-make format     # auto-formata codigo
-make all        # format + check + integracao
-```
-
-Ao rodar `pytest` diretamente, ruff/mypy/bandit executam automaticamente antes dos testes. Para pular os pre-checks: `pytest --no-lint`.
-
-### Atualizando dependencias
-
-O `uv.lock` fixa versoes exatas e hashes SHA-256 de todas as dependencias (diretas e transitivas). Atualizacoes sao **sempre explicitas** — nunca acontecem durante `uv sync --frozen`. Use os comandos abaixo conforme a intencao:
-
-| Intencao | Comando | O que acontece |
+| Papel | E-mail | Senha |
 |---|---|---|
-| Reinstalar o que esta em `uv.lock` (fluxo diario) | `uv sync --extra test --frozen` | Nenhuma mudanca em `uv.lock`; falha se o lockfile estiver inconsistente com `pyproject.toml` |
-| Atualizar **todas** as transitivas dentro dos ranges de `pyproject.toml` | `uv lock --upgrade && uv sync --extra test` | Regenera `uv.lock` no patch/minor mais novo permitido pelos ranges; commita o `uv.lock` junto |
-| Atualizar **uma** dependencia especifica | `uv lock --upgrade-package <nome> && uv sync --extra test` | So bumpa `<nome>` (e suas transitivas); util para patches de seguranca pontuais |
-| Adicionar nova dependencia de producao | `uv add <pacote>` | Atualiza `pyproject.toml` **e** `uv.lock`; commita ambos |
-| Adicionar dependencia so para testes | `uv add --optional test <pacote>` | Atualiza `[project.optional-dependencies].test` + lockfile |
-| Remover dependencia | `uv remove <pacote>` | Limpa `pyproject.toml` e `uv.lock` |
-| Subir um range (ex.: `fastapi>=0.115` → `>=0.120`) | Edite `pyproject.toml`, depois `uv lock && uv sync --extra test` | Necessario quando o upgrade exige relaxar o range; review manual obrigatorio |
-| Ver o que mudaria sem aplicar | `uv lock --upgrade --dry-run` | Mostra o diff de `uv.lock` sem escrever o arquivo |
-| Auditoria de vulnerabilidades | `uv run --with pip-audit pip-audit` | Roda `pip-audit` em um ambiente efemero sem poluir o `.venv` |
+| admin | `admin@pytstop.dev` | `admin-dev-pass-2026` |
+| atendente | `atendente@pytstop.dev` | `atendente-dev-pass-2026` |
+| mecanico | `mecanico@pytstop.dev` | `mecanico-dev-pass-2026` |
 
-**Checklist apos qualquer upgrade** (antes de abrir a PR):
+Na tela `/login`, os atalhos `ADMIN` / `ATENDENTE` / `MECANICO` logam
+automaticamente. Para os pares **(placa, CPF/CNPJ)** das 8 OS criadas pelo
+seed (uteis pra testar a tela publica `/acompanhamento`), veja
+[`ui/seed-users.md`](ui/seed-users.md). Definicao em codigo:
+`ui/config.py::_USUARIOS_SEED` (espelhada em `scripts/seed_usuarios.py`).
 
-1. `uv sync --extra test --frozen` — confirma que `uv.lock` resolve sem tocar nada.
-2. `make check` (lint + mypy + bandit + unitarios) — nenhuma regressao de tipo/estilo/segurancia.
-3. `make test-integ` — integracao com Postgres real sob as novas versoes.
-4. `uv run --with pip-audit pip-audit` — sem CVEs de severidade alta ou critica nas novas versoes.
-5. Commite `pyproject.toml` (se mudou) e `uv.lock` juntos, com mensagem do tipo `chore(deps): bump <pacote> to <versao>` ou `chore(deps): monthly lock refresh`.
+## Desenvolvimento
 
-Para um refresh periodico completo (recomendado mensalmente ou apos qualquer CVE relevante): `uv lock --upgrade && uv sync --extra test && make all && uv run --with pip-audit pip-audit`.
+| Topico | Onde ler |
+|---|---|
+| Setup do zero (instalar uv, Docker, etc.) | [`docs/setup/`](docs/setup/) (Windows / macOS / Linux) |
+| Loop de dev rapido (uvicorn hot-reload), checks locais, atualizar deps | [`docs/desenvolvimento.md`](docs/desenvolvimento.md) |
+| Troubleshooting Docker (socket, Compose v2) | [`docs/setup/troubleshooting.md`](docs/setup/troubleshooting.md) |
+| Debugging do dev loop (Colima, JWT_SECRET, 500s comuns) | [`docs/debugging-guide.md`](docs/debugging-guide.md) |
+| UI NiceGUI (sandbox dev-only) | [`ui/README.md`](ui/README.md) |
+| Worktrees paralelos (rodar 2+ branches sem conflito de portas) | [`docs/setup/worktrees-paralelos.md`](docs/setup/worktrees-paralelos.md) |
 
-### Docker Compose via Homebrew
+## UI de Simulacao
 
-O Quick Start usa `docker compose` (Compose v2 como plugin do Docker CLI). Com Docker via Homebrew, se aparecer `unknown command: docker compose`, use **uma** destas opcoes:
+Sandbox em Python puro (NiceGUI) para testes manuais integrados da API.
+**Dev-only** -- nao entra no Dockerfile do backend, nao e promovida a
+entregavel. Coexiste com o Swagger UI (`/docs`): Swagger e referencia crua
+da API, a UI de simulacao e sandbox integrado.
 
-1. **Registar o diretorio de plugins do Homebrew** (mantem `brew upgrade docker-compose`): adicione em `~/.docker/config.json` a chave `cliPluginsExtraDirs` com o valor `["$(brew --prefix)/lib/docker/cli-plugins"]` usando o prefixo retornado por `brew --prefix` (`/opt/homebrew` em Apple Silicon, `/usr/local` em Intel; veja `brew info docker-compose`).
+> **Nota arquitetural**: o servico `ui` aparece no `docker-compose.yml` mas
+> nao no [diagrama C4 Container](docs/arquitetura/c4/c4-container.md), por
+> ser componente auxiliar de desenvolvimento. Ver
+> [issue #109](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/109)
+> para a decisao em discussao sobre como sinalizar isso nos diagramas
+> oficiais.
 
-2. **Copiar o plugin para o diretorio padrao do usuario** (permite `brew uninstall docker-compose` e nao ter `docker-compose` no PATH): com a formula instalada, execute `mkdir -p ~/.docker/cli-plugins`, copie `$(brew --prefix docker-compose)/bin/docker-compose` para `~/.docker/cli-plugins/docker-compose`, `chmod +x`, confirme com `docker compose version`, e entao `brew uninstall docker-compose` se quiser apenas o subcomando `docker compose`.
-
-Para atualizar o Compose na opcao 2, repita a copia apos `brew install docker-compose` ou baixe o binario em [releases do Compose](https://github.com/docker/compose/releases).
+Guia completo de uso da UI (paginas, autenticacao, modo hibrido,
+troubleshooting, contribuir): [`ui/README.md`](ui/README.md).
 
 ## Arquitetura
 
@@ -227,71 +128,6 @@ Documentacao interativa disponivel em `http://localhost:8000/docs` (Swagger UI).
 | Autenticacao | /api/v1/autenticacao | Login, registro, refresh, logout |
 | Saude | /api/v1/saude | Health check |
 
-## UI de Simulacao
-
-Sandbox em Python puro (NiceGUI) para testes manuais integrados da API.
-**Nao e artefato de producao** — nao entra no Dockerfile do backend, nao e
-promovida a entregavel. Coexiste com o Swagger UI (`/docs`): Swagger e
-referencia crua da API, a UI de simulacao e sandbox integrado.
-
-### Rodar em 3 comandos (tudo via docker)
-
-```bash
-make up                          # postgres + backend + UI em containers
-                                 # (auto-cria .env.dev dos defaults se ausente)
-make seed-users-docker           # popular os 3 usuarios seed (primeira vez)
-make seed-demo                   # popular dados de demo (clientes/OS/catalogo/estoque)
-open http://localhost:8080/login # atalhos Admin/Atendente/Mecanico prontos
-```
-
-> **Dados de demo:** `make seed-demo` cria 7 clientes (mix PF/PJ), 10
-> veiculos, 8 servicos, 14 itens de estoque (com alguns em baixo estoque
-> pra exibir o alerta amarelo) e 8 OS em 7 estados diferentes
-> (RECEBIDA/EM_DIAGNOSTICO/AGUARDANDO_APROVACAO/EM_EXECUCAO/FINALIZADA/
-> ENTREGUE/CANCELADA). Idempotente: pode rodar varias vezes sem duplicar.
->
-> **Depois de `git pull`:** use `make rebuild` em vez de `make up` para
-> forcar rebuild das imagens e recriacao dos containers. `make up` sozinho
-> reaproveita imagens existentes, o que deixa codigo antigo rodando nos
-> containers. Detalhes em `ui/README.md`.
->
-> **Resetar o banco do zero:** `make reset-db` (um unico comando) derruba a
-> stack, apaga o volume do postgres, rebuilda imagens, aguarda o backend
-> subir, repopula usuarios seed **e ja roda o seed-demo no final** — voce
-> fica com um banco populado e pronto pra testar. Pra pular o seed-demo
-> (DB so com usuarios, sem dados): `SKIP_DEMO=1 make reset-db`. **Perde
-> todos os dados do DB local.**
-
-### Credenciais seed (dev-only — abertas por design)
-
-`make seed-users-docker` popula os 3 usuarios abaixo no banco.
-Na tela `/login`, os atalhos `ADMIN` / `ATENDENTE` / `MECANICO` logam
-automaticamente sem precisar digitar.
-
-| Papel | E-mail | Senha |
-|---|---|---|
-| admin | `admin@pytstop.dev` | `admin-dev-pass-2026` |
-| atendente | `atendente@pytstop.dev` | `atendente-dev-pass-2026` |
-| mecanico | `mecanico@pytstop.dev` | `mecanico-dev-pass-2026` |
-
-Para os pares **(placa, CPF/CNPJ)** das 8 OS criadas pelo `make seed-demo` (uteis pra testar a tela publica `/acompanhamento`), veja [`ui/seed-users.md`](ui/seed-users.md).
-
-Ficam em codigo em `ui/config.py::_USUARIOS_SEED` (espelho de
-`scripts/seed_usuarios.py`). Sao **dev-only**: a UI de simulacao nao e
-artefato de producao e as senhas tem fins de teste manual — nao promover.
-
-Para alternativa hibrida (dev com hot-reload do backend), credenciais seed,
-troubleshooting completo, variaveis de ambiente e como usar cada fluxo,
-**veja o [guia completo em `ui/README.md`](ui/README.md)**.
-
-### URLs
-
-| Servico | Docker (`make up`) | Hibrido (postgres docker + backend local) |
-|---|---|---|
-| UI NiceGUI | http://localhost:8080 | http://localhost:8080 |
-| Backend Swagger | http://localhost:8000/docs | http://localhost:8001/docs |
-| Health probe | http://localhost:8000/api/v1/saude | http://localhost:8001/api/v1/saude |
-
 ## Variaveis de Ambiente
 
 | Variavel | Descricao | Padrao |
@@ -304,6 +140,17 @@ troubleshooting completo, variaveis de ambiente e como usar cada fluxo,
 | RUN_MIGRATIONS_ON_STARTUP | Executar migrations ao iniciar o app | false |
 | BACKEND_URL | URL do backend consumida pela UI | http://localhost:8001 local / http://app:8000 docker |
 | UI_PORT | Porta da UI NiceGUI | 8080 |
+
+## Stack
+
+- **Linguagem**: Python 3.12
+- **Framework**: FastAPI
+- **Banco de dados**: PostgreSQL 16
+- **ORM**: SQLAlchemy 2.0 (mapeamento imperativo)
+- **Autenticacao**: JWT (HS256)
+- **Testes**: pytest, testcontainers, polyfactory
+- **Linting**: ruff, mypy (strict), import-linter
+- **Containerizacao**: Docker, Docker Compose
 
 ## Testes
 
@@ -318,6 +165,9 @@ pytest tests/integracao/ --no-lint -v         # integracao (requer Docker)
 pytest --cov=src --cov-report=html --no-lint  # com relatorio HTML
 ```
 
+Detalhes do workflow de dev (lint, mypy, bandit, atualizar dependencias):
+[`docs/desenvolvimento.md`](docs/desenvolvimento.md).
+
 ## Code review automatizado pelo Claude
 
 O repositorio tem dois workflows GitHub Actions que rodam o
@@ -329,24 +179,24 @@ oficial usando o secret `CLAUDE_CODE_OAUTH_TOKEN`:
 | **Claude Code Review** | `.github/workflows/claude-code-review.yml` | `pull_request` (`opened` / `reopened`) com **alvo `main`** | **Rapido**: `sonnet` + `--effort medium` + `--max-turns 30` | Review unica e automatica na abertura de PR pra main |
 | **Claude On-Demand** | `.github/workflows/claude-on-demand.yml` | `issue_comment`, `pull_request_review_comment`, `workflow_dispatch` | **Profundo**: `opus` + `--effort max` + `--max-turns 50` | Re-revisar apos mudancas, pedir tarefa especifica, ou rodar em PRs entre branches de feature |
 
-**Por que dois perfis**: o auto-review dispara em **todo** PR pra `main` —
+**Por que dois perfis**: o auto-review dispara em **todo** PR pra `main` --
 otimizar pra latencia/custo (sonnet faz review competente em ~30-60s pra PR
 pequeno; benchmark: PR #94 com opus/max levou 2m53s/$0.78 em 32 LOC). Quando
 voce **explicitamente** pede review manual, o sinal e claro ("quero revisao
-profunda mesmo que demore mais") — dai o salto pra `opus` em `--effort max`,
+profunda mesmo que demore mais") -- dai o salto pra `opus` em `--effort max`,
 que tambem da folga a sub-agents (`Task` tool) em PR grande. Os defaults
 ficam centralizados em
 [`.github/actions/claude/action.yml`](.github/actions/claude/action.yml) e o
 `claude-on-demand.yml` sobrescreve via inputs.
 
 **Politica de auto-review**: roda **uma vez** por PR para `main` (na abertura
-ou reabertura). Pushes seguintes **nao** re-disparam — isso e proposital pra
+ou reabertura). Pushes seguintes **nao** re-disparam -- isso e proposital pra
 manter o custo previsivel. Se voce quiser nova review apos mudar codigo,
 acione manual (proxima secao).
 
 ### Acionar manualmente
 
-**Opcao A — Comentar `@claude` no PR ou issue** (mais comum):
+**Opcao A -- Comentar `@claude` no PR ou issue** (mais comum):
 
 Cole no comentario do PR/issue:
 
@@ -363,7 +213,7 @@ em PRs, em issues, e em comments de review (linha especifica). **So funciona
 quando o workflow ja esta na branch `main`** (limitacao do GitHub: events
 `issue_comment` sempre executam o workflow do default branch).
 
-**Opcao B — Run workflow manual via GitHub UI**:
+**Opcao B -- Run workflow manual via GitHub UI**:
 
 1. Repo -> aba **Actions** -> **Claude On-Demand** (sidebar esquerda)
 2. Clique em **Run workflow** (canto direito)
@@ -371,7 +221,7 @@ quando o workflow ja esta na branch `main`** (limitacao do GitHub: events
 4. Em "Instrucao para o Claude", digite o que quer (ex.: `review PR #81 focando em LGPD`)
 5. **Run workflow**
 
-**Opcao C — `gh` CLI**:
+**Opcao C -- `gh` CLI**:
 
 ```bash
 gh workflow run claude-on-demand.yml \
@@ -382,7 +232,7 @@ gh workflow run claude-on-demand.yml \
 > ⚠️ **Limitacao do GitHub Actions**: tanto a Opcao B quanto a Opcao C
 > precisam que o arquivo `claude-on-demand.yml` ja exista **na default
 > branch (main)**. O `--ref` (ou o seletor "Use workflow from") so muda
-> o checkout durante a execucao — o lookup do workflow em si e sempre na
+> o checkout durante a execucao -- o lookup do workflow em si e sempre na
 > main. Se a action ainda nao foi mergeada, o comando retorna `HTTP 404
 > workflow not found on the default branch`.
 >
@@ -397,7 +247,7 @@ gh workflow run claude-on-demand.yml \
 
 - Cada run consome creditos do plano Claude Max do owner do token.
 - Auto-review dispara **uma vez por PR para main** (na abertura/reabertura).
-  Pushes seguintes nao re-disparam — pra revisar de novo, use a secao
+  Pushes seguintes nao re-disparam -- pra revisar de novo, use a secao
   "Acionar manualmente" acima.
 - PRs entre branches de feature (target != main) nao disparam auto-review;
   use Run workflow manual ou `@claude` mention quando quiser.
@@ -408,17 +258,6 @@ gh workflow run claude-on-demand.yml \
   composite ao inves de subir o default global.
 - Se quiser desabilitar o auto-review temporariamente, comente o bloco
   `on.pull_request` em `claude-code-review.yml` (deixa so quando precisar).
-
-## Stack
-
-- **Linguagem**: Python 3.12
-- **Framework**: FastAPI
-- **Banco de dados**: PostgreSQL 16
-- **ORM**: SQLAlchemy 2.0 (mapeamento imperativo)
-- **Autenticacao**: JWT (HS256)
-- **Testes**: pytest, testcontainers, polyfactory
-- **Linting**: ruff, mypy (strict), import-linter
-- **Containerizacao**: Docker, Docker Compose
 
 ## Decisoes de Arquitetura (ADRs)
 
@@ -438,7 +277,7 @@ gh workflow run claude-on-demand.yml \
 | [011](docs/arquitetura/adr/011-pipeline-seguranca-analise-estatica.md) | Pipeline de seguranca e analise estatica | Aceito |
 | [012](docs/arquitetura/adr/012-licenciamento-software-sbom.md) | Licenciamento de software e SBOM | Aceito |
 | [013](docs/arquitetura/adr/013-testes-bdd-pytest-bdd.md) | Testes BDD com pytest-bdd | Aceito |
-| [014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md) | Gerenciador de pacotes uv | Proposta |
+| [014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md) | Gerenciador de pacotes uv | Aceita |
 
 ## Documentacao
 

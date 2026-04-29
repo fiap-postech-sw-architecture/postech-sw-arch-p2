@@ -1,21 +1,21 @@
 # Gerenciador de pacotes e ambientes virtuais com uv
 
-* Status: Proposta
-* Data: 2026-04-19
+* Status: Aceita
+* Data: 2026-04-19 (proposta) / 2026-04-29 (aceita)
 
 ## Contexto e Problema
 
 O projeto hoje declara dependencias em `pyproject.toml` (PEP 621, build-backend `setuptools`) e o fluxo documentado no README e CI usa `python -m venv .venv`, `pip install -e ".[test]"` e `pytest`. Nao existe lockfile commitado, de modo que duas instalacoes do projeto (em maquinas distintas ou em execucoes distintas do CI) podem resolver versoes transitivas diferentes das mesmas restricoes em `pyproject.toml`.
 
-A PR #75 introduziu um arquivo `uv.lock` (gerado por `uv lock`) e alterou o trecho de Desenvolvimento Local do README para usar `uv sync --extra test`. Essa mudanca funciona localmente, mas impacta onboarding, CI, Dockerfile, Makefile e a politica de atualizacao de dependencias. Antes de consolidar, cabe registrar a decisao para discussao com o time:
+A PR #75 introduziu um arquivo `uv.lock` (gerado por `uv lock`) e alterou o trecho de Desenvolvimento Local do README para usar `uv sync --extra test`. Essa mudanca funciona localmente, mas impacta onboarding, CI, Dockerfile, Makefile e a politica de atualizacao de dependencias.
 
 **Qual ferramenta devemos adotar como gerenciador oficial de dependencias e ambientes virtuais do projeto?**
 
-Esta ADR e uma **proposta neutra**, nao uma resolucao. O objetivo e levantar alternativas com criterios explicitos para que o time decida em conjunto antes de alterar CI, Dockerfile e Makefile.
-
 ## Decisão
 
-A decisao esta em aberto. Este ADR documenta as alternativas avaliadas e os criterios relevantes. A escolha entre elas sera tomada em discussao com o time; quando consolidada, este ADR passa para `Aceita` com a alternativa escolhida na secao Decisao.
+Adotar **uv** como gerenciador oficial de dependencias e ambientes virtuais do projeto. O `uv.lock` e fonte canonica de versoes resolvidas; `uv sync --extra test --frozen` e o comando de instalacao padrao para dev e CI.
+
+Esta secao foi consolidada em 2026-04-29 apos uso na pratica: o Quick Start, os [guias de setup por plataforma](../../setup/), o [`docs/desenvolvimento.md`](../../desenvolvimento.md), o `Makefile` e o `Dockerfile` ja consomem `uv sync` e `uv run`. As alternativas listadas abaixo permanecem documentadas como historico das opcoes consideradas; o fallback `python -m venv` + `pip install` continua suportado apenas como contingencia para ambientes onde `uv` nao esta disponivel.
 
 Criterios sugeridos para a discussao:
 

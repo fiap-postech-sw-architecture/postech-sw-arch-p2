@@ -8,6 +8,8 @@ Updated by AI agents at task end per `postech-ai-helper/ai/canonical/task-end-re
 
 ## Recent decisions
 
+- 2026-04-29 - ADR-014 (gerenciador de pacotes `uv`) promovida de Proposta para Aceita; uso na pratica ja consolidado em `Makefile`, `Dockerfile`, guias de setup e `docs/desenvolvimento.md`. Fallback `python -m venv` + `pip install` mantido apenas como contingencia -- issue #84
+- 2026-04-29 - README raiz reorganizado: ponto de entrada com Quick Start canonico (`make reset-db`) + links curtos para detalhes; dev workflow movido para `docs/desenvolvimento.md`; troubleshooting cross-platform de Docker em `docs/setup/troubleshooting.md`. `ui/README.md` aponta para README raiz como "como rodar" e cobre apenas o que e especifico da UI -- elimina Quick Start duplicado entre raiz e ui/ -- issue #84
 - 2026-04-28 - Correção de inventário no apêndice de funcionalidades extras: o arquivo lista 19 features (5+3+2+3+3+3), não 14 como a entrada de 2026-04-27 indicou; entrada anterior preservada por add-only mas o número canônico no documento é 19
 - 2026-04-27 - Apêndice de funcionalidades extras criado em `docs/entrega/apendice-funcionalidades-extras.md`; documenta 14 features além do escopo mínimo do desafio FIAP, ancoradas em commits/PRs (#19, #62, #64, #65, #75, #81)
 - 2026-04-27 - 10 issues abertas (#99–#108) no `fiap-postech-sw-architecture/postech-sw-arch-p1` para fechar gaps de entrega (soat-architecture access, Discord, vídeo, PDF, 6 scans de segurança); cada issue formatada como playbook executável por agente (workflow A/B/C/D)
