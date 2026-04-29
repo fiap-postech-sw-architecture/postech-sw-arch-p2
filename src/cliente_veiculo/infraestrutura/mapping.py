@@ -17,6 +17,7 @@ from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.cnpj import CNPJ
 from src.cliente_veiculo.dominio.consentimento import ConsentimentoCliente
 from src.cliente_veiculo.dominio.cpf import CPF
+from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.placa import Placa
 from src.cliente_veiculo.dominio.veiculo import Veiculo
 from src.compartilhado.infraestrutura.database import metadata
@@ -126,22 +127,19 @@ def iniciar_mapeamentos() -> None:
     ) -> None:
         object.__setattr__(target, "_id_atribuido", True)
 
-    @event.listens_for(Cliente, "load")
-    def _reconstruir_documento(target: Cliente, _context: object) -> None:
+    def _reidratar_documento(target: Cliente) -> None:
         numero: str = target._documento_numero  # type: ignore[attr-defined]
         enc = EncryptionService.instance()
         if numero and numero.startswith("gAAAAA"):
             numero = enc.decrypt(numero)
         tipo: str = target._tipo_documento  # type: ignore[attr-defined]
-        # Sentinela da anonimizacao LGPD (``repository.anonimizar_dados``):
-        # apos excluir dados pessoais, o documento e sobrescrito com o literal
-        # "ANONIMIZADO". O VO CPF/CNPJ rejeitaria esse valor via brutils, entao
-        # usamos um placeholder em-memoria que preserva o contrato do agregado
-        # sem crashar o mapping. Clientes anonimizados tem ``ativo=False``, so
-        # aparecem em caminhos admin-only.
+        doc: CPF | CNPJ | DocumentoAnonimizado
         if numero == "ANONIMIZADO":
-            doc: CPF | CNPJ = CPF.__new__(CPF)
-            object.__setattr__(doc, "numero", "ANONIMIZADO")
+            # Tombstone escrito por ``ClienteRepository.anonimizar_dados``
+            # (raw UPDATE bypassing event listeners). Reidrata como VO de
+            # primeira classe — ``isinstance(doc, CPF/CNPJ)`` passa a ser
+            # naturalmente False e nao precisamos burlar a validacao do CPF.
+            doc = DocumentoAnonimizado(cliente_id=target.id)
         elif tipo == "cpf":
             doc = CPF(numero=numero)
         elif tipo == "cnpj":
@@ -152,6 +150,20 @@ def iniciar_mapeamentos() -> None:
         object.__setattr__(target, "_documento", doc)
         object.__setattr__(target, "_id_atribuido", True)
         object.__setattr__(target, "_eventos_pendentes", [])
+
+    @event.listens_for(Cliente, "load")
+    def _reconstruir_documento_on_load(target: Cliente, _context: object) -> None:
+        _reidratar_documento(target)
+
+    @event.listens_for(Cliente, "refresh")
+    def _reconstruir_documento_on_refresh(
+        target: Cliente, _context: object, _attrs: object
+    ) -> None:
+        # Necessario quando o mesmo session expira o cliente apos
+        # ``anonimizar_dados`` (raw UPDATE) e re-le na mesma sessao —
+        # o evento ``load`` so dispara no primeiro carregamento, entao
+        # sem este listener o ``_documento`` em memoria fica defasado.
+        _reidratar_documento(target)
 
     @event.listens_for(Veiculo, "before_insert")
     @event.listens_for(Veiculo, "before_update")
@@ -164,17 +176,13 @@ def iniciar_mapeamentos() -> None:
         _mapper: object, _connection: object, target: Cliente
     ) -> None:
         doc = target._documento
-        # Guard da anonimizacao LGPD: se o VO veio da reidratacao de um
-        # Cliente anonimizado (``_reconstruir_documento`` monta um CPF com
-        # ``numero="ANONIMIZADO"`` via ``CPF.__new__`` — ver linhas acima),
-        # um re-save ingenuo chamaria ``enc.encrypt("ANONIMIZADO")`` e
-        # ``enc.hash_deterministic("ANONIMIZADO")``, gerando o MESMO hash
-        # para todos os clientes anonimizados e violando o ``unique=True``
-        # em ``documento_hash``. Essa branch preserva os tombstones escritos
-        # pelo ``anonimizar_dados`` (raw UPDATE com ``documento="ANONIMIZADO"``
-        # + ``documento_hash="ANONIMIZADO:{cliente_id}"``). Sem-op aqui e
-        # seguro: ``anonimizar_dados`` ja grava as colunas corretas no DB.
-        if doc.numero == "ANONIMIZADO":
+        # Cliente anonimizado: as colunas ``documento`` e ``documento_hash``
+        # ja foram preenchidas com tombstones unicos pelo raw UPDATE em
+        # ``ClienteRepository.anonimizar_dados``. Recalcular aqui (encrypt +
+        # hash_deterministic do sentinela) geraria o MESMO hash para todos
+        # os clientes anonimizados e violaria o ``unique=True``. Sem-op
+        # preserva o estado escrito pelo repository.
+        if isinstance(doc, DocumentoAnonimizado):
             return
         enc = EncryptionService.instance()
         target._documento_numero = enc.encrypt(doc.numero)

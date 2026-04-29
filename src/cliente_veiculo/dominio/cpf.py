@@ -33,28 +33,13 @@ class CPF(ValueObject):
         object.__setattr__(self, "numero", _normalizar_e_validar(self.numero, "CPF"))
 
     def formatado(self) -> str:
-        """Retorna o CPF no padrao `XXX.XXX.XXX-XX`.
-
-        Quando o Cliente foi anonimizado via LGPD
-        (``repository.anonimizar_dados``), ``numero="ANONIMIZADO"`` e o VO e
-        reconstruido pelo mapping bypassing validacao — slicing por posicoes
-        produziria strings mal formadas (ex.: "ANO.NIM.IZA-DO"). Neste caso
-        retornamos o literal para que nao vaze na resposta da API.
-        """
+        """Retorna o CPF no padrao `XXX.XXX.XXX-XX`."""
         n = self.numero
-        if n == "ANONIMIZADO":
-            return "ANONIMIZADO"
         return f"{n[:3]}.{n[3:6]}.{n[6:9]}-{n[9:]}"
 
     def mascarado(self) -> str:
-        """Retorna o CPF com os 9 primeiros digitos ocultos (seguro para logs).
-
-        Quando anonimizado (ver ``formatado``), retorna o literal
-        ``"ANONIMIZADO"`` em vez de slicing que produziria garbage.
-        """
+        """Retorna o CPF com os 9 primeiros digitos ocultos (seguro para logs)."""
         n = self.numero
-        if n == "ANONIMIZADO":
-            return "ANONIMIZADO"
         return f"***.***.***-{n[9:]}"
 
     def __repr__(self) -> str:

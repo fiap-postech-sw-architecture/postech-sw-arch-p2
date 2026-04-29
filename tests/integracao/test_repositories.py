@@ -12,6 +12,7 @@ from src.catalogo_servicos.dominio.servico_oferecido import ServicoOferecido
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.cnpj import CNPJ
 from src.cliente_veiculo.dominio.cpf import CPF
+from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.placa import Placa
 from src.compartilhado.dominio.dinheiro import Dinheiro
 from src.compartilhado.dominio.exceptions import EstoqueInsuficienteException
@@ -490,6 +491,56 @@ class TestClienteRepository:
         resultado = repo.obter_por_id(cliente.id)
         assert resultado is not None
         assert resultado.ativo is False
+
+    def test_anonimizar_cnpj_e_recarregar_retorna_documento_anonimizado(
+        self, session: Session
+    ) -> None:
+        # Caso de aceite do issue #79: cliente cujo documento original era
+        # CNPJ deve voltar do DB como DocumentoAnonimizado, e nao mais como
+        # um CPF reconstruido via __new__ (que escondia o tipo original).
+        from src.cliente_veiculo.infraestrutura.repository import (
+            ClienteSQLAlchemyRepository,
+        )
+
+        repo = ClienteSQLAlchemyRepository(session=session)
+        cliente = _criar_cliente_cnpj(session)
+        cliente_id = cliente.id
+        repo.anonimizar_dados(cliente_id)
+        session.expire_all()
+
+        resultado = repo.obter_por_id(cliente_id)
+        assert resultado is not None
+        assert isinstance(resultado.documento, DocumentoAnonimizado)
+        assert not isinstance(resultado.documento, CNPJ)
+        assert not isinstance(resultado.documento, CPF)
+        assert resultado.documento.cliente_id == cliente_id
+        assert resultado.ativo is False
+
+    def test_anonimizar_dois_clientes_preserva_unique_hash(
+        self, session: Session
+    ) -> None:
+        # Apos anonimizacao, ambos viram DocumentoAnonimizado com cliente_id
+        # diferente — o tombstone "ANONIMIZADO:{cliente_id}" precisa
+        # permanecer unico mesmo se o ORM marcar dirty na proxima flush.
+        from src.cliente_veiculo.infraestrutura.repository import (
+            ClienteSQLAlchemyRepository,
+        )
+
+        repo = ClienteSQLAlchemyRepository(session=session)
+        cliente_a = _criar_cliente_cpf(session, cpf_numero="21249722519")
+        cliente_b = _criar_cliente_cnpj(session, cnpj_numero="11222333000181")
+        repo.anonimizar_dados(cliente_a.id)
+        repo.anonimizar_dados(cliente_b.id)
+        session.flush()
+        session.expire_all()
+
+        a = repo.obter_por_id(cliente_a.id)
+        b = repo.obter_por_id(cliente_b.id)
+        assert a is not None
+        assert b is not None
+        assert isinstance(a.documento, DocumentoAnonimizado)
+        assert isinstance(b.documento, DocumentoAnonimizado)
+        assert a.documento != b.documento
 
     def test_listar_com_paginacao(self, session: Session) -> None:
         from src.cliente_veiculo.infraestrutura.repository import (

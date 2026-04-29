@@ -4,6 +4,7 @@ from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.cnpj import CNPJ
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.documento import Documento
+from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.events import (
     ClienteAtualizadoEvent,
     ClienteDesativadoEvent,
@@ -29,6 +30,7 @@ __all__ = [
     "ClienteNaoEncontradoException",
     "ClienteRepository",
     "Documento",
+    "DocumentoAnonimizado",
     "DocumentoDuplicadoException",
     "Placa",
     "PlacaDuplicadaException",

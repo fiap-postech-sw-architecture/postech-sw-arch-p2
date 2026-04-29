@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.cnpj import CNPJ
 from src.cliente_veiculo.dominio.cpf import CPF
+from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.placa import Placa
 from src.cliente_veiculo.infraestrutura import mapping as mapping_module
 from src.cliente_veiculo.infraestrutura.mapping import (
@@ -259,3 +260,102 @@ class TestEventosMapeamento:
                 AttributeError, match="nao pode ser alterada apos criacao"
             ):
                 veiculo.id = uuid4()
+
+
+class TestAnonimizacaoLGPD:
+    """Cobre o comportamento da reidratacao apos ``anonimizar_dados``.
+
+    Apos a raw UPDATE escrever ``documento="ANONIMIZADO"`` /
+    ``documento_hash="ANONIMIZADO:{cliente_id}"``, o ``Cliente`` deve
+    voltar a memoria com um ``DocumentoAnonimizado`` no lugar do CPF/CNPJ.
+    """
+
+    def _inserir_tombstone_legado(
+        self,
+        engine: object,
+        cliente_id: object,
+        tipo_documento: str,
+    ) -> None:
+        """Simula o estado pos-``anonimizar_dados`` com raw INSERT.
+
+        Reproduz exatamente as colunas que o repository grava — assim cobrimos
+        a compatibilidade com linhas anonimizadas antes deste refactor (que
+        permanecem com ``documento="ANONIMIZADO"`` literal).
+        """
+        with Session(engine) as sessao:  # type: ignore[arg-type]
+            sessao.execute(
+                clientes_table.insert().values(
+                    id=cliente_id,
+                    nome="ANONIMIZADO",
+                    documento="ANONIMIZADO",
+                    documento_hash=f"ANONIMIZADO:{cliente_id}",
+                    tipo_documento=tipo_documento,
+                    contato="anonimizado@anonimizado.local",
+                    ativo=False,
+                )
+            )
+            sessao.commit()
+
+    def test_load_apos_anonimizar_retorna_documento_anonimizado_para_cpf(
+        self, engine_sqlite: object
+    ) -> None:
+        cliente_id = uuid4()
+        self._inserir_tombstone_legado(engine_sqlite, cliente_id, "cpf")
+
+        with Session(engine_sqlite) as sessao_load:  # type: ignore[arg-type]
+            carregado = sessao_load.get(Cliente, cliente_id)
+            assert carregado is not None
+            assert isinstance(carregado._documento, DocumentoAnonimizado)
+            assert not isinstance(carregado._documento, CPF)
+            assert carregado._documento.cliente_id == cliente_id
+
+    def test_load_apos_anonimizar_retorna_documento_anonimizado_para_cnpj(
+        self, engine_sqlite: object
+    ) -> None:
+        # Regressao do bug PR #78: cliente cujo documento original era CNPJ
+        # era reidratado como CPF (via CPF.__new__), entao isinstance(doc, CNPJ)
+        # virava False sem aviso. Apos o refactor, o tipo correto e
+        # DocumentoAnonimizado independente do tipo original.
+        cliente_id = uuid4()
+        self._inserir_tombstone_legado(engine_sqlite, cliente_id, "cnpj")
+
+        with Session(engine_sqlite) as sessao_load:  # type: ignore[arg-type]
+            carregado = sessao_load.get(Cliente, cliente_id)
+            assert carregado is not None
+            assert isinstance(carregado._documento, DocumentoAnonimizado)
+            assert not isinstance(carregado._documento, CNPJ)
+            assert not isinstance(carregado._documento, CPF)
+
+    def test_resave_de_cliente_anonimizado_preserva_tombstone_unico(
+        self, engine_sqlite: object
+    ) -> None:
+        # Anonimiza dois clientes e re-salva um. O before_update do mapping
+        # NAO pode recalcular hash a partir do sentinela "ANONIMIZADO" — isso
+        # geraria o mesmo hash para os dois clientes e violaria o UNIQUE.
+        id_a = uuid4()
+        id_b = uuid4()
+        self._inserir_tombstone_legado(engine_sqlite, id_a, "cpf")
+        self._inserir_tombstone_legado(engine_sqlite, id_b, "cnpj")
+
+        with Session(engine_sqlite) as sessao:  # type: ignore[arg-type]
+            cliente_a = sessao.get(Cliente, id_a)
+            assert cliente_a is not None
+            # Marca dirty: any write attribute triggers UPDATE on flush.
+            object.__setattr__(cliente_a, "_nome", "ANONIMIZADO")
+            sessao.flush()
+            sessao.commit()
+
+        with Session(engine_sqlite) as sessao_check:  # type: ignore[arg-type]
+            hash_a = sessao_check.scalar(
+                clientes_table.select()
+                .with_only_columns(clientes_table.c.documento_hash)
+                .where(clientes_table.c.id == id_a)
+            )
+            hash_b = sessao_check.scalar(
+                clientes_table.select()
+                .with_only_columns(clientes_table.c.documento_hash)
+                .where(clientes_table.c.id == id_b)
+            )
+            assert hash_a == f"ANONIMIZADO:{id_a}"
+            assert hash_b == f"ANONIMIZADO:{id_b}"
+            assert hash_a != hash_b

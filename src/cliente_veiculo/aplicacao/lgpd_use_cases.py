@@ -3,8 +3,8 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
+from src.cliente_veiculo.aplicacao.use_cases import _tipo_documento
 from src.cliente_veiculo.dominio.consentimento import ConsentimentoCliente
-from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.exceptions import (
     ClienteNaoEncontradoException,
     ConsentimentoNaoEncontradoException,
@@ -36,7 +36,7 @@ class ExportarDadosPessoais:
             id=cliente.id,
             nome=cliente.nome,
             documento_formatado=cliente.documento.formatado(),
-            tipo_documento=("cpf" if isinstance(cliente.documento, CPF) else "cnpj"),
+            tipo_documento=_tipo_documento(cliente),
             contato=cliente.contato,
             veiculos=[
                 {

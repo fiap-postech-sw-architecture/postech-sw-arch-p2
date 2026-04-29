@@ -10,6 +10,7 @@ from src.cliente_veiculo.aplicacao.dtos import (
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.cnpj import CNPJ
 from src.cliente_veiculo.dominio.cpf import CPF
+from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.exceptions import (
     ClienteNaoEncontradoException,
     DocumentoDuplicadoException,
@@ -45,7 +46,7 @@ def _veiculo_dto(v: Veiculo) -> VeiculoDTO:
 
 
 def _tipo_documento(cliente: Cliente) -> str:
-    """Retorna `"cpf"` ou `"cnpj"` conforme o tipo concreto do documento do cliente.
+    """Retorna `"cpf"`, `"cnpj"` ou `"anonimizado"` conforme o tipo do documento.
 
     Levanta `ViolacaoRegraDeNegocioException` se o documento for de um tipo nao
     suportado. Isso protege contra novos tipos de Documento que possam ser
@@ -55,6 +56,8 @@ def _tipo_documento(cliente: Cliente) -> str:
         return "cpf"
     if isinstance(cliente.documento, CNPJ):
         return "cnpj"
+    if isinstance(cliente.documento, DocumentoAnonimizado):
+        return "anonimizado"
     raise ViolacaoRegraDeNegocioException(
         mensagem=(
             f"Tipo de documento nao suportado: {type(cliente.documento).__name__}"

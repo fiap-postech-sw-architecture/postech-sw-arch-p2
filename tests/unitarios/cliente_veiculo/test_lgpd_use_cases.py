@@ -15,6 +15,7 @@ from src.cliente_veiculo.aplicacao.lgpd_use_cases import (
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.consentimento import ConsentimentoCliente
 from src.cliente_veiculo.dominio.cpf import CPF
+from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.exceptions import (
     ClienteNaoEncontradoException,
     ConsentimentoNaoEncontradoException,
@@ -119,6 +120,25 @@ class TestExportarDadosPessoais:
         uc = ExportarDadosPessoais(repo=repo)
         with pytest.raises(ClienteNaoEncontradoException):
             uc.executar(uuid4())
+
+    def test_export_de_cliente_anonimizado_retorna_tipo_anonimizado(self) -> None:
+        # Apos anonimizacao, ``DocumentoAnonimizado`` substitui CPF/CNPJ no
+        # agregado. O DTO precisa refletir o novo tipo — antes do refactor
+        # caia no ramo ``else "cnpj"`` mesmo para CPFs originais.
+        repo = FakeClienteRepoLGPD()
+        cliente_id = uuid4()
+        cliente = Cliente(
+            id=cliente_id,
+            _nome="ANONIMIZADO",
+            _documento=DocumentoAnonimizado(cliente_id=cliente_id),
+            _contato="anonimizado@anonimizado.local",
+        )
+        repo.salvar(cliente)
+        uc = ExportarDadosPessoais(repo=repo)
+        result = uc.executar(cliente_id)
+        assert result.tipo_documento == "anonimizado"
+        assert result.documento_formatado == "ANONIMIZADO"
+        assert result.nome == "ANONIMIZADO"
 
 
 class TestExcluirDadosPessoais:
