@@ -72,6 +72,39 @@ class EstoqueSQLAlchemyAdapter:
             preco_unitario=item.preco_unitario,
         )
 
+    def obter_itens_em_lote(
+        self, item_estoque_ids: set[UUID]
+    ) -> dict[UUID, ItemEstoqueDTO]:
+        """Carrega varios itens em uma unica consulta ``IN (...)``.
+
+        Implementa o contrato batch da ``EstoquePort``: ``set`` vazio
+        retorna dict vazio sem tocar a session; ids ausentes ficam de
+        fora do dict (caller decide o fallback).
+        """
+        if not item_estoque_ids:
+            return {}
+
+        from sqlalchemy import select
+
+        from src.estoque.dominio.item_estoque import ItemEstoque
+
+        # `type: ignore[attr-defined]`: imperative mapping injeta `.in_()` no
+        # atributo `id` em runtime (SQLAlchemy ColumnProperty), mas o mypy ve
+        # apenas o tipo `UUID` declarado no AggregateRoot.
+        rows = self._session.execute(
+            select(ItemEstoque).where(
+                ItemEstoque.id.in_(item_estoque_ids)  # type: ignore[attr-defined]
+            )
+        ).scalars()
+        return {
+            item.id: ItemEstoqueDTO(
+                id=item.id,
+                nome=item.nome,
+                preco_unitario=item.preco_unitario,
+            )
+            for item in rows
+        }
+
 
 class CatalogoSQLAlchemyAdapter:
     """Implementa ``CatalogoPort`` lendo ``ServicoOferecido`` do catalogo."""
@@ -94,6 +127,42 @@ class CatalogoSQLAlchemyAdapter:
             preco=servico.preco,
             ativo=servico.ativo,
         )
+
+    def obter_servicos_em_lote(
+        self, servico_ids: set[UUID]
+    ) -> dict[UUID, ServicoOferecidoDTO]:
+        """Carrega varios servicos em uma unica consulta ``IN (...)``.
+
+        Implementa o contrato batch da ``CatalogoPort``: ``set`` vazio
+        retorna dict vazio sem tocar a session; ids ausentes ficam de
+        fora do dict (caller decide o fallback).
+        """
+        if not servico_ids:
+            return {}
+
+        from sqlalchemy import select
+
+        from src.catalogo_servicos.dominio.servico_oferecido import (
+            ServicoOferecido,
+        )
+
+        # `type: ignore[attr-defined]`: imperative mapping injeta `.in_()` no
+        # atributo `id` em runtime (SQLAlchemy ColumnProperty), mas o mypy ve
+        # apenas o tipo `UUID` declarado no AggregateRoot.
+        rows = self._session.execute(
+            select(ServicoOferecido).where(
+                ServicoOferecido.id.in_(servico_ids)  # type: ignore[attr-defined]
+            )
+        ).scalars()
+        return {
+            servico.id: ServicoOferecidoDTO(
+                id=servico.id,
+                nome=servico.nome,
+                preco=servico.preco,
+                ativo=servico.ativo,
+            )
+            for servico in rows
+        }
 
 
 class ClienteSQLAlchemyAdapter:

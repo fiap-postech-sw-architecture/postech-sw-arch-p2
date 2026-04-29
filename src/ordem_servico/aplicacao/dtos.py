@@ -49,7 +49,14 @@ class CancelarOrdemDTO:
 
 @dataclass(frozen=True, slots=True)
 class ItemDaOrdemDTO:
-    """Projecao de leitura de um item da ordem com precos em centavos."""
+    """Projecao de leitura de um item da ordem com precos em centavos.
+
+    Os campos ``servico_nome`` e ``item_estoque_nome`` ficam ``None``
+    quando o caso de uso emite o DTO direto do agregado: o agregado so
+    guarda IDs cross-context. A query ``EnriquecerOrdemDeServico``
+    resolve os nomes via ``CatalogoPort`` / ``EstoquePort`` antes do DTO
+    atravessar a fronteira HTTP.
+    """
 
     id: UUID
     servico_catalogo_id: UUID
@@ -58,6 +65,8 @@ class ItemDaOrdemDTO:
     quantidade: int
     preco_unitario_centavos: int
     subtotal_centavos: int
+    servico_nome: str | None = None
+    item_estoque_nome: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

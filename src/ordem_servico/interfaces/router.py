@@ -38,6 +38,7 @@ from src.ordem_servico.interfaces.dependencies import (
     obter_aprovar_orcamento,
     obter_cancelar_ordem,
     obter_criar_ordem,
+    obter_enriquecer_ordem,
     obter_finalizar_servico,
     obter_gerar_complementar,
     obter_gerar_orcamento,
@@ -70,75 +71,16 @@ router = APIRouter(prefix="/api/v1/ordens-de-servico", tags=["ordens-de-servico"
 def _to_ordem_response(
     dto: OrdemDeServicoDTO, session: Session
 ) -> OrdemDeServicoResponse:
-    """Mapeia o DTO de aplicacao para a resposta Pydantic e resolve nomes.
+    """Mapeia o DTO de aplicacao para a resposta Pydantic com nomes resolvidos.
 
     O DTO carrega apenas IDs (``servico_catalogo_id``, ``item_estoque_id``)
-    para nao acoplar a aplicacao a contextos vizinhos. O router enriquece
-    a resposta lendo os nomes via session — assim a UI consegue mostrar
-    ``Troca de oleo`` em vez de UUIDs sem precisar de chamadas extras.
-
-    O enriquecimento e delegado a ``_resolver_nomes_itens``, que faz
-    batch lookup dos IDs envolvidos (uma query para servicos e, se
-    necessario, uma para estoque), evitando N+1 por item da OS.
+    para nao acoplar a aplicacao a contextos vizinhos. A query
+    ``EnriquecerOrdemDeServico`` (em ``aplicacao/queries.py``) resolve
+    os nomes via ``CatalogoPort`` / ``EstoquePort`` em batch, evitando
+    que o router HTTP importe agregados de outros bounded contexts.
     """
-    response = OrdemDeServicoResponse.model_validate(dto)
-    _resolver_nomes_itens(response, session)
-    return response
-
-
-def _resolver_nomes_itens(response: OrdemDeServicoResponse, session: Session) -> None:
-    """Preenche ``servico_nome`` e ``item_estoque_nome`` via batch lookup.
-
-    Coleta IDs unicos por entidade e faz UMA query por entidade (em vez de
-    1 por item da OS), evitando N+1 em ordens com muitos itens. Itens nao
-    encontrados (ex.: catalogo limpo apos OS criada) ficam com nome
-    ``None`` — caller decide se mostra placeholder ou esconde. Mutates a
-    resposta in-place.
-    """
-    from sqlalchemy import select
-
-    from src.catalogo_servicos.dominio.servico_oferecido import ServicoOferecido
-    from src.estoque.dominio.item_estoque import ItemEstoque
-
-    if not response.itens:
-        return
-
-    servico_ids = {item.servico_catalogo_id for item in response.itens}
-    estoque_ids = {
-        item.item_estoque_id
-        for item in response.itens
-        if item.item_estoque_id is not None
-    }
-
-    # `type: ignore[attr-defined]`: imperative mapping injeta `.in_()` no
-    # atributo `id` em runtime (SQLAlchemy ColumnProperty), mas o mypy ve
-    # apenas o tipo `UUID` declarado no AggregateRoot. Mesmo padrao de
-    # outros modulos imperative-mapped (ver src/.../mapping.py).
-    servicos_por_id = {
-        s.id: s
-        for s in session.execute(
-            select(ServicoOferecido).where(
-                ServicoOferecido.id.in_(servico_ids)  # type: ignore[attr-defined]
-            )
-        ).scalars()
-    }
-    estoque_por_id: dict[object, ItemEstoque] = {}
-    if estoque_ids:
-        estoque_por_id = {
-            e.id: e
-            for e in session.execute(
-                select(ItemEstoque).where(
-                    ItemEstoque.id.in_(estoque_ids)  # type: ignore[attr-defined]
-                )
-            ).scalars()
-        }
-
-    for item in response.itens:
-        servico = servicos_por_id.get(item.servico_catalogo_id)
-        item.servico_nome = servico.nome if servico is not None else None
-        if item.item_estoque_id is not None:
-            estoque = estoque_por_id.get(item.item_estoque_id)
-            item.item_estoque_nome = estoque.nome if estoque is not None else None
+    enriquecida = obter_enriquecer_ordem(session).executar(dto)
+    return OrdemDeServicoResponse.model_validate(enriquecida)
 
 
 @router.post(

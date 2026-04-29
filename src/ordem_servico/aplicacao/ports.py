@@ -73,12 +73,38 @@ class EstoquePort(Protocol):
         """
         ...
 
+    def obter_itens_em_lote(
+        self, item_estoque_ids: set[UUID]
+    ) -> dict[UUID, ItemEstoqueDTO]:
+        """Resolve um conjunto de itens em uma unica consulta.
+
+        Devolve um dict ``id -> DTO`` apenas com itens existentes; ids
+        inexistentes ficam de fora. ``item_estoque_ids`` vazio retorna
+        dict vazio sem tocar a infraestrutura. Usado pela query
+        ``EnriquecerOrdemDeServico`` para evitar N+1 quando uma OS tem
+        varios itens.
+        """
+        ...
+
 
 class CatalogoPort(Protocol):
     """Porta para consulta de servicos oferecidos no contexto Catalogo de Servicos."""
 
     def obter_servico(self, servico_id: UUID) -> ServicoOferecidoDTO | None:
         """Retorna o DTO do servico pelo id, ou ``None`` se nao existir."""
+        ...
+
+    def obter_servicos_em_lote(
+        self, servico_ids: set[UUID]
+    ) -> dict[UUID, ServicoOferecidoDTO]:
+        """Resolve um conjunto de servicos em uma unica consulta.
+
+        Devolve um dict ``id -> DTO`` apenas com servicos existentes; ids
+        inexistentes ficam de fora. ``servico_ids`` vazio retorna dict
+        vazio sem tocar a infraestrutura. Usado pela query
+        ``EnriquecerOrdemDeServico`` para evitar N+1 quando uma OS tem
+        varios itens.
+        """
         ...
 
 

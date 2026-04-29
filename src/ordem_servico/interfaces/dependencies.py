@@ -36,6 +36,7 @@ from src.ordem_servico.infraestrutura.repository import (
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+    from src.ordem_servico.aplicacao.queries import EnriquecerOrdemDeServico
     from src.ordem_servico.aplicacao.use_cases import (
         AdicionarItem,
         AprovarOrcamento,
@@ -210,3 +211,19 @@ def obter_consultar_acompanhamento(session: Session) -> ConsultarAcompanhamento:
     from src.ordem_servico.aplicacao.use_cases import ConsultarAcompanhamento
 
     return ConsultarAcompanhamento(repo=_repo(session))
+
+
+def obter_enriquecer_ordem(session: Session) -> EnriquecerOrdemDeServico:
+    """Wires ``EnriquecerOrdemDeServico`` com Catalogo + Estoque adapters.
+
+    Query handler chamado pelo router para resolver ``servico_nome`` e
+    ``item_estoque_nome`` server-side antes de mapear o DTO pra Pydantic.
+    Mantem o router fora do contato direto com agregados de contextos
+    vizinhos (issue #87).
+    """
+    from src.ordem_servico.aplicacao.queries import EnriquecerOrdemDeServico
+
+    return EnriquecerOrdemDeServico(
+        catalogo_port=CatalogoSQLAlchemyAdapter(session=session),
+        estoque_port=EstoqueSQLAlchemyAdapter(session=session),
+    )

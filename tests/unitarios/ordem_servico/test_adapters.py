@@ -32,9 +32,11 @@ class TestAdapters:
     def test_estoque_metodos_existem(self) -> None:
         assert hasattr(EstoqueSQLAlchemyAdapter, "reservar")
         assert hasattr(EstoqueSQLAlchemyAdapter, "liberar")
+        assert hasattr(EstoqueSQLAlchemyAdapter, "obter_itens_em_lote")
 
     def test_catalogo_metodos_existem(self) -> None:
         assert hasattr(CatalogoSQLAlchemyAdapter, "obter_servico")
+        assert hasattr(CatalogoSQLAlchemyAdapter, "obter_servicos_em_lote")
 
     def test_cliente_metodos_existem(self) -> None:
         assert hasattr(ClienteSQLAlchemyAdapter, "cliente_existe")
@@ -103,6 +105,30 @@ class TestCatalogoSQLAlchemyAdapter:
         adapter = CatalogoSQLAlchemyAdapter(session=session)
         result = adapter.obter_servico(uuid4())
         assert result is None
+
+    def test_obter_servicos_em_lote_set_vazio_nao_consulta_db(self) -> None:
+        """Set vazio retorna dict vazio sem chamar ``session.execute``.
+
+        O caminho com ``select(...)`` exige o mapping imperativo
+        registrado e fica coberto pela suite de integracao.
+        """
+        session = MagicMock()
+        adapter = CatalogoSQLAlchemyAdapter(session=session)
+        assert adapter.obter_servicos_em_lote(set()) == {}
+        session.execute.assert_not_called()
+
+
+class TestEstoqueSQLAlchemyAdapterEmLote:
+    def test_obter_itens_em_lote_set_vazio_nao_consulta_db(self) -> None:
+        """Set vazio retorna dict vazio sem chamar ``session.execute``.
+
+        O caminho com ``select(...)`` exige o mapping imperativo
+        registrado e fica coberto pela suite de integracao.
+        """
+        session = MagicMock()
+        adapter = EstoqueSQLAlchemyAdapter(session=session)
+        assert adapter.obter_itens_em_lote(set()) == {}
+        session.execute.assert_not_called()
 
 
 class TestClienteSQLAlchemyAdapter:

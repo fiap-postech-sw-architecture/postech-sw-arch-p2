@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+from src.ordem_servico.aplicacao.queries import EnriquecerOrdemDeServico
 from src.ordem_servico.aplicacao.use_cases import (
     AdicionarItem,
     AprovarOrcamento,
@@ -27,6 +28,7 @@ from src.ordem_servico.interfaces.dependencies import (
     obter_cancelar_ordem,
     obter_consultar_acompanhamento,
     obter_criar_ordem,
+    obter_enriquecer_ordem,
     obter_finalizar_servico,
     obter_gerar_complementar,
     obter_gerar_orcamento,
@@ -111,3 +113,7 @@ class TestDependenciesOS:
     def test_obter_consultar_acompanhamento(self) -> None:
         uc = obter_consultar_acompanhamento(MagicMock())
         assert isinstance(uc, ConsultarAcompanhamento)
+
+    def test_obter_enriquecer_ordem(self) -> None:
+        query = obter_enriquecer_ordem(MagicMock())
+        assert isinstance(query, EnriquecerOrdemDeServico)
