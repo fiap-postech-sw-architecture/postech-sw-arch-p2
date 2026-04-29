@@ -19,6 +19,15 @@ PY_UI := $(shell \
   else printf ''; \
   fi)
 
+# Wrapper do docker compose com --env-file .env.dev. Necessario porque
+# `env_file:` no compose so afeta env do container -- nao alimenta a
+# interpolacao de ${APP_PORT}/${DB_PORT}/${UI_PORT} em ports:. Para que
+# a parametrizacao via .env.dev funcione (worktrees paralelos), o
+# `--env-file` precisa estar nas chamadas que sobem stack. Targets que
+# nao publicam porta (down, exec, cp) tambem usam o wrapper para manter
+# project name consistente e evitar drift entre invocacoes.
+DOCKER_COMPOSE := docker compose --env-file .env.dev
+
 .PHONY: lint format typecheck security test test-integ test-all check all up down seed ui seed-users seed-users-docker seed-demo up-backend env-dev rebuild reset-db
 
 # Bootstrap do .env.dev a partir do example. `.env.dev` e gitignored
@@ -36,10 +45,10 @@ PY_UI := $(shell \
 env-dev: .env.dev
 
 up: .env.dev
-	@bash -c 'source scripts/docker-check.sh && bash scripts/kill-stale-ui.sh && docker compose up -d'
+	@bash -c 'source scripts/docker-check.sh && bash scripts/kill-stale-ui.sh && $(DOCKER_COMPOSE) up -d'
 
-down:
-	@bash -c 'source scripts/docker-check.sh && docker compose down'
+down: .env.dev
+	@bash -c 'source scripts/docker-check.sh && $(DOCKER_COMPOSE) down'
 
 seed:
 	@bash -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.dev ] && . ./.env.dev; set +a; python scripts/seed_admin.py'
@@ -93,9 +102,9 @@ seed-users:
 # Windows tipo C:/Users/.../Temp/seed_usuarios.py antes de chegar no
 # container — o python no container nao acha o arquivo. A flag desliga
 # essa traducao so pra esses comandos. No-op em macOS/Linux.
-seed-users-docker:
-	MSYS_NO_PATHCONV=1 docker compose cp scripts/seed_usuarios.py app:/tmp/seed_usuarios.py
-	MSYS_NO_PATHCONV=1 docker compose exec app python /tmp/seed_usuarios.py
+seed-users-docker: .env.dev
+	MSYS_NO_PATHCONV=1 $(DOCKER_COMPOSE) cp scripts/seed_usuarios.py app:/tmp/seed_usuarios.py
+	MSYS_NO_PATHCONV=1 $(DOCKER_COMPOSE) exec app python /tmp/seed_usuarios.py
 
 # Popula dados de demo (7 clientes, 10 veiculos, 8 servicos, 14 itens, 8 OS
 # em 7 estados) via API HTTP do host. Roda com uv local — nao precisa
@@ -110,10 +119,10 @@ seed-demo: .env.dev
 # mudancas em Dockerfile, pyproject.toml, src/, ou qualquer arquivo que
 # entre no build context (ex.: acabei de dar `git pull`).
 rebuild: .env.dev
-	@bash -c 'source scripts/docker-check.sh && bash scripts/kill-stale-ui.sh && docker compose up -d --build --force-recreate'
+	@bash -c 'source scripts/docker-check.sh && bash scripts/kill-stale-ui.sh && $(DOCKER_COMPOSE) up -d --build --force-recreate'
 
 up-backend: .env.dev
-	@bash -c 'source scripts/docker-check.sh && docker compose up -d postgres app'
+	@bash -c 'source scripts/docker-check.sh && $(DOCKER_COMPOSE) up -d postgres app'
 
 # "Nuke e repopula" — single-command pra voltar pro zero. Faz tudo:
 #   1. down -v        (containers + volume postgres_data apagados)
@@ -136,13 +145,15 @@ up-backend: .env.dev
 reset-db: .env.dev
 	@bash -c 'source scripts/docker-check.sh && \
 		echo ">> derrubando stack e apagando volume postgres_data..." && \
-		docker compose down -v && \
+		$(DOCKER_COMPOSE) down -v && \
 		bash scripts/kill-stale-ui.sh && \
 		echo ">> rebuildando imagens e subindo stack do zero..." && \
-		docker compose up -d --build && \
+		$(DOCKER_COMPOSE) up -d --build && \
 		echo ">> aguardando /api/v1/saude responder 200..." && \
+		APP_PORT_EFFECTIVE=$${APP_PORT:-8000} && \
+		UI_PORT_EFFECTIVE=$${UI_PORT:-8080} && \
 		for i in $$(seq 1 30); do \
-			if curl -fsS http://localhost:8000/api/v1/saude >/dev/null 2>&1; then \
+			if curl -fsS http://localhost:$${APP_PORT_EFFECTIVE}/api/v1/saude >/dev/null 2>&1; then \
 				echo ">> backend respondendo em $$i tentativa(s)."; break; \
 			fi; \
 			if [ $$i -eq 30 ]; then \
@@ -152,8 +163,8 @@ reset-db: .env.dev
 			sleep 2; \
 		done && \
 		echo ">> populando usuarios seed..." && \
-		MSYS_NO_PATHCONV=1 docker compose cp scripts/seed_usuarios.py app:/tmp/seed_usuarios.py && \
-		MSYS_NO_PATHCONV=1 docker compose exec -T app python /tmp/seed_usuarios.py && \
+		MSYS_NO_PATHCONV=1 $(DOCKER_COMPOSE) cp scripts/seed_usuarios.py app:/tmp/seed_usuarios.py && \
+		MSYS_NO_PATHCONV=1 $(DOCKER_COMPOSE) exec -T app python /tmp/seed_usuarios.py && \
 		if [ -z "$(SKIP_DEMO)" ]; then \
 			echo ">> populando dados de demo (clientes/OS/catalogo/estoque)..." && \
 			set -a && [ -f .env ] && . ./.env; [ -f .env.dev ] && . ./.env.dev; set +a && \
@@ -161,7 +172,7 @@ reset-db: .env.dev
 		else \
 			echo ">> SKIP_DEMO=1: pulando seed de demo (banco so com usuarios)."; \
 		fi && \
-		echo ">> pronto. Abra http://localhost:8080/ e faca login como admin."'
+		echo ">> pronto. Abra http://localhost:$${UI_PORT_EFFECTIVE}/ e faca login como admin."'
 
 # ---- full-test ----
 .PHONY: full-test full-test-up full-test-seed full-test-run full-test-ci full-test-teardown
@@ -170,9 +181,9 @@ reset-db: .env.dev
 # quando rodado a partir da raiz do repo (pytest ja resolve por conftest).
 FULL_TEST_PY := PYTHONPATH=full-test uv run python -m full_test
 
-full-test-up:
+full-test-up: .env.dev
 	@echo ">>> docker compose up -d + health-wait"
-	docker compose up -d
+	$(DOCKER_COMPOSE) up -d
 	$(FULL_TEST_PY) healthwait --timeout 120
 
 full-test-seed: full-test-up
@@ -187,9 +198,9 @@ full-test-ci: full-test-seed
 	@echo ">>> executa plano ci (exclui slowest)"
 	$(FULL_TEST_PY) run --plano ci
 
-full-test-teardown:
+full-test-teardown: .env.dev
 	@echo ">>> docker compose down + limpa reports"
-	docker compose down -v
+	$(DOCKER_COMPOSE) down -v
 	rm -rf full-test/reports
 
 full-test: full-test-up full-test-seed full-test-run full-test-teardown
