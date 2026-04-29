@@ -103,19 +103,11 @@ Apos fix, `/clientes` lista OK e `/ordens-servico` lista as 8 OS.
 
 RBAC funciona: botoes de transicao desabilitam corretamente por papel.
 
-## Jornada 6: Painel HTTP
+## Jornada 6: Painel HTTP — REMOVIDO
 
-- Acao: clicar no icone `history` no cabecalho
-- Screenshot: `07-painel-http.png`
-- Comportamento: tooltip "Painel HTTP" aparece ao hover, **mas o right_drawer nao abre** na primeira interacao
+A UI custom de painel HTTP foi removida em PR #81 (drawer NiceGUI bugado, exigia mount em escopo `@ui.page` que o lazy-instantiate nao garantia). A infraestrutura de gravacao (`RegistroHttp`, `historico_http`, `_registrar*` em `ClienteApi`) ficou dormant ate ser deletada nesta PR conforme decisao da issue #89: Browser DevTools (aba Network) cobre 95% do caso de uso, entao a manutencao do drawer custom nao se paga.
 
-### Bug #3 identificado (NAO corrigido — Minor, follow-up)
-
-**Sintoma:** `CabecalhoApp._toggle_painel_http` instancia `PainelHttp()` lazy-na-primeira-ocurrencia de click. O drawer usa `ui.right_drawer(value=False)` mas parece requerer mount em page-time (junto com `ui.header()`) para posicionar corretamente no QuasarLayout.
-
-**Impacto:** Painel HTTP (`drawer req/res`) nao abre. Feature funcional no backend (`historico_http()` grava), mas nao visivel pela UI.
-
-**Recomendacao:** instanciar `PainelHttp()` em cada `@ui.page` (dentro de `CabecalhoApp` por exemplo) antes de qualquer outro content, OU criar um wrapper `Layout(papel).render(lambda: content(), incluir_painel=True)` que monta o drawer + header antes do conteudo. Fora de escopo desta PR; abrir issue GitHub se necessario.
+Nenhuma jornada nova substitui esta — observabilidade HTTP em sessao da UI passa a usar DevTools direto.
 
 ## Jornada 7: Acompanhamento publico
 

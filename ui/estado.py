@@ -1,20 +1,16 @@
 """State management da UI.
 
-Abstrai o storage subjacente (em producao, ``nicegui.app.storage.user`` e
-``storage.tab``; em testes, um dict in-memory). Fornece acesso tipado
-para evitar que paginas toquem storage cru.
+Abstrai o storage subjacente (em producao, ``nicegui.app.storage.user``;
+em testes, um dict in-memory). Fornece acesso tipado para evitar que
+paginas toquem storage cru.
 
 Sessao vai pro user_storage (cookie criptografado, persiste cross-reload).
-Historico HTTP vai pro tab_storage (per-aba) — sem isso, n usuarios
-conectados ao mesmo processo NiceGUI veriam request/response uns dos
-outros, vazando dados (request bodies podem trazer PII).
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass
-from datetime import datetime
-from typing import Any, Literal, Protocol, cast
+from typing import Literal, Protocol, cast
 
 Papel = Literal["admin", "atendente", "mecanico"]
 _PAPEIS_VALIDOS: frozenset[str] = frozenset({"admin", "atendente", "mecanico"})
@@ -26,44 +22,6 @@ class Sessao:
     refresh_token: str
     email: str
     papel: Papel
-
-
-@dataclass(frozen=True)
-class RegistroHttp:
-    timestamp: datetime
-    metodo: str
-    caminho: str
-    status: int
-    duracao_ms: int
-    request_body: str | None
-    response_body: str
-    papel_no_momento: str
-
-    def to_dict(self) -> dict[str, Any]:
-        """Serializa pra dict JSON-friendly (datetime -> ISO)."""
-        return {
-            "timestamp": self.timestamp.isoformat(),
-            "metodo": self.metodo,
-            "caminho": self.caminho,
-            "status": self.status,
-            "duracao_ms": self.duracao_ms,
-            "request_body": self.request_body,
-            "response_body": self.response_body,
-            "papel_no_momento": self.papel_no_momento,
-        }
-
-    @classmethod
-    def from_dict(cls, raw: dict[str, Any]) -> RegistroHttp:
-        return cls(
-            timestamp=datetime.fromisoformat(raw["timestamp"]),
-            metodo=raw["metodo"],
-            caminho=raw["caminho"],
-            status=int(raw["status"]),
-            duracao_ms=int(raw["duracao_ms"]),
-            request_body=raw.get("request_body"),
-            response_body=raw["response_body"],
-            papel_no_momento=raw["papel_no_momento"],
-        )
 
 
 class _StorageProtocol(Protocol):
@@ -89,27 +47,13 @@ class _DictStorage:
 
 
 _KEY_SESSAO = "sessao"
-_KEY_HISTORICO = "historico_http"
 
 
 class StateStore:
-    """Acesso tipado ao storage. Uma instancia por processo UI.
+    """Acesso tipado ao storage. Uma instancia por processo UI."""
 
-    O historico HTTP vive em ``tab_storage`` (per-aba) — em prod a NiceGUI
-    cifra o cookie e isola por tab, evitando vazar request/response entre
-    sessoes que dividem o mesmo processo. Em testes, o ``_DictStorage``
-    in-memory simula o mesmo contrato sem dependencia de NiceGUI.
-    """
-
-    def __init__(
-        self,
-        user_storage: _StorageProtocol | None = None,
-        tab_storage: _StorageProtocol | None = None,
-        max_entradas_historico: int = 50,
-    ) -> None:
+    def __init__(self, user_storage: _StorageProtocol | None = None) -> None:
         self._user = user_storage or _DictStorage()
-        self._tab = tab_storage or _DictStorage()
-        self._max = max_entradas_historico
 
     # ----- sessao -----
 
@@ -162,30 +106,6 @@ class StateStore:
 
     def esta_autenticado(self) -> bool:
         return self.sessao_atual() is not None
-
-    # ----- historico http (per-tab) -----
-
-    def _historico_raw(self) -> list[dict[str, Any]]:
-        bruto = self._tab.get(_KEY_HISTORICO, [])
-        if isinstance(bruto, list):
-            return bruto
-        return []
-
-    def registrar_chamada_http(self, registro: RegistroHttp) -> None:
-        # Insert no inicio + truncate em ``max_entradas_historico``: mantem
-        # os mais recentes (mesmo comportamento do antigo ``deque.appendleft``
-        # com ``maxlen``).
-        atual = self._historico_raw()
-        atual.insert(0, registro.to_dict())
-        if len(atual) > self._max:
-            atual = atual[: self._max]
-        self._tab[_KEY_HISTORICO] = atual
-
-    def historico_http(self) -> list[RegistroHttp]:
-        return [RegistroHttp.from_dict(d) for d in self._historico_raw()]
-
-    def limpar_historico_http(self) -> None:
-        self._tab[_KEY_HISTORICO] = []
 
 
 # Singleton lazy — inicializado com NiceGUI storage quando a app sobe.

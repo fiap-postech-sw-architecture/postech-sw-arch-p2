@@ -2,8 +2,6 @@
 
 from __future__ import annotations
 
-from functools import cache
-
 from nicegui import app, ui
 
 # Registro de paginas: o decorator @ui.page executa ao importar.
@@ -21,75 +19,37 @@ from ui.estado import StateStore, configurar_store
 
 
 class _NiceguiStorageAdapter:
-    """Adapta ``nicegui.app.storage`` ao ``_StorageProtocol`` do StateStore.
+    """Proxy lazy para ``nicegui.app.storage.user``.
 
-    Resiliente a ``app.storage.tab`` indisponivel: NiceGUI levanta
-    ``RuntimeError`` ao acessar ``storage.tab`` sem client websocket
-    conectado (ex.: render server-side de ``@ui.page`` antes do browser
-    abrir o socket). Como o historico HTTP e best-effort observability
-    (so faz sentido com tab viva pra exibir o drawer), tratamos como
-    no-op nesse cenario em vez de propagar 500.
+    O storage e resolvido por chamada (nao capturado no __init__) porque
+    o cookie criptografado depende do request context — congelar a
+    referencia no startup quebraria isolamento entre clientes.
     """
 
-    def __init__(self, scope: str) -> None:
-        self._scope = scope
-
-    def _backend(self) -> dict[str, object] | None:
-        """Retorna o storage subjacente, ou ``None`` se indisponivel.
-
-        ``None`` so acontece pra ``scope == "tab"`` quando nao ha client
-        conectado. ``user`` storage usa cookie e funciona server-side.
-        """
-        if self._scope == "user":
-            return app.storage.user
-        if self._scope == "tab":
-            try:
-                return app.storage.tab
-            except RuntimeError:
-                # Captura ampla porque NiceGUI 2.x nao expoe um tipo
-                # especifico aqui — `app.storage.tab` levanta apenas um
-                # `RuntimeError` generico com a mensagem
-                # "app.storage.tab can only be used with a client connection".
-                # Se NiceGUI passar a expor um typed exception (ex.: a
-                # `NoClientConnectedError`), apertar o except. Enquanto isso,
-                # qualquer outro RuntimeError sera tratado como "tab
-                # indisponivel" e perdera o registro — aceitavel porque o
-                # historico HTTP e best-effort observability per-tab.
-                return None
-        raise ValueError(self._scope)
-
     def get(self, key: str, default: object = None) -> object:
-        backend = self._backend()
-        if backend is None:
-            return default
-        return backend.get(key, default)
+        return app.storage.user.get(key, default)
 
     def __setitem__(self, key: str, value: object) -> None:
-        backend = self._backend()
-        if backend is None:
-            return  # storage indisponivel; descarta silenciosamente
-        backend[key] = value
+        app.storage.user[key] = value
 
     def clear(self) -> None:
-        backend = self._backend()
-        if backend is None:
-            return
-        backend.clear()
+        app.storage.user.clear()
 
 
 def _configurar_estado() -> None:
-    configurar_store(
-        StateStore(
-            user_storage=_NiceguiStorageAdapter("user"),
-            tab_storage=_NiceguiStorageAdapter("tab"),
-            max_entradas_historico=CONFIG.painel_max_entradas,
-        )
-    )
+    configurar_store(StateStore(user_storage=_NiceguiStorageAdapter()))
 
 
-@cache
 def obter_api() -> ClienteApi:
-    """Factory do cliente HTTP — cacheado: uma instancia por processo UI."""
+    """Factory do cliente HTTP — uma instancia nova por chamada.
+
+    Sem ``@cache``: o decorator congelaria a primeira instancia (incluindo
+    o ``StateStore`` resolvido via fallback no ``__init__``) e prenderia
+    um store errado se ``obter_api()`` rodasse antes de
+    ``_configurar_estado()`` (cenario plausivel em testes futuros que
+    importem a factory direto). Construir ``ClienteApi`` e barato — nao
+    abre conexao HTTP — entao o custo do cache nao se paga (issue #85).
+    """
     return ClienteApi(base_url=CONFIG.backend_url)
 
 

@@ -7,7 +7,6 @@ def test_config_usa_defaults_quando_env_vazio() -> None:
     cfg = Config.from_env(env={})
     assert cfg.backend_url == "http://localhost:8001"
     assert cfg.ui_port == 8080
-    assert cfg.painel_max_entradas == 50
 
 
 def test_config_respeita_env_vars() -> None:
@@ -15,12 +14,10 @@ def test_config_respeita_env_vars() -> None:
         env={
             "BACKEND_URL": "http://app:8000",
             "UI_PORT": "9000",
-            "PAINEL_MAX_ENTRADAS": "100",
         }
     )
     assert cfg.backend_url == "http://app:8000"
     assert cfg.ui_port == 9000
-    assert cfg.painel_max_entradas == 100
 
 
 def test_config_expoe_usuarios_seed_dos_3_papeis() -> None:

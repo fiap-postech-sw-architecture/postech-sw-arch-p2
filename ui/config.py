@@ -56,7 +56,6 @@ _STORAGE_SECRET_DEV_FALLBACK = "pytstop-ui-dev-only-secret-change-for-public-dep
 class Config:
     backend_url: str
     ui_port: int
-    painel_max_entradas: int
     storage_secret: str
     usuarios_seed: dict[Papel, UsuarioSeed] = field(
         default_factory=lambda: dict(_USUARIOS_SEED)
@@ -68,7 +67,6 @@ class Config:
         return cls(
             backend_url=source.get("BACKEND_URL", "http://localhost:8001"),
             ui_port=int(source.get("UI_PORT", "8080")),
-            painel_max_entradas=int(source.get("PAINEL_MAX_ENTRADAS", "50")),
             storage_secret=source.get(
                 "UI_STORAGE_SECRET", _STORAGE_SECRET_DEV_FALLBACK
             ),

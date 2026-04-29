@@ -2,7 +2,6 @@
 
 Toda chamada ao backend passa por aqui. Responsabilidades:
 - injecao automatica de ``Authorization: Bearer <token>``
-- captura de request/response para o painel HTTP (headers NUNCA sao logados)
 - mapeamento de erros HTTP para excecoes tipadas
 - refresh automatico em 401 com retentativa unica
 """
@@ -13,13 +12,11 @@ import base64
 import binascii
 import contextlib
 import json
-import time
-from datetime import UTC, datetime
 from typing import TYPE_CHECKING, Any, cast
 
 import httpx
 
-from ui.estado import Papel, RegistroHttp, Sessao, StateStore, obter_store
+from ui.estado import Papel, Sessao, StateStore, obter_store
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -90,26 +87,9 @@ class BackendInacessivelError(ApiError):
 
 # ----- cliente -----
 
-# IMPORTANTE: headers NUNCA entram em RegistroHttp (painel HTTP). Ver
-# `_registrar` e `_registrar_conexao_falhou` — so json_body e response body
-# sao logados. Nao existe path onde "Authorization: Bearer <token>" possa
-# vazar, portanto nao precisamos mascarar nada.
-_MAX_RESPONSE_BYTES = 10_000
-
 _ROTAS_SEM_REFRESH = frozenset(
     {"/api/v1/autenticacao/refresh", "/api/v1/autenticacao/login"}
 )
-
-# Endpoints LGPD que retornam PII consolidada — nao registramos o body no
-# painel HTTP pra evitar que CPF/contato/historico apareca em screenshot.
-# Listagens (`GET /clientes`) e detalhes (`GET /clientes/{id}`) ja vem com
-# `documento_mascarado` do backend, entao continuam logados normais. So
-# precisa redact aqui o endpoint que retorna o consolidado integral.
-_SUFIXOS_LGPD_SEM_LOG_BODY = ("/dados-pessoais/exportar",)
-
-
-def _path_e_lgpd_sensivel(path: str) -> bool:
-    return any(path.endswith(suf) for suf in _SUFIXOS_LGPD_SEM_LOG_BODY)
 
 
 class ClienteApi:
@@ -425,17 +405,12 @@ class ClienteApi:
         if token:
             headers["Authorization"] = f"Bearer {token}"
 
-        inicio = time.perf_counter()
         try:
             resposta = self._client.request(
                 metodo, path, headers=headers, params=params, json=json_body
             )
         except (httpx.ConnectError, httpx.TimeoutException) as exc:
-            self._registrar_conexao_falhou(metodo, path, json_body, exc)
             raise BackendInacessivelError(self._base_url) from exc
-
-        duracao_ms = int((time.perf_counter() - inicio) * 1000)
-        self._registrar(metodo, path, json_body, resposta, duracao_ms)
 
         if (
             resposta.status_code == 401
@@ -515,61 +490,6 @@ class ClienteApi:
             raise BackendIndisponivelError(f"Erro {status}")
         raise ApiError(f"Status inesperado {status}")
 
-    def _registrar(
-        self,
-        metodo: str,
-        path: str,
-        body: Mapping[str, Any] | None,
-        resposta: httpx.Response,
-        duracao_ms: int,
-    ) -> None:
-        # IMPORTANTE: apenas `body` (json payload) e `resposta.text/.json()` entram
-        # no RegistroHttp. Headers NUNCA sao logados porque contem
-        # `Authorization: Bearer <token>`. NAO adicione header logging aqui.
-        # Endpoints LGPD (exportar dados pessoais) tem o response_body
-        # substituido por placeholder — body integral fica fora do painel HTTP
-        # pra nao vazar PII em screenshots/sessoes compartilhadas.
-        if _path_e_lgpd_sensivel(path):
-            response_body = (
-                f"[redacted: payload LGPD nao registrado | "
-                f"status={resposta.status_code}]"
-            )
-        else:
-            response_body = _formatar_response(resposta)
-        self._store.registrar_chamada_http(
-            RegistroHttp(
-                timestamp=datetime.now(UTC),
-                metodo=metodo,
-                caminho=path,
-                status=resposta.status_code,
-                duracao_ms=duracao_ms,
-                request_body=_formatar_json(body) if body else None,
-                response_body=response_body,
-                papel_no_momento=self._store.papel_atual() or "sem-sessao",
-            )
-        )
-
-    def _registrar_conexao_falhou(
-        self,
-        metodo: str,
-        path: str,
-        body: Mapping[str, Any] | None,
-        exc: Exception,
-    ) -> None:
-        # Mesma politica de `_registrar`: headers NUNCA sao logados (evita vazar token).
-        self._store.registrar_chamada_http(
-            RegistroHttp(
-                timestamp=datetime.now(UTC),
-                metodo=metodo,
-                caminho=path,
-                status=0,
-                duracao_ms=0,
-                request_body=_formatar_json(body) if body else None,
-                response_body=f"CONNECTION ERROR: {exc}",
-                papel_no_momento=self._store.papel_atual() or "sem-sessao",
-            )
-        )
-
 
 def _extrair_detail(resposta: httpx.Response) -> str | None:
     try:
@@ -598,20 +518,3 @@ def _extrair_papel_do_jwt(token: str) -> Papel | None:
         # Token malformado, base64 invalido, ou JSON quebrado — fail soft.
         return None
     return None
-
-
-def _formatar_json(obj: object) -> str:
-    try:
-        return json.dumps(obj, indent=2, ensure_ascii=False, default=str)
-    except Exception:
-        return str(obj)
-
-
-def _formatar_response(resposta: httpx.Response) -> str:
-    content_type = resposta.headers.get("content-type", "")
-    if "application/json" in content_type:
-        try:
-            return _formatar_json(resposta.json())[:_MAX_RESPONSE_BYTES]
-        except Exception:
-            return resposta.text[:_MAX_RESPONSE_BYTES]
-    return resposta.text[:_MAX_RESPONSE_BYTES]

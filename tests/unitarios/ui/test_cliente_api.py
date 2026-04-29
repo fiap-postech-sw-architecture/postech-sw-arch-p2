@@ -59,29 +59,6 @@ def test_nao_adiciona_auth_quando_sem_sessao(store: StateStore) -> None:
     assert "authorization" not in capturado
 
 
-def test_registra_chamada_no_historico_com_mascaramento(store: StateStore) -> None:
-    store.salvar_sessao(Sessao("secret-token", "ref", "a@b", "admin"))
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(201, json={"id": "xyz"})
-
-    api = ClienteApi(base_url="http://x", store=store, transport=_transport(handler))
-    api.post("/api/v1/clientes", json_body={"nome": "Joao"})
-
-    hist = store.historico_http()
-    assert len(hist) == 1
-    r = hist[0]
-    assert r.metodo == "POST"
-    assert r.caminho == "/api/v1/clientes"
-    assert r.status == 201
-    assert r.papel_no_momento == "admin"
-    assert r.request_body is not None
-    assert "Joao" in r.request_body
-    # Token NAO vaza
-    assert "secret-token" not in r.request_body
-    assert "secret-token" not in r.response_body
-
-
 def test_mapeia_422_para_validacao_error(store: StateStore) -> None:
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
@@ -181,10 +158,6 @@ def test_mapeia_5xx_para_backend_indisponivel(store: StateStore) -> None:
     api = ClienteApi(base_url="http://x", store=store, transport=_transport(handler))
     with pytest.raises(BackendIndisponivelError):
         api.get("/api/v1/saude")
-
-    # O 503 tambem e capturado no historico para debug.
-    assert len(store.historico_http()) == 1
-    assert store.historico_http()[0].status == 503
 
 
 def test_401_dispara_refresh_e_retenta_uma_vez(store: StateStore) -> None:
@@ -468,82 +441,6 @@ def test_helpers_lgpd(store: StateStore) -> None:
     assert registro[2][2] == {"tipo": "marketing"}
 
 
-def test_exportar_dados_pessoais_nao_loga_body_no_painel_http(
-    store: StateStore,
-) -> None:
-    """Endpoint LGPD de exportar dados retorna PII (CPF, contato, etc).
-
-    O body integral nao pode ir para o painel HTTP — em sandboxes
-    compartilhadas o painel fica visivel para outros usuarios. Em vez
-    disso, ``_registrar`` substitui por placeholder com status, mantendo
-    rastreabilidade da chamada sem expor o conteudo.
-    """
-    payload_pii = {
-        "nome": "Joao Amaral",
-        "documento": "12345678900",
-        "contato": "joao@example.com",
-        "veiculos": [{"placa": "ABC1D23"}],
-    }
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(200, json=payload_pii)
-
-    api = ClienteApi(
-        base_url="http://api.test",
-        store=store,
-        transport=httpx.MockTransport(handler),
-    )
-    api.exportar_dados_cliente("c1")
-
-    historico = store.historico_http()
-    assert len(historico) == 1
-    registro = historico[0]
-    assert registro.caminho == "/api/v1/clientes/c1/dados-pessoais/exportar"
-    assert registro.status == 200
-    # O body PII NAO pode aparecer no painel — nem CPF, nem nome, nem placa.
-    assert "12345678900" not in registro.response_body
-    assert "Joao Amaral" not in registro.response_body
-    assert "ABC1D23" not in registro.response_body
-    # Ainda registramos a chamada (rastreabilidade), so o body e redacted.
-    assert "redacted" in registro.response_body.lower()
-    assert "200" in registro.response_body
-
-
-def test_listar_clientes_continua_logando_body_normalmente(
-    store: StateStore,
-) -> None:
-    """Listagem de clientes ja vem com ``documento_mascarado`` do backend.
-
-    O redaction LGPD se aplica APENAS ao endpoint de exportar dados
-    consolidado — listagens/detalhes normais (que ja sao mascarados pelo
-    backend) seguem logando body inteiro pra debug.
-    """
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "items": [
-                    {"id": "c1", "nome": "Cliente X", "documento_mascarado": "***.***"}
-                ],
-                "total": 1,
-            },
-        )
-
-    api = ClienteApi(
-        base_url="http://api.test",
-        store=store,
-        transport=httpx.MockTransport(handler),
-    )
-    api.listar_clientes()
-
-    historico = store.historico_http()
-    assert len(historico) == 1
-    # body real preservado (backend ja mascara — sem dado sensivel exposto).
-    assert "Cliente X" in historico[0].response_body
-    assert "redacted" not in historico[0].response_body.lower()
-
-
 def test_acompanhamento_publico_usa_query_params(store: StateStore) -> None:
     chamadas: list[dict[str, str]] = []
 
@@ -666,7 +563,10 @@ def test_refresh_conexao_falha_retorna_false(store: StateStore) -> None:
         api.get("/api/v1/clientes")
 
 
-def test_formatar_response_com_content_type_nao_json(store: StateStore) -> None:
+def test_200_com_content_type_nao_json_propaga_erro(store: StateStore) -> None:
+    """Backend so deve devolver 200 com JSON. Texto puro indica resposta
+    fora do contrato — o cliente propaga ao inves de retornar um stub."""
+
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
             200,
@@ -675,14 +575,8 @@ def test_formatar_response_com_content_type_nao_json(store: StateStore) -> None:
         )
 
     api = ClienteApi(base_url="http://x", store=store, transport=_transport(handler))
-    # Nao lanca no helper publico porque o body 200 text pode nao ser JSON;
-    # o erro recai dentro do _interpretar_resposta (tenta resposta.json()).
-    # O que importa aqui e que _formatar_response capturou o branch de texto.
     with pytest.raises(Exception):  # noqa: B017, PT011
         api.get("/api/v1/saude")
-    hist = store.historico_http()
-    assert len(hist) == 1
-    assert "hello plain text" in hist[0].response_body
 
 
 def test_403_sem_json_body_nao_quebra_extrair_detail(store: StateStore) -> None:
