@@ -80,6 +80,6 @@ def iniciar_mapeamentos() -> None:
     def _decompor_preco(
         _mapper: object, _connection: object, target: ItemEstoque
     ) -> None:
-        preco = target._preco_unitario
+        preco = target.preco_unitario
         target._preco_valor = preco.valor
         target._preco_moeda = preco.moeda

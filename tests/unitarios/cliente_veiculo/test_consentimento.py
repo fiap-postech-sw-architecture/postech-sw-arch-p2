@@ -74,3 +74,25 @@ class TestConsentimentoCliente:
             _concedido_em=agora,
         )
         assert c.cliente_id == cid
+
+    def test_cliente_id_property_nao_pode_ser_nulo(self) -> None:
+        c = ConsentimentoCliente(
+            _cliente_id=uuid4(),
+            _tipo="marketing",
+            _concedido_em=datetime.now(tz=UTC),
+        )
+        object.__setattr__(c, "_cliente_id", None)
+
+        with pytest.raises(ValueError, match="cliente_id nao pode ser nulo"):
+            _ = c.cliente_id
+
+    def test_concedido_em_property_nao_pode_ser_nulo(self) -> None:
+        c = ConsentimentoCliente(
+            _cliente_id=uuid4(),
+            _tipo="marketing",
+            _concedido_em=datetime.now(tz=UTC),
+        )
+        object.__setattr__(c, "_concedido_em", None)
+
+        with pytest.raises(ValueError, match="concedido_em nao pode ser nulo"):
+            _ = c.concedido_em

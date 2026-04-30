@@ -168,14 +168,14 @@ def iniciar_mapeamentos() -> None:
     @event.listens_for(Veiculo, "before_insert")
     @event.listens_for(Veiculo, "before_update")
     def _decompor_placa(_mapper: object, _connection: object, target: Veiculo) -> None:
-        target._placa_valor = target._placa.valor
+        target._placa_valor = target.placa.valor
 
     @event.listens_for(Cliente, "before_insert")
     @event.listens_for(Cliente, "before_update")
     def _decompor_documento(
         _mapper: object, _connection: object, target: Cliente
     ) -> None:
-        doc = target._documento
+        doc = target.documento
         # Cliente anonimizado: as colunas ``documento`` e ``documento_hash``
         # ja foram preenchidas com tombstones unicos pelo raw UPDATE em
         # ``ClienteRepository.anonimizar_dados``. Recalcular aqui (encrypt +

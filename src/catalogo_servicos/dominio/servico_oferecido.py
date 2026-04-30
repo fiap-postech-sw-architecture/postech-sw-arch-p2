@@ -37,7 +37,7 @@ class ServicoOferecido(AggregateRoot):
     _descricao: str = ""
     # Default None permite ao SQLAlchemy construir a instancia antes do
     # evento ``load`` rehidratar ``_preco`` via ``preco_valor``/``preco_moeda``.
-    _preco: Dinheiro = None  # type: ignore[assignment]
+    _preco: Dinheiro | None = None
     _ativo: bool = True
 
     def __post_init__(self) -> None:
@@ -57,6 +57,9 @@ class ServicoOferecido(AggregateRoot):
 
     @property
     def preco(self) -> Dinheiro:
+        if self._preco is None:
+            msg = "Preco do servico nao pode ser nulo"
+            raise ValueError(msg)
         return self._preco
 
     @property

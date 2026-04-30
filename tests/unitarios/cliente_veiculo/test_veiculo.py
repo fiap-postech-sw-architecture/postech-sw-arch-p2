@@ -105,3 +105,11 @@ class TestVeiculo:
     def test_placa_none_invalida(self) -> None:
         with pytest.raises(ValueError, match="Placa do veiculo"):
             Veiculo(_placa=None, _marca="Fiat", _modelo="Uno", _ano=2020)  # type: ignore[arg-type]
+
+    def test_placa_property_nao_pode_ser_nula(self) -> None:
+        placa = Placa(valor="ABC1234")
+        v = Veiculo(_placa=placa, _marca="Fiat", _modelo="Uno", _ano=2020)
+        object.__setattr__(v, "_placa", None)
+
+        with pytest.raises(ValueError, match="Placa do veiculo nao pode ser nula"):
+            _ = v.placa

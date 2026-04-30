@@ -29,7 +29,7 @@ class Veiculo(Entity):
 
     # Defaults sentinels: None/0 ficam nos campos apenas para permitir que o
     # dataclass aceite kwargs opcionais; `__post_init__` rejeita esses valores.
-    _placa: Placa = None  # type: ignore[assignment]  # validated in __post_init__
+    _placa: Placa | None = None  # validated in __post_init__
     _marca: str = ""
     _modelo: str = ""
     _ano: int = 0
@@ -49,6 +49,9 @@ class Veiculo(Entity):
 
     @property
     def placa(self) -> Placa:
+        if self._placa is None:
+            msg = "Placa do veiculo nao pode ser nula"
+            raise ValueError(msg)
         return self._placa
 
     @property

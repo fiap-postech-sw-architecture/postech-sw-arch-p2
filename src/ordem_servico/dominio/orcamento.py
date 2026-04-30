@@ -30,8 +30,8 @@ class LinhaOrcamento(ValueObject):
 
     descricao: str = ""
     quantidade: int = 0
-    preco_unitario: Dinheiro = None  # type: ignore[assignment]
-    subtotal: Dinheiro = None  # type: ignore[assignment]
+    _preco_unitario: Dinheiro | None = None
+    _subtotal: Dinheiro | None = None
 
     def __post_init__(self) -> None:
         if not self.descricao:
@@ -43,19 +43,33 @@ class LinhaOrcamento(ValueObject):
         if self.quantidade <= 0:
             msg = f"Quantidade deve ser maior que zero (recebido: {self.quantidade})"
             raise ValueError(msg)
-        if self.preco_unitario is None:
+        if self._preco_unitario is None:
             msg = "preco_unitario da linha de orcamento e obrigatorio (recebido: None)"
             raise ValueError(msg)
-        if self.subtotal is None:
+        if self._subtotal is None:
             msg = "subtotal da linha de orcamento e obrigatorio (recebido: None)"
             raise ValueError(msg)
-        esperado = self.preco_unitario * self.quantidade
-        if self.subtotal != esperado:
+        esperado = self._preco_unitario * self.quantidade
+        if self._subtotal != esperado:
             msg = (
-                f"Subtotal inconsistente: recebido {self.subtotal}, "
-                f"esperado {esperado} ({self.preco_unitario} * {self.quantidade})"
+                f"Subtotal inconsistente: recebido {self._subtotal}, "
+                f"esperado {esperado} ({self._preco_unitario} * {self.quantidade})"
             )
             raise ValueError(msg)
+
+    @property
+    def preco_unitario(self) -> Dinheiro:
+        if self._preco_unitario is None:
+            msg = "preco_unitario da linha de orcamento nao pode ser nulo"
+            raise ValueError(msg)
+        return self._preco_unitario
+
+    @property
+    def subtotal(self) -> Dinheiro:
+        if self._subtotal is None:
+            msg = "subtotal da linha de orcamento nao pode ser nulo"
+            raise ValueError(msg)
+        return self._subtotal
 
 
 @dataclass(frozen=True, slots=True)
@@ -69,27 +83,41 @@ class Orcamento(ValueObject):
     """
 
     itens: tuple[LinhaOrcamento, ...] = ()
-    total: Dinheiro = None  # type: ignore[assignment]
-    gerado_em: datetime = None  # type: ignore[assignment]
+    _total: Dinheiro | None = None
+    _gerado_em: datetime | None = None
     versao_schema: int = 1
 
     def __post_init__(self) -> None:
         if not self.itens:
             msg = "Orcamento deve conter pelo menos um item (recebido: vazio)"
             raise ValueError(msg)
-        if self.total is None:
+        if self._total is None:
             msg = "total do orcamento e obrigatorio (recebido: None)"
             raise ValueError(msg)
-        if self.gerado_em is None:
+        if self._gerado_em is None:
             msg = "gerado_em do orcamento e obrigatorio (recebido: None)"
             raise ValueError(msg)
         esperado = reduce(add, (linha.subtotal for linha in self.itens))
-        if self.total != esperado:
+        if self._total != esperado:
             msg = (
                 f"Total inconsistente com a soma dos subtotais: "
-                f"recebido {self.total}, esperado {esperado}"
+                f"recebido {self._total}, esperado {esperado}"
             )
             raise ValueError(msg)
+
+    @property
+    def total(self) -> Dinheiro:
+        if self._total is None:
+            msg = "total do orcamento nao pode ser nulo"
+            raise ValueError(msg)
+        return self._total
+
+    @property
+    def gerado_em(self) -> datetime:
+        if self._gerado_em is None:
+            msg = "gerado_em do orcamento nao pode ser nulo"
+            raise ValueError(msg)
+        return self._gerado_em
 
     @staticmethod
     def gerar(itens_da_ordem: Sequence[ItemDaOrdem]) -> Orcamento:
@@ -110,13 +138,13 @@ class Orcamento(ValueObject):
                 LinhaOrcamento(
                     descricao=item.descricao,
                     quantidade=qtd,
-                    preco_unitario=preco,
-                    subtotal=subtotal,
+                    _preco_unitario=preco,
+                    _subtotal=subtotal,
                 )
             )
         total = reduce(add, (linha.subtotal for linha in linhas))
         return Orcamento(
             itens=tuple(linhas),
-            total=total,
-            gerado_em=datetime.now(UTC),
+            _total=total,
+            _gerado_em=datetime.now(UTC),
         )

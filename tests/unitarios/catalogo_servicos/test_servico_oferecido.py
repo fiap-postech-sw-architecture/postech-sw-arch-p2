@@ -73,6 +73,17 @@ class TestServicoOferecido:
         assert s.preco.valor == Decimal("99.99")
         assert s.preco.moeda == "BRL"
 
+    def test_preco_nao_pode_ser_nulo(self) -> None:
+        s = ServicoOferecido(
+            _nome="Pintura",
+            _descricao="Pintura completa",
+            _preco=Dinheiro(valor=Decimal("99.99")),
+        )
+        object.__setattr__(s, "_preco", None)
+
+        with pytest.raises(ValueError, match="Preco do servico nao pode ser nulo"):
+            _ = s.preco
+
     def test_atualizar_nome_vazio_invalido(self) -> None:
         preco = Dinheiro(valor=Decimal("100.00"))
         s = ServicoOferecido(

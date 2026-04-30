@@ -10,7 +10,7 @@ from src.compartilhado.dominio.entity import Entity
 class TokenRevogado(Entity):
     _jti: str = ""
     # Sentinel: __post_init__ guarantees non-None before first use.
-    _revogado_em: datetime = None  # type: ignore[assignment]
+    _revogado_em: datetime | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -26,6 +26,9 @@ class TokenRevogado(Entity):
 
     @property
     def revogado_em(self) -> datetime:
+        if self._revogado_em is None:
+            msg = "revogado_em nao pode ser nulo"
+            raise ValueError(msg)
         return self._revogado_em
 
     @classmethod

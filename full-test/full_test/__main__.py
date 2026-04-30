@@ -62,10 +62,12 @@ def _cmd_reset(args: argparse.Namespace) -> int:
 
 
 def _cmd_run(args: argparse.Namespace) -> int:
-    cmd = ["uv", "run", "pytest", "full-test/tests/test_parallel_usage.py", "-v"]
-    if args.plano == "ci":
-        cmd.extend(["-m", "not slowest"])
-    # plano="full" (default): roda TUDO incluindo slowest.
+    teste = (
+        "full-test/tests/test_parallel_usage.py::test_plano_full"
+        if args.plano == "full"
+        else "full-test/tests/test_parallel_usage.py::test_plano_ci"
+    )
+    cmd = ["uv", "run", "pytest", teste, "-v"]
     # S603: cmd e lista hardcoded, argumentos limitados a choices do argparse.
     return subprocess.call(cmd)  # noqa: S603
 

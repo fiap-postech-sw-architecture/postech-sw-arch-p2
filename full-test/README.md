@@ -59,7 +59,8 @@ Dois modos, separados por pytest markers:
 
 ## Variaveis de ambiente
 
-Criadas por `.env.example`; copiar para `full-test/.env` antes da primeira execucao.
+Criadas por `full-test/.env.example`; os targets do Makefile criam
+`full-test/.env` automaticamente antes da primeira execucao.
 
 | Variavel | Default | Descricao |
 |---|---|---|

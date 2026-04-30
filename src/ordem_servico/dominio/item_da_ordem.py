@@ -25,11 +25,11 @@ class ItemDaOrdem(Entity):
     - ``preco_unitario`` obrigatorio (``Dinheiro`` nao nulo) e ``valor`` > 0
     """
 
-    _servico_catalogo_id: UUID = field(default=None, repr=False)  # type: ignore[assignment]
+    _servico_catalogo_id: UUID | None = field(default=None, repr=False)
     _item_estoque_id: UUID | None = field(default=None, repr=False)
     _descricao: str = ""
     _quantidade: int = 0
-    _preco_unitario: Dinheiro = None  # type: ignore[assignment]
+    _preco_unitario: Dinheiro | None = None
 
     def __post_init__(self) -> None:
         super().__post_init__()
@@ -56,6 +56,9 @@ class ItemDaOrdem(Entity):
 
     @property
     def servico_catalogo_id(self) -> UUID:
+        if self._servico_catalogo_id is None:
+            msg = "servico_catalogo_id nao pode ser nulo"
+            raise ValueError(msg)
         return self._servico_catalogo_id
 
     @property
@@ -72,8 +75,12 @@ class ItemDaOrdem(Entity):
 
     @property
     def preco_unitario(self) -> Dinheiro:
+        if self._preco_unitario is None:
+            msg = "preco_unitario nao pode ser nulo"
+            raise ValueError(msg)
         return self._preco_unitario
 
     @property
     def subtotal(self) -> Dinheiro:
-        return self._preco_unitario * self._quantidade
+        preco_unitario = self.preco_unitario
+        return preco_unitario * self._quantidade

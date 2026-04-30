@@ -103,6 +103,18 @@ class TestItemDaOrdem:
                 _preco_unitario=preco,
             )
 
+    def test_servico_catalogo_id_property_nao_pode_ser_nulo(self) -> None:
+        item = ItemDaOrdem(
+            _servico_catalogo_id=uuid4(),
+            _descricao="Item",
+            _quantidade=1,
+            _preco_unitario=Dinheiro(valor=Decimal("50.00")),
+        )
+        object.__setattr__(item, "_servico_catalogo_id", None)
+
+        with pytest.raises(ValueError, match="servico_catalogo_id nao pode ser nulo"):
+            _ = item.servico_catalogo_id
+
     def test_preco_unitario_none_invalido(self) -> None:
         with pytest.raises(ValueError, match="preco_unitario do item e obrigatorio"):
             ItemDaOrdem(
@@ -121,3 +133,15 @@ class TestItemDaOrdem:
                 _quantidade=1,
                 _preco_unitario=preco_zero,
             )
+
+    def test_preco_unitario_property_nao_pode_ser_nulo(self) -> None:
+        item = ItemDaOrdem(
+            _servico_catalogo_id=uuid4(),
+            _descricao="Item",
+            _quantidade=1,
+            _preco_unitario=Dinheiro(valor=Decimal("50.00")),
+        )
+        object.__setattr__(item, "_preco_unitario", None)
+
+        with pytest.raises(ValueError, match="preco_unitario nao pode ser nulo"):
+            _ = item.preco_unitario

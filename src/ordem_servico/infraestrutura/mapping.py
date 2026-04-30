@@ -139,7 +139,7 @@ def iniciar_mapeamentos() -> None:
     def _decompor_preco_item(
         _mapper: object, _connection: object, target: ItemDaOrdem
     ) -> None:
-        preco = target._preco_unitario
+        preco = target.preco_unitario
         target._preco_valor = preco.valor
         target._preco_moeda = preco.moeda
 
@@ -161,11 +161,11 @@ def iniciar_mapeamentos() -> None:
                 LinhaOrcamento(
                     descricao=li["descricao"],
                     quantidade=li["quantidade"],
-                    preco_unitario=Dinheiro(
+                    _preco_unitario=Dinheiro(
                         valor=Decimal(str(li["preco_unitario_centavos"])) / 100,
                         moeda=li.get("moeda", "BRL"),
                     ),
-                    subtotal=Dinheiro(
+                    _subtotal=Dinheiro(
                         valor=Decimal(str(li["subtotal_centavos"])) / 100,
                         moeda=li.get("moeda", "BRL"),
                     ),
@@ -177,11 +177,11 @@ def iniciar_mapeamentos() -> None:
                 "_orcamento",
                 Orcamento(
                     itens=linhas,
-                    total=Dinheiro(
+                    _total=Dinheiro(
                         valor=Decimal(str(data["total_centavos"])) / 100,
                         moeda=moeda_total,
                     ),
-                    gerado_em=datetime.fromisoformat(data["gerado_em"]),
+                    _gerado_em=datetime.fromisoformat(data["gerado_em"]),
                     versao_schema=data.get("versao_schema", 1),
                 ),
             )

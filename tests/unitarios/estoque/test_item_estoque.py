@@ -116,6 +116,15 @@ class TestItemEstoque:
         assert item.nome == "Filtro premium"
         assert item.preco_unitario == novo_preco
 
+    def test_preco_unitario_nao_pode_ser_nulo(self) -> None:
+        item = _criar_item()
+        object.__setattr__(item, "_preco_unitario", None)
+
+        with pytest.raises(
+            ValueError, match="Preco unitario do item nao pode ser nulo"
+        ):
+            _ = item.preco_unitario
+
     def test_ajustar_quantidade(self) -> None:
         item = _criar_item(quantidade=10)
         item.ajustar_quantidade(20)

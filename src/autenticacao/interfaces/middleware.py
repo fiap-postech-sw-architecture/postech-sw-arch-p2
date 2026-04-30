@@ -15,7 +15,7 @@ from src.autenticacao.interfaces.dependencies import obter_jwt_service
 from src.compartilhado.interfaces.dependencies import obter_session
 
 if TYPE_CHECKING:
-    from collections.abc import Callable, Mapping
+    from collections.abc import Callable
 
     from sqlalchemy.orm import Session
 
@@ -58,7 +58,7 @@ def obter_usuario_atual(
 # tipados como Papel (enum unico em dominio/) para evitar drift por string
 # literal. MappingProxyType + frozenset impedem mutacao em tempo de execucao
 # (defesa contra escalacao de privilegio via monkey-patch do _PERMISSOES).
-_PERMISSOES: Mapping[Papel, frozenset[Papel]] = MappingProxyType(
+_PERMISSOES: MappingProxyType[Papel, frozenset[Papel]] = MappingProxyType(
     {
         Papel.ADMIN: frozenset({Papel.ADMIN, Papel.ATENDENTE, Papel.MECANICO}),
         Papel.ATENDENTE: frozenset({Papel.ATENDENTE}),

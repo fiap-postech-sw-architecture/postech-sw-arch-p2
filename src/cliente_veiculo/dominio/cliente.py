@@ -44,7 +44,7 @@ class Cliente(AggregateRoot):
     # escape da construcao. `_nome` e `_contato` usam `repr=False` para nao
     # vazar PII pelo `__repr__` gerado automaticamente pelo dataclass.
     _nome: str = field(default="", repr=False)
-    _documento: Documento = None  # type: ignore[assignment]  # validated in __post_init__
+    _documento: Documento | None = None  # validated in __post_init__
     _contato: str = field(default="", repr=False)
     _veiculos: list[Veiculo] = field(default_factory=list, repr=False)
     _ativo: bool = True
@@ -64,6 +64,9 @@ class Cliente(AggregateRoot):
 
     @property
     def documento(self) -> Documento:
+        if self._documento is None:
+            msg = "Documento do cliente nao pode ser nulo"
+            raise ValueError(msg)
         return self._documento
 
     @property

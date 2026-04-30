@@ -5,8 +5,8 @@ from dataclasses import dataclass
 
 from src.compartilhado.dominio.value_object import ValueObject
 
-_PADRAO_ANTIGA = re.compile(r"^[A-Z]{3}[0-9]{4}$")
-_PADRAO_MERCOSUL = re.compile(r"^[A-Z]{3}[0-9][A-Z][0-9]{2}$")
+_PADRAO_ANTIGA = re.compile(r"^[A-Z]{3}\d{4}$")
+_PADRAO_MERCOSUL = re.compile(r"^[A-Z]{3}\d[A-Z]\d{2}$")
 
 
 @dataclass(frozen=True, slots=True)

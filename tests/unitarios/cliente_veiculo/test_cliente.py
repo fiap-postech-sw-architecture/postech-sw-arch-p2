@@ -27,6 +27,17 @@ class TestCliente:
         assert cliente.ativo is True
         assert cliente.veiculos == []
 
+    def test_criacao_sem_cpf(self) -> None:
+        with pytest.raises(ValueError, match="Documento do cliente e obrigatorio"):
+            Cliente(_nome="Joao", _contato="11999999999")
+
+    def test_documento_nao_pode_ser_nulo(self) -> None:
+        cliente = Cliente.__new__(Cliente)
+        object.__setattr__(cliente, "_documento", None)
+
+        with pytest.raises(ValueError, match="Documento do cliente nao pode ser nulo"):
+            _ = cliente.documento
+
     def test_criacao_com_cnpj(self) -> None:
         cnpj = CNPJ(numero=CNPJ_VALIDO)
         cliente = Cliente(_nome="Oficina X", _documento=cnpj, _contato="1133334444")

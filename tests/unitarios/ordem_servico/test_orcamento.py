@@ -26,7 +26,7 @@ class TestLinhaOrcamento:
         preco = Dinheiro(valor=Decimal("50.00"))
         subtotal = preco * 2
         linha = LinhaOrcamento(
-            descricao="Filtro", quantidade=2, preco_unitario=preco, subtotal=subtotal
+            descricao="Filtro", quantidade=2, _preco_unitario=preco, _subtotal=subtotal
         )
         assert linha.descricao == "Filtro"
         assert linha.quantidade == 2
@@ -36,14 +36,14 @@ class TestLinhaOrcamento:
         preco = Dinheiro(valor=Decimal("50.00"))
         with pytest.raises(ValueError, match="Descricao"):
             LinhaOrcamento(
-                descricao="", quantidade=1, preco_unitario=preco, subtotal=preco
+                descricao="", quantidade=1, _preco_unitario=preco, _subtotal=preco
             )
 
     def test_quantidade_zero_invalida(self) -> None:
         preco = Dinheiro(valor=Decimal("50.00"))
         with pytest.raises(ValueError, match="Quantidade"):
             LinhaOrcamento(
-                descricao="Filtro", quantidade=0, preco_unitario=preco, subtotal=preco
+                descricao="Filtro", quantidade=0, _preco_unitario=preco, _subtotal=preco
             )
 
     def test_subtotal_inconsistente(self) -> None:
@@ -52,14 +52,14 @@ class TestLinhaOrcamento:
             LinhaOrcamento(
                 descricao="Filtro",
                 quantidade=2,
-                preco_unitario=preco,
-                subtotal=Dinheiro(valor=Decimal("99.00")),
+                _preco_unitario=preco,
+                _subtotal=Dinheiro(valor=Decimal("99.00")),
             )
 
     def test_imutabilidade(self) -> None:
         preco = Dinheiro(valor=Decimal("50.00"))
         linha = LinhaOrcamento(
-            descricao="Filtro", quantidade=1, preco_unitario=preco, subtotal=preco
+            descricao="Filtro", quantidade=1, _preco_unitario=preco, _subtotal=preco
         )
         with pytest.raises(AttributeError):
             linha.descricao = "Outro"  # type: ignore[misc]
@@ -72,8 +72,8 @@ class TestLinhaOrcamento:
             LinhaOrcamento(
                 descricao="Filtro",
                 quantidade=1,
-                preco_unitario=None,  # type: ignore[arg-type]
-                subtotal=preco,
+                _preco_unitario=None,  # type: ignore[arg-type]
+                _subtotal=preco,
             )
 
     def test_subtotal_none_invalido(self) -> None:
@@ -84,18 +84,44 @@ class TestLinhaOrcamento:
             LinhaOrcamento(
                 descricao="Filtro",
                 quantidade=1,
-                preco_unitario=preco,
-                subtotal=None,  # type: ignore[arg-type]
+                _preco_unitario=preco,
+                _subtotal=None,  # type: ignore[arg-type]
             )
+
+    def test_preco_unitario_nao_pode_ser_nulo(self) -> None:
+        preco = Dinheiro(valor=Decimal("50.00"))
+        linha = LinhaOrcamento(
+            descricao="Filtro", quantidade=1, _preco_unitario=preco, _subtotal=preco
+        )
+        object.__setattr__(linha, "_preco_unitario", None)
+
+        with pytest.raises(
+            ValueError,
+            match="preco_unitario da linha de orcamento nao pode ser nulo",
+        ):
+            _ = linha.preco_unitario
+
+    def test_subtotal_nao_pode_ser_nulo(self) -> None:
+        preco = Dinheiro(valor=Decimal("50.00"))
+        linha = LinhaOrcamento(
+            descricao="Filtro", quantidade=1, _preco_unitario=preco, _subtotal=preco
+        )
+        object.__setattr__(linha, "_subtotal", None)
+
+        with pytest.raises(
+            ValueError,
+            match="subtotal da linha de orcamento nao pode ser nulo",
+        ):
+            _ = linha.subtotal
 
 
 class TestOrcamento:
     def test_criacao_valida(self) -> None:
         preco = Dinheiro(valor=Decimal("50.00"))
         linha = LinhaOrcamento(
-            descricao="Filtro", quantidade=1, preco_unitario=preco, subtotal=preco
+            descricao="Filtro", quantidade=1, _preco_unitario=preco, _subtotal=preco
         )
-        orc = Orcamento(itens=(linha,), total=preco, gerado_em=_agora())
+        orc = Orcamento(itens=(linha,), _total=preco, _gerado_em=_agora())
         assert len(orc.itens) == 1
         assert orc.versao_schema == 1
 
@@ -103,8 +129,8 @@ class TestOrcamento:
         with pytest.raises(ValueError, match="pelo menos um item"):
             Orcamento(
                 itens=(),
-                total=Dinheiro(valor=Decimal("0.00")),
-                gerado_em=_agora(),
+                _total=Dinheiro(valor=Decimal("0.00")),
+                _gerado_em=_agora(),
             )
 
     def test_gerar_com_um_item(self) -> None:
@@ -150,42 +176,66 @@ class TestOrcamento:
     def test_imutabilidade(self) -> None:
         preco = Dinheiro(valor=Decimal("50.00"))
         linha = LinhaOrcamento(
-            descricao="Filtro", quantidade=1, preco_unitario=preco, subtotal=preco
+            descricao="Filtro", quantidade=1, _preco_unitario=preco, _subtotal=preco
         )
-        orc = Orcamento(itens=(linha,), total=preco, gerado_em=_agora())
-        with pytest.raises(AttributeError):
+        orc = Orcamento(itens=(linha,), _total=preco, _gerado_em=_agora())
+        with pytest.raises((AttributeError, TypeError)):
             orc.total = Dinheiro(valor=Decimal("0.00"))  # type: ignore[misc]
 
     def test_total_none_invalido(self) -> None:
         preco = Dinheiro(valor=Decimal("50.00"))
         linha = LinhaOrcamento(
-            descricao="Filtro", quantidade=1, preco_unitario=preco, subtotal=preco
+            descricao="Filtro", quantidade=1, _preco_unitario=preco, _subtotal=preco
         )
         with pytest.raises(ValueError, match="total do orcamento e obrigatorio"):
             Orcamento(
                 itens=(linha,),
-                total=None,  # type: ignore[arg-type]
-                gerado_em=_agora(),
+                _total=None,  # type: ignore[arg-type]
+                _gerado_em=_agora(),
             )
 
     def test_gerado_em_none_invalido(self) -> None:
         preco = Dinheiro(valor=Decimal("50.00"))
         linha = LinhaOrcamento(
-            descricao="Filtro", quantidade=1, preco_unitario=preco, subtotal=preco
+            descricao="Filtro", quantidade=1, _preco_unitario=preco, _subtotal=preco
         )
         with pytest.raises(ValueError, match="gerado_em do orcamento e obrigatorio"):
             Orcamento(
                 itens=(linha,),
-                total=preco,
-                gerado_em=None,  # type: ignore[arg-type]
+                _total=preco,
+                _gerado_em=None,  # type: ignore[arg-type]
             )
 
     def test_total_inconsistente_invalido(self) -> None:
         """Construcao direta com total divergente da soma dos subtotais e rejeitada."""
         preco = Dinheiro(valor=Decimal("50.00"))
         linha = LinhaOrcamento(
-            descricao="Filtro", quantidade=1, preco_unitario=preco, subtotal=preco
+            descricao="Filtro", quantidade=1, _preco_unitario=preco, _subtotal=preco
         )
         total_errado = Dinheiro(valor=Decimal("999.00"))
         with pytest.raises(ValueError, match="Total inconsistente"):
-            Orcamento(itens=(linha,), total=total_errado, gerado_em=_agora())
+            Orcamento(itens=(linha,), _total=total_errado, _gerado_em=_agora())
+
+    def test_total_nao_pode_ser_nulo(self) -> None:
+        preco = Dinheiro(valor=Decimal("50.00"))
+        linha = LinhaOrcamento(
+            descricao="Filtro", quantidade=1, _preco_unitario=preco, _subtotal=preco
+        )
+        orc = Orcamento(itens=(linha,), _total=preco, _gerado_em=_agora())
+        object.__setattr__(orc, "_total", None)
+
+        with pytest.raises(ValueError, match="total do orcamento nao pode ser nulo"):
+            _ = orc.total
+
+    def test_gerado_em_nao_pode_ser_nulo(self) -> None:
+        preco = Dinheiro(valor=Decimal("50.00"))
+        linha = LinhaOrcamento(
+            descricao="Filtro", quantidade=1, _preco_unitario=preco, _subtotal=preco
+        )
+        orc = Orcamento(itens=(linha,), _total=preco, _gerado_em=_agora())
+        object.__setattr__(orc, "_gerado_em", None)
+
+        with pytest.raises(
+            ValueError, match="gerado_em do orcamento nao pode ser nulo"
+        ):
+            _ = orc.gerado_em

@@ -47,7 +47,7 @@ class ItemEstoque(AggregateRoot):
     _descricao: str = ""
     _quantidade: int = 0
     # Default None; reidratado pelo listener ``load`` do mapper.
-    _preco_unitario: Dinheiro = None  # type: ignore[assignment]
+    _preco_unitario: Dinheiro | None = None
     _ativo: bool = True
 
     def __post_init__(self) -> None:
@@ -70,6 +70,9 @@ class ItemEstoque(AggregateRoot):
 
     @property
     def preco_unitario(self) -> Dinheiro:
+        if self._preco_unitario is None:
+            msg = "Preco unitario do item nao pode ser nulo"
+            raise ValueError(msg)
         return self._preco_unitario
 
     @property

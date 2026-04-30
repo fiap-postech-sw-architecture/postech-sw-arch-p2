@@ -34,3 +34,10 @@ class TestTokenRevogado:
         assert tr.revogado_em is not None
         assert tr.revogado_em >= antes
         assert tr.jti == "manual-123"
+
+    def test_revogado_em_property_nao_pode_ser_nulo(self) -> None:
+        tr = TokenRevogado(_jti="manual-123")
+        object.__setattr__(tr, "_revogado_em", None)
+
+        with pytest.raises(ValueError, match="revogado_em nao pode ser nulo"):
+            _ = tr.revogado_em

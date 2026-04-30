@@ -180,8 +180,15 @@ reset-db: .env.dev
 # PYTHONPATH=full-test: torna o pacote `full_test` importavel via `python -m`
 # quando rodado a partir da raiz do repo (pytest ja resolve por conftest).
 FULL_TEST_PY := PYTHONPATH=full-test uv run python -m full_test
+FULL_TEST_ENV := full-test/.env
 
-full-test-up: .env.dev
+$(FULL_TEST_ENV): full-test/.env.example
+	@if [ ! -f $(FULL_TEST_ENV) ]; then \
+		cp full-test/.env.example $(FULL_TEST_ENV); \
+		echo ">> full-test/.env criado a partir de full-test/.env.example."; \
+	fi
+
+full-test-up: .env.dev $(FULL_TEST_ENV)
 	@echo ">>> docker compose up -d + health-wait"
 	$(DOCKER_COMPOSE) up -d
 	$(FULL_TEST_PY) healthwait --timeout 120

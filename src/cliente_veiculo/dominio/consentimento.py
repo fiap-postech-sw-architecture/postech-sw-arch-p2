@@ -12,9 +12,9 @@ if TYPE_CHECKING:
 
 @dataclass(eq=False)
 class ConsentimentoCliente(Entity):
-    _cliente_id: UUID = None  # type: ignore[assignment]
+    _cliente_id: UUID | None = None
     _tipo: str = ""
-    _concedido_em: datetime = None  # type: ignore[assignment]
+    _concedido_em: datetime | None = None
     _revogado_em: datetime | None = None
 
     def __post_init__(self) -> None:
@@ -31,6 +31,9 @@ class ConsentimentoCliente(Entity):
 
     @property
     def cliente_id(self) -> UUID:
+        if self._cliente_id is None:
+            msg = "cliente_id nao pode ser nulo"
+            raise ValueError(msg)
         return self._cliente_id
 
     @property
@@ -39,6 +42,9 @@ class ConsentimentoCliente(Entity):
 
     @property
     def concedido_em(self) -> datetime:
+        if self._concedido_em is None:
+            msg = "concedido_em nao pode ser nulo"
+            raise ValueError(msg)
         return self._concedido_em
 
     @property
