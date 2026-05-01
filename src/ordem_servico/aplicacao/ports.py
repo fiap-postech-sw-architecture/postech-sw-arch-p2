@@ -109,12 +109,12 @@ class CatalogoPort(Protocol):
 
 
 class ClientePort(Protocol):
-    """Porta para checar existencia de cliente e veiculo no contexto Cliente+Veiculo."""
+    """Porta para validar cliente e seus veiculos no contexto Cliente+Veiculo."""
 
     def cliente_existe(self, cliente_id: UUID) -> bool:
         """Indica se o cliente existe e esta ativo no contexto Cliente+Veiculo."""
         ...
 
-    def veiculo_existe(self, veiculo_id: UUID) -> bool:
-        """Indica se o veiculo existe e esta ativo no contexto Cliente+Veiculo."""
+    def veiculo_pertence_ao_cliente(self, cliente_id: UUID, veiculo_id: UUID) -> bool:
+        """Indica se o veiculo existe e pertence ao cliente informado."""
         ...

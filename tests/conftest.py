@@ -6,12 +6,19 @@ from importlib.util import find_spec
 
 import pytest
 
-# Carrega o plugin Screen do NiceGUI apenas quando selenium estiver disponivel.
-# Isso permite rodar `pytest -m "not lento"` sem instalar browser drivers.
-# Para rodar testes marcados `lento` que usam a fixture `screen`, instale
-# selenium manualmente: `uv pip install selenium` ou adicione ao extra `ui`.
-if find_spec("selenium") is not None:
+# Carrega o plugin Screen do NiceGUI apenas quando selenium + pytest-selenium
+# estao disponiveis. Permite rodar `pytest -m "not lento"` sem instalar browser
+# drivers. Para rodar testes marcados `lento` que usam `screen`, use
+# `make test-lento` ou `uv run --extra test --extra ui pytest -m lento`.
+if find_spec("selenium") is not None and find_spec("pytest_selenium") is not None:
     pytest_plugins = ["nicegui.testing.plugin"]
+
+
+@pytest.fixture(autouse=True)
+def _reset_rate_limiter() -> None:
+    from src.compartilhado.interfaces.middleware import limiter
+
+    limiter.reset()
 
 
 def pytest_sessionstart(session: pytest.Session) -> None:

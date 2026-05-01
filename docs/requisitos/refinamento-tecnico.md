@@ -15,7 +15,7 @@ Retomando a [Jornada da Solução](levantamento-de-requisitos.md) (11 passos), d
 |---|---|---|---|
 | 01 | Cadastrar cliente | CPF/CNPJ como Value Object com validação algorítmica via brutils | [ADR-010](../arquitetura/adr/010-validacao-documentos-brutils.md) |
 | 02 | Adicionar veículo | Placa como Value Object, unique constraint cross-clientes. Veículo é entidade filha do agregado Cliente | [Modelo de Domínio](../arquitetura/modelo-dominio.md) |
-| 03 | Criar OS | ClientePort.cliente_existe() e veiculo_existe() — Customer-Supplier pattern | [Mapa de Contextos](../arquitetura/mapa-contextos.md) |
+| 03 | Criar OS | ClientePort.cliente_existe() e veiculo_pertence_ao_cliente() — Customer-Supplier pattern | [Mapa de Contextos](../arquitetura/mapa-contextos.md) |
 | 04 | Iniciar diagnóstico | MaquinaDeStatus valida transição Recebida → EmDiagnostico | [Fluxo OS](../arquitetura/event-storming/fluxo-1-ciclo-os.md) |
 | 05 | Adicionar itens | CatalogoPort.obter_servico() para preço. Guard RN-007: só em Recebida/EmDiagnostico | [Requisitos](requisitos.md) |
 | 06 | Gerar orçamento | Orcamento como Value Object imutável, JSONB. RN-008 (≥ 1 item), RN-013 (imutável) | [RFC-001 §5](../arquitetura/rfc/rfc-001-design-do-sistema.md) |

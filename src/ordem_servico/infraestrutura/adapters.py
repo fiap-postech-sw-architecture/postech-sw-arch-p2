@@ -166,7 +166,7 @@ class CatalogoSQLAlchemyAdapter:
 
 
 class ClienteSQLAlchemyAdapter:
-    """Implementa ``ClientePort`` checando existencia de ``Cliente`` e ``Veiculo``."""
+    """Implementa ``ClientePort`` consultando Cliente+Veiculo."""
 
     def __init__(self, session: Session) -> None:
         self._session = session
@@ -177,8 +177,16 @@ class ClienteSQLAlchemyAdapter:
 
         return self._session.get(Cliente, cliente_id) is not None
 
-    def veiculo_existe(self, veiculo_id: UUID) -> bool:
-        """Indica se o veiculo existe no contexto Cliente+Veiculo."""
-        from src.cliente_veiculo.dominio.veiculo import Veiculo
+    def veiculo_pertence_ao_cliente(self, cliente_id: UUID, veiculo_id: UUID) -> bool:
+        """Indica se o veiculo existe e pertence ao cliente informado."""
+        from sqlalchemy import exists, select
 
-        return self._session.get(Veiculo, veiculo_id) is not None
+        from src.cliente_veiculo.infraestrutura.mapping import veiculos_table
+
+        stmt = select(
+            exists().where(
+                veiculos_table.c.id == veiculo_id,
+                veiculos_table.c.cliente_id == cliente_id,
+            )
+        )
+        return bool(self._session.scalar(stmt))

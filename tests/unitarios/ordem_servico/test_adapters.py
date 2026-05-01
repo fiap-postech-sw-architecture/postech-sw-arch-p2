@@ -40,7 +40,7 @@ class TestAdapters:
 
     def test_cliente_metodos_existem(self) -> None:
         assert hasattr(ClienteSQLAlchemyAdapter, "cliente_existe")
-        assert hasattr(ClienteSQLAlchemyAdapter, "veiculo_existe")
+        assert hasattr(ClienteSQLAlchemyAdapter, "veiculo_pertence_ao_cliente")
 
 
 class TestEstoqueSQLAlchemyAdapter:
@@ -144,14 +144,14 @@ class TestClienteSQLAlchemyAdapter:
         adapter = ClienteSQLAlchemyAdapter(session=session)
         assert adapter.cliente_existe(uuid4()) is False
 
-    def test_veiculo_existe_retorna_true(self) -> None:
+    def test_veiculo_pertence_ao_cliente_retorna_true(self) -> None:
         session = MagicMock()
-        session.get.return_value = MagicMock()
+        session.scalar.return_value = True
         adapter = ClienteSQLAlchemyAdapter(session=session)
-        assert adapter.veiculo_existe(uuid4()) is True
+        assert adapter.veiculo_pertence_ao_cliente(uuid4(), uuid4()) is True
 
-    def test_veiculo_existe_retorna_false(self) -> None:
+    def test_veiculo_pertence_ao_cliente_retorna_false(self) -> None:
         session = MagicMock()
-        session.get.return_value = None
+        session.scalar.return_value = False
         adapter = ClienteSQLAlchemyAdapter(session=session)
-        assert adapter.veiculo_existe(uuid4()) is False
+        assert adapter.veiculo_pertence_ao_cliente(uuid4(), uuid4()) is False

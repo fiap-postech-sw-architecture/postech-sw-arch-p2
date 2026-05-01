@@ -27,7 +27,11 @@ from src.ordem_servico.aplicacao.dtos import (
     OrdemDeServicoDTO,
     OrdemResumoDTO,
 )
-from src.ordem_servico.dominio.exceptions import OrdemNaoEncontradaException
+from src.ordem_servico.dominio.exceptions import (
+    ClienteNaoEncontradoException,
+    OrdemNaoEncontradaException,
+    VeiculoNaoEncontradoException,
+)
 from src.ordem_servico.dominio.status import StatusOrdem
 
 if TYPE_CHECKING:
@@ -123,7 +127,7 @@ def _obter_ordem(repo: OrdemDeServicoRepository, ordem_id: UUID) -> OrdemDeServi
 
 
 class CriarOrdem:
-    """Cria uma nova ``OrdemDeServico`` apos validar cliente e veiculo."""
+    """Cria uma nova ``OrdemDeServico`` apos validar cliente e veiculo dele."""
 
     def __init__(
         self,
@@ -136,19 +140,25 @@ class CriarOrdem:
         self._cliente_port = cliente_port
 
     def executar(self, dto: CriarOrdemDTO) -> OrdemDeServicoDTO:
-        """Valida cliente + veiculo via ``ClientePort`` e persiste na UoW.
+        """Valida cliente + veiculo do cliente via ``ClientePort`` e persiste.
 
         Raises:
-            ViolacaoRegraDeNegocioException: cliente ou veiculo inexistente.
+            ClienteNaoEncontradoException: cliente_id nao existe (404).
+            VeiculoNaoEncontradoException: veiculo nao existe ou nao pertence
+                ao cliente informado (404). Os dois casos sao indistinguiveis
+                na resposta para preservar defesa em profundidade.
         """
         from src.ordem_servico.dominio.ordem_de_servico import (
             OrdemDeServico,
         )
 
         if not self._cliente_port.cliente_existe(dto.cliente_id):
-            raise ViolacaoRegraDeNegocioException(mensagem="Cliente nao encontrado")
-        if not self._cliente_port.veiculo_existe(dto.veiculo_id):
-            raise ViolacaoRegraDeNegocioException(mensagem="Veiculo nao encontrado")
+            raise ClienteNaoEncontradoException()
+        if not self._cliente_port.veiculo_pertence_ao_cliente(
+            dto.cliente_id,
+            dto.veiculo_id,
+        ):
+            raise VeiculoNaoEncontradoException()
         ordem = OrdemDeServico.criar(
             cliente_id=dto.cliente_id, veiculo_id=dto.veiculo_id
         )

@@ -442,7 +442,7 @@ Seu Carlos trouxe a primeira: "Quando o serviço adicional é até quinze por ce
 |---|---|---|---|
 | P1 | Reservar estoque na aprovação | OrcamentoAprovado | ReservarEstoque |
 | P2 | Liberar estoque no cancelamento (se em execução) | OrdemCancelada | LiberarEstoque |
-| P3 | Verificar existência de cliente/veículo na criação da OS | CriarOrdemDeServico | Validação via ClientePort |
+| P3 | Verificar cliente e vínculo do veículo na criação da OS | CriarOrdemDeServico | Validação via ClientePort |
 | P4 | Verificar estoque mínimo após reserva | EstoqueReservado | VerificarEstoqueMinimo → emite LimiteEstoqueBaixoAtingido |
 | P5 | Regra de autonomia ~15% para adicionais | ServicoAdicionalDescoberto | Aprovar ou solicitar novo orçamento |
 

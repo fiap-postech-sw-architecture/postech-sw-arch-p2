@@ -260,7 +260,7 @@ class ListarVeiculos:
 
 
 class RemoverVeiculo:
-    """Remove um veiculo do cliente, bloqueando se houver OS ativa para o veiculo."""
+    """Remove um veiculo do cliente, bloqueando se houver qualquer OS vinculada."""
 
     def __init__(
         self,
@@ -273,21 +273,25 @@ class RemoverVeiculo:
         self._os_port = os_port
 
     def executar(self, cliente_id: UUID, veiculo_id: UUID) -> None:
-        cliente = _obter_cliente_ou_falhar(self._repo, cliente_id)
-        # Verifica se o veiculo pertence ao cliente ANTES de consultar o port
-        # de OS (evita uma chamada potencialmente cara/externa quando o
-        # veiculo_id nao pertence ao agregado).
-        if not any(v.id == veiculo_id for v in cliente.veiculos):
-            raise VeiculoNaoEncontradoException()
-        if self._os_port.existe_os_ativa_para_veiculo(veiculo_id):
-            raise ViolacaoRegraDeNegocioException(
-                mensagem="Veiculo possui ordem de servico ativa"
-            )
-        cliente.remover_veiculo(veiculo_id)
-        self._salvar_com_commit(cliente)
-
-    def _salvar_com_commit(self, cliente: Cliente) -> None:
         with self._uow:
+            cliente = _obter_cliente_ou_falhar(self._repo, cliente_id)
+            # Confere a propriedade pelo agregado primeiro (evita chamada de
+            # port quando o veiculo nem pertence ao cliente) e em seguida
+            # adquire ``FOR UPDATE`` na linha do veiculo. O lock conflita com
+            # o ``FOR KEY SHARE`` que a validacao de FK em INSERTs novos de
+            # ordens_de_servico adquire, serializando as duas operacoes e
+            # eliminando o IntegrityError silencioso por raca delete x criar.
+            if not any(v.id == veiculo_id for v in cliente.veiculos):
+                raise VeiculoNaoEncontradoException()
+            self._repo.bloquear_veiculo_para_remocao(veiculo_id)
+            if self._os_port.existe_os_para_veiculo(veiculo_id):
+                raise ViolacaoRegraDeNegocioException(
+                    mensagem=(
+                        "Veiculo possui ordem de servico vinculada "
+                        "e nao pode ser removido"
+                    )
+                )
+            cliente.remover_veiculo(veiculo_id)
             self._repo.salvar(cliente)
             self._uow.commit()
 

@@ -64,9 +64,9 @@ stateDiagram-v2
 | 🔵 Comando | `CriarOrdemDeServico(cliente_id, veiculo_id)` |
 | 🟡 Agregado | `OrdemDeServico` |
 | 🟠 Evento | `OrdemRecebidaEvent(ordem_id, cliente_id, veiculo_id)` |
-| 🟣 Política | Verificar se cliente e veículo existem via `ClientePort` antes de criar a OS. |
+| 🟣 Política | Verificar se o cliente existe e se o veículo pertence a ele via `ClientePort` antes de criar a OS. |
 
-**Contexto**: Admin cria a OS associando um cliente e veículo existentes. A OS nasce no status **Recebida** com zero itens — itens são adicionados depois. A verificação cross-contexto usa `ClientePort.cliente_existe()` e `ClientePort.veiculo_existe()`.
+**Contexto**: Admin cria a OS associando um cliente e um veículo desse cliente. A OS nasce no status **Recebida** com zero itens — itens são adicionados depois. A verificação cross-contexto usa `ClientePort.cliente_existe()` e `ClientePort.veiculo_pertence_ao_cliente()`.
 
 ### 3. Adição de Itens à OS
 
@@ -177,7 +177,7 @@ sequenceDiagram
     Admin->>Cli: CadastrarCliente / AdicionarVeiculo
     Cli-->>Admin: ClienteCadastradoEvent / VeiculoAdicionadoEvent
 
-    Admin->>Cli: cliente_existe? veiculo_existe?
+    Admin->>Cli: cliente_existe? veiculo_pertence_ao_cliente?
     Cli-->>Admin: true
     Admin->>OS: CriarOrdemDeServico
     OS-->>Admin: OrdemRecebidaEvent [Recebida]

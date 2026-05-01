@@ -50,7 +50,7 @@ graph LR
 
 O contexto Cliente fornece dados para a criação de OS. A porta `ClientePort` (definida pelo consumidor) expõe:
 - `cliente_existe(cliente_id) -> bool`
-- `veiculo_existe(veiculo_id) -> bool`
+- `veiculo_pertence_ao_cliente(cliente_id, veiculo_id) -> bool`
 - `obter_veiculo_por_placa_e_documento(placa, documento) -> tuple[UUID, UUID] | None`
 
 Operações de leitura — não recebem `UnitOfWork`.
@@ -71,11 +71,11 @@ A Linguagem Publicada é o `ServicoOferecidoDTO` — tipo compartilhado que desa
 
 ### Consulta Reversa (Downstream → Upstream)
 
-Os contextos Cliente e Estoque precisam verificar se existem OS ativas antes de permitir exclusão (RN-009, RN-011). Como a direção principal de dependência é OS → fornecedores, uma porta reversa é necessária.
+Os contextos Cliente e Estoque precisam consultar vínculos com OS antes de permitir exclusão/desativação (RN-009, RN-011). Como a direção principal de dependência é OS → fornecedores, uma porta reversa é necessária.
 
 A porta `OrdemDeServicoPort` é definida pelos contextos consumidores (Cliente, Estoque) na sua camada de aplicação:
 - `existe_os_ativa_para_cliente(cliente_id) -> bool` — usada por Cliente (RN-009)
-- `existe_os_ativa_para_veiculo(veiculo_id) -> bool` — usada por Cliente (exclusão de veículo)
+- `existe_os_para_veiculo(veiculo_id) -> bool` — usada por Cliente (exclusão de veículo preserva histórico/FK)
 - `existe_os_ativa_com_item_estoque(item_estoque_id) -> bool` — usada por Estoque (RN-011)
 
 Operações de leitura — não recebem `UnitOfWork`. O adaptador vive na infraestrutura do contexto consumidor e consulta o repositório de OS.

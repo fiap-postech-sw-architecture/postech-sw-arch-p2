@@ -8,13 +8,20 @@ PY := $(shell \
   else printf ''; \
   fi)
 
-# Variante com extras da UI (nicegui + httpx). Usada por targets que rodam
+# Variante com extras da UI (nicegui + httpx + selenium). Usada por targets que rodam
 # codigo de `ui/*` direto: `make ui`, `make seed-demo`, e o passo de
 # seed-demo dentro de `make reset-db`. Sem o `--extra ui`, fresh venvs
 # nao tem nicegui/httpx (sao optional-dependencies em pyproject) e os
 # imports explodem com ModuleNotFoundError.
 PY_UI := $(shell \
   if command -v uv >/dev/null 2>&1; then printf 'uv run --extra ui '; \
+  elif [ -x .venv/bin/python ]; then printf '.venv/bin/'; \
+  else printf ''; \
+  fi)
+
+# Variante para testes que dependem da UI e de pytest em ambientes fresh.
+PY_UI_TEST := $(shell \
+  if command -v uv >/dev/null 2>&1; then printf 'uv run --extra test --extra ui '; \
   elif [ -x .venv/bin/python ]; then printf '.venv/bin/'; \
   else printf ''; \
   fi)
@@ -77,7 +84,7 @@ test-all:
 	$(PY)pytest tests/ -x -q --no-lint -m "not lento"
 
 test-lento:
-	$(PY)pytest tests/ -q --no-lint -m "lento"
+	$(PY_UI_TEST)pytest tests/ -q --no-lint -m "lento"
 
 check: lint typecheck security test
 	@echo "All checks passed"

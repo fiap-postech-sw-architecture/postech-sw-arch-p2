@@ -83,9 +83,13 @@ class FakeUnitOfWork:
 class FakeClienteRepository:
     def __init__(self) -> None:
         self._clientes: dict[UUID, Cliente] = {}
+        self.veiculos_bloqueados: list[UUID] = []
 
     def obter_por_id(self, cliente_id: UUID) -> Cliente | None:
         return self._clientes.get(cliente_id)
+
+    def bloquear_veiculo_para_remocao(self, veiculo_id: UUID) -> None:
+        self.veiculos_bloqueados.append(veiculo_id)
 
     def salvar(self, cliente: Cliente) -> None:
         self._clientes[cliente.id] = cliente
@@ -118,16 +122,16 @@ class StubOrdemDeServicoPort:
     def __init__(
         self,
         os_ativa_cliente: bool = False,
-        os_ativa_veiculo: bool = False,
+        os_para_veiculo: bool = False,
     ) -> None:
         self._os_ativa_cliente = os_ativa_cliente
-        self._os_ativa_veiculo = os_ativa_veiculo
+        self._os_para_veiculo = os_para_veiculo
 
     def existe_os_ativa_para_cliente(self, cliente_id: UUID) -> bool:
         return self._os_ativa_cliente
 
-    def existe_os_ativa_para_veiculo(self, veiculo_id: UUID) -> bool:
-        return self._os_ativa_veiculo
+    def existe_os_para_veiculo(self, veiculo_id: UUID) -> bool:
+        return self._os_para_veiculo
 
 
 class TestCriarCliente:
@@ -405,7 +409,7 @@ class TestRemoverVeiculo:
     def test_sucesso(self) -> None:
         repo = FakeClienteRepository()
         uow = FakeUnitOfWork()
-        os_port = StubOrdemDeServicoPort(os_ativa_veiculo=False)
+        os_port = StubOrdemDeServicoPort(os_para_veiculo=False)
         cpf = CPF(numero=CPF_VALIDO)
         cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
         placa = Placa(valor="ABC1234")
@@ -414,11 +418,12 @@ class TestRemoverVeiculo:
         uc = RemoverVeiculo(repo=repo, uow=uow, os_port=os_port)
         uc.executar(cliente.id, veiculo.id)
         assert len(repo.obter_por_id(cliente.id).veiculos) == 0  # type: ignore[union-attr]
+        assert repo.veiculos_bloqueados == [veiculo.id]
 
-    def test_bloqueado_por_os_ativa(self) -> None:
+    def test_bloqueado_por_os_vinculada(self) -> None:
         repo = FakeClienteRepository()
         uow = FakeUnitOfWork()
-        os_port = StubOrdemDeServicoPort(os_ativa_veiculo=True)
+        os_port = StubOrdemDeServicoPort(os_para_veiculo=True)
         cpf = CPF(numero=CPF_VALIDO)
         cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
         placa = Placa(valor="ABC1234")
@@ -427,6 +432,7 @@ class TestRemoverVeiculo:
         uc = RemoverVeiculo(repo=repo, uow=uow, os_port=os_port)
         with pytest.raises(ViolacaoRegraDeNegocioException):
             uc.executar(cliente.id, veiculo.id)
+        assert repo.veiculos_bloqueados == [veiculo.id]
 
     def test_veiculo_nao_encontrado(self) -> None:
         repo = FakeClienteRepository()

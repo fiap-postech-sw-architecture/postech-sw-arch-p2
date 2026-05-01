@@ -28,6 +28,20 @@ class ClienteSQLAlchemyRepository:
     def obter_por_id(self, cliente_id: UUID) -> Cliente | None:
         return self._session.get(Cliente, cliente_id)
 
+    def bloquear_veiculo_para_remocao(self, veiculo_id: UUID) -> None:
+        """Adquire ``FOR UPDATE`` na linha do veiculo para serializar com INSERTs em
+        ``ordens_de_servico``: a validacao de FK em INSERT pega ``FOR KEY SHARE``
+        no veiculo referenciado, que conflita com ``FOR UPDATE``. O resultado e
+        descartado (so importa o side effect do lock); silent no-op se a linha
+        nao existir, porque o caller ja validou que ela esta no agregado.
+        """
+        stmt = (
+            select(veiculos_table.c.id)
+            .where(veiculos_table.c.id == veiculo_id)
+            .with_for_update()
+        )
+        self._session.execute(stmt).first()
+
     def salvar(self, cliente: Cliente) -> None:
         self._session.add(cliente)
         self._session.flush()

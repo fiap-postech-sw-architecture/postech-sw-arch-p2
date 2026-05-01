@@ -38,9 +38,12 @@ ui = [
     # Sem isso, `uv run --extra ui` (incluindo make ui, make seed-demo,
     # scripts/seed_demo.py) explode com ModuleNotFoundError em fresh venv.
     "httpx>=0.27",
-    # selenium e necessario para os testes com fixture `screen` (ui/componentes/*)
+    # Necessarios para a fixture `screen` de nicegui.testing executar os testes
+    # lentos de browser em vez de marca-los como skipped por dependencia ausente.
+    "pytest-selenium>=4.1",
     "selenium>=4.0",
-    # webdriver-manager automatiza o download do ChromeDriver para testes
+    # webdriver-manager automatiza o download do ChromeDriver em ambientes que
+    # nao usem selenium-manager builtin do selenium 4.x.
     "webdriver-manager>=4.0",
 ]
 full-test = [

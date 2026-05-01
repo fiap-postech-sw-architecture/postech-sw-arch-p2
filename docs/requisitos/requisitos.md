@@ -8,7 +8,7 @@
 |---|---|---|---|
 | RF-001 | Cadastro de cliente por CPF/CNPJ | CPF/CNPJ validado algoritmicamente na criação. Um cliente por documento (unique). Resposta 409 se duplicado. | "Identificação do cliente por CPF/CNPJ" + "CRUD de clientes" |
 | RF-002 | Vinculação de veículo a cliente | Veículo criado via `POST /api/v1/clientes/{id}/veiculos` com placa, marca, modelo, ano. Placa única entre todos os clientes. Veículo sem ciclo de vida independente. | "Cadastro de veículo (placa, marca, modelo, ano)" + "CRUD de veículos" |
-| RF-003 | Criação de OS com itens | OS criada com status Recebida e zero itens. Itens adicionados/removidos em Recebida ou EmDiagnostico. Cada item referencia um serviço do catálogo e opcionalmente um item de estoque. | "Inclusão dos serviços solicitados" + "Possibilidade de incluir peças e insumos" |
+| RF-003 | Criação de OS com itens | OS criada com status Recebida e zero itens para um cliente existente e um veículo pertencente a ele. Itens adicionados/removidos em Recebida ou EmDiagnostico. Cada item referencia um serviço do catálogo e opcionalmente um item de estoque. | "Inclusão dos serviços solicitados" + "Possibilidade de incluir peças e insumos" |
 | RF-004 | Geração automática de orçamento | Orçamento calculado a partir dos itens da OS. Objeto de valor imutável armazenado como JSONB. Requer pelo menos 1 item. Transiciona de EmDiagnostico para AguardandoAprovacao. | "Orçamento gerado automaticamente com base nos serviços e peças" |
 | RF-005 | Máquina de estados da OS (7+1 status) | 7 status base: Recebida, EmDiagnostico, AguardandoAprovacao, EmExecucao, Finalizada, Entregue, Cancelada. 9 transições base. RF-016 adiciona AguardandoAprovacaoComplementar (8º status, +3 transições). Transições inválidas retornam 409. Cancelamento libera estoque se em EmExecucao. | "Status da OS" + "Alteração automática dos status" |
 | RF-006 | Gestão de estoque (peças e insumos) | CRUD de itens de estoque com controle de quantidade. Reserva via `SELECT FOR UPDATE NOWAIT` na aprovação do orçamento. Tudo-ou-nada. Locks em ordem crescente de `item_id`. | "CRUD de peças e insumos, com controle de estoque" |
@@ -100,7 +100,7 @@ Base: `/api/v1/`
 | DELETE | `/clientes/{id}` | Desativar cliente (soft delete, RN-009) | Admin |
 | POST | `/clientes/{id}/veiculos` | Adicionar veículo ao cliente | Admin |
 | GET | `/clientes/{id}/veiculos` | Listar veículos do cliente | Admin |
-| DELETE | `/clientes/{id}/veiculos/{vid}` | Remover veículo (rejeitado se OS ativa) | Admin |
+| DELETE | `/clientes/{id}/veiculos/{vid}` | Remover veículo (rejeitado se houver qualquer OS vinculada) | Admin |
 
 ### Catálogo de Serviços
 

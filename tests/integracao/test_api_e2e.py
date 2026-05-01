@@ -47,6 +47,58 @@ _TABELAS_TRUNCATE = (
 )
 
 
+def _headers_admin(api_client: TestClient, admin_user: Usuario) -> dict[str, str]:
+    resposta_login = api_client.post(
+        "/api/v1/autenticacao/login",
+        json={"email": admin_user.email, "senha": _SENHA_ADMIN},
+    )
+    assert resposta_login.status_code == 200
+    token = resposta_login.json()["access_token"]
+    return {"Authorization": f"Bearer {token}"}
+
+
+def _criar_cliente(
+    api_client: TestClient,
+    headers: dict[str, str],
+    *,
+    nome: str,
+    documento: str,
+) -> dict[str, object]:
+    resposta = api_client.post(
+        "/api/v1/clientes/",
+        headers=headers,
+        json={
+            "nome": nome,
+            "documento": documento,
+            "tipo_documento": "cpf",
+            "contato": "11999990000",
+        },
+    )
+    assert resposta.status_code == 201
+    return resposta.json()
+
+
+def _adicionar_veiculo(
+    api_client: TestClient,
+    headers: dict[str, str],
+    *,
+    cliente_id: str,
+    placa: str,
+) -> dict[str, object]:
+    resposta = api_client.post(
+        f"/api/v1/clientes/{cliente_id}/veiculos",
+        headers=headers,
+        json={
+            "placa": placa,
+            "marca": "Fiat",
+            "modelo": "Uno",
+            "ano": 2020,
+        },
+    )
+    assert resposta.status_code == 201
+    return resposta.json()
+
+
 @pytest.fixture
 def session_factory(
     engine: Engine,
@@ -201,3 +253,93 @@ class TestFluxoAuthCriacaoListagem:
             headers={"Authorization": "Bearer token-invalido-123"},
         )
         assert resposta.status_code == 401
+
+
+class TestFluxoOrdemClienteVeiculo:
+    """Fluxos cross-context que precisam validar consistencia cliente-veiculo."""
+
+    def test_criar_ordem_rejeita_veiculo_de_outro_cliente(
+        self, api_client: TestClient, admin_user: Usuario
+    ) -> None:
+        headers = _headers_admin(api_client, admin_user)
+        cliente_a = _criar_cliente(
+            api_client,
+            headers,
+            nome="Cliente A",
+            documento="21249722519",
+        )
+        cliente_b = _criar_cliente(
+            api_client,
+            headers,
+            nome="Cliente B",
+            documento="57648016648",
+        )
+        veiculo_b = _adicionar_veiculo(
+            api_client,
+            headers,
+            cliente_id=str(cliente_b["id"]),
+            placa="DEF5678",
+        )
+
+        resposta = api_client.post(
+            "/api/v1/ordens-de-servico/",
+            headers=headers,
+            json={"cliente_id": cliente_a["id"], "veiculo_id": veiculo_b["id"]},
+        )
+
+        assert resposta.status_code == 404
+        assert (
+            resposta.json()["erro"]["mensagem"]
+            == "Veiculo nao encontrado para o cliente informado"
+        )
+
+    def test_remover_veiculo_com_os_entregue_retorna_409(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        session_factory: sessionmaker[Session],
+    ) -> None:
+        from sqlalchemy import text
+
+        headers = _headers_admin(api_client, admin_user)
+        cliente = _criar_cliente(
+            api_client,
+            headers,
+            nome="Cliente com historico",
+            documento="93214407473",
+        )
+        veiculo = _adicionar_veiculo(
+            api_client,
+            headers,
+            cliente_id=str(cliente["id"]),
+            placa="GHI9012",
+        )
+        resposta_os = api_client.post(
+            "/api/v1/ordens-de-servico/",
+            headers=headers,
+            json={"cliente_id": cliente["id"], "veiculo_id": veiculo["id"]},
+        )
+        assert resposta_os.status_code == 201
+        ordem_id = resposta_os.json()["id"]
+
+        with session_factory() as sess:
+            sess.execute(
+                text(
+                    "UPDATE ordens_de_servico "
+                    "SET status = 'entregue' "
+                    "WHERE id = :ordem_id"
+                ),
+                {"ordem_id": ordem_id},
+            )
+            sess.commit()
+
+        resposta_delete = api_client.delete(
+            f"/api/v1/clientes/{cliente['id']}/veiculos/{veiculo['id']}",
+            headers=headers,
+        )
+
+        assert resposta_delete.status_code == 409
+        assert (
+            resposta_delete.json()["erro"]["mensagem"]
+            == "Veiculo possui ordem de servico vinculada e nao pode ser removido"
+        )

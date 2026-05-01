@@ -28,6 +28,7 @@ from sqlalchemy import (
     Column,
     DateTime,
     ForeignKey,
+    Index,
     Integer,
     Numeric,
     String,
@@ -55,6 +56,18 @@ ordens_de_servico_table = Table(
     Column("orcamento_json", Text, nullable=True),
     Column("criado_em", DateTime(timezone=True), nullable=False),
     Column("atualizado_em", DateTime(timezone=True), nullable=False),
+)
+
+Index("ix_ordens_de_servico_veiculo_id", ordens_de_servico_table.c.veiculo_id)
+Index(
+    "ix_ordens_de_servico_cliente_status",
+    ordens_de_servico_table.c.cliente_id,
+    ordens_de_servico_table.c.status,
+)
+Index(
+    "ix_ordens_de_servico_veiculo_status",
+    ordens_de_servico_table.c.veiculo_id,
+    ordens_de_servico_table.c.status,
 )
 
 itens_da_ordem_table = Table(

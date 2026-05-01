@@ -31,6 +31,28 @@ class OrdemNaoEncontradaException(EntidadeNaoEncontradaException):
         super().__init__(mensagem=mensagem)
 
 
+class ClienteNaoEncontradoException(EntidadeNaoEncontradaException):
+    """Cliente referenciado na criacao da OS nao existe no contexto Cliente."""
+
+    def __init__(self, mensagem: str = "Cliente nao encontrado") -> None:
+        super().__init__(mensagem=mensagem)
+
+
+class VeiculoNaoEncontradoException(EntidadeNaoEncontradaException):
+    """Veiculo referenciado na OS nao existe ou nao pertence ao cliente.
+
+    Os dois casos (veiculo inexistente vs veiculo de outro cliente) sao
+    indistinguiveis na resposta para preservar defesa em profundidade — ver
+    ``CriarOrdem`` em aplicacao/use_cases.py.
+    """
+
+    def __init__(
+        self,
+        mensagem: str = "Veiculo nao encontrado para o cliente informado",
+    ) -> None:
+        super().__init__(mensagem=mensagem)
+
+
 class ItemDaOrdemNaoEncontradoException(EntidadeNaoEncontradaException):
     """Levantada quando o item referenciado nao existe na ordem.
 

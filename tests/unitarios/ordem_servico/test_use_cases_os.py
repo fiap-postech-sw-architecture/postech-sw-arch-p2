@@ -32,8 +32,10 @@ from src.ordem_servico.aplicacao.use_cases import (
     RemoverItem,
 )
 from src.ordem_servico.dominio.exceptions import (
+    ClienteNaoEncontradoException,
     ItemDaOrdemNaoEncontradoException,
     OrdemNaoEncontradaException,
+    VeiculoNaoEncontradoException,
 )
 from src.ordem_servico.dominio.item_da_ordem import ItemDaOrdem
 from src.ordem_servico.dominio.ordem_de_servico import OrdemDeServico
@@ -120,15 +122,19 @@ class FakeOrdemDeServicoRepository:
 
 
 class StubClientePort:
-    def __init__(self, cliente_ok: bool = True, veiculo_ok: bool = True) -> None:
+    def __init__(
+        self,
+        cliente_ok: bool = True,
+        veiculo_pertence: bool = True,
+    ) -> None:
         self._cliente_ok = cliente_ok
-        self._veiculo_ok = veiculo_ok
+        self._veiculo_pertence = veiculo_pertence
 
     def cliente_existe(self, cliente_id: UUID) -> bool:
         return self._cliente_ok
 
-    def veiculo_existe(self, veiculo_id: UUID) -> bool:
-        return self._veiculo_ok
+    def veiculo_pertence_ao_cliente(self, cliente_id: UUID, veiculo_id: UUID) -> bool:
+        return self._veiculo_pertence
 
 
 class StubCatalogoPort:
@@ -197,15 +203,15 @@ class TestCriarOrdem:
         uow = FakeUnitOfWork()
         cp = StubClientePort(cliente_ok=False)
         uc = CriarOrdem(repo=repo, uow=uow, cliente_port=cp)
-        with pytest.raises(ViolacaoRegraDeNegocioException):
+        with pytest.raises(ClienteNaoEncontradoException):
             uc.executar(CriarOrdemDTO(uuid4(), uuid4()))
 
-    def test_veiculo_nao_encontrado(self) -> None:
+    def test_veiculo_nao_pertence_ao_cliente(self) -> None:
         repo = FakeOrdemDeServicoRepository()
         uow = FakeUnitOfWork()
-        cp = StubClientePort(veiculo_ok=False)
+        cp = StubClientePort(veiculo_pertence=False)
         uc = CriarOrdem(repo=repo, uow=uow, cliente_port=cp)
-        with pytest.raises(ViolacaoRegraDeNegocioException):
+        with pytest.raises(VeiculoNaoEncontradoException):
             uc.executar(CriarOrdemDTO(uuid4(), uuid4()))
 
 

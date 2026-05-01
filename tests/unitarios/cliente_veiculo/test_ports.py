@@ -13,7 +13,7 @@ class _FakeOrdemPort:
         _ = cliente_id
         return False
 
-    def existe_os_ativa_para_veiculo(self, veiculo_id: UUID) -> bool:
+    def existe_os_para_veiculo(self, veiculo_id: UUID) -> bool:
         _ = veiculo_id
         return False
 
@@ -24,4 +24,4 @@ def test_ordem_de_servico_port_aceita_implementacao_estrutural() -> None:
     from uuid import uuid4
 
     assert port.existe_os_ativa_para_cliente(uuid4()) is False
-    assert port.existe_os_ativa_para_veiculo(uuid4()) is False
+    assert port.existe_os_para_veiculo(uuid4()) is False

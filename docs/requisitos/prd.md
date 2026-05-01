@@ -81,7 +81,7 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 |---|---|---|---|
 | US-001 | Como Admin, quero cadastrar um cliente por CPF/CNPJ para manter o registro da oficina. | CPF/CNPJ validado. Duplicata retorna 409. Dados mascarados em listagem. | Must |
 | US-002 | Como Admin, quero vincular veículos a um cliente para rastrear o histórico por veículo. | Placa única. Veículo criado via endpoint do cliente. Formato antigo e Mercosul aceitos. | Must |
-| US-003 | Como Admin, quero criar uma OS associando cliente e veículo para iniciar o atendimento. | OS criada com status Recebida. Cliente e veículo devem existir. | Must |
+| US-003 | Como Admin, quero criar uma OS associando cliente e veículo para iniciar o atendimento. | OS criada com status Recebida. Cliente deve existir e o veículo deve pertencer ao cliente informado. | Must |
 | US-004 | Como Admin, quero adicionar serviços e peças à OS para compor o orçamento. | Item referencia serviço do catálogo. Preço obtido do catálogo. Só aceito em Recebida/EmDiagnostico. | Must |
 | US-005 | Como Admin, quero gerar o orçamento automaticamente para enviar ao cliente. | Total calculado dos itens. Requer >= 1 item. Status muda para AguardandoAprovacao. | Must |
 | US-006 | Como Admin, quero aprovar o orçamento para iniciar a execução. | Status muda para EmExecucao. Estoque reservado atomicamente. Estoque insuficiente bloqueia aprovação. | Must |

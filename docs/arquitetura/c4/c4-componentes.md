@@ -111,7 +111,7 @@ graph LR
 
 | Porta | Definida em | Metodos | Adaptador |
 |---|---|---|---|
-| `ClientePort` | `aplicacao/` de OS | `cliente_existe()`, `veiculo_existe()`, `obter_veiculo_por_placa_e_documento()` | `ClienteAdapter` em `infraestrutura/` de OS |
+| `ClientePort` | `aplicacao/` de OS | `cliente_existe()`, `veiculo_pertence_ao_cliente()`, `obter_veiculo_por_placa_e_documento()` | `ClienteAdapter` em `infraestrutura/` de OS |
 | `CatalogoPort` | `aplicacao/` de OS | `obter_servico()` | `CatalogoAdapter` em `infraestrutura/` de OS |
 | `EstoquePort` | `aplicacao/` de OS | `reservar()`, `liberar()` | `EstoqueAdapter` em `infraestrutura/` de OS |
 
@@ -119,7 +119,7 @@ graph LR
 
 | Porta | Definida em | Metodos | Adaptador |
 |---|---|---|---|
-| `OrdemDeServicoPort` | `aplicacao/` de Cliente | `existe_os_ativa_para_cliente()`, `existe_os_ativa_para_veiculo()` | `OSAdapter` em `infraestrutura/` de Cliente |
+| `OrdemDeServicoPort` | `aplicacao/` de Cliente | `existe_os_ativa_para_cliente()`, `existe_os_para_veiculo()` | `OSAdapter` em `infraestrutura/` de Cliente |
 | `OrdemDeServicoPort` | `aplicacao/` de Estoque | `existe_os_ativa_com_item_estoque()` | `OSAdapter` em `infraestrutura/` de Estoque |
 
 No diagrama resumido, `OrdemDeServicoPort` e mostrada como uma unica porta. Na implementacao, cada contexto consumidor (Cliente, Estoque) define sua propria interface com apenas os metodos que necessita — ver [mapa-contextos.md](../mapa-contextos.md).
