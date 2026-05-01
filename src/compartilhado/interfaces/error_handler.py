@@ -51,8 +51,10 @@ def registrar_error_handlers(app: FastAPI) -> None:
     """Registra handlers que mapeiam DomainException para envelopes HTTP.
 
     Cada DomainException levantada no request vira um JSONResponse com o envelope
-    `{erro: {codigo, mensagem, id_requisicao}}`. Os codigos suportados sao 404, 401,
-    403 e 409. Excecoes nao tratadas viram 500 com traceback no log e o request_id.
+    `{erro: {codigo, mensagem, id_requisicao}}`. Os codigos suportados sao 401, 403,
+    404, 409 e 422. ValueError (invariantes de value object/aggregate) vira
+    422 VALOR_INVALIDO -- ver issue #83. Excecoes nao tratadas viram 500 com traceback
+    no log e o request_id.
     """
 
     @app.exception_handler(DomainException)
@@ -68,6 +70,20 @@ def registrar_error_handlers(app: FastAPI) -> None:
         return JSONResponse(
             status_code=status_code,
             content=_criar_envelope(exc.codigo, exc.mensagem, request_id),
+        )
+
+    @app.exception_handler(ValueError)
+    async def _value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
+        request_id = _obter_request_id(request)
+        logger.warning(
+            "ValueError tratado como 422 (request_id=%s): %s",
+            request_id,
+            exc,
+            exc_info=True,
+        )
+        return JSONResponse(
+            status_code=422,
+            content=_criar_envelope("VALOR_INVALIDO", str(exc), request_id),
         )
 
     @app.exception_handler(Exception)

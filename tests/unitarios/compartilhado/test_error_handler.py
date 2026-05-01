@@ -57,6 +57,39 @@ def test_excecao_generica_retorna_500() -> None:
     assert body["erro"]["codigo"] == "ERRO_INTERNO"
 
 
+def test_value_error_retorna_422() -> None:
+    client = _criar_app_com_excecao(ValueError("CPF invalido"))
+    resp = client.get("/test")
+    assert resp.status_code == 422
+    body = resp.json()
+    assert body["erro"]["codigo"] == "VALOR_INVALIDO"
+    assert body["erro"]["mensagem"] == "CPF invalido"
+    assert "id_requisicao" in body["erro"]
+
+
+def test_value_error_envelope_tem_campos_padrao() -> None:
+    client = _criar_app_com_excecao(ValueError("Qualquer mensagem"))
+    resp = client.get("/test")
+    body = resp.json()
+    assert set(body["erro"].keys()) == {"codigo", "mensagem", "id_requisicao"}
+
+
+def test_value_error_mensagem_vazia_preserva_envelope() -> None:
+    client = _criar_app_com_excecao(ValueError())
+    resp = client.get("/test")
+    assert resp.status_code == 422
+    body = resp.json()
+    assert body["erro"]["codigo"] == "VALOR_INVALIDO"
+    assert body["erro"]["mensagem"] == ""
+
+
+def test_value_error_request_id_fallback_quando_ausente() -> None:
+    client = _criar_app_com_excecao(ValueError("CPF invalido"))
+    resp = client.get("/test")
+    body = resp.json()
+    assert body["erro"]["id_requisicao"] == "desconhecido"
+
+
 def test_request_id_fallback_quando_ausente() -> None:
     # Sem SecurityHeadersMiddleware, request.state nao recebe request_id
     # e o error handler deve cair no fallback "desconhecido".
