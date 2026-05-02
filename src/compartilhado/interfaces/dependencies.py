@@ -15,7 +15,7 @@ def configurar_session_factory(factory: object) -> None:
 
     Chamada uma vez durante o startup do app com a sessionmaker apropriada.
     """
-    global _session_factory
+    global _session_factory  # noqa: PLW0603  # DI singleton configurado no startup
     _session_factory = factory
 
 

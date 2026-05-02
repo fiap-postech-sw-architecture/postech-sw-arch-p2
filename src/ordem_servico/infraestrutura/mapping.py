@@ -92,7 +92,7 @@ _mapeamento_iniciado = False
 
 
 def iniciar_mapeamentos() -> None:
-    global _mapeamento_iniciado
+    global _mapeamento_iniciado  # noqa: PLW0603  # init-once flag
     if _mapeamento_iniciado:
         return
     _mapeamento_iniciado = True

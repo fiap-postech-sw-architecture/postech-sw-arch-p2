@@ -96,7 +96,7 @@ class PickerRecurso:
     def valor(self) -> str | None:
         return cast("str | None", self._select.value)
 
-    def set_disabled(self, disabled: bool) -> None:
+    def set_disabled(self, *, disabled: bool) -> None:
         self._select.props(f"disable={str(disabled).lower()}")
 
     def on_change(self, callback: Callable[[], None]) -> None:

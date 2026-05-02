@@ -41,7 +41,9 @@ def _mask_string(value: str) -> str:
     return _EMAIL_PATTERN.sub(_mask_email, value)
 
 
-def _scrub_value(value: Any, depth: int) -> Any:
+def _scrub_value(value: Any, depth: int) -> Any:  # noqa: ANN401
+    # Recursivamente normaliza qualquer estrutura JSON-like; o tipo de entrada
+    # nao e conhecivel a priori, dai o Any.
     if depth >= _MAX_SCRUB_DEPTH:
         return value
     if isinstance(value, str):
@@ -56,7 +58,7 @@ def _scrub_value(value: Any, depth: int) -> Any:
 
 
 def scrub_pii(
-    _logger: Any,  # structlog passes the bound logger here; we do not inspect it
+    _logger: Any,  # noqa: ANN401  # structlog bound logger; nao inspecionado
     _method_name: str,
     event_dict: MutableMapping[str, Any],
 ) -> MutableMapping[str, Any]:

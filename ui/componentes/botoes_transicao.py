@@ -18,6 +18,8 @@ if TYPE_CHECKING:
 
     from src.ordem_servico.dominio.status import StatusOrdem
 
+_MOTIVO_TAMANHO_MINIMO = 10
+
 
 class BotoesTransicao:
     """Renderiza botoes para transicoes validas do estado atual.
@@ -76,12 +78,15 @@ class BotoesTransicao:
     def _abrir_dialog_motivo(self, transicao: Transicao) -> None:
         with ui.dialog() as dialog, ui.card().classes("w-96"):
             ui.label(f"{transicao.rotulo}").classes("text-lg font-bold")
-            ui.label("Informe o motivo (minimo 10 caracteres):")
+            ui.label(f"Informe o motivo (minimo {_MOTIVO_TAMANHO_MINIMO} caracteres):")
             motivo = ui.textarea().classes("w-full")
 
             def submeter() -> None:
-                if len(motivo.value.strip()) < 10:
-                    ui.notify("Motivo deve ter ao menos 10 caracteres", type="warning")
+                if len(motivo.value.strip()) < _MOTIVO_TAMANHO_MINIMO:
+                    ui.notify(
+                        f"Motivo deve ter ao menos {_MOTIVO_TAMANHO_MINIMO} caracteres",
+                        type="warning",
+                    )
                     return
                 dialog.close()
                 self._on_executar(transicao, {"motivo": motivo.value.strip()})

@@ -15,7 +15,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-def _formatar_preco_servico(preco_raw: Any) -> str:
+def _formatar_preco_servico(preco_raw: Any) -> str:  # noqa: ANN401  # JSON do backend
     """Formata preco de servico no padrao ``R$ X.XX``.
 
     Backend serializa ``Decimal`` como string JSON (ex.: ``"280.00"``). Usar

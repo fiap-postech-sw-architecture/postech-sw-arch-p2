@@ -85,6 +85,17 @@ select = [
     "RUF", # ruff-specific
     "S",   # flake8-bandit
     "PT",  # flake8-pytest-style
+    "ANN",     # flake8-annotations (codigo de prod; ignorado em tests/)
+    "BLE001",  # blind except
+    "FBT001",  # boolean-type-hint-positional-argument
+    "C901",    # complex-structure (mccabe)
+    "PLR2004", # magic-value-comparison
+    "PLR0912", # too-many-branches
+    "PLR0913", # too-many-arguments
+    "PLR0915", # too-many-statements
+    "PLW0603", # global-statement
+    "PYI034",  # non-self-return-type
+    "LOG014",  # exc-info-outside-except-handler
 ]
 fixable = ["ALL"]
 
@@ -92,8 +103,23 @@ fixable = ["ALL"]
 known-first-party = ["src", "ui"]
 
 [tool.ruff.lint.per-file-ignores]
-"tests/**" = ["S101", "S105", "S106", "TCH", "SIM105", "PT012", "RUF059"]
-"full-test/tests/**" = ["S101", "S105", "S106", "TCH", "SIM105", "PT012", "RUF059"]
+"tests/**" = [
+    "S101", "S105", "S106", "TCH", "SIM105", "PT012", "RUF059",
+    "ANN",                                  # tests podem ser destipados
+    "PLR2004",                              # magic values em asserts
+    "PLR0913", "PLR0915", "PLR0912",        # fixtures e factories sao grandes
+    "C901",                                 # tests podem ter setup complexo
+    "FBT001",                               # callsites de stub/fake
+    "BLE001",                               # tests as vezes capturam Exception
+    "LOG014",                               # tests nao usam exc_info
+    "PLW0603",                              # tests podem manipular singletons
+    "PYI034",                               # FakeUnitOfWork etc sao stubs
+]
+"full-test/tests/**" = [
+    "S101", "S105", "S106", "TCH", "SIM105", "PT012", "RUF059",
+    "ANN", "PLR2004", "PLR0913", "PLR0915", "PLR0912",
+    "C901", "FBT001", "BLE001", "LOG014", "PLW0603", "PYI034",
+]
 "**/exceptions.py" = ["N818"]
 "**/interfaces/schemas.py" = ["S105", "TCH003"]
 "**/interfaces/router*.py" = ["B008"]

@@ -40,12 +40,12 @@ def pytest_addoption(parser: pytest.Parser) -> None:
 def _run_pre_checks() -> None:
     py = sys.executable
     checks = [
-        ("ruff check", [py, "-m", "ruff", "check", "src/", "tests/"]),
+        ("ruff check", [py, "-m", "ruff", "check", "src/", "tests/", "ui/"]),
         (
             "ruff format",
-            [py, "-m", "ruff", "format", "--check", "src/", "tests/"],
+            [py, "-m", "ruff", "format", "--check", "src/", "tests/", "ui/"],
         ),
-        ("mypy", [py, "-m", "mypy", "src/"]),
+        ("mypy", [py, "-m", "mypy", "src/", "ui/"]),
         (
             "bandit",
             [
@@ -54,6 +54,7 @@ def _run_pre_checks() -> None:
                 "bandit",
                 "-r",
                 "src/",
+                "ui/",
                 "-c",
                 "pyproject.toml",
                 "--severity-level",

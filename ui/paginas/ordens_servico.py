@@ -20,7 +20,10 @@ if TYPE_CHECKING:
     from ui.componentes.maquina_estados import Transicao
 
 
-def _centavos_para_reais_label(valor_centavos_raw: Any, prefixo: str = "R$ ") -> str:
+def _centavos_para_reais_label(
+    valor_centavos_raw: Any,  # noqa: ANN401  # JSON do backend
+    prefixo: str = "R$ ",
+) -> str:
     """Formata valor monetario em centavos (int) no padrao ``R$ X.XX``.
 
     Backend retorna valores monetarios em centavos sob chaves ``*_centavos``
@@ -84,7 +87,7 @@ def pagina_ordens() -> None:
         refresh()
 
 
-def _quantidade_valida(valor: Any) -> int | None:
+def _quantidade_valida(valor: Any) -> int | None:  # noqa: ANN401  # ui.number().value
     """Normaliza ``ui.number().value`` em int >= 1.
 
     NiceGUI deixa o input vazio (None ou "") quando o usuario apaga o campo,
@@ -193,7 +196,10 @@ def pagina_detalhe_ordem(ordem_id: str) -> None:
     render()
 
 
-def _renderizar_detalhe(ordem_id: str, on_refresh: Callable[[], None]) -> None:
+def _renderizar_detalhe(  # noqa: C901, PLR0915  # render coeso de detalhe
+    ordem_id: str,
+    on_refresh: Callable[[], None],
+) -> None:
     from ui.app import obter_api
 
     try:
@@ -337,18 +343,19 @@ def _renderizar_itens(
                 sid,
                 servico_nome,
                 itens_grupo,
-                permite_itens,
                 on_refresh,
+                permite_itens=permite_itens,
             )
 
 
-def _renderizar_grupo_servico(
+def _renderizar_grupo_servico(  # noqa: PLR0913  # render coeso de grupo de OS
     ordem_id: str,
     servico_id: str,
     servico_nome: str,
     itens_grupo: list[dict[str, Any]],
-    permite_itens: bool,
     on_refresh: Callable[[], None],
+    *,
+    permite_itens: bool,
 ) -> None:
     """Renderiza um grupo: header com nome do servico + subtotal, sublinhas
     com cada item de estoque consumido + botao opcional pra adicionar mais
@@ -371,14 +378,17 @@ def _renderizar_grupo_servico(
                     ),
                 ).props("flat dense round").tooltip("Adicionar item ao servico")
         for item in itens_grupo:
-            _renderizar_linha_item(ordem_id, item, permite_itens, on_refresh)
+            _renderizar_linha_item(
+                ordem_id, item, on_refresh, permite_itens=permite_itens
+            )
 
 
 def _renderizar_linha_item(
     ordem_id: str,
     item: dict[str, Any],
-    permite_itens: bool,
     on_refresh: Callable[[], None],
+    *,
+    permite_itens: bool,
 ) -> None:
     """Renderiza uma linha de item dentro do grupo de servico.
 
@@ -431,7 +441,10 @@ def _remover_item(ordem_id: str, item_id: str, on_refresh: Callable[[], None]) -
         ui.notify(f"Erro: {exc}", type="negative")
 
 
-def _dialog_adicionar_servico(ordem_id: str, on_refresh: Callable[[], None]) -> None:
+def _dialog_adicionar_servico(  # noqa: C901, PLR0915  # dialog multi-step coeso
+    ordem_id: str,
+    on_refresh: Callable[[], None],
+) -> None:
     """Dialog "Adicionar servico": escolhe servico (mao-de-obra) e
     opcionalmente N itens de estoque consumidos. Salvar dispara N+1
     chamadas de backend (1 pra mao-de-obra, 1 por item) — todas com mesmo
@@ -504,7 +517,7 @@ def _dialog_adicionar_servico(ordem_id: str, on_refresh: Callable[[], None]) -> 
             "flat dense"
         )
 
-        def salvar() -> None:
+        def salvar() -> None:  # noqa: C901, PLR0912  # cadeia de validacao
             servico_id = servico_picker.valor()
             if not servico_id:
                 ui.notify("Escolha o servico.", type="warning")

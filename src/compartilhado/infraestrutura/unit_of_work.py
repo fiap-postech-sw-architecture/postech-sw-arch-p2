@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Self
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -21,7 +21,7 @@ class SQLAlchemyUnitOfWork:
             raise RuntimeError(msg)
         return self._session
 
-    def __enter__(self) -> SQLAlchemyUnitOfWork:
+    def __enter__(self) -> Self:
         self._session = self._session_factory()
         return self
 

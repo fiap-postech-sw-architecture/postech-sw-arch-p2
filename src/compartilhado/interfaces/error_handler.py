@@ -79,7 +79,7 @@ def registrar_error_handlers(app: FastAPI) -> None:
             "ValueError tratado como 422 (request_id=%s): %s",
             request_id,
             exc,
-            exc_info=True,
+            exc_info=exc,
         )
         return JSONResponse(
             status_code=422,

@@ -12,6 +12,7 @@ import base64
 import binascii
 import contextlib
 import json
+from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
 
 import httpx
@@ -20,6 +21,9 @@ from ui.estado import Papel, Sessao, StateStore, obter_store
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
+
+# JWT compact serialization: header.payload.signature
+_JWT_SEGMENTOS = 3
 
 
 # ----- excecoes tipadas -----
@@ -147,7 +151,7 @@ class ClienteApi:
             "/api/v1/autenticacao/login",
             json={"email": email, "senha": senha},
         )
-        if resposta.status_code != 200:
+        if resposta.status_code != HTTPStatus.OK:
             raise NaoAutenticadoError(f"Login falhou: {resposta.status_code}")
         body = resposta.json()
         access = body["access_token"]
@@ -413,7 +417,7 @@ class ClienteApi:
             raise BackendInacessivelError(self._base_url) from exc
 
         if (
-            resposta.status_code == 401
+            resposta.status_code == HTTPStatus.UNAUTHORIZED
             and not _ja_tentou_refresh
             and path not in _ROTAS_SEM_REFRESH
             and self._store.refresh_token_atual()
@@ -444,7 +448,7 @@ class ClienteApi:
             )
         except (httpx.ConnectError, httpx.TimeoutException):
             return False
-        if resposta.status_code != 200:
+        if resposta.status_code != HTTPStatus.OK:
             return False
         body = resposta.json()
         # Preserva email e papel atuais; so troca os tokens. Se papel estiver
@@ -468,25 +472,25 @@ class ClienteApi:
         self, resposta: httpx.Response
     ) -> dict[str, Any] | list[Any]:
         status = resposta.status_code
-        if 200 <= status < 300:
-            if status == 204 or not resposta.content:
+        if HTTPStatus.OK <= status < HTTPStatus.MULTIPLE_CHOICES:
+            if status == HTTPStatus.NO_CONTENT or not resposta.content:
                 return {}
             return resposta.json()  # type: ignore[no-any-return]
-        if status == 401:
+        if status == HTTPStatus.UNAUTHORIZED:
             raise NaoAutenticadoError("Nao autenticado")
-        if status == 403:
+        if status == HTTPStatus.FORBIDDEN:
             detail = _extrair_detail(resposta)
             raise AcessoNegadoError(detail)
-        if status == 409:
+        if status == HTTPStatus.CONFLICT:
             raise ConflitoEstadoError(_extrair_detail(resposta) or "")
-        if status == 422:
+        if status == HTTPStatus.UNPROCESSABLE_ENTITY:
             body = resposta.json()
             detalhes = body.get("detail", []) if isinstance(body, dict) else []
             raise ValidacaoError(detalhes if isinstance(detalhes, list) else [])
-        if status == 429:
+        if status == HTTPStatus.TOO_MANY_REQUESTS:
             retry = int(resposta.headers.get("Retry-After", "60"))
             raise RateLimitExcedidoError(retry_after=retry)
-        if 500 <= status < 600:
+        if status >= HTTPStatus.INTERNAL_SERVER_ERROR:
             raise BackendIndisponivelError(f"Erro {status}")
         raise ApiError(f"Status inesperado {status}")
 
@@ -494,7 +498,7 @@ class ClienteApi:
 def _extrair_detail(resposta: httpx.Response) -> str | None:
     try:
         body = resposta.json()
-    except Exception:
+    except json.JSONDecodeError:
         return None
     if isinstance(body, dict):
         detail = body.get("detail")
@@ -507,7 +511,7 @@ def _extrair_papel_do_jwt(token: str) -> Papel | None:
     """Decodifica payload do JWT sem verificar assinatura."""
     try:
         partes = token.split(".")
-        if len(partes) != 3:
+        if len(partes) != _JWT_SEGMENTOS:
             return None
         padded = partes[1] + "=" * (-len(partes[1]) % 4)
         payload = json.loads(base64.urlsafe_b64decode(padded))

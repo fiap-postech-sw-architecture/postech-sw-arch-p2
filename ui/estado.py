@@ -113,7 +113,7 @@ _store: StateStore | None = None
 
 
 def obter_store() -> StateStore:
-    global _store
+    global _store  # noqa: PLW0603  # lazy singleton
     if _store is None:
         _store = StateStore()
     return _store
@@ -121,5 +121,5 @@ def obter_store() -> StateStore:
 
 def configurar_store(store: StateStore) -> None:
     """Permite injetar um store customizado (usado em testes e no bootstrap)."""
-    global _store
+    global _store  # noqa: PLW0603  # singleton swap em testes/bootstrap
     _store = store

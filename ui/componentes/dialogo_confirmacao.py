@@ -10,7 +10,7 @@ if TYPE_CHECKING:
     from collections.abc import Callable
 
 
-def confirmar(
+def confirmar(  # noqa: PLR0913  # 6 kwargs todos opcionais por design
     *,
     titulo: str,
     mensagem: str,

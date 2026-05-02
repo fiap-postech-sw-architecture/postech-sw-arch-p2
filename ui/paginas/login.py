@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from http import HTTPStatus
+
 from nicegui import ui
 
 from ui.cliente_api import ApiError, BackendInacessivelError
@@ -73,7 +75,7 @@ def _checar_usuarios_seed(alerta: ui.column) -> None:
     status = obter_api().tentar_login_sem_salvar(
         email=usuario_admin.email, senha=usuario_admin.senha
     )
-    if status != 401:
+    if status != HTTPStatus.UNAUTHORIZED:
         return
 
     alerta.clear()

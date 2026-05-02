@@ -224,7 +224,7 @@ _QTD_ITENS = len(_ITENS)
 _QTD_ORDENS = 8  # 7 estados + 1 repetido (RECEBIDA)
 
 
-def gerar_dados_teste(
+def gerar_dados_teste(  # noqa: C901, PLR0912, PLR0915  # script linear de seed
     api: ClienteApi,
     *,
     on_progresso: Callable[[int, str], None],

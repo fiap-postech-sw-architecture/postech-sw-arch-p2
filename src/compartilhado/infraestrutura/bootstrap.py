@@ -24,7 +24,7 @@ def iniciar_todos_mapeamentos() -> None:
     Idempotente: chamadas subsequentes sao no-op. Seguro para warm restarts
     do uvicorn, re-entrada em testes e invocacao multipla em scripts.
     """
-    global _mapeamentos_registrados
+    global _mapeamentos_registrados  # noqa: PLW0603  # init-once flag
     if _mapeamentos_registrados:
         return
 

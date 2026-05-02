@@ -64,8 +64,8 @@ consentimentos_table = Table(
 _mapeamento_iniciado = False
 
 
-def iniciar_mapeamentos() -> None:
-    global _mapeamento_iniciado
+def iniciar_mapeamentos() -> None:  # noqa: C901  # mapeamento declarativo coeso
+    global _mapeamento_iniciado  # noqa: PLW0603  # init-once flag
     if _mapeamento_iniciado:
         return
     _mapeamento_iniciado = True
