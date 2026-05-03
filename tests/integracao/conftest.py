@@ -43,7 +43,7 @@ def _registrar_todos_mapeamentos() -> None:
 
 
 @pytest.fixture(scope="session")
-def engine() -> Generator[Engine, None, None]:
+def engine() -> Generator[Engine]:
     from src.compartilhado.infraestrutura.database import criar_engine, metadata
 
     _registrar_todos_mapeamentos()
@@ -66,7 +66,7 @@ def engine() -> Generator[Engine, None, None]:
 
 
 @pytest.fixture
-def session(engine: Engine) -> Generator[Session, None, None]:
+def session(engine: Engine) -> Generator[Session]:
     from sqlalchemy.orm import Session as SASession
 
     # Each test gets a fresh connection + transaction. The session uses

@@ -35,7 +35,7 @@ PY_UI_TEST := $(shell \
 # project name consistente e evitar drift entre invocacoes.
 DOCKER_COMPOSE := docker compose --env-file .env.dev
 
-.PHONY: lint format typecheck security test test-integ test-all check all up down seed ui seed-users seed-users-docker seed-demo up-backend env-dev rebuild reset-db
+.PHONY: lint format typecheck security test test-coverage test-integ test-all check all up down seed ui seed-users seed-users-docker seed-demo up-backend env-dev rebuild reset-db
 
 # Bootstrap do .env.dev a partir do example. `.env.dev` e gitignored
 # porque pode conter secrets reais; o `.env.dev.example` tem defaults
@@ -76,6 +76,9 @@ security:
 
 test:
 	$(PY)pytest tests/unitarios/ -x -q --no-lint --cov=src -m "not lento"
+
+test-coverage:
+	$(PY_UI_TEST)pytest tests/unitarios/ -x -q --no-lint --cov=src -m "not lento" --cov-report=term-missing --cov-report=xml:coverage.xml
 
 test-integ:
 	$(PY)pytest tests/integracao/ -x -q --no-lint --tb=short

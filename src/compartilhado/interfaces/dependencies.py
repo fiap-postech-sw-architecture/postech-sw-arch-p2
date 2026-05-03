@@ -19,7 +19,7 @@ def configurar_session_factory(factory: object) -> None:
     _session_factory = factory
 
 
-def obter_session() -> Generator[Session, None, None]:
+def obter_session() -> Generator[Session]:
     """Dependency FastAPI que abre uma sessao por request e a fecha no teardown.
 
     Levanta RuntimeError se a factory nao foi configurada.

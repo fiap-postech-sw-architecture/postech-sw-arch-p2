@@ -42,9 +42,6 @@ ui = [
     # lentos de browser em vez de marca-los como skipped por dependencia ausente.
     "pytest-selenium>=4.1",
     "selenium>=4.0",
-    # webdriver-manager automatiza o download do ChromeDriver em ambientes que
-    # nao usem selenium-manager builtin do selenium 4.x.
-    "webdriver-manager>=4.0",
 ]
 full-test = [
     "httpx>=0.27",
@@ -66,7 +63,7 @@ where = ["."]
 include = ["src*"]
 
 [tool.ruff]
-target-version = "py312"
+target-version = "py313"
 line-length = 88
 
 [tool.ruff.lint]
@@ -131,7 +128,7 @@ known-first-party = ["src", "ui"]
 
 [tool.mypy]
 strict = true
-python_version = "3.12"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_ignores = true
 

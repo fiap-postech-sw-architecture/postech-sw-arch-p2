@@ -1,7 +1,7 @@
 # syntax=docker/dockerfile:1.7
-# Imagem base com Python 3.12 + uv pre-instalado (Astral oficial).
+# Imagem base com Python 3.13 + uv pre-instalado (Astral oficial).
 # Ver ADR-014 para justificativa da escolha do uv como gerenciador.
-FROM ghcr.io/astral-sh/uv:python3.12-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \
@@ -24,7 +24,7 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev
 
-FROM python:3.12-slim AS runtime
+FROM python:3.13-slim AS runtime
 
 RUN groupadd -r pytstop && useradd -r -g pytstop pytstop
 

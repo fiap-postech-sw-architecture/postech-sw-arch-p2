@@ -55,9 +55,6 @@ class JWTService:
 
     def validar_token(self, token: str) -> dict[str, object]:
         try:
-            header = jwt.get_unverified_header(token)
-            if header.get("alg") != _ALGORITMO:
-                raise TokenInvalidoException(mensagem="Algoritmo de token invalido")
             return jwt.decode(
                 token,
                 self._chave_secreta,
@@ -66,5 +63,9 @@ class JWTService:
             )
         except jwt.ExpiredSignatureError:
             raise TokenExpiradoException() from None
+        except jwt.InvalidAlgorithmError:
+            raise TokenInvalidoException(
+                mensagem="Algoritmo de token invalido"
+            ) from None
         except jwt.InvalidTokenError:
             raise TokenInvalidoException() from None

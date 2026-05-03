@@ -102,7 +102,7 @@ def _adicionar_veiculo(
 @pytest.fixture
 def session_factory(
     engine: Engine,
-) -> Generator[sessionmaker[Session], None, None]:
+) -> Generator[sessionmaker[Session]]:
     from sqlalchemy import text
 
     from src.compartilhado.infraestrutura.database import criar_session_factory
@@ -141,7 +141,7 @@ def api_client(
     engine: Engine,
     session_factory: sessionmaker[Session],
     monkeypatch: pytest.MonkeyPatch,
-) -> Generator[TestClient, None, None]:
+) -> Generator[TestClient]:
     """Cria um TestClient apontando para o banco de teste.
 
     Configura `DATABASE_URL` e `JWT_SECRET` antes de instanciar o app. O

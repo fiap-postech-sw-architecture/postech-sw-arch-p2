@@ -8,6 +8,7 @@ import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src import main
 from src.main import criar_app, lifespan
 
 
@@ -38,7 +39,9 @@ class TestMain:
 
     def test_middleware_registrado(self) -> None:
         application = criar_app()
-        middleware_classes = [m.cls.__name__ for m in application.user_middleware]
+        middleware_classes = [
+            getattr(m.cls, "__name__", "") for m in application.user_middleware
+        ]
         assert "SecurityHeadersMiddleware" in middleware_classes
 
     def test_docs_url_em_development(self) -> None:
@@ -52,6 +55,38 @@ class TestMain:
             application = criar_app()
             assert application.docs_url is None
             assert application.redoc_url is None
+
+    def test_executar_servidor_dev_usa_localhost_por_padrao(self) -> None:
+        with (
+            patch("src.main.uvicorn.run") as mock_run,
+            patch.dict(os.environ, {}, clear=True),
+        ):
+            main.executar_servidor_dev()
+
+        mock_run.assert_called_once_with(
+            "src.main:app",
+            host="127.0.0.1",
+            port=8000,
+            reload=True,
+        )
+
+    def test_executar_servidor_dev_respeita_host_e_porta_env(self) -> None:
+        with (
+            patch("src.main.uvicorn.run") as mock_run,
+            patch.dict(
+                os.environ,
+                {"UVICORN_HOST": "127.0.0.2", "UVICORN_PORT": "9000"},
+                clear=True,
+            ),
+        ):
+            main.executar_servidor_dev()
+
+        mock_run.assert_called_once_with(
+            "src.main:app",
+            host="127.0.0.2",
+            port=9000,
+            reload=True,
+        )
 
     def test_openapi_schema_gera_sem_erro(self) -> None:
         """Garante que /openapi.json e gerado com sucesso.
@@ -105,7 +140,12 @@ class TestMain:
                 # em test_lifespan_sem_database_url_em_producao_falha).
                 patch.dict(
                     os.environ,
-                    {"ENVIRONMENT": "development"},
+                    {
+                        "ENVIRONMENT": "development",
+                        "POSTGRES_DB": "pytstop",
+                        "POSTGRES_USER": "app_user",
+                        "POSTGRES_PASSWORD": "senha-dev-local",
+                    },
                     clear=False,
                 ),
             ):
@@ -156,11 +196,20 @@ class TestMain:
 
         asyncio.run(_run())
 
-    def test_lifespan_sem_database_url_em_development_usa_default(self) -> None:
+    def test_lifespan_sem_database_url_em_development_usa_variaveis_postgres(
+        self,
+    ) -> None:
         app = FastAPI()
-        default_dev = "postgresql://pytstop:pytstop@localhost:5432/pytstop"
         env_sem_db = {k: v for k, v in os.environ.items() if k != "DATABASE_URL"}
         env_sem_db["ENVIRONMENT"] = "development"
+        env_sem_db["POSTGRES_DB"] = "pytstop"
+        env_sem_db["POSTGRES_USER"] = "app_user"
+        env_sem_db["POSTGRES_PASSWORD"] = "senha-dev-local"
+        env_sem_db["POSTGRES_HOST"] = "localhost"
+        env_sem_db["POSTGRES_PORT"] = "5432"
+        database_url_esperada = (
+            "postgresql://app_user:senha-dev-local@localhost:5432/pytstop"
+        )
 
         async def _run() -> None:
             with (
@@ -186,9 +235,45 @@ class TestMain:
                 mock_engine.return_value.dispose = lambda: None
                 async with lifespan(app):
                     pass
-                mock_engine.assert_called_once_with(default_dev)
+                mock_engine.assert_called_once_with(database_url_esperada)
 
         asyncio.run(_run())
+
+    def test_lifespan_sem_database_url_e_sem_password_em_development_falha(
+        self,
+    ) -> None:
+        app = FastAPI()
+        env_sem_db = {
+            k: v
+            for k, v in os.environ.items()
+            if k not in {"DATABASE_URL", "POSTGRES_PASSWORD"}
+        }
+        env_sem_db["ENVIRONMENT"] = "development"
+
+        async def _run() -> None:
+            with (
+                patch("src.compartilhado.infraestrutura.logging.configurar_logging"),
+                patch("src.cliente_veiculo.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch(
+                    "src.catalogo_servicos.infraestrutura.mapping.iniciar_mapeamentos"
+                ),
+                patch("src.estoque.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.ordem_servico.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.autenticacao.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.compartilhado.infraestrutura.database.criar_engine"),
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_session_factory"
+                ),
+                patch(
+                    "src.compartilhado.interfaces.dependencies.configurar_session_factory"
+                ),
+                patch.dict(os.environ, env_sem_db, clear=True),
+            ):
+                async with lifespan(app):
+                    pass
+
+        with pytest.raises(RuntimeError, match="POSTGRES_PASSWORD"):
+            asyncio.run(_run())
 
     def test_lifespan_sem_database_url_em_producao_falha(self) -> None:
         app = FastAPI()

@@ -80,7 +80,7 @@ class TestMappingOS:
 
 
 @pytest.fixture
-def engine_sqlite() -> Generator[Engine, None, None]:
+def engine_sqlite() -> Generator[Engine]:
     iniciar_mapeamentos()
     engine = create_engine("sqlite:///:memory:")
     metadata.create_all(engine)

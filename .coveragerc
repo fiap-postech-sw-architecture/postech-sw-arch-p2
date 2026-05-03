@@ -6,6 +6,7 @@
 # via dois `pytest --cov` distintos (ver Makefile e .github/workflows/ci.yml).
 
 [run]
+relative_files = True
 source = src, ui
 omit =
     tests/*

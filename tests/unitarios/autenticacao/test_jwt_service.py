@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from unittest.mock import patch
 from uuid import uuid4
 
 import jwt
@@ -61,6 +62,21 @@ class TestJWTService:
         outro_svc = JWTService(chave_secreta="outra-chave")
         with pytest.raises(TokenInvalidoException):
             outro_svc.validar_token(token)
+
+    def test_validar_token_nao_inspeciona_header_sem_verificar_assinatura(
+        self,
+    ) -> None:
+        svc = JWTService(chave_secreta=_CHAVE)
+        uid = uuid4()
+        token = svc.gerar_access_token(uid, "a@b.com", "admin")
+
+        with patch(
+            "src.autenticacao.infraestrutura.jwt_service.jwt.get_unverified_header",
+            side_effect=AssertionError("nao deve ler header nao verificado"),
+        ):
+            payload = svc.validar_token(token)
+
+        assert payload["sub"] == str(uid)
 
     def test_algoritmo_invalido_rejeitado(self) -> None:
         payload = {"sub": "x", "jti": "y", "exp": 9999999999, "type": "access"}

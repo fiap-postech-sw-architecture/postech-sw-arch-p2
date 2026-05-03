@@ -141,18 +141,18 @@ Licencas permissivas em todas as dependencias diretas (MIT, BSD, Apache 2.0). Ne
 
 ## Resumo dos Scans Automatizados
 
-Bateria completa executada: bandit, pip-audit, gitleaks, trivy fs+image em 29/04/2026; SonarQube em [#107](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/107); OWASP ZAP baseline em 02/05/2026.
+Bateria executada em 29/04/2026 (bandit, pip-audit, gitleaks, trivy fs+image) e em 02/05/2026 (OWASP ZAP baseline + Bandit reexecutado apos mitigacao do B104). SonarQube ainda pendente, rastreado em [#107](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/107) -- ver secao "Analise Estatica e Qualidade (SonarQube)" abaixo.
 
 | Severidade | Bandit | pip-audit | gitleaks (wt) | gitleaks (hist) | trivy fs | trivy image | ZAP |
 |---|---|---|---|---|---|---|---|
 | HIGH/CRITICAL | 0 | 0 | 0 | 0 | 3 | 6 | 0 |
-| MEDIUM | 1 | -- | -- | -- | (filtro HIGH+) | (filtro HIGH+) | -- |
+| MEDIUM | 0 | -- | -- | -- | (filtro HIGH+) | (filtro HIGH+) | -- |
 | WARN | -- | -- | -- | -- | -- | -- | 2 |
 | LOW | 0 | -- | -- | -- | (filtro HIGH+) | (filtro HIGH+) | -- |
 
 Avaliacao consolidada do risco automatizado:
 
-- **Bandit (SAST Python)**: 0 HIGH / 1 MEDIUM aceito (B104 -- bind a `0.0.0.0` em modo dev) / 0 LOW. Sem regressao em relacao ao baseline de 16/04.
+- **Bandit (SAST Python)**: 0 HIGH / 0 MEDIUM / 0 LOW em `src/`. O B104 foi mitigado: `python src/main.py` usa `127.0.0.1` por padrao e o bind em todas as interfaces fica explicito apenas no entrypoint do container.
 - **pip-audit (CVE em dependencias diretas e transitivas)**: 98 deps auditadas, 0 vulnerabilidades.
 - **gitleaks (segredos no working tree e em todo o historico Git)**: 0 leaks apos `.gitleaks.toml` documentar 3 falsos positivos (template DEV-ONLY, runtime do NiceGUI, fixtures de senha de teste).
 - **trivy fs (CVE em deps Python via uv.lock)**: 3 HIGH em `nicegui 2.24.2` -- todas com fix em majors 3.x; aceitos como divida ([#112](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/112)) porque `ui/` e dev-only e nao roda em producao.
@@ -161,17 +161,17 @@ Avaliacao consolidada do risco automatizado:
 
 ## Analise Estatica (bandit)
 
-Scan executado em 29/04/2026 com bandit 1.9.4 sobre 6.400 linhas de codigo (`src/`).
+Scan reexecutado em 02/05/2026 com bandit 1.9.4 sobre `src/`.
 
 | # | Arquivo | Linha | ID | Severidade | Confianca | Descricao | Status |
 |---|---|---|---|---|---|---|---|
-| 1 | src/main.py | 142 | B104 | MEDIUM | MEDIUM | Binding a `0.0.0.0` (todas as interfaces) | ACEITO |
+| -- | -- | -- | -- | -- | -- | Nenhum achado | LIMPO |
 
 **Detalhamento**:
 
-- **B104 (hardcoded_bind_all_interfaces)**: O trecho `uvicorn.run("src.main:app", host="0.0.0.0", ...)` vincula o servidor a todas as interfaces de rede. Risco aceito pois: (a) ocorre apenas no bloco `if __name__ == "__main__"` usado em desenvolvimento local; (b) em producao, o Docker Compose gerencia o binding via configuracao do container; (c) a linha ja possui anotacao `# noqa: S104`. CWE-605.
+- **B104 (hardcoded_bind_all_interfaces)**: mitigado em `src/main.py`. A execucao direta usa `UVICORN_HOST` com default `127.0.0.1`; em Docker, o bind `0.0.0.0` continua no `entrypoint.sh`, onde e necessario para expor a porta do container.
 
-Sem regressao em relacao ao baseline de 16/04 (0 HIGH / 1 MEDIUM aceito / 0 LOW). Relatorio JSON em `docs/seguranca/bandit-report.json`; regenerar com `uv run bandit -r src/ -f json -o docs/seguranca/bandit-report.json`.
+Sem regressao em relacao ao baseline de 16/04 e sem riscos aceitos remanescentes no Bandit. Relatorio JSON em `docs/seguranca/bandit-report.json`; regenerar com `uv run bandit -r src/ -f json -o docs/seguranca/bandit-report.json`.
 
 ## Auditoria de Dependencias (pip-audit)
 

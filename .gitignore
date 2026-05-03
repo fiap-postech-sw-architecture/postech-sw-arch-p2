@@ -49,3 +49,10 @@ tests/e2e_ui/screenshots/*.png
 
 # Local AI agent plans (kept under ~/.claude/plans/, not in repo)
 docs/superpowers/plans/
+
+# Arquivos de log gerados pelo Uvicorn/FastAPI
+*.log
+logs/
+
+# Mac OS
+**/.DS_Store

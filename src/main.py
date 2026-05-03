@@ -4,6 +4,7 @@ import os
 from collections.abc import AsyncGenerator  # noqa: TC003
 from contextlib import asynccontextmanager
 from importlib.metadata import version
+from urllib.parse import quote
 
 import uvicorn
 from fastapi import FastAPI
@@ -16,9 +17,43 @@ from src.compartilhado.interfaces.middleware import (
 )
 from src.compartilhado.interfaces.router_publico import router as router_publico
 
+_AMBIENTES_DEV = {"development", "test"}
+
+
+def _database_url_por_variaveis_postgres() -> str:
+    variaveis_obrigatorias = ("POSTGRES_DB", "POSTGRES_USER", "POSTGRES_PASSWORD")
+    ausentes = [nome for nome in variaveis_obrigatorias if not os.environ.get(nome)]
+    if ausentes:
+        msg = (
+            f"Variaveis obrigatorias ausentes: {ausentes!r}. Configure POSTGRES_DB, "
+            "POSTGRES_USER e POSTGRES_PASSWORD, ou defina DATABASE_URL."
+        )
+        raise RuntimeError(msg)
+
+    postgres_db = quote(os.environ["POSTGRES_DB"], safe="")
+    postgres_user = quote(os.environ["POSTGRES_USER"], safe="")
+    postgres_password = quote(os.environ["POSTGRES_PASSWORD"], safe="")
+    postgres_host = os.environ.get("POSTGRES_HOST", "localhost")
+    postgres_port = os.environ.get("POSTGRES_PORT", "5432")
+    return (
+        f"postgresql://{postgres_user}:{postgres_password}"
+        f"@{postgres_host}:{postgres_port}/{postgres_db}"
+    )
+
+
+def _obter_database_url(environment: str) -> str:
+    database_url = os.environ.get("DATABASE_URL")
+    if database_url:
+        return database_url
+    if environment in _AMBIENTES_DEV:
+        return _database_url_por_variaveis_postgres()
+
+    msg = "DATABASE_URL obrigatoria quando ENVIRONMENT nao for 'development' ou 'test'."
+    raise RuntimeError(msg)
+
 
 @asynccontextmanager
-async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
+async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     """Ciclo de vida do app: inicializa logging + mappings no startup."""
     from src.compartilhado.infraestrutura.logging import configurar_logging
 
@@ -66,20 +101,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
         configurar_session_factory,
     )
 
-    # Em producao, ausencia de DATABASE_URL e erro fatal: seguir com um
-    # default de localhost mascara misconfiguracao e pode conectar no banco
-    # errado. Em dev/test, um default ergonomico evita fricao no setup.
+    # DATABASE_URL explicita tem precedencia. Em dev/test, a URL pode ser
+    # montada pelas variaveis POSTGRES_* do compose/env local; a senha nunca
+    # fica hardcoded no codigo.
     environment = os.environ.get("ENVIRONMENT", "development").lower()
-    database_url = os.environ.get("DATABASE_URL")
-    if not database_url:
-        if environment in {"development", "test"}:
-            database_url = "postgresql://pytstop:pytstop@localhost:5432/pytstop"
-        else:
-            msg = (
-                "DATABASE_URL obrigatoria quando ENVIRONMENT nao for "
-                "'development' ou 'test'."
-            )
-            raise RuntimeError(msg)
+    database_url = _obter_database_url(environment)
     engine = criar_engine(database_url)
     configurar_session_factory(criar_session_factory(engine))
     try:
@@ -138,5 +164,16 @@ def criar_app() -> FastAPI:
 
 app = criar_app()
 
+
+def executar_servidor_dev() -> None:
+    """Executa o servidor local quando o modulo e chamado como script."""
+    uvicorn.run(
+        "src.main:app",
+        host=os.environ.get("UVICORN_HOST", "127.0.0.1"),
+        port=int(os.environ.get("UVICORN_PORT", "8000")),
+        reload=True,
+    )
+
+
 if __name__ == "__main__":
-    uvicorn.run("src.main:app", host="0.0.0.0", port=8000, reload=True)  # noqa: S104
+    executar_servidor_dev()

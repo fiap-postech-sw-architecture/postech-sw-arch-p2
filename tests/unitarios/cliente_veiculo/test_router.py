@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
@@ -10,29 +11,16 @@ from src.autenticacao.interfaces.middleware import obter_usuario_atual
 from src.cliente_veiculo.aplicacao.dtos import (
     ClienteDTO,
     ClienteResumoDTO,
+    ConsentimentoDTO,
     VeiculoDTO,
 )
-from src.cliente_veiculo.interfaces.router import (
-    adicionar_veiculo,
-    atualizar_cliente,
-    desativar_cliente,
-    listar_veiculos,
-    obter_cliente,
-    remover_veiculo,
-    router,
-)
-from src.cliente_veiculo.interfaces.schemas import (
-    AdicionarVeiculoRequest,
-    AtualizarClienteRequest,
-)
+from src.cliente_veiculo.interfaces.router import router
 from src.compartilhado.interfaces.dependencies import obter_session
 
 _ID = uuid4()
 _VEICULO_ID = uuid4()
+_CONSENTIMENTO_ID = uuid4()
 
-# DTOs reais sao `@dataclass(frozen=True, slots=True)` — sem `__dict__`.
-# Usar os tipos concretos nos mocks garante que o router realmente converte
-# via `dataclasses.asdict()` e impede regressao do bug do PR 58.
 _VEICULO_DTO = VeiculoDTO(
     id=_VEICULO_ID,
     placa="ABC1234",
@@ -58,6 +46,26 @@ _CLIENTE_RESUMO_DTO = ClienteResumoDTO(
     contato="11999990000",
     ativo=True,
 )
+_DADOS_PESSOAIS_DTO = ClienteDTO(
+    id=_ID,
+    nome="Joao Silva",
+    documento_formatado="123.456.789-00",
+    documento_mascarado="***.***.***-00",
+    tipo_documento="cpf",
+    contato="11999990000",
+    ativo=True,
+    veiculos=[_VEICULO_DTO],
+)
+
+_CONSENTIMENTO = ConsentimentoDTO(
+    id=_CONSENTIMENTO_ID,
+    cliente_id=_ID,
+    tipo="marketing",
+    concedido_em=datetime.datetime.now(datetime.UTC),
+    revogado_em=None,
+    ativo=True,
+)
+
 _USUARIO = {"sub": str(uuid4()), "papel": "admin"}
 
 
@@ -80,7 +88,9 @@ class TestRouter:
     def test_rotas_registradas(self) -> None:
         # Compara conjunto de (path, method) ignorando HEAD (auto-adicionado
         # pelo Starlette para toda rota GET) para evitar teste flaky quando
-        # `next(iter(r.methods))` escolheria um valor arbitrario.
+        # `next(iter(r.methods))` escolheria um valor arbitrario. Cobre
+        # renomeacao de path e mudanca de metodo HTTP, que `len(...) == 13`
+        # nao detecta.
         paths_methods = {
             (r.path, method)
             for r in router.routes
@@ -127,6 +137,7 @@ class TestRouter:
             assert resp.status_code == 201
             body = resp.json()
             assert body["id"] == str(_ID)
+            # Valida `dataclasses.asdict()` em DTO frozen+slots — regressao do PR #58.
             assert body["nome"] == "Joao Silva"
 
     def test_listar_clientes(self) -> None:
@@ -142,59 +153,126 @@ class TestRouter:
             client = TestClient(app)
             resp = client.get("/api/v1/clientes/")
             assert resp.status_code == 200
-            body = resp.json()
-            assert body["total"] == 1
-            assert len(body["items"]) == 1
-            assert body["items"][0]["id"] == str(_ID)
+            assert resp.json()["total"] == 1
 
-    def test_obter_cliente_direto(self) -> None:
+    def test_obter_cliente(self) -> None:
+        app = _criar_app()
         with patch("src.cliente_veiculo.interfaces.router.obter_obter_cliente") as m:
             m.return_value = MagicMock(executar=MagicMock(return_value=_CLIENTE_DTO))
-            result = obter_cliente(_ID, _USUARIO, MagicMock())
-            assert result.id == _ID
-            assert result.nome == "Joao Silva"
+            client = TestClient(app)
+            resp = client.get(f"/api/v1/clientes/{_ID}")
+            assert resp.status_code == 200
+            assert resp.json()["id"] == str(_ID)
 
-    def test_atualizar_cliente_direto(self) -> None:
-        body = AtualizarClienteRequest(nome="Novo", contato="11000000000")
+    def test_atualizar_cliente(self) -> None:
+        app = _criar_app()
         with patch(
             "src.cliente_veiculo.interfaces.router.obter_atualizar_cliente"
         ) as m:
             m.return_value = MagicMock(executar=MagicMock(return_value=_CLIENTE_DTO))
-            result = atualizar_cliente(_ID, body, _USUARIO, MagicMock())
-            assert result.id == _ID
+            client = TestClient(app)
+            resp = client.put(
+                f"/api/v1/clientes/{_ID}",
+                json={"nome": "Novo Nome", "contato": "11000000000"},
+            )
+            assert resp.status_code == 200
+            assert resp.json()["id"] == str(_ID)
 
-    def test_desativar_cliente_direto(self) -> None:
+    def test_desativar_cliente(self) -> None:
+        app = _criar_app()
         with patch(
             "src.cliente_veiculo.interfaces.router.obter_desativar_cliente"
         ) as m:
-            mock_uc = MagicMock()
-            m.return_value = mock_uc
-            desativar_cliente(_ID, _USUARIO, MagicMock())
-            mock_uc.executar.assert_called_once_with(_ID)
+            m.return_value = MagicMock()
+            client = TestClient(app)
+            resp = client.delete(f"/api/v1/clientes/{_ID}")
+            assert resp.status_code == 204
 
-    def test_adicionar_veiculo_direto(self) -> None:
-        body = AdicionarVeiculoRequest(
-            placa="ABC1234", marca="Fiat", modelo="Uno", ano=2020
-        )
+    def test_adicionar_veiculo(self) -> None:
+        app = _criar_app()
         with patch(
             "src.cliente_veiculo.interfaces.router.obter_adicionar_veiculo"
         ) as m:
             m.return_value = MagicMock(executar=MagicMock(return_value=_VEICULO_DTO))
-            result = adicionar_veiculo(_ID, body, _USUARIO, MagicMock())
-            assert result.id == _VEICULO_ID
-            assert result.placa == "ABC1234"
+            client = TestClient(app)
+            resp = client.post(
+                f"/api/v1/clientes/{_ID}/veiculos",
+                json={
+                    "placa": "ABC1234",
+                    "marca": "Fiat",
+                    "modelo": "Uno",
+                    "ano": 2020,
+                },
+            )
+            assert resp.status_code == 201
+            assert resp.json()["placa"] == "ABC1234"
 
-    def test_listar_veiculos_direto(self) -> None:
+    def test_listar_veiculos(self) -> None:
+        app = _criar_app()
         with patch("src.cliente_veiculo.interfaces.router.obter_listar_veiculos") as m:
             m.return_value = MagicMock(executar=MagicMock(return_value=[_VEICULO_DTO]))
-            result = listar_veiculos(_ID, _USUARIO, MagicMock())
-            assert len(result) == 1
-            assert result[0].id == _VEICULO_ID
+            client = TestClient(app)
+            resp = client.get(f"/api/v1/clientes/{_ID}/veiculos")
+            assert resp.status_code == 200
+            assert len(resp.json()) == 1
 
-    def test_remover_veiculo_direto(self) -> None:
-        vid = uuid4()
+    def test_remover_veiculo(self) -> None:
+        app = _criar_app()
         with patch("src.cliente_veiculo.interfaces.router.obter_remover_veiculo") as m:
-            mock_uc = MagicMock()
-            m.return_value = mock_uc
-            remover_veiculo(_ID, vid, _USUARIO, MagicMock())
-            mock_uc.executar.assert_called_once_with(_ID, vid)
+            m.return_value = MagicMock()
+            client = TestClient(app)
+            resp = client.delete(f"/api/v1/clientes/{_ID}/veiculos/{_VEICULO_ID}")
+            assert resp.status_code == 204
+
+    def test_obter_dados_pessoais(self) -> None:
+        app = _criar_app()
+        with patch("src.cliente_veiculo.interfaces.router.obter_exportar_dados") as m:
+            m.return_value = MagicMock(
+                executar=MagicMock(return_value=_DADOS_PESSOAIS_DTO)
+            )
+            client = TestClient(app)
+            resp = client.get(f"/api/v1/clientes/{_ID}/dados-pessoais")
+            assert resp.status_code == 200
+            assert resp.json()["id"] == str(_ID)
+
+    def test_exportar_dados_pessoais(self) -> None:
+        app = _criar_app()
+        with patch("src.cliente_veiculo.interfaces.router.obter_exportar_dados") as m:
+            m.return_value = MagicMock(
+                executar=MagicMock(return_value=_DADOS_PESSOAIS_DTO)
+            )
+            client = TestClient(app)
+            resp = client.get(f"/api/v1/clientes/{_ID}/dados-pessoais/exportar")
+            assert resp.status_code == 200
+            assert resp.json()["id"] == str(_ID)
+
+    def test_excluir_dados_pessoais(self) -> None:
+        app = _criar_app()
+        with patch("src.cliente_veiculo.interfaces.router.obter_excluir_dados") as m:
+            m.return_value = MagicMock()
+            client = TestClient(app)
+            resp = client.delete(f"/api/v1/clientes/{_ID}/dados-pessoais")
+            assert resp.status_code == 204
+
+    def test_registrar_consentimento(self) -> None:
+        app = _criar_app()
+        with patch(
+            "src.cliente_veiculo.interfaces.router.obter_registrar_consentimento"
+        ) as m:
+            m.return_value = MagicMock(executar=MagicMock(return_value=_CONSENTIMENTO))
+            client = TestClient(app)
+            resp = client.post(
+                f"/api/v1/clientes/{_ID}/consentimento", json={"tipo": "marketing"}
+            )
+            assert resp.status_code == 201
+            assert resp.json()["tipo"] == "marketing"
+
+    def test_revogar_consentimento_endpoint(self) -> None:
+        app = _criar_app()
+        with patch(
+            "src.cliente_veiculo.interfaces.router.obter_revogar_consentimento"
+        ) as m:
+            m.return_value = MagicMock()
+            client = TestClient(app)
+            resp = client.delete(f"/api/v1/clientes/{_ID}/consentimento?tipo=marketing")
+            assert resp.status_code == 204

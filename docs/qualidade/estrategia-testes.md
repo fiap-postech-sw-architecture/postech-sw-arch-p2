@@ -245,7 +245,7 @@ mutmut com meta de 70%+ de mutantes mortos. Meta indicativa, nao bloqueante (TD-
 
 | Ferramenta   | Tipo de relatorio           | Comando                           |
 |-------------|-----------------------------|------------------------------------|
-| pytest-cov  | Cobertura de codigo         | `pytest --cov=src --cov-report=html` |
+| pytest-cov  | Cobertura de codigo         | `make test-coverage`                |
 | pytest-html | Relatorio de execucao       | `pytest --html=report.html`        |
 | mutmut      | Relatorio de mutacao        | `mutmut run && mutmut html`        |
 | schemathesis | Relatorio de contrato      | `st run --app=src.main:app`        |

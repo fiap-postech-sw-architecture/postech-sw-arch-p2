@@ -155,14 +155,15 @@ Documentacao interativa disponivel em `http://localhost:8000/docs` (Swagger UI).
 ## Testes
 
 ```bash
-make test          # unitarios com cobertura (95%+ obrigatorio; configurado em pyproject.toml)
-make test-integ    # integracao com testcontainers + PostgreSQL
-make test-all      # tudo (unitarios + integracao + e2e)
+make test           # unitarios com cobertura (95%+ obrigatorio; configurado em .coveragerc)
+make test-coverage  # unitarios com relatorio terminal e coverage.xml para CI/Sonar
+make test-integ     # integracao com testcontainers + PostgreSQL
+make test-all       # tudo (unitarios + integracao + e2e)
 
 # Ou diretamente:
-pytest tests/unitarios/ --no-lint -v          # unitarios
-pytest tests/integracao/ --no-lint -v         # integracao (requer Docker)
-pytest --cov=src --cov-report=html --no-lint  # com relatorio HTML
+pytest tests/unitarios/ --no-lint -v                                        # unitarios
+pytest tests/integracao/ --no-lint -v                                       # integracao (requer Docker)
+uv run --extra test --extra ui pytest tests/unitarios/ --no-lint --cov=src  # cobertura local
 ```
 
 Detalhes do workflow de dev (lint, mypy, bandit, atualizar dependencias):

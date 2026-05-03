@@ -81,7 +81,7 @@
 
 ## Relatório de Vulnerabilidades (Resumo)
 
-Verificacao bandit: 0 achados de severidade alta, 1 de severidade media (B104 — bind `0.0.0.0` em desenvolvimento, risco aceito). pip-audit, SonarQube, OWASP ZAP, gitleaks e trivy: pendentes de execucao. 4 achados iniciais (PII em texto plano, LGPD, consentimento, JWT) — todos mitigados ou implementados no MVP. Detalhes em `docs/seguranca/relatorio-vulnerabilidades.md`.
+Verificacao bandit: 0 achados em `src/` apos mitigacao do B104 em `src/main.py`; o bind em todas as interfaces permanece no entrypoint Docker, onde e necessario para expor a porta do container. pip-audit, SonarQube, OWASP ZAP, gitleaks e trivy: pendentes de execucao. 4 achados iniciais (PII em texto plano, LGPD, consentimento, JWT) — todos mitigados ou implementados no MVP. Detalhes em `docs/seguranca/relatorio-vulnerabilidades.md`.
 
 ## Geração do PDF
 

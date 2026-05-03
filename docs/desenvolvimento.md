@@ -71,15 +71,21 @@ runtime do Docker (socket, Compose v2): [`docs/setup/troubleshooting.md`](setup/
 ## Checks locais (espelham o CI)
 
 ```bash
-make check      # lint + mypy + bandit + testes unitarios
-make test-integ # testes de integracao (requer Docker)
-make test-all   # todos os 970+ testes
-make format     # auto-formata codigo
-make all        # format + check + integracao
+make check         # lint + mypy + bandit + testes unitarios
+make test-coverage # testes unitarios + relatorio terminal + coverage.xml
+make test-integ    # testes de integracao (requer Docker)
+make test-all      # todos os 970+ testes
+make format        # auto-formata codigo
+make all           # format + check + integracao
 ```
 
 Ao rodar `pytest` diretamente, ruff/mypy/bandit executam automaticamente
 antes dos testes. Para pular os pre-checks: `pytest --no-lint`.
+
+Para gerar o arquivo consumido por CI/Sonar localmente, use `make test-coverage`.
+Esse alvo roda os testes unitarios nao lentos com os extras `test` e `ui`, imprime
+o relatorio de linhas faltantes no terminal e escreve `coverage.xml` na raiz do
+repositorio.
 
 ## Atualizando dependencias
 
