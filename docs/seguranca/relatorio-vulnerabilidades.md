@@ -1,6 +1,6 @@
 # Relatorio de Vulnerabilidades
 
-> **Versao**: 2.0 -- bateria de scans automatizados executada em 29/04/2026 (bandit, pip-audit, gitleaks, trivy fs+image). SonarQube e OWASP ZAP seguem pendentes (rastreados em [#107](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/107) e [#108](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/108)).
+> **Versao**: 2.1 -- bateria de scans automatizados executada em 29/04/2026 (bandit, pip-audit, gitleaks, trivy fs+image); SonarQube executado e fechado em [#107](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/107); OWASP ZAP baseline executado em 02/05/2026 -- 0 FAIL / 2 WARN aceitos (fechado em [#108](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/108)).
 
 ## Escopo
 
@@ -141,13 +141,14 @@ Licencas permissivas em todas as dependencias diretas (MIT, BSD, Apache 2.0). Ne
 
 ## Resumo dos Scans Automatizados
 
-Bateria executada em 29/04/2026. SonarQube e OWASP ZAP continuam pendentes (rastreados em [#107](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/107) e [#108](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/108)).
+Bateria completa executada: bandit, pip-audit, gitleaks, trivy fs+image em 29/04/2026; SonarQube em [#107](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/107); OWASP ZAP baseline em 02/05/2026.
 
-| Severidade | Bandit | pip-audit | gitleaks (wt) | gitleaks (hist) | trivy fs | trivy image |
-|---|---|---|---|---|---|---|
-| HIGH/CRITICAL | 0 | 0 | 0 | 0 | 3 | 6 |
-| MEDIUM | 1 | -- | -- | -- | (filtro HIGH+) | (filtro HIGH+) |
-| LOW | 0 | -- | -- | -- | (filtro HIGH+) | (filtro HIGH+) |
+| Severidade | Bandit | pip-audit | gitleaks (wt) | gitleaks (hist) | trivy fs | trivy image | ZAP |
+|---|---|---|---|---|---|---|---|
+| HIGH/CRITICAL | 0 | 0 | 0 | 0 | 3 | 6 | 0 |
+| MEDIUM | 1 | -- | -- | -- | (filtro HIGH+) | (filtro HIGH+) | -- |
+| WARN | -- | -- | -- | -- | -- | -- | 2 |
+| LOW | 0 | -- | -- | -- | (filtro HIGH+) | (filtro HIGH+) | -- |
 
 Avaliacao consolidada do risco automatizado:
 
@@ -156,8 +157,7 @@ Avaliacao consolidada do risco automatizado:
 - **gitleaks (segredos no working tree e em todo o historico Git)**: 0 leaks apos `.gitleaks.toml` documentar 3 falsos positivos (template DEV-ONLY, runtime do NiceGUI, fixtures de senha de teste).
 - **trivy fs (CVE em deps Python via uv.lock)**: 3 HIGH em `nicegui 2.24.2` -- todas com fix em majors 3.x; aceitos como divida ([#112](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/112)) porque `ui/` e dev-only e nao roda em producao.
 - **trivy image (CVE em pacotes OS da imagem `pytstop:audit`)**: 6 HIGH (`ncurses` e `systemd`) sem fix upstream; aceitos como divida ([#113](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/113)) porque os pacotes nao sao usados pelo runtime FastAPI/uvicorn da app.
-
-SonarQube e OWASP ZAP nao alteram a avaliacao do MVP: o primeiro reforca metricas de qualidade (cobertura ja medida pelo gate do Makefile em 95%), o segundo exige stack rodando -- ambos planejados para Fase 2.
+- **OWASP ZAP (DAST baseline)**: 0 FAIL / 2 WARN aceitos / 65 PASS. Cobertura de 49 URLs via OpenAPI spec. WARNs sao falsos positivos esperados para API REST (detalhados na secao abaixo). Caso A.
 
 ## Analise Estatica (bandit)
 
@@ -191,7 +191,32 @@ uv run --with pip-audit pip-audit --format json --output docs/seguranca/pip-audi
 
 ## Teste Dinamico de Seguranca (OWASP ZAP)
 
-**TODO**: executar antes da entrega. Configuracao conforme ADR-011.
+Scan executado em 02/05/2026 com `zaproxy/zap-stable` (modo baseline passivo) contra `http://localhost:8000/openapi.json` com stack completa rodando via `docker compose up -d` (PostgreSQL + app + seed de admin).
+
+**Resultado**: 65 PASS / 0 FAIL / 2 WARN. Caso A.
+
+Relatorios em `docs/seguranca/zap-baseline-report.json` e `docs/seguranca/zap-baseline-report.html`.
+
+Reproducao:
+
+```bash
+docker run --rm --network host \
+  -v "$(pwd)/docs/seguranca:/zap/wrk:rw" \
+  -t zaproxy/zap-stable zap-baseline.py \
+  -t http://localhost:8000/openapi.json \
+  -J zap-baseline-report.json \
+  -r zap-baseline-report.html \
+  -I
+```
+
+### Warnings (aceitos)
+
+| ID | Regra | Endpoints | Analise |
+|---|---|---|---|
+| 10049 | Non-Storable Content | `/api/v1/acompanhamento`, `/api/v1/saude`, `/robots.txt` | Respostas dinamicas de API REST nao devem ser cacheadas; comportamento correto. Falso positivo. |
+| 90004 | Cross-Origin-Resource-Policy Header Missing | `/api/v1/saude`, `/openapi.json` | Header de isolamento de recursos opcional. Baixo risco para API backend sem contexto de browser embed. Aceito. |
+
+Aviso do spider (`404` em `http://localhost:8000/`) e esperado -- a API nao expoe rota raiz.
 
 ## Deteccao de Segredos (gitleaks)
 
