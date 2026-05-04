@@ -5,7 +5,7 @@ from __future__ import annotations
 import json
 from typing import TYPE_CHECKING, Any
 
-from nicegui import ui
+from nicegui import context, ui
 
 from ui.auth_guard import exige_autenticacao
 from ui.cliente_api import ApiError, ValidacaoError
@@ -278,29 +278,37 @@ def _dialog_consentimento(cliente: dict[str, Any], *, registrar: bool) -> None:
     from ui.app import obter_api
 
     acao = "Registrar" if registrar else "Revogar"
-    with ui.dialog() as dialog, ui.card().classes("w-80"):
-        ui.label(f"{acao} consentimento").classes("text-lg font-bold")
-        tipo = ui.select(
-            ["marketing", "comunicacao", "compartilhamento"],
-            label="Tipo",
-            value="marketing",
-        ).classes("w-full")
+    # Disparado de ui.menu_item: o slot ativo no handler e o do q-menu, e o
+    # auto_close fecha o menu no mesmo evento — sem escapar pro layout o dialog
+    # vira filho do menu e desmonta junto, so aparecendo na proxima abertura.
+    with context.client.layout:
+        with ui.dialog() as dialog, ui.card().classes("w-80"):
+            ui.label(f"{acao} consentimento").classes("text-lg font-bold")
+            tipo = ui.select(
+                ["marketing", "comunicacao", "compartilhamento"],
+                label="Tipo",
+                value="marketing",
+            ).classes("w-full")
 
-        def salvar() -> None:
-            try:
-                if registrar:
-                    obter_api().registrar_consentimento(cliente["id"], tipo.value)
-                else:
-                    obter_api().revogar_consentimento(cliente["id"], tipo.value)
-                dialog.close()
-                ui.notify(f"{acao} com sucesso", type="positive")
-            except ApiError as exc:
-                ui.notify(f"Erro: {exc}", type="negative")
+            def salvar() -> None:
+                try:
+                    if registrar:
+                        obter_api().registrar_consentimento(cliente["id"], tipo.value)
+                    else:
+                        obter_api().revogar_consentimento(cliente["id"], tipo.value)
+                    dialog.close()
+                    ui.notify(f"{acao} com sucesso", type="positive")
+                except ApiError as exc:
+                    ui.notify(f"Erro: {exc}", type="negative")
 
-        with ui.row().classes("justify-end gap-2 w-full"):
-            ui.button("Cancelar", on_click=dialog.close).props("flat")
-            ui.button("Confirmar", on_click=salvar).classes("bg-blue-600 text-white")
-    dialog.open()
+            with ui.row().classes("justify-end gap-2 w-full"):
+                ui.button("Cancelar", on_click=dialog.close).props("flat")
+                ui.button("Confirmar", on_click=salvar).classes(
+                    "bg-blue-600 text-white"
+                )
+        # Sem delete o dialog fica acumulando no layout a cada nova abertura.
+        dialog.on("hide", dialog.delete)
+        dialog.open()
 
 
 def _exportar_dados(cliente: dict[str, Any]) -> None:
@@ -312,13 +320,19 @@ def _exportar_dados(cliente: dict[str, Any]) -> None:
         ui.notify(f"Erro: {exc}", type="negative")
         return
 
-    with ui.dialog() as dialog, ui.card().classes("w-[36rem]"):
-        ui.label(f"Dados pessoais de {cliente['nome']}").classes("text-lg font-bold")
-        ui.code(
-            json.dumps(dados, indent=2, ensure_ascii=False), language="json"
-        ).classes("text-xs")
-        ui.button("Fechar", on_click=dialog.close)
-    dialog.open()
+    # Ver nota em _dialog_consentimento: precisa escapar do slot do q-menu.
+    with context.client.layout:
+        with ui.dialog() as dialog, ui.card().classes("w-[36rem]"):
+            ui.label(f"Dados pessoais de {cliente['nome']}").classes(
+                "text-lg font-bold"
+            )
+            ui.code(
+                json.dumps(dados, indent=2, ensure_ascii=False), language="json"
+            ).classes("text-xs")
+            ui.button("Fechar", on_click=dialog.close)
+        # Sem delete o dialog fica acumulando no layout a cada nova abertura.
+        dialog.on("hide", dialog.delete)
+        dialog.open()
 
 
 def _confirmar_excluir_dados(

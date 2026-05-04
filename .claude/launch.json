@@ -18,6 +18,12 @@
       "runtimeExecutable": "docker",
       "runtimeArgs": ["compose", "up"],
       "port": 8000
+    },
+    {
+      "name": "NiceGUI (docker compose)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "ui"],
+      "port": 8080
     }
   ]
 }
