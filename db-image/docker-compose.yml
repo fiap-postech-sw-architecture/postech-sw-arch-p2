@@ -96,7 +96,7 @@ services:
     # funciona pro examinador; tokens nao persistem entre boots).
     environment:
       DATABASE_URL: postgresql://pytstop:pytstop@postgres:5432/pytstop
-      ENCRYPTION_KEY: qq-InvndkyPiUbzx8gNJaIqjxboY0yD3ieh9VBqjc3M=
+      ENCRYPTION_KEY: yCq_zOpSYS0AznoOeTAFouC9VX8aFwiC5GlCiOOme-A=
       JWT_SECRET: dev-secret-change-me-this-is-at-least-32-bytes-long-for-hs256
       JWT_EXPIRATION_MINUTES: "30"
       ENVIRONMENT: development
