@@ -33,7 +33,17 @@ PY_UI_TEST := $(shell \
 # `--env-file` precisa estar nas chamadas que sobem stack. Targets que
 # nao publicam porta (down, exec, cp) tambem usam o wrapper para manter
 # project name consistente e evitar drift entre invocacoes.
-DOCKER_COMPOSE := docker compose --env-file .env.dev
+#
+# `GIT_SHA`/`GIT_DATE` sao injetados em toda invocacao do compose pra que
+# qualquer build local (`make up`, `make rebuild`, `make reset-db`) embuta
+# a SHA do HEAD nas imagens app/ui (via build args) e exponha pro
+# entrypoint do postgres (via environment) — todos os 3 servicos logam a
+# SHA no startup, batendo com a embutida nas imagens GHCR. SHA e auto-
+# computada do git: nunca commitada em arquivo. Fallback "unknown" no
+# compose cobre invocacao manual (`docker compose up` sem make).
+GIT_SHA  := $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
+GIT_DATE := $(shell git show -s --format=%cI HEAD 2>/dev/null || echo unknown)
+DOCKER_COMPOSE := GIT_SHA=$(GIT_SHA) GIT_DATE=$(GIT_DATE) docker compose --env-file .env.dev
 
 .PHONY: lint format typecheck security test test-coverage test-integ test-all check all up down seed ui seed-users seed-users-docker seed-demo up-backend env-dev rebuild reset-db
 
@@ -183,6 +193,200 @@ reset-db: .env.dev
 			echo ">> SKIP_DEMO=1: pulando seed de demo (banco so com usuarios)."; \
 		fi && \
 		echo ">> pronto. Abra http://localhost:$${UI_PORT_EFFECTIVE}/ e faca login como admin."'
+
+# ---- GHCR (imagens db + app + ui pra fast-check via compose standalone) ----
+# Pipeline pra publicar 3 imagens no GitHub Container Registry de uma vez,
+# permitindo que examinador rode `db-image/docker-compose.yml` (que puxa
+# tudo do GHCR) sem precisar do source. Cada imagem embute SHA do HEAD
+# como LABEL OCI + ENV var, e loga no startup pra validacao.
+#
+# Imagens publicadas (uma versao por package, sem historico — `ghcr-prune`
+# limpa orfaos a cada `update-ghcr`):
+#   - <prefix>-db   (postgres:16 + dump seedado)         tags: seeded, latest
+#   - <prefix>-app  (FastAPI backend)                    tags: latest
+#   - <prefix>-ui   (NiceGUI sandbox)                    tags: latest
+#
+# Variaveis sobrescritiveis (ex.: `make update-ghcr GHCR_USER=fulano`):
+GHCR_REGISTRY ?= ghcr.io
+GHCR_USER     ?= jbamaral
+GHCR_PREFIX   ?= postech-sw-arch-p1
+GHCR_DB       := $(GHCR_REGISTRY)/$(GHCR_USER)/$(GHCR_PREFIX)-db
+GHCR_APP      := $(GHCR_REGISTRY)/$(GHCR_USER)/$(GHCR_PREFIX)-app
+GHCR_UI       := $(GHCR_REGISTRY)/$(GHCR_USER)/$(GHCR_PREFIX)-ui
+GHCR_REPOS    := $(GHCR_PREFIX)-db $(GHCR_PREFIX)-app $(GHCR_PREFIX)-ui
+
+.PHONY: ghcr-dump ghcr-build ghcr-push ghcr-prune update-ghcr
+
+# Dump do postgres rodando para `db-image/00-init.sql`. Pre-condicao: stack
+# up & seedada (rode `make reset-db` antes ou use `make update-ghcr` que
+# encadeia). `--no-owner --no-acl` deixa o dump portavel (qualquer user
+# postgres consegue restaurar).
+ghcr-dump: .env.dev
+	@bash -c 'source scripts/docker-check.sh && \
+		set -a && . ./.env.dev && set +a && \
+		echo ">> dumping seeded DB to db-image/00-init.sql..." && \
+		mkdir -p db-image && \
+		$(DOCKER_COMPOSE) exec -T postgres pg_dump \
+			-U $${POSTGRES_USER:-pytstop} \
+			-d $${POSTGRES_DB:-pytstop} \
+			--no-owner --no-acl > db-image/00-init.sql && \
+		echo ">> dump done ($$(wc -l < db-image/00-init.sql) lines)"'
+
+# Build das 3 imagens com a mesma SHA/data do HEAD. Build args viram LABELs
+# OCI (`org.opencontainers.image.revision`/`.created`) e ENV vars
+# (`PYTSTOP_GIT_SHA`/`PYTSTOP_GIT_DATE`) embutidas. Cada container loga a
+# SHA no startup (entrypoint do app, CMD wrapper da ui, initdb script da
+# db). `--provenance=false --sbom=false`: desliga attestation/SBOM
+# manifests pra cada push virar 1 versao no GHCR (sem isso cada push
+# criaria 3 manifests, e o prune simples quebraria referencias).
+ghcr-build: ghcr-dump
+	@echo ">> building 3 images with SHA=$(shell echo $(GIT_SHA) | cut -c1-12) ($(GIT_DATE))"
+	docker build --provenance=false --sbom=false \
+		--build-arg GIT_SHA=$(GIT_SHA) --build-arg GIT_DATE=$(GIT_DATE) \
+		-t $(GHCR_DB):seeded -t $(GHCR_DB):latest db-image/
+	docker build --provenance=false --sbom=false \
+		--build-arg GIT_SHA=$(GIT_SHA) --build-arg GIT_DATE=$(GIT_DATE) \
+		-t $(GHCR_APP):latest .
+	docker build --provenance=false --sbom=false \
+		--build-arg GIT_SHA=$(GIT_SHA) --build-arg GIT_DATE=$(GIT_DATE) \
+		-t $(GHCR_UI):latest -f ui/Dockerfile .
+
+# Push das tags. Pre-condicao: `docker login ghcr.io -u $(GHCR_USER)`
+# (PAT com escopo `write:packages`) ja executado nesta sessao.
+ghcr-push:
+	@for img in $(GHCR_DB):seeded $(GHCR_DB):latest $(GHCR_APP):latest $(GHCR_UI):latest; do \
+		if ! docker image inspect $$img >/dev/null 2>&1; then \
+			echo "!! imagem $$img nao existe — rode 'make ghcr-build' antes."; exit 1; \
+		fi; \
+	done
+	docker push $(GHCR_DB):seeded
+	docker push $(GHCR_DB):latest
+	docker push $(GHCR_APP):latest
+	docker push $(GHCR_UI):latest
+	@echo ">> publicadas: $(GHCR_DB):seeded $(GHCR_APP):latest $(GHCR_UI):latest"
+
+# Apaga versoes "untagged" dos 3 packages GHCR (digests orfaos deixados
+# por pushes anteriores que sobrescreveram tags). Mantem apenas as versoes
+# tagueadas correntes. Pre-condicao:
+#   gh auth refresh -s read:packages,delete:packages
+# Requer `jq` no PATH.
+#
+# `set -e -o pipefail`: garante que falha em qualquer comando do pipe
+# (gh api / jq) faz o target falhar visivelmente, em vez de reportar
+# ">> prune done." apos um erro silencioso.
+#
+# API path `/users/$(GHCR_USER)/packages/...`: vincula explicitamente o
+# alvo ao GHCR_USER configurado, em vez de `/user/...` (que opera no
+# usuario autenticado, podendo divergir em forks). Validacao auth-user
+# vs GHCR_USER mantida pra falhar rapido com mensagem amigavel antes
+# do primeiro DELETE retornar 403.
+#
+# `MSYS_NO_PATHCONV=1`: no Git Bash do Windows, MSYS reescreve args que
+# parecem path Unix (`/user`, `/users/...`) pra path Windows
+# (`C:/Program Files/Git/user`) antes de passar pra `gh.exe` (binario
+# nativo Windows). Resultado: `gh api /user` falha com "invalid API
+# endpoint: C:/Program Files/Git/user". Setar a env var desliga a
+# conversao pra todas as chamadas do bloco. Mesmo padrao ja usado nos
+# `docker compose cp/exec` deste Makefile -- ver MEMORY.md "Discovered
+# conventions" 2026-04-26.
+#
+# `tr -d "\r"` no pipe: gh.exe e jq.exe (Windows builds) emitem CRLF
+# em stdout. Sem o strip, `read -r id` no while loop captura `<id>\r`,
+# que o `gh api` subsequente passa pra URL como `.../versions/<id>%0D`
+# e a Go net/url rejeita ("invalid control character in URL").
+ghcr-prune:
+	@MSYS_NO_PATHCONV=1 bash -c 'set -e -o pipefail; \
+		auth_user=$$(gh api /user --jq .login 2>/dev/null); \
+		if [ -z "$$auth_user" ]; then \
+			echo "!! gh nao esta autenticado. Rode: gh auth login"; exit 1; \
+		fi; \
+		if [ "$$auth_user" != "$(GHCR_USER)" ]; then \
+			echo "!! gh autenticado como $$auth_user, mas GHCR_USER=$(GHCR_USER)."; \
+			echo "!! prune opera no usuario autenticado -- alinhe os dois antes (gh auth login -u $(GHCR_USER))."; \
+			exit 1; \
+		fi; \
+		for repo in $(GHCR_REPOS); do \
+			echo ">> pruning $$repo..."; \
+			gh api /users/$(GHCR_USER)/packages/container/$$repo/versions --paginate \
+				| jq -r ".[] | select((.metadata.container.tags // []) | length == 0) | .id" \
+				| tr -d "\r" \
+				| while read -r id; do \
+					[ -z "$$id" ] && continue; \
+					gh api -X DELETE /users/$(GHCR_USER)/packages/container/$$repo/versions/$$id >/dev/null \
+						&& echo ">>   deleted version id=$$id from $$repo"; \
+				done; \
+		done; \
+		echo ">> prune done."'
+
+# Pipeline completo: rotaciona ENCRYPTION_KEY -> reset-db (DESTRUTIVO --
+# dropa volume) -> build das 3 imagens -> push das 4 tags -> patcha
+# db-image/docker-compose.yml com a nova key -> prune historico (best-effort).
+#
+# Por que rotaciona: a key cifra CPF/CNPJ no dump seedado. Rotacionar a
+# cada publicacao garante que (1) a key commitada so vale para o snapshot
+# atual no GHCR, (2) leak da key historica nao decifra snapshots futuros,
+# e (3) o `.env.dev` local fica com key DIFERENTE da committada, evitando
+# reuso acidental do valor publico em ambiente nao-demo.
+#
+# Comportamento:
+#   1. Backup da OLD_KEY de .env.dev. Geracao de NEW_KEY (Fernet).
+#   2. .env.dev recebe NEW_KEY temporariamente (trap restaura no final).
+#   3. reset-db reseed local com NEW_KEY (dump capturara cipher c/ NEW_KEY).
+#   4. ghcr-build/push publicam o snapshot.
+#   5. db-image/docker-compose.yml e patchado com NEW_KEY -- ANTES do prune,
+#      pra garantir contrato consistente compose<->GHCR mesmo se prune falhar.
+#      Precisa commit + push manual depois (target imprime os comandos).
+#   6. ghcr-prune e BEST-EFFORT (precisa jq + gh com read:packages/delete:packages
+#      no PATH/scopes; falha so deixa versoes untagged orphas no GHCR -- inocuo
+#      pro fast-check, sao limpaveis depois com `make ghcr-prune`).
+#   7. .env.dev e restaurada para OLD_KEY (via trap, mesmo em falha).
+#
+# Recovery se push parcial: trap printa NEW_KEY full quando o exit status nao
+# e 0, pra voce poder patchar compose.yml manualmente se precisar.
+#
+# Efeito colateral: apos o target, sua DB local fica seedada com NEW_KEY
+# mas .env.dev volta pra OLD_KEY -- listar clientes vai falhar localmente
+# ate voce rodar `make reset-db` (reseed com OLD_KEY).
+#
+# Pre-condicoes:
+#   - `docker login ghcr.io` (PAT com write:packages) -- HARD requirement
+#   - `gh auth refresh -s read:packages,delete:packages` + `jq` no PATH --
+#     so pro prune (best-effort). Sem isso pipeline ainda completa, prune skipa.
+update-ghcr: .env.dev
+	@bash -c 'set -e; \
+		echo ">> gerando NEW_KEY rotacionada para esta publicacao..."; \
+		NEW_KEY=$$(uv run python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"); \
+		OLD_KEY=$$(grep "^ENCRYPTION_KEY=" .env.dev | cut -d= -f2-); \
+		if [ -z "$$OLD_KEY" ]; then \
+			echo "!! .env.dev sem ENCRYPTION_KEY -- abort"; exit 1; \
+		fi; \
+		echo ">> OLD_KEY=$${OLD_KEY:0:8}... NEW_KEY=$${NEW_KEY:0:8}..."; \
+		\
+		trap "rc=\$$?; sed \"s|^ENCRYPTION_KEY=.*|ENCRYPTION_KEY=$$OLD_KEY|\" .env.dev > .env.dev.tmp && mv .env.dev.tmp .env.dev; echo \">> .env.dev restaurada para OLD_KEY\"; if [ \$$rc -ne 0 ]; then echo \"\"; echo \"!! pipeline FALHOU (rc=\$$rc). NEW_KEY full pra recovery manual:\"; echo \"!! NEW_KEY=$$NEW_KEY\"; echo \"!! Se push das 3 imagens completou, patche db-image/docker-compose.yml manualmente:\"; echo \"!!   sed -i \\\"s|^      ENCRYPTION_KEY:.*|      ENCRYPTION_KEY: $$NEW_KEY|\\\" db-image/docker-compose.yml\"; fi" EXIT; \
+		\
+		sed "s|^ENCRYPTION_KEY=.*|ENCRYPTION_KEY=$$NEW_KEY|" .env.dev > .env.dev.tmp && mv .env.dev.tmp .env.dev; \
+		\
+		$(MAKE) reset-db; \
+		$(MAKE) ghcr-build; \
+		$(MAKE) ghcr-push; \
+		\
+		echo ">> patchando db-image/docker-compose.yml com NEW_KEY (antes do prune pra garantir consistencia)..."; \
+		sed "s|^      ENCRYPTION_KEY:.*|      ENCRYPTION_KEY: $$NEW_KEY|" db-image/docker-compose.yml > db-image/docker-compose.yml.tmp && \
+			mv db-image/docker-compose.yml.tmp db-image/docker-compose.yml; \
+		\
+		$(MAKE) ghcr-prune || echo "!! ghcr-prune falhou (best-effort -- imagens publicadas + compose.yml ja consistentes). Cheque jq + gh scopes (read:packages,delete:packages) e rode \"make ghcr-prune\" depois pra limpar versoes untagged."; \
+		\
+		echo ""; \
+		echo "============================================================"; \
+		echo ">> 3 imagens atualizadas no GHCR (db/app/ui) com NEW_KEY rotacionada."; \
+		echo ">> db-image/docker-compose.yml atualizado -- COMMIT antes de divulgar:"; \
+		echo ">>   git add db-image/docker-compose.yml"; \
+		echo ">>   git commit -m \"chore(ghcr): rotate ENCRYPTION_KEY for new snapshot\""; \
+		echo ">>   git push"; \
+		echo ""; \
+		echo ">> Local: DB seedada com NEW_KEY, mas .env.dev volta pra OLD_KEY."; \
+		echo ">> Pra restaurar consistencia local rode: make reset-db"; \
+		echo "============================================================"'
 
 # ---- full-test ----
 .PHONY: full-test full-test-up full-test-seed full-test-run full-test-ci full-test-teardown

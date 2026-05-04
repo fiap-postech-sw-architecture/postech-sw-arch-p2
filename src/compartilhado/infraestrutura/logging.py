@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import os
 import re
 from typing import TYPE_CHECKING, Any
 
@@ -7,6 +8,26 @@ import structlog
 
 if TYPE_CHECKING:
     from collections.abc import MutableMapping
+
+# git_sha/git_date sao injetadas em build args -> ENV pelas pipelines
+# (Makefile + Dockerfiles). Lidas uma vez no import e adicionadas a todo
+# log structlog via processor -- assim ficam visiveis mesmo apos
+# `clear_contextvars()` que o SecurityHeadersMiddleware faz a cada
+# request. `[:12]` casa com o curto exibido no banner de boot.
+_GIT_SHA = os.environ.get("PYTSTOP_GIT_SHA", "unknown")[:12]
+_GIT_DATE = os.environ.get("PYTSTOP_GIT_DATE", "unknown")
+
+
+def adicionar_versao_imagem(
+    _logger: object,
+    _method_name: str,
+    event_dict: MutableMapping[str, Any],
+) -> MutableMapping[str, Any]:
+    """Injeta git_sha/git_date em todo evento (sem sobrescrever explicit)."""
+    event_dict.setdefault("git_sha", _GIT_SHA)
+    event_dict.setdefault("git_date", _GIT_DATE)
+    return event_dict
+
 
 _CPF_PATTERN = re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b")
 _CNPJ_PATTERN = re.compile(r"\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b")
@@ -78,6 +99,7 @@ def configurar_logging() -> None:
     structlog.configure(
         processors=[
             structlog.contextvars.merge_contextvars,
+            adicionar_versao_imagem,
             structlog.stdlib.add_log_level,
             structlog.stdlib.add_logger_name,
             structlog.processors.TimeStamper(fmt="iso"),

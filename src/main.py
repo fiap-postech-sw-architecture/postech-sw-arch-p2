@@ -59,6 +59,16 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     configurar_logging()
 
+    # Banner de boot. SHA/data sao injetadas em todo log structlog pelo
+    # processor `adicionar_versao_imagem` (configurar_logging acima) --
+    # nao precisa de `bind_contextvars` aqui, que seria limpado pelo
+    # SecurityHeadersMiddleware a cada request. `print` garante
+    # visibilidade imediata antes do stdlib logging ter handler do
+    # uvicorn.
+    git_sha = os.environ.get("PYTSTOP_GIT_SHA", "unknown")[:12]
+    git_date = os.environ.get("PYTSTOP_GIT_DATE", "unknown")
+    print(f">>> pytstop server | commit {git_sha} | {git_date}", flush=True)
+
     # Registra os imperative mappings de cada bounded context antes de
     # aceitar requisicoes. Cada ``iniciar_mapeamentos`` e idempotente
     # (guard interno via flag booleana), seguro para chamar em warm

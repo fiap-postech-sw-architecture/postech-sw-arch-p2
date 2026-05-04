@@ -50,6 +50,9 @@ tests/e2e_ui/screenshots/*.png
 # Local AI agent plans (kept under ~/.claude/plans/, not in repo)
 docs/superpowers/plans/
 
+# Dump SQL gerado por `make ghcr-dump` (artefato de build da imagem GHCR)
+db-image/00-init.sql
+
 # Arquivos de log gerados pelo Uvicorn/FastAPI
 *.log
 logs/

@@ -8,6 +8,10 @@ MVP de back-end para sistema de oficina mecanica, aplicando Domain-Driven Design
 
 Sistema de gestao de ordens de servico para uma oficina mecanica de medio porte. Permite cadastro de clientes e veiculos, criacao e acompanhamento de ordens de servico, gestao de estoque de pecas e insumos, e geracao de orcamentos.
 
+> ## Fast Check -- so docker
+>
+> Stack completa (db seedada + backend + UI) puxando do GHCR, sem build local e sem `.env`. Passo a passo (login no GHCR + `docker compose up`): [`db-image/QUICKSTART.md`](db-image/QUICKSTART.md).
+
 ## Pre-requisitos
 
 > **Setup do zero?** Guias passo a passo por plataforma:
@@ -75,6 +79,7 @@ seed (uteis pra testar a tela publica `/acompanhamento`), veja
 | Debugging do dev loop (Colima, JWT_SECRET, 500s comuns) | [`docs/debugging-guide.md`](docs/debugging-guide.md) |
 | UI NiceGUI (sandbox dev-only) | [`ui/README.md`](ui/README.md) |
 | Worktrees paralelos (rodar 2+ branches sem conflito de portas) | [`docs/setup/worktrees-paralelos.md`](docs/setup/worktrees-paralelos.md) |
+| Publicar imagens db+app+ui no GHCR (pipeline `make update-ghcr` + compose standalone do fast-check) | [`db-image/README.md`](db-image/README.md) |
 
 ## UI de Simulacao
 

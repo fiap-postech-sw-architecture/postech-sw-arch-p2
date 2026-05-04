@@ -40,3 +40,20 @@ def test_config_storage_secret_tem_fallback_dev_quando_env_vazio() -> None:
 def test_config_storage_secret_respeita_env_override() -> None:
     cfg = Config.from_env(env={"UI_STORAGE_SECRET": "my-production-secret-abc"})
     assert cfg.storage_secret == "my-production-secret-abc"
+
+
+def test_config_git_sha_default_vazio_quando_env_ausente() -> None:
+    """Sem PYTSTOP_GIT_SHA (rodada local sem build), git_sha fica vazio.
+
+    O rodape da pagina de login usa essa string vazia como sinal pra nao
+    renderizar a versao -- evita mostrar 'v' sozinho ou 'vunknown'.
+    """
+    cfg = Config.from_env(env={})
+    assert cfg.git_sha == ""
+
+
+def test_config_git_sha_le_pytstop_git_sha_da_env() -> None:
+    """Build do Dockerfile injeta GIT_SHA -> ENV PYTSTOP_GIT_SHA."""
+    sha = "3d94aff26b7ba6830874e6cedbf15b7e40bfc5a4"
+    cfg = Config.from_env(env={"PYTSTOP_GIT_SHA": sha})
+    assert cfg.git_sha == sha

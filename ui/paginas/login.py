@@ -45,6 +45,14 @@ def pagina_login() -> None:
                     on_click=lambda p=papel: _entrar_como_seed(p),
                 ).classes("flex-1")
 
+        # Rodape com SHA do commit que gerou a imagem -- bate com o que sai
+        # nos logs (`>>> pytstop ui | commit XXXX...`) e com o LABEL OCI
+        # `org.opencontainers.image.revision`. Util pro examinador validar
+        # versao sem precisar olhar logs. So renderiza se a env var existir
+        # (vazio em dev local sem build).
+        if CONFIG.git_sha:
+            ui.label(f"v{CONFIG.git_sha[:12]}").classes("text-xs text-gray-400 mt-4")
+
 
 def _checar_backend(label: ui.label) -> None:
     from ui.app import obter_api

@@ -57,6 +57,12 @@ class Config:
     backend_url: str
     ui_port: int
     storage_secret: str
+    # SHA do commit que gerou a imagem da UI. Vem do build arg `GIT_SHA`
+    # injetado em `ui/Dockerfile` (mesmo padrao do app/db). Default vazio
+    # cobre rodadas locais sem build (uvicorn direto pra dev hot-reload),
+    # onde nao tem imagem nem env var. Usado pra exibir versao no rodape
+    # da pagina de login.
+    git_sha: str = ""
     usuarios_seed: dict[Papel, UsuarioSeed] = field(
         default_factory=lambda: dict(_USUARIOS_SEED)
     )
@@ -70,6 +76,7 @@ class Config:
             storage_secret=source.get(
                 "UI_STORAGE_SECRET", _STORAGE_SECRET_DEV_FALLBACK
             ),
+            git_sha=source.get("PYTSTOP_GIT_SHA", ""),
             usuarios_seed=dict(_USUARIOS_SEED),
         )
 

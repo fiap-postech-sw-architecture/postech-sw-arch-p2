@@ -1,6 +1,8 @@
 #!/bin/bash
 set -e
 
+echo ">>> pytstop app | commit ${PYTSTOP_GIT_SHA:0:12} | ${PYTSTOP_GIT_DATE:-unknown}"
+
 if [ "${RUN_MIGRATIONS_ON_STARTUP:-false}" = "true" ]; then
   echo "Running database migrations..."
   alembic upgrade head

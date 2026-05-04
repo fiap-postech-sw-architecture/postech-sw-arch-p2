@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from src.compartilhado.infraestrutura.logging import (
+    adicionar_versao_imagem,
     configurar_logging,
     scrub_pii,
 )
@@ -31,6 +32,19 @@ class TestLogging:
 
     def test_configurar_logging(self) -> None:
         configurar_logging()
+
+    def test_adicionar_versao_imagem_injeta_git_sha_e_date(self) -> None:
+        # Defaults vem do env do processo (PYTSTOP_GIT_SHA/DATE); em
+        # tests sem essas vars setadas, valor esperado e "unknown".
+        result = adicionar_versao_imagem(None, "info", {"event": "boot"})
+        assert "git_sha" in result
+        assert "git_date" in result
+
+    def test_adicionar_versao_imagem_nao_sobrescreve_explicit(self) -> None:
+        result = adicionar_versao_imagem(
+            None, "info", {"event": "x", "git_sha": "explicit"}
+        )
+        assert result["git_sha"] == "explicit"
 
     def test_scrub_cpf_sem_pontuacao(self) -> None:
         event_dict: dict[str, object] = {"event": "CPF 12345678900"}
