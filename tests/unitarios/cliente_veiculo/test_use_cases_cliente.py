@@ -84,12 +84,17 @@ class FakeClienteRepository:
     def __init__(self) -> None:
         self._clientes: dict[UUID, Cliente] = {}
         self.veiculos_bloqueados: list[UUID] = []
+        # Veiculos que ``bloquear_veiculo_para_remocao`` deve reportar como
+        # ja inexistentes, simulando o caso em que outra transacao deletou a
+        # linha entre o ``obter_por_id`` e o lock.
+        self.veiculos_sumidos_no_lock: set[UUID] = set()
 
     def obter_por_id(self, cliente_id: UUID) -> Cliente | None:
         return self._clientes.get(cliente_id)
 
-    def bloquear_veiculo_para_remocao(self, veiculo_id: UUID) -> None:
+    def bloquear_veiculo_para_remocao(self, veiculo_id: UUID) -> bool:
         self.veiculos_bloqueados.append(veiculo_id)
+        return veiculo_id not in self.veiculos_sumidos_no_lock
 
     def salvar(self, cliente: Cliente) -> None:
         self._clientes[cliente.id] = cliente
@@ -452,6 +457,30 @@ class TestRemoverVeiculo:
         uc = RemoverVeiculo(repo=repo, uow=uow, os_port=os_port)
         with pytest.raises(ClienteNaoEncontradoException):
             uc.executar(uuid4(), uuid4())
+
+    def test_race_de_duplo_delete_levanta_veiculo_nao_encontrado(self) -> None:
+        # Simula dois ``RemoverVeiculo`` concorrentes para o mesmo veiculo:
+        # a Tx perdedora carrega o agregado com o veiculo ainda presente,
+        # bloqueia em ``with_for_update`` ate a Tx vencedora commitar, e
+        # quando acorda a linha ja nao existe. O use case deve mapear isso
+        # para 404 em vez de deixar o flush emitir DELETE de zero linhas e
+        # levantar ``StaleDataError`` (que vira 500 no router).
+        repo = FakeClienteRepository()
+        uow = FakeUnitOfWork()
+        os_port = StubOrdemDeServicoPort(os_para_veiculo=False)
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        placa = Placa(valor="ABC1234")
+        veiculo = cliente.adicionar_veiculo(placa, "Fiat", "Uno", 2020)
+        repo.salvar(cliente)
+        repo.veiculos_sumidos_no_lock.add(veiculo.id)
+        uc = RemoverVeiculo(repo=repo, uow=uow, os_port=os_port)
+        with pytest.raises(VeiculoNaoEncontradoException):
+            uc.executar(cliente.id, veiculo.id)
+        # Lock foi tentado, mas a presenca de OS nem chegou a ser checada e
+        # o agregado nao foi modificado nem persistido.
+        assert repo.veiculos_bloqueados == [veiculo.id]
+        assert not uow.committed
 
 
 class _DocumentoFake:

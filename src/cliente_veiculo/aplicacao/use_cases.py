@@ -283,7 +283,13 @@ class RemoverVeiculo:
             # eliminando o IntegrityError silencioso por raca delete x criar.
             if not any(v.id == veiculo_id for v in cliente.veiculos):
                 raise VeiculoNaoEncontradoException()
-            self._repo.bloquear_veiculo_para_remocao(veiculo_id)
+            # Re-checa a presenca da linha apos o lock: se outra transacao
+            # concorrente ja deletou o veiculo, ``with_for_update`` retorna
+            # zero linhas (silent no-op). Sem essa guarda, prosseguir levaria
+            # ao DELETE de zero linhas no flush e a um StaleDataError → 500;
+            # com a guarda, mapeamos explicitamente para 404.
+            if not self._repo.bloquear_veiculo_para_remocao(veiculo_id):
+                raise VeiculoNaoEncontradoException()
             if self._os_port.existe_os_para_veiculo(veiculo_id):
                 raise ViolacaoRegraDeNegocioException(
                     mensagem=(

@@ -159,6 +159,7 @@ markers = [
     "lento: testes que demoram mais de 1s",
     "slow: roda contra instancia viva (docker compose); nao entra em unit-tests puros",
     "slowest: tem sleep obrigatorio >= 1s dentro da journey; NAO entra em CI — rodar apenas em make full-test",
+    "module_under_test(module): registrado pelo plugin nicegui.testing; declarado aqui para sobreviver a coleta sem o extra `ui` instalado (--strict-markers)",
 ]
 addopts = "--strict-markers"
 testpaths = ["tests"]
