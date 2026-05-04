@@ -1,6 +1,8 @@
 # Setup do zero -- Linux
 
-Guia passo a passo para preparar uma maquina Linux do zero ate rodar o projeto. Tempo estimado: 20-40 min com download da rede.
+> [↑ Raiz do projeto](../../README.md)
+
+Guia passo a passo para preparar uma máquina Linux do zero até rodar o projeto. Tempo estimado: 20-40 min com download da rede.
 
 - **Fase 1** (~15 min): clone-ready -- build essentials, GitHub CLI, Docker Engine.
 - **Fase 2** (~5 min): dev-ready -- uv, Python 3.12 (opcional, uv resolve).
@@ -8,15 +10,15 @@ Guia passo a passo para preparar uma maquina Linux do zero ate rodar o projeto. 
 
 > Stack do projeto: Python 3.12 - FastAPI - SQLAlchemy 2 - PostgreSQL 16 - Alembic - uv - Docker Compose v2 - pytest - ruff - mypy.
 
-> Os comandos sao para **Ubuntu 22.04+ / Debian 12+** (apt). Para Fedora/RHEL/Arch, ajuste o gerenciador (`dnf`/`pacman`) e o nome dos pacotes -- a estrutura e identica.
+> Os comandos são para **Ubuntu 22.04+ / Debian 12+** (apt). Para Fedora/RHEL/Arch, ajuste o gerenciador (`dnf`/`pacman`) e o nome dos pacotes -- a estrutura é idêntica.
 
 ---
 
-## Antes de comecar
+## Antes de começar
 
 ### Atualizar a base
 
-Antes de instalar nada novo, atualize indices e pacotes existentes:
+Antes de instalar nada novo, atualize índices e pacotes existentes:
 
 ```bash
 sudo apt update && sudo apt upgrade -y
@@ -29,7 +31,7 @@ sudo apt update && sudo apt upgrade -y
 - Linux Mint 21+
 - Pop!_OS 22.04+
 
-Para outras distros (Fedora, RHEL, Arch, Alpine, etc.), os passos sao analogos -- so muda o gerenciador. Eu marco onde diverge.
+Para outras distros (Fedora, RHEL, Arch, Alpine, etc.), os passos são análogos -- só muda o gerenciador. As diferenças são marcadas em cada seção.
 
 ---
 
@@ -39,9 +41,9 @@ Para outras distros (Fedora, RHEL, Arch, Alpine, etc.), os passos sao analogos -
 
 ### Por que
 
-`build-essential` da `make`, `gcc`, headers C -- necessarios para compilar deps Python nativas (psycopg2, cryptography, bcrypt). `git` e obvio. `curl` e `ca-certificates` para baixar o instalador do uv e adicionar repos apt.
+`build-essential` dá `make`, `gcc`, headers C -- necessários para compilar deps Python nativas (psycopg2, cryptography, bcrypt). `git` é óbvio. `curl` e `ca-certificates` para baixar o instalador do uv e adicionar repos apt.
 
-### Verificacao previa
+### Verificação prévia
 
 ```bash
 git --version
@@ -52,26 +54,26 @@ curl --version | head -1
 
 Se todos responderem, pula.
 
-### Instalacao (Ubuntu/Debian)
+### Instalação (Ubuntu/Debian)
 
 ```bash
 sudo apt install -y build-essential git curl ca-certificates gnupg lsb-release
 ```
 
-### Instalacao (Fedora/RHEL)
+### Instalação (Fedora/RHEL)
 
 ```bash
 sudo dnf groupinstall "Development Tools"
 sudo dnf install -y git curl
 ```
 
-### Instalacao (Arch)
+### Instalação (Arch)
 
 ```bash
 sudo pacman -S --needed base-devel git curl
 ```
 
-### Verificacao
+### Verificação
 
 ```bash
 git --version
@@ -79,7 +81,7 @@ make --version | head -1
 gcc --version | head -1
 ```
 
-### Configuracao inicial obrigatoria do Git
+### Configuração inicial obrigatória do Git
 
 ```bash
 git config --global user.name "Seu Nome Completo"
@@ -88,7 +90,7 @@ git config --global user.email "seu@email.com"
 
 Use o **mesmo email** da sua conta GitHub.
 
-### Configuracoes recomendadas
+### Configurações recomendadas
 
 ```bash
 git config --global init.defaultBranch main
@@ -115,19 +117,19 @@ git config --global credential.helper cache
 
 ### Por que
 
-Resolve a autenticacao de uma vez (escreve token no credential store, entao `git clone https://...` funciona depois). Da comandos uteis para PRs, issues, runs de CI.
+Resolve a autenticação de uma vez (escreve token no credential store, então `git clone https://...` funciona depois). Dá comandos úteis para PRs, issues, runs de CI.
 
-### Verificacao previa
+### Verificação prévia
 
 ```bash
 gh --version
 ```
 
-Se retornar `gh version 2.x.x`, pula instalacao e va para autenticacao.
+Se retornar `gh version 2.x.x`, pula instalação e vai para autenticação.
 
-### Instalacao via repo oficial (Ubuntu/Debian)
+### Instalação via repo oficial (Ubuntu/Debian)
 
-Os repos default do Ubuntu trazem versoes desatualizadas. Use o repo oficial do GitHub:
+Os repos default do Ubuntu trazem versões desatualizadas. Use o repo oficial do GitHub:
 
 ```bash
 (type -p wget >/dev/null || (sudo apt update && sudo apt-get install wget -y)) \
@@ -139,7 +141,7 @@ Os repos default do Ubuntu trazem versoes desatualizadas. Use o repo oficial do 
   && sudo apt install gh -y
 ```
 
-### Instalacao (Fedora/RHEL)
+### Instalação (Fedora/RHEL)
 
 ```bash
 sudo dnf install 'dnf-command(config-manager)'
@@ -147,19 +149,19 @@ sudo dnf config-manager addrepo --from-repofile=https://cli.github.com/packages/
 sudo dnf install gh
 ```
 
-### Instalacao (Arch)
+### Instalação (Arch)
 
 ```bash
 sudo pacman -S github-cli
 ```
 
-### Verificacao
+### Verificação
 
 ```bash
 gh --version
 ```
 
-### Autenticacao
+### Autenticação
 
 ```bash
 gh auth login
@@ -174,31 +176,31 @@ Responda assim:
 | Authenticate Git with your GitHub credentials?      | **Yes**                      |
 | How would you like to authenticate GitHub CLI?      | **Login with a web browser** |
 
-Mostra um codigo `ABCD-1234`. Copia, abre o navegador na URL exibida (`https://github.com/login/device`), cola o codigo, autoriza.
+Mostra um código `ABCD-1234`. Copia, abre o navegador na URL exibida (`https://github.com/login/device`), cola o código, autoriza.
 
-### Verificacao da auth
+### Verificação da auth
 
 ```bash
 gh auth status
 gh repo view fiap-postech-sw-architecture/postech-sw-arch-p1 --json name,visibility
 ```
 
-Se retornar JSON com o nome do repo, voce tem acesso.
+Se retornar JSON com o nome do repo, você tem acesso.
 
-> **Pre-requisito de acesso**: o repo e privado. Se voce nao foi adicionado como **collaborator** na organizacao `fiap-postech-sw-architecture`, o comando acima retorna 404 mesmo com `gh auth status` ok. Confira com algum mantenedor da equipe e peca o invite antes de prosseguir.
+> **Pré-requisito de acesso**: o repo é privado. Se você não foi adicionado como **collaborator** na organização `fiap-postech-sw-architecture`, o comando acima retorna 404 mesmo com `gh auth status` ok. Confira com algum mantenedor da equipe e peça o invite antes de prosseguir.
 
 ---
 
 ## 3. Docker Engine
 
-Voce tem **duas opcoes**:
+Você tem **duas opções**:
 
-- **Docker Engine (recomendado)** -- daemon nativo, sem GUI, instalado via repo oficial. Performance maxima.
-- **Docker Desktop** -- mesma experiencia que Windows/macOS, GUI, roda numa VM. Util se voce ja conhece dos outros SOs.
+- **Docker Engine (recomendado)** -- daemon nativo, sem GUI, instalado via repo oficial. Performance máxima.
+- **Docker Desktop** -- mesma experiência que Windows/macOS, GUI, roda numa VM. Útil se você já conhece dos outros SOs.
 
-Para este projeto, Docker Engine e mais comum em Linux. Os passos abaixo focam nele.
+Para este projeto, Docker Engine é mais comum em Linux. Os passos abaixo focam nele.
 
-### Verificacao previa
+### Verificação prévia
 
 ```bash
 docker --version
@@ -208,15 +210,15 @@ docker info >/dev/null && echo OK
 
 Se tudo responder, pula.
 
-### Remover versoes antigas (Ubuntu/Debian)
+### Remover versões antigas (Ubuntu/Debian)
 
 ```bash
 sudo apt remove -y docker docker-engine docker.io containerd runc 2>/dev/null
 ```
 
-(Nao tem problema se nada estiver instalado -- o comando e idempotente.)
+(Não tem problema se nada estiver instalado -- o comando é idempotente.)
 
-### Instalacao via repo oficial (Ubuntu/Debian)
+### Instalação via repo oficial (Ubuntu/Debian)
 
 ```bash
 # Chave GPG e repo oficial
@@ -233,7 +235,7 @@ sudo apt update
 sudo apt install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 ```
 
-### Instalacao (Fedora/RHEL)
+### Instalação (Fedora/RHEL)
 
 ```bash
 sudo dnf -y install dnf-plugins-core
@@ -242,26 +244,26 @@ sudo dnf install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin d
 sudo systemctl enable --now docker
 ```
 
-### Instalacao (Arch)
+### Instalação (Arch)
 
 ```bash
 sudo pacman -S docker docker-compose
 sudo systemctl enable --now docker
 ```
 
-> **Evite a versao snap do docker no Ubuntu** -- ela tem confinamento que quebra `docker compose` montar volumes em paths arbitrarios. Use sempre o repo oficial.
+> **Evite a versão snap do docker no Ubuntu** -- ela tem confinamento que quebra `docker compose` montar volumes em paths arbitrários. Use sempre o repo oficial.
 
-### Pos-instalacao -- adicionar usuario ao grupo docker
+### Pós-instalação -- adicionar usuário ao grupo docker
 
-Sem isso, voce precisa rodar `sudo docker ...` toda vez. Adicione seu usuario ao grupo `docker`:
+Sem isso, você precisa rodar `sudo docker ...` toda vez. Adicione seu usuário ao grupo `docker`:
 
 ```bash
 sudo usermod -aG docker $USER
 ```
 
-**Reabra a sessao** (logout/login, ou reinicia) para o grupo entrar em vigor. Em uma sessao SSH, basta fazer logout e login.
+**Reabra a sessão** (logout/login, ou reinicia) para o grupo entrar em vigor. Em uma sessão SSH, basta fazer logout e login.
 
-### Verificacao
+### Verificação
 
 ```bash
 docker --version
@@ -269,7 +271,7 @@ docker compose version
 docker run --rm hello-world
 ```
 
-Se `docker run hello-world` falhar com `permission denied while trying to connect to the Docker daemon socket`, voce nao reabriu a sessao apos `usermod` -- faz logout/login.
+Se `docker run hello-world` falhar com `permission denied while trying to connect to the Docker daemon socket`, você não reabriu a sessão após `usermod` -- faz logout/login.
 
 ---
 
@@ -298,14 +300,14 @@ Tudo respondendo sem erro = pronto para a fase 2.
 
 ### Por que
 
-uv e o gerenciador escolhido pelo projeto ([ADR-014](../arquitetura/adr/014-gerenciador-pacotes-uv.md)). Vantagens vs `pip + venv`:
+uv é o gerenciador escolhido pelo projeto ([ADR-014](../arquitetura/adr/014-gerenciador-pacotes-uv.md)). Vantagens vs `pip + venv`:
 
-- Lock file deterministico (`uv.lock`) com hashes SHA-256.
-- Gerencia o proprio Python: `uv sync` baixa o Python 3.12 automaticamente.
-- 10-100x mais rapido que pip.
+- Lock file determinístico (`uv.lock`) com hashes SHA-256.
+- Gerencia o próprio Python: `uv sync` baixa o Python 3.12 automaticamente.
+- 10-100x mais rápido que pip.
 - `uv run <cmd>` executa no venv sem `activate`.
 
-### Verificacao previa
+### Verificação prévia
 
 ```bash
 uv --version
@@ -313,28 +315,28 @@ uv --version
 
 Se retornar `uv 0.x.x`, pula.
 
-### Instalacao -- script oficial (recomendado)
+### Instalação -- script oficial (recomendado)
 
 ```bash
 curl -LsSf https://astral.sh/uv/install.sh | sh
 ```
 
-Instala em `~/.local/bin/uv`. Adiciona ao PATH editando seu `~/.bashrc` ou `~/.zshrc` (o instalador faz isso, mas voce precisa abrir um shell novo).
+Instala em `~/.local/bin/uv`. Adiciona ao PATH editando seu `~/.bashrc` ou `~/.zshrc` (o instalador faz isso, mas você precisa abrir um shell novo).
 
-### Instalacao -- alternativa via pipx
+### Instalação -- alternativa via pipx
 
 ```bash
 sudo apt install pipx       # ou dnf/pacman equivalente
 pipx install uv
 ```
 
-### Instalacao -- alternativa Arch
+### Instalação -- alternativa Arch
 
 ```bash
 sudo pacman -S uv
 ```
 
-### Pos-instalacao
+### Pós-instalação
 
 Recarregue o PATH:
 
@@ -344,7 +346,7 @@ source ~/.bashrc          # ou ~/.zshrc
 
 Ou abra um terminal novo.
 
-### Verificacao
+### Verificação
 
 ```bash
 uv --version
@@ -354,23 +356,23 @@ uv --version
 
 ## 5. Python 3.12 (opcional)
 
-### Por que talvez voce nao precise
+### Por que talvez você não precise
 
-`pyproject.toml` exige `requires-python = ">=3.12"`. Se voce ja instalou o `uv`, `uv sync` baixa o Python 3.12 automaticamente em `~/.local/share/uv/python` -- sem precisar mexer no sistema. **Esta e a forma recomendada.**
+`pyproject.toml` exige `requires-python = ">=3.12"`. Se você já instalou o `uv`, `uv sync` baixa o Python 3.12 automaticamente em `~/.local/share/uv/python` -- sem precisar mexer no sistema. **Esta é a forma recomendada.**
 
-Instale no sistema **so se** quiser usar `python3.12` direto (fora do `uv run ...`).
+Instale no sistema **só se** quiser usar `python3.12` direto (fora do `uv run ...`).
 
-### Verificacao via uv (recomendado)
+### Verificação via uv (recomendado)
 
-Apos rodar `uv sync` no projeto:
+Após rodar `uv sync` no projeto:
 
 ```bash
 uv python list --only-installed
 ```
 
-Deve listar uma instalacao 3.12 baixada pelo uv.
+Deve listar uma instalação 3.12 baixada pelo uv.
 
-### Instalacao do sistema (opcional, Ubuntu 22.04)
+### Instalação do sistema (opcional, Ubuntu 22.04)
 
 Ubuntu 22.04 traz Python 3.10 default. Para ter o 3.12 do sistema, use o PPA deadsnakes:
 
@@ -380,25 +382,25 @@ sudo apt update
 sudo apt install -y python3.12 python3.12-venv python3.12-dev
 ```
 
-### Instalacao do sistema (Ubuntu 24.04+)
+### Instalação do sistema (Ubuntu 24.04+)
 
-Ja vem com 3.12:
+Já vem com 3.12:
 
 ```bash
 sudo apt install -y python3.12 python3.12-venv python3.12-dev
 ```
 
-### Instalacao (Fedora 39+)
+### Instalação (Fedora 39+)
 
 ```bash
 sudo dnf install -y python3.12
 ```
 
-### Instalacao (Arch)
+### Instalação (Arch)
 
-Sempre rolling -- ja tem o Python mais recente. Pode usar `python` direto se for >=3.12.
+Sempre rolling -- já tem o Python mais recente. Pode usar `python` direto se for >=3.12.
 
-### Verificacao
+### Verificação
 
 ```bash
 python3.12 --version
@@ -422,11 +424,11 @@ docker info >/dev/null && echo OK
 
 ### Por que (e quando pular)
 
-Os testes em `tests/unitarios/ui/componentes/` usam a fixture `screen` da NiceGUI, que sobe Chrome headless e navega na UI. Sao marcados `@pytest.mark.lento`. Por padrao `make test` e `make check` excluem (`-m "not lento"`), entao voce nao precisa de Selenium para o fluxo normal de dev.
+Os testes em `tests/unitarios/ui/componentes/` usam a fixture `screen` da NiceGUI, que sobe Chrome headless e navega na UI. São marcados `@pytest.mark.lento`. Por padrão `make test` e `make check` excluem (`-m "not lento"`), então você não precisa de Selenium para o fluxo normal de dev.
 
-Vale instalar se: quer rodar suite completa local (`make test-lento`), esta mexendo em paginas/componentes da UI, ou quer reproduzir falha E2E do CI.
+Vale instalar se: quer rodar suite completa local (`make test-lento`), está mexendo em páginas/componentes da UI, ou quer reproduzir falha E2E do CI.
 
-### Pre-requisito: Chrome ou Chromium
+### Pré-requisito: Chrome ou Chromium
 
 ```bash
 # Ubuntu/Debian
@@ -443,7 +445,7 @@ Ou Google Chrome (via .deb oficial em https://www.google.com/chrome/).
 
 ### O que **nao** precisa instalar
 
-**chromedriver** -- Selenium 4.6+ traz o **Selenium Manager** embutido que baixa o chromedriver compativel automaticamente.
+**chromedriver** -- Selenium 4.6+ traz o **Selenium Manager** embutido que baixa o chromedriver compatível automaticamente.
 
 ### Instalar `selenium` no projeto
 
@@ -455,7 +457,7 @@ uv pip install selenium
 
 Instala no `.venv` do projeto sem tocar `pyproject.toml`/`uv.lock`.
 
-### Verificacao
+### Verificação
 
 ```bash
 uv run python -c "import selenium; print(selenium.__version__)"
@@ -467,9 +469,9 @@ uv run python -c "import selenium; print(selenium.__version__)"
 uv run pytest tests/unitarios/ui/componentes/ -m lento -v --no-lint
 ```
 
-Primeira execucao baixa o chromedriver. Cache em `~/.cache/selenium/`.
+Primeira execução baixa o chromedriver. Cache em `~/.cache/selenium/`.
 
-> **WSL2**: se voce esta rodando dentro do WSL2 no Windows, Chrome headless funciona desde que voce tenha o WSLg habilitado (default em Windows 11). Caso contrario, considere rodar os testes lentos no Windows nativo.
+> **WSL2**: se você está rodando dentro do WSL2 no Windows, Chrome headless funciona desde que você tenha o WSLg habilitado (default em Windows 11). Caso contrário, considere rodar os testes lentos no Windows nativo.
 
 ---
 
@@ -490,44 +492,44 @@ de dev (uvicorn hot-reload, checks locais, atualizar deps):
 
 ---
 
-# Troubleshooting -- especifico do Linux
+# Troubleshooting -- específico do Linux
 
 ### `permission denied while trying to connect to the Docker daemon socket`
-Voce nao foi adicionado ao grupo `docker` ou nao reabriu a sessao apos `sudo usermod -aG docker $USER`. Confira com:
+Você não foi adicionado ao grupo `docker` ou não reabriu a sessão após `sudo usermod -aG docker $USER`. Confira com:
 ```bash
 groups | grep docker
 ```
-Se nao aparecer `docker`, refaz o `usermod` e faz logout/login.
+Se não aparecer `docker`, refaz o `usermod` e faz logout/login.
 
 ### `Cannot connect to the Docker daemon at unix:///var/run/docker.sock`
-O daemon nao esta rodando.
+O daemon não está rodando.
 ```bash
 sudo systemctl start docker
 sudo systemctl enable docker   # iniciar com a maquina
 ```
 
-### `gh auth login` nao abre o navegador
-Em servidor headless ou WSL sem WSLg, copie a URL exibida e cole no navegador da maquina cliente.
+### `gh auth login` não abre o navegador
+Em servidor headless ou WSL sem WSLg, copie a URL exibida e cole no navegador da máquina cliente.
 
 ### `gh repo view` retorna 404
-Voce nao foi adicionado como colaborador no repo, ou logou na conta errada. Confere com `gh auth status`.
+Você não foi adicionado como colaborador no repo, ou logou na conta errada. Confere com `gh auth status`.
 
 ### `apt-get install` reclama de chave GPG do Docker/GitHub
-Possivel mismatch de versao do `gnupg`. Atualize:
+Possível mismatch de versão do `gnupg`. Atualize:
 ```bash
 sudo apt install -y gnupg ca-certificates
 ```
-E refaca a importacao da chave (passos da secao do Docker/gh acima).
+E refaça a importação da chave (passos da seção do Docker/gh acima).
 
-### Versao do Docker Compose `1.x` (Python) instalada
-Algumas distros antigas tem `docker-compose` (script Python, V1) em vez do plugin Compose V2. Este projeto exige V2 (`docker compose`, sem hifen). Desinstale o V1 e instale o plugin:
+### Versão do Docker Compose `1.x` (Python) instalada
+Algumas distros antigas têm `docker-compose` (script Python, V1) em vez do plugin Compose V2. Este projeto exige V2 (`docker compose`, sem hífen). Desinstale o V1 e instale o plugin:
 ```bash
 sudo apt remove docker-compose
 sudo apt install docker-compose-plugin
 ```
 
 ### `iptables` mal configurado quebra a rede dos containers
-Sintoma: containers nao conseguem fazer DNS ou alcancar a internet.
+Sintoma: containers não conseguem fazer DNS ou alcançar a internet.
 ```bash
 sudo iptables -L -n | grep DOCKER   # confere se tem chains DOCKER
 ```
@@ -535,27 +537,29 @@ Se nao tiver, restart:
 ```bash
 sudo systemctl restart docker
 ```
-Se persistir, pode ser conflito com firewall (ufw, firewalld, nftables) -- veja a doc do Docker em https://docs.docker.com/network/iptables/.
+Se persistir, pode ser conflito com firewall (ufw, firewalld, nftables) -- veja a documentação do Docker em https://docs.docker.com/network/iptables/.
 
-### Testes de integracao falham com erro do Ryuk
-Especifico de containers rootless ou Docker Desktop. Confirme que `/var/run/docker.sock` esta acessivel ou exporte:
+### Testes de integração falham com erro do Ryuk
+Específico de containers rootless ou Docker Desktop. Confirme que `/var/run/docker.sock` está acessível ou exporte:
 ```bash
 export TESTCONTAINERS_DOCKER_SOCKET_OVERRIDE=/var/run/docker.sock
 ```
 
 ### `port already in use` em 5432, 8000, 8080
-Algum servico local ja escuta nessas portas. Liste:
+Algum serviço local já escuta nessas portas. Liste:
 ```bash
 sudo ss -tlnp | grep -E ':(5432|8000|8080)'
 ```
-Postgres do sistema ocupando 5432 e o caso mais comum. Pare:
+Postgres do sistema ocupando 5432 é o caso mais comum. Pare:
 ```bash
 sudo systemctl stop postgresql
 ```
 
 ### WSL2 -- I/O lento dentro de `/mnt/c/`
-Se voce clonou o repo em `/mnt/c/...` (filesystem do Windows acessado pelo WSL), `uv sync` e pytest ficam ordens de magnitude mais lentos. Mova o repo para o filesystem do WSL:
+Se você clonou o repo em `/mnt/c/...` (filesystem do Windows acessado pelo WSL), `uv sync` e pytest ficam ordens de magnitude mais lentos. Mova o repo para o filesystem do WSL:
 ```bash
 mv /mnt/c/projetos/postech-sw-arch-p1 ~/projetos/
 cd ~/projetos/postech-sw-arch-p1
 ```
+
+> [↑ Raiz do projeto](../../README.md)

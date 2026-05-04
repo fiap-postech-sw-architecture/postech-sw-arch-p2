@@ -1,5 +1,7 @@
 # Organização dos contextos delimitados do domínio
 
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
 * Status: Aceita
 * Data: 2026-03-20
 
@@ -113,3 +115,5 @@ Manter apenas os 6 status definidos no enunciado do Tech Challenge, sem adiciona
 
 - [ADR-003](003-arquitetura-ddd-onion.md): DDD com Arquitetura Onion — os Bounded Contexts são organizados dentro da estrutura de camadas Onion
 - [ADR-008](008-bloqueio-pessimista-estoque.md): Bloqueio pessimista — detalha a complexidade técnica que justifica Estoque como domínio Principal
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

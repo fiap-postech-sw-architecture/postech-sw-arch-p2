@@ -1,6 +1,8 @@
 # Event Storming — Fluxo 1: Ciclo de Vida da Ordem de Serviço
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../../README.md) · [↑ Event Storming](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 Fluxo principal do sistema: desde o recebimento do veículo até a entrega ao cliente, incluindo operações CRUD administrativas de clientes, veículos e serviços.
 
@@ -215,3 +217,5 @@ sequenceDiagram
 - [Workshop de Event Storming](workshop-event-storming.md) — Sessão que originou este fluxo
 - [Glossário — Linguagem Ubíqua](../../requisitos/glossario.md) — Termos de domínio mapeados para código
 - [Mapa de Contextos](../mapa-contextos.md) — Padrões de integração entre os 5 BCs
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Event Storming](README.md)

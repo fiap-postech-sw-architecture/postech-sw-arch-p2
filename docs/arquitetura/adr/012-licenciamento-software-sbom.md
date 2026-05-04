@@ -1,82 +1,86 @@
 # Licenciamento de Software e SBOM
 
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
 * Status: Aceita
 * Data: 2026-03-29
 
 ## Contexto e Problema
 
-Riscos de cadeia de suprimentos incluem dependencias comprometidas (caso UA-Parser-JS) e incompatibilidades de licenca (GPL forcando abertura de codigo). O projeto utiliza diversas bibliotecas de terceiros. Como garantir que as dependencias nao introduzam riscos legais ou de seguranca?
+Riscos de cadeia de suprimentos incluem dependências comprometidas (caso UA-Parser-JS) e incompatibilidades de licença (GPL forçando abertura de código). O projeto utiliza diversas bibliotecas de terceiros. Como garantir que as dependências não introduzam riscos legais ou de segurança?
 
-## Decisao
+## Decisão
 
-Adotar politica de licenciamento e rastreabilidade de dependencias:
+Adotar política de licenciamento e rastreabilidade de dependências:
 
-- **Licencas permissivas obrigatorias**: todas as dependencias diretas devem possuir licenca permissiva (MIT, Apache 2.0, BSD)
-- **GPL proibida**: dependencias GPL sao proibidas sem aprovacao explicita da equipe
-- **SBOM por release**: geracao de Software Bill of Materials (SBOM) via CycloneDX a cada release
-- **Auditoria periodica**: execucao de pip-audit no pipeline CI e revisao mensal de vulnerabilidades em dependencias
+- **Licenças permissivas obrigatórias**: todas as dependências diretas devem possuir licença permissiva (MIT, Apache 2.0, BSD)
+- **GPL proibida**: dependências GPL são proibidas sem aprovação explícita da equipe
+- **SBOM por release**: geração de Software Bill of Materials (SBOM) via CycloneDX a cada release
+- **Auditoria periódica**: execução de pip-audit no pipeline CI e revisão mensal de vulnerabilidades em dependências
 
 ## Alternativas Consideradas
 
 * Ignorar licenciamento e cadeia de suprimentos
 * Apenas pip-audit (auditoria de vulnerabilidades)
-* CycloneDX + pip-audit com politica de licencas (escolhido)
+* CycloneDX + pip-audit com política de licenças (escolhido)
 
 ### Ignorar licenciamento e cadeia de suprimentos
 
-Nao adotar politica de licenciamento nem ferramentas de auditoria.
+Não adotar política de licenciamento nem ferramentas de auditoria.
 
 * Bom, porque zero overhead no processo de desenvolvimento
-* Bom, porque nao requer configuracao de ferramentas adicionais
-* Ruim, porque risco legal de licencas incompativeis (GPL contaminando o projeto)
-* Ruim, porque vulnerabilidades em dependencias passam despercebidas
-* Ruim, porque nao ha rastreabilidade em caso de incidente na cadeia de suprimentos
+* Bom, porque não requer configuração de ferramentas adicionais
+* Ruim, porque risco legal de licenças incompatíveis (GPL contaminando o projeto)
+* Ruim, porque vulnerabilidades em dependências passam despercebidas
+* Ruim, porque não há rastreabilidade em caso de incidente na cadeia de suprimentos
 
 ### Apenas pip-audit
 
-Auditoria de vulnerabilidades em dependencias via pip-audit no CI.
+Auditoria de vulnerabilidades em dependências via pip-audit no CI.
 
-* Bom, porque detecta CVEs conhecidas em dependencias
-* Bom, porque integracao simples com GitHub Actions
-* Ruim, porque nao rastreia licencas de dependencias
-* Ruim, porque nao gera SBOM para auditoria retroativa
-* Ruim, porque nao previne adicao de dependencias com licencas restritivas
+* Bom, porque detecta CVEs conhecidas em dependências
+* Bom, porque integração simples com GitHub Actions
+* Ruim, porque não rastreia licenças de dependências
+* Ruim, porque não gera SBOM para auditoria retroativa
+* Ruim, porque não previne adição de dependências com licenças restritivas
 
-### CycloneDX + pip-audit com politica de licencas (escolhido)
+### CycloneDX + pip-audit com política de licenças (escolhido)
 
-SBOM, auditoria de vulnerabilidades e politica explicita de licencas.
+SBOM, auditoria de vulnerabilidades e política explícita de licenças.
 
-* Bom, porque rastreabilidade de todas as dependencias e suas licencas
-* Bom, porque SBOM permite auditoria retroativa em caso de incidente (ex: dependencia comprometida)
-* Bom, porque politica de licencas previne riscos legais antes da adicao de dependencias
+* Bom, porque rastreabilidade de todas as dependências e suas licenças
+* Bom, porque SBOM permite auditoria retroativa em caso de incidente (ex: dependência comprometida)
+* Bom, porque política de licenças previne riscos legais antes da adição de dependências
 * Bom, porque pip-audit detecta vulnerabilidades continuamente no CI
-* Ruim, porque overhead de geracao do SBOM a cada release
-* Ruim, porque necessidade de verificar licenca manualmente antes de adicionar nova dependencia
+* Ruim, porque overhead de geração do SBOM a cada release
+* Ruim, porque necessidade de verificar licença manualmente antes de adicionar nova dependência
 
-## Consequencias
+## Consequências
 
 ### Positivas
 
-* Inventario de dependencias e suas licencas via SBOM
-* Conformidade com boas praticas de seguranca de cadeia de suprimentos
-* Prevencao de licencas incompativeis (GPL) que poderiam forcar abertura do codigo
-* Deteccao continua de vulnerabilidades em dependencias via pip-audit
+* Inventário de dependências e suas licenças via SBOM
+* Conformidade com boas práticas de segurança de cadeia de suprimentos
+* Prevenção de licenças incompatíveis (GPL) que poderiam forçar abertura do código
+* Detecção contínua de vulnerabilidades em dependências via pip-audit
 * Capacidade de auditoria retroativa em caso de incidente
 
 ### Negativas
 
-* Necessidade de verificar licenca antes de adicionar qualquer nova dependencia
-* Overhead de geracao e armazenamento do SBOM a cada release
-* Possivel bloqueio de dependencias uteis que possuam licenca GPL
+* Necessidade de verificar licença antes de adicionar qualquer nova dependência
+* Overhead de geração e armazenamento do SBOM a cada release
+* Possível bloqueio de dependências úteis que possuam licença GPL
 
-## Decisoes Relacionadas
+## Decisões Relacionadas
 
-- [ADR-011](011-pipeline-seguranca-analise-estatica.md): Pipeline de seguranca -- pip-audit faz parte do pipeline CI
-- [ADR-010](010-validacao-documentos-brutils.md): brutils possui licenca MIT, compativel com a politica
+- [ADR-011](011-pipeline-seguranca-analise-estatica.md): Pipeline de segurança -- pip-audit faz parte do pipeline CI
+- [ADR-010](010-validacao-documentos-brutils.md): brutils possui licença MIT, compatível com a política
 
 ## Notas
 
-- Referencia: Dev-Seguro Aula 03, OWASP Software Component Verification Standard (SCVS)
-- CycloneDX: formato padrao OWASP para SBOM, suportado por ferramentas de seguranca
-- RNF-015: dependencias auditadas mensalmente via pip-audit; zero vulnerabilidades criticas
+- Referência: Dev-Seguro Aula 03, OWASP Software Component Verification Standard (SCVS)
+- CycloneDX: formato padrão OWASP para SBOM, suportado por ferramentas de segurança
+- RNF-015: dependências auditadas mensalmente via pip-audit; zero vulnerabilidades críticas
 - RNF-016: SBOM gerado via CycloneDX a cada release
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

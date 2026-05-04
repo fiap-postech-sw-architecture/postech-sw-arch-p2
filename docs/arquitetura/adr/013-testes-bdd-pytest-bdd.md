@@ -1,17 +1,19 @@
 # Testes BDD com pytest-bdd e Gherkin
 
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
 * Status: Proposta
 * Data: 2026-03-29
 
 ## Contexto e Problema
 
-O projeto utiliza linguagem ubiqua em portugues (ADR-009). Feature files Gherkin (Given-When-Then) permitem documentacao viva dos requisitos em linguagem natural. Como implementar testes E2E que sirvam como validacao automatizada e documentacao dos fluxos de negocio?
+O projeto utiliza linguagem ubíqua em português (ADR-009). Feature files Gherkin (Given-When-Then) permitem documentação viva dos requisitos em linguagem natural. Como implementar testes E2E que sirvam como validação automatizada e documentação dos fluxos de negócio?
 
-## Decisao
+## Decisão
 
-Adotar pytest-bdd para testes E2E com feature files em portugues. Feature files organizados por bounded context em `tests/e2e/features/`. Steps implementados em Python, reutilizando fixtures do pytest.
+Adotar pytest-bdd para testes E2E com feature files em português. Feature files organizados por bounded context em `tests/e2e/features/`. Steps implementados em Python, reutilizando fixtures do pytest.
 
-Estrutura de diretorios:
+Estrutura de diretórios:
 
 ```
 tests/
@@ -85,10 +87,10 @@ def verificar_status(ordem_de_servico, status):
 
 Framework BDD dedicado para Python.
 
-* Bom, porque comunidade ativa e boa documentacao
-* Bom, porque suporte nativo a Gherkin em portugues
-* Ruim, porque nao integra nativamente com pytest — requer runner separado (`behave` CLI)
-* Ruim, porque nao compartilha fixtures do pytest, exigindo mecanismo proprio de setup/teardown
+* Bom, porque comunidade ativa e boa documentação
+* Bom, porque suporte nativo a Gherkin em português
+* Ruim, porque não integra nativamente com pytest — requer runner separado (`behave` CLI)
+* Ruim, porque não compartilha fixtures do pytest, exigindo mecanismo próprio de setup/teardown
 * Ruim, porque duplica infraestrutura de testes (conftest.py para pytest + environment.py para behave)
 
 ### Apenas testes de API com pytest (sem Gherkin)
@@ -97,45 +99,47 @@ Testes E2E escritos diretamente em Python com pytest, sem camada Gherkin.
 
 * Bom, porque simples, sem overhead de feature files e steps
 * Bom, porque aproveita toda a infraestrutura existente do pytest
-* Ruim, porque perde rastreabilidade direta entre cenarios e requisitos em linguagem de negocio
-* Ruim, porque testes sao legiveis apenas por desenvolvedores, nao por stakeholders
-* Ruim, porque nao produz documentacao viva dos fluxos de negocio
+* Ruim, porque perde rastreabilidade direta entre cenários e requisitos em linguagem de negócio
+* Ruim, porque testes são legíveis apenas por desenvolvedores, não por stakeholders
+* Ruim, porque não produz documentação viva dos fluxos de negócio
 
 ### pytest-bdd (escolhido)
 
 Plugin pytest que implementa BDD com feature files Gherkin, integrando-se ao ecossistema pytest.
 
 * Bom, porque integra nativamente com pytest — fixtures, markers, plugins compartilhados
-* Bom, porque cenarios em portugues (`# language: pt`) alinham com a linguagem ubiqua (ADR-009)
-* Bom, porque feature files servem como documentacao viva dos requisitos
-* Bom, porque steps reutilizaveis entre cenarios reduzem duplicacao
-* Ruim, porque feature files adicionais para manter em sincronia com o codigo
+* Bom, porque cenários em português (`# language: pt`) alinham com a linguagem ubíqua (ADR-009)
+* Bom, porque feature files servem como documentação viva dos requisitos
+* Bom, porque steps reutilizáveis entre cenários reduzem duplicação
+* Ruim, porque feature files adicionais para manter em sincronia com o código
 * Ruim, porque curva de aprendizado do Gherkin para a equipe
 
-## Consequencias
+## Consequências
 
 ### Positivas
 
-* Feature files legiveis por stakeholders nao tecnicos, funcionando como documentacao viva
+* Feature files legíveis por stakeholders não técnicos, funcionando como documentação viva
 * Rastreabilidade entre feature files e requisitos funcionais (RF-xxx)
-* Linguagem ubiqua nos testes, alinhada com ADR-009
-* Reutilizacao de fixtures pytest existentes (testcontainers, factories, API client)
-* Cenarios Gherkin facilitam validacao de requisitos com especialistas de dominio
+* Linguagem ubíqua nos testes, alinhada com ADR-009
+* Reutilização de fixtures pytest existentes (testcontainers, factories, API client)
+* Cenários Gherkin facilitam validação de requisitos com especialistas de domínio
 
 ### Negativas
 
 * Mais arquivos para manter: feature files (`.feature`) e step definitions (`.py`) em paralelo
-* Curva de aprendizado do Gherkin para membros da equipe nao familiarizados
-* Risco de feature files desatualizados se nao houver disciplina de manutencao
-* Steps mal granularizados podem gerar duplicacao ou acoplamento entre cenarios
+* Curva de aprendizado do Gherkin para membros da equipe não familiarizados
+* Risco de feature files desatualizados se não houver disciplina de manutenção
+* Steps mal granularizados podem gerar duplicação ou acoplamento entre cenários
 
-## Decisoes Relacionadas
+## Decisões Relacionadas
 
-- [ADR-005](005-estrategia-testes.md): Estrategia de testes — pytest-bdd integra o perfil E2E da piramide de testes
-- [ADR-009](009-decisao-de-idioma.md): Modelo hibrido de idioma — feature files em portugues alinham com a linguagem ubiqua
+- [ADR-005](005-estrategia-testes.md): Estratégia de testes — pytest-bdd integra o perfil E2E da pirâmide de testes
+- [ADR-009](009-decisao-de-idioma.md): Modelo híbrido de idioma — feature files em português alinham com a linguagem ubíqua
 
 ## Notas
 
 * pytest-bdd docs: https://pytest-bdd.readthedocs.io/
-* Gherkin em portugues: https://cucumber.io/docs/gherkin/languages/
-* Marker pytest: `@pytest.mark.e2e` para identificar testes BDD no perfil de execucao
+* Gherkin em português: https://cucumber.io/docs/gherkin/languages/
+* Marker pytest: `@pytest.mark.e2e` para identificar testes BDD no perfil de execução
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

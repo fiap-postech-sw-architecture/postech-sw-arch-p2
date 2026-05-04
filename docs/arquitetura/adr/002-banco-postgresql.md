@@ -1,5 +1,7 @@
 # Usar PostgreSQL 16 como banco de dados
 
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
 * Status: Aceita
 * Data: 2026-03-20
 
@@ -87,3 +89,5 @@ Banco de dados orientado a documentos, com modelo flexível de schema.
 
 - [ADR-005](005-estrategia-testes.md): Estratégia de testes — testcontainers com PostgreSQL real mitiga a consequência negativa de complexidade de testes
 - [ADR-008](008-bloqueio-pessimista-estoque.md): Bloqueio pessimista — detalha o uso de SELECT FOR UPDATE NOWAIT com locks em ordem crescente
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

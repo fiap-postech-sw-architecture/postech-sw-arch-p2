@@ -1,5 +1,7 @@
 # Mapeamento imperativo do SQLAlchemy para entidades de domínio
 
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
 * Status: Reprovado
 * Data: 2026-03-11
 
@@ -87,3 +89,5 @@ Usar queries SQL diretamente nos repositórios, sem mapeamento objeto-relacional
 
 - [ADR-003](003-arquitetura-ddd-onion.md): DDD com Arquitetura Onion — o mapeamento imperativo é a técnica que viabiliza o isolamento do domínio exigido pela Onion Architecture
 - [ADR-002](002-banco-postgresql.md): PostgreSQL como banco de dados — o mapeamento imperativo usa Table() com tipos específicos do PostgreSQL (ENUM, JSONB)
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

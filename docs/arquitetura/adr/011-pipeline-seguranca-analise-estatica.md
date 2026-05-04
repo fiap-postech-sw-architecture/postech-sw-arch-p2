@@ -1,89 +1,93 @@
-# Pipeline de Seguranca e Analise Estatica
+# Pipeline de Segurança e Análise Estática
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
 
 * Status: Aceita
 * Data: 2026-03-29
 
 ## Contexto e Problema
 
-O Tech Challenge exige seguranca como requisito (RNF-010), incluindo analise estatica automatizada e ferramentas OWASP para deteccao precoce de vulnerabilidades. Como garantir que vulnerabilidades sejam detectadas antes de chegarem a producao?
+O Tech Challenge exige segurança como requisito (RNF-010), incluindo análise estática automatizada e ferramentas OWASP para detecção precoce de vulnerabilidades. Como garantir que vulnerabilidades sejam detectadas antes de chegarem à produção?
 
-## Decisao
+## Decisão
 
-Adotar pipeline de seguranca em tres camadas complementares:
+Adotar pipeline de segurança em três camadas complementares:
 
 **Camada 1 -- Pre-commit (local):**
-- **ruff**: lint e formatacao de codigo Python (substitui flake8, isort, black)
-- **mypy** (modo strict): verificacao estatica de tipos para prevenir erros em runtime
+- **ruff**: lint e formatação de código Python (substitui flake8, isort, black)
+- **mypy** (modo strict): verificação estática de tipos para prevenir erros em runtime
 
 **Camada 2 -- CI (GitHub Actions):**
-- **bandit**: analise estatica de seguranca Python (SAST), detecta padroes inseguros como uso de `eval()`, `pickle`, SQL concatenado
-- **pip-audit**: auditoria de dependencias contra base de dados de CVEs conhecidas
-- **gitleaks**: deteccao de segredos (API keys, senhas, tokens) no historico Git
+- **bandit**: análise estática de segurança Python (SAST), detecta padrões inseguros como uso de `eval()`, `pickle`, SQL concatenado
+- **pip-audit**: auditoria de dependências contra base de dados de CVEs conhecidas
+- **gitleaks**: detecção de segredos (API keys, senhas, tokens) no histórico Git
 - **trivy**: scan de vulnerabilidades na imagem Docker (OS packages, bibliotecas)
 
 **Camada 3 -- Quality gate (PR):**
-- **SonarQube**: metricas de qualidade, code smells, cobertura de testes e duplicacao de codigo (quando disponivel)
+- **SonarQube**: métricas de qualidade, code smells, cobertura de testes e duplicação de código (quando disponível)
 
 ## Alternativas Consideradas
 
 * Apenas ruff + mypy (lint e tipagem)
-* Apenas SonarQube (analise abrangente)
-* Pipeline completo em camadas (lint + SAST + dependencias + segredos + imagem)
+* Apenas SonarQube (análise abrangente)
+* Pipeline completo em camadas (lint + SAST + dependências + segredos + imagem)
 
 ### Apenas ruff + mypy
 
-Ferramentas de lint e verificacao de tipos executadas localmente no pre-commit.
+Ferramentas de lint e verificação de tipos executadas localmente no pre-commit.
 
-* Bom, porque e rapido e nao impacta o tempo de CI
+* Bom, porque é rápido e não impacta o tempo de CI
 * Bom, porque detecta erros de tipo e estilo antes do commit
-* Ruim, porque nao detecta vulnerabilidades de seguranca (padroes inseguros, CVEs)
-* Ruim, porque nao detecta segredos no historico Git
-* Ruim, porque nao verifica vulnerabilidades na imagem Docker
+* Ruim, porque não detecta vulnerabilidades de segurança (padrões inseguros, CVEs)
+* Ruim, porque não detecta segredos no histórico Git
+* Ruim, porque não verifica vulnerabilidades na imagem Docker
 
 ### Apenas SonarQube
 
-Analise estatica centralizada via SonarQube no pipeline CI.
+Análise estática centralizada via SonarQube no pipeline CI.
 
-* Bom, porque oferece visao unificada de qualidade, seguranca e cobertura
-* Bom, porque possui dashboard com historico de metricas
-* Ruim, porque nao detecta segredos no historico Git (fora do escopo do SonarQube)
-* Ruim, porque nao audita vulnerabilidades em dependencias Python (CVEs)
-* Ruim, porque nao verifica a imagem Docker
+* Bom, porque oferece visão unificada de qualidade, segurança e cobertura
+* Bom, porque possui dashboard com histórico de métricas
+* Ruim, porque não detecta segredos no histórico Git (fora do escopo do SonarQube)
+* Ruim, porque não audita vulnerabilidades em dependências Python (CVEs)
+* Ruim, porque não verifica a imagem Docker
 * Ruim, porque requer infraestrutura adicional (servidor SonarQube)
 
 ### Pipeline completo em camadas (escolhido)
 
-Ferramentas especializadas cobrindo lint, SAST, dependencias, segredos e imagem Docker.
+Ferramentas especializadas cobrindo lint, SAST, dependências, segredos e imagem Docker.
 
-* Bom, porque cada ferramenta cobre uma superficie de ataque distinta
-* Bom, porque pre-commit fornece feedback rapido ao desenvolvedor
-* Bom, porque CI garante que nenhum codigo inseguro e mergeado
-* Bom, porque atende ao RNF-010 de forma verificavel
+* Bom, porque cada ferramenta cobre uma superfície de ataque distinta
+* Bom, porque pre-commit fornece feedback rápido ao desenvolvedor
+* Bom, porque CI garante que nenhum código inseguro é mergeado
+* Bom, porque atende ao RNF-010 de forma verificável
 * Ruim, porque o pipeline de CI fica mais lento (~2-3 minutos adicionais)
-* Ruim, porque requer manutencao de configuracoes de multiplas ferramentas
+* Ruim, porque requer manutenção de configurações de múltiplas ferramentas
 
-## Consequencias
+## Consequências
 
 ### Positivas
 
-* Deteccao precoce de vulnerabilidades antes de chegarem a producao
-* Atendimento verificavel ao RNF-010 (seguranca como requisito)
-* Prevencao de segredos comitados no repositorio (gitleaks)
-* Auditoria continua de dependencias contra CVEs conhecidas (pip-audit)
+* Detecção precoce de vulnerabilidades antes de chegarem à produção
+* Atendimento verificável ao RNF-010 (segurança como requisito)
+* Prevenção de segredos comitados no repositório (gitleaks)
+* Auditoria contínua de dependências contra CVEs conhecidas (pip-audit)
 * Imagem Docker verificada antes do deploy (trivy)
 
 ### Negativas
 
-* Tempo de CI aumentado em ~2-3 minutos por execucao
-* Necessidade de manter configuracoes de bandit, gitleaks e trivy
+* Tempo de CI aumentado em ~2-3 minutos por execução
+* Necessidade de manter configurações de bandit, gitleaks e trivy
 * Falsos positivos podem bloquear PRs temporariamente (necessidade de triagem)
 
-## Decisoes Relacionadas
+## Decisões Relacionadas
 
-- [ADR-005](005-estrategia-testes.md): Estrategia de testes -- complementa a cobertura de qualidade
-- [ADR-012](012-licenciamento-software-sbom.md): Licenciamento e SBOM -- pip-audit e parte da estrategia de cadeia de suprimentos
+- [ADR-005](005-estrategia-testes.md): Estratégia de testes -- complementa a cobertura de qualidade
+- [ADR-012](012-licenciamento-software-sbom.md): Licenciamento e SBOM -- pip-audit é parte da estratégia de cadeia de suprimentos
 
 ## Notas
 
-- Referencia: OWASP Testing Guide, Dev-Seguro Aulas 04 e 05
-- RNF-010: o sistema deve possuir ferramentas de analise estatica e auditoria de seguranca
+- Referência: OWASP Testing Guide, Dev-Seguro Aulas 04 e 05
+- RNF-010: o sistema deve possuir ferramentas de análise estática e auditoria de segurança
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

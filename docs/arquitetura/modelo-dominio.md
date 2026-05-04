@@ -1,6 +1,8 @@
 # Modelo de Domínio
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../README.md) · [↑ Arquitetura](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 Diagramas de classes por agregado.
 
@@ -250,3 +252,5 @@ Agregados referenciam-se exclusivamente por ID (UUID), nunca por referência dir
 | `ItemDaOrdem` | `item_estoque_id: UUID \| None` | `ItemEstoque` |
 
 A comunicação cross-agregado acontece via portas na camada de aplicação (`EstoquePort`, `CatalogoPort`, `ClientePort`), nunca por referência direta entre entidades de domínio.
+
+> [↑ Raiz do projeto](../../README.md) · [↑ Arquitetura](README.md)

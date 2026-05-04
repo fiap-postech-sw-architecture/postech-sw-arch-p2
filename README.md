@@ -4,23 +4,21 @@
 
 # PytStop -- Tech Challenge Fase 1
 
-MVP de back-end para sistema de oficina mecanica, aplicando Domain-Driven Design (DDD).
+MVP de back-end para sistema de gestão de ordens de serviço de uma oficina mecânica de médio porte (clientes, veículos, OS, estoque, orçamentos), aplicando Domain-Driven Design (DDD).
 
-Sistema de gestao de ordens de servico para uma oficina mecanica de medio porte. Permite cadastro de clientes e veiculos, criacao e acompanhamento de ordens de servico, gestao de estoque de pecas e insumos, e geracao de orcamentos.
-
-> ## Fast Check -- so docker
+> ## Fast Check -- só docker
 >
 > Stack completa (db seedada + backend + UI) puxando do GHCR, sem build local e sem `.env`. Passo a passo (login no GHCR + `docker compose up`): [`db-image/QUICKSTART.md`](db-image/QUICKSTART.md).
 
-## Pre-requisitos
+## Pré-requisitos
 
 > **Setup do zero?** Guias passo a passo por plataforma:
 > [**Windows**](docs/setup/windows.md) - [**macOS**](docs/setup/macos.md) - [**Linux**](docs/setup/linux.md)
 
-Quem ja tem o ambiente pronto:
+Quem já tem o ambiente pronto:
 
 - Python 3.12+
-- [uv](https://docs.astral.sh/uv/) (gerenciador de dependencias e ambientes virtuais -- [ADR-014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md))
+- [uv](https://docs.astral.sh/uv/) (gerenciador de dependências e ambientes virtuais -- [ADR-014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md))
 - Docker 24+ e Docker Compose v2
 - Git
 
@@ -34,22 +32,22 @@ open http://localhost:8080/login       # atalhos Admin / Atendente / Mecanico
 ```
 
 `make reset-db` derruba qualquer stack anterior, apaga o volume do postgres,
-rebuilda imagens, aguarda o backend ficar saudavel e popula usuarios + dados
-de demo (7 clientes, 10 veiculos, 8 servicos, 14 itens, 8 OS em estados
+rebuilda imagens, aguarda o backend ficar saudável e popula usuários + dados
+de demo (7 clientes, 10 veículos, 8 serviços, 14 itens, 8 OS em estados
 variados). **Apaga todos os dados do DB local.**
 
-Pra pular o seed de demo (DB so com usuarios): `SKIP_DEMO=1 make reset-db`.
-Derrubar tudo depois: `make down`. Apos `git pull`, prefira `make rebuild`
-(forca rebuild das imagens sem apagar o DB).
+Para pular o seed de demo (DB só com usuários): `SKIP_DEMO=1 make reset-db`.
+Derrubar tudo depois: `make down`. Após `git pull`, prefira `make rebuild`
+(força rebuild das imagens sem apagar o DB).
 
 > Se aparecer `failed to connect to the docker API ...docker.sock`, o socket
-> nao esta no caminho padrao. Veja
+> não está no caminho padrão. Veja
 > [`docs/setup/troubleshooting.md`](docs/setup/troubleshooting.md) para
 > configurar manualmente (Docker Desktop, Colima, Linux).
 
 ### URLs
 
-| Servico | URL |
+| Serviço | URL |
 |---|---|
 | UI NiceGUI | http://localhost:8080 |
 | Backend Swagger | http://localhost:8000/docs |
@@ -65,8 +63,8 @@ Derrubar tudo depois: `make down`. Apos `git pull`, prefira `make rebuild`
 
 Na tela `/login`, os atalhos `ADMIN` / `ATENDENTE` / `MECANICO` logam
 automaticamente. Para os pares **(placa, CPF/CNPJ)** das 8 OS criadas pelo
-seed (uteis pra testar a tela publica `/acompanhamento`), veja
-[`ui/seed-users.md`](ui/seed-users.md). Definicao em codigo:
+seed (úteis pra testar a tela pública `/acompanhamento`), veja
+[`ui/seed-users.md`](ui/seed-users.md). Definição em código:
 `ui/config.py::_USUARIOS_SEED` (espelhada em `scripts/seed_usuarios.py`).
 
 ## Desenvolvimento
@@ -74,7 +72,7 @@ seed (uteis pra testar a tela publica `/acompanhamento`), veja
 | Topico | Onde ler |
 |---|---|
 | Setup do zero (instalar uv, Docker, etc.) | [`docs/setup/`](docs/setup/) (Windows / macOS / Linux) |
-| Loop de dev rapido (uvicorn hot-reload), checks locais, atualizar deps | [`docs/desenvolvimento.md`](docs/desenvolvimento.md) |
+| Loop de dev rápido (uvicorn hot-reload), checks locais, atualizar deps | [`docs/desenvolvimento.md`](docs/desenvolvimento.md) |
 | Troubleshooting Docker (socket, Compose v2) | [`docs/setup/troubleshooting.md`](docs/setup/troubleshooting.md) |
 | Debugging do dev loop (Colima, JWT_SECRET, 500s comuns) | [`docs/debugging-guide.md`](docs/debugging-guide.md) |
 | UI NiceGUI (sandbox dev-only) | [`ui/README.md`](ui/README.md) |
@@ -84,23 +82,23 @@ seed (uteis pra testar a tela publica `/acompanhamento`), veja
 ## UI de Simulacao
 
 Sandbox em Python puro (NiceGUI) para testes manuais integrados da API.
-**Dev-only** -- nao entra no Dockerfile do backend, nao e promovida a
-entregavel. Coexiste com o Swagger UI (`/docs`): Swagger e referencia crua
-da API, a UI de simulacao e sandbox integrado.
+**Dev-only** -- não entra no Dockerfile do backend, não é promovida a
+entregável. Coexiste com o Swagger UI (`/docs`): Swagger é referência crua
+da API, a UI de simulação é sandbox integrado.
 
-> **Nota arquitetural**: o servico `ui` aparece no `docker-compose.yml` mas
-> nao no [diagrama C4 Container](docs/arquitetura/c4/c4-container.md), por
+> **Nota arquitetural**: o serviço `ui` aparece no `docker-compose.yml` mas
+> não no [diagrama C4 Container](docs/arquitetura/c4/c4-container.md), por
 > ser componente auxiliar de desenvolvimento. Ver
 > [issue #109](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/issues/109)
-> para a decisao em discussao sobre como sinalizar isso nos diagramas
+> para a decisão em discussão sobre como sinalizar isso nos diagramas
 > oficiais.
 
-Guia completo de uso da UI (paginas, autenticacao, modo hibrido,
+Guia completo de uso da UI (páginas, autenticação, modo híbrido,
 troubleshooting, contribuir): [`ui/README.md`](ui/README.md).
 
 ## Arquitetura
 
-Monolito modular com DDD e Onion Architecture. Cada contexto delimitado e um modulo Python com 4 camadas:
+Monolito modular com DDD e Onion Architecture. Cada contexto delimitado é um módulo Python com 4 camadas:
 
 ```
 interfaces/ -> aplicacao/ -> dominio/
@@ -108,38 +106,38 @@ interfaces/ -> aplicacao/ -> dominio/
 infraestrutura/
 ```
 
-Regra de dependencia estrita: camadas internas nunca importam camadas externas. Convencao de idioma hibrida (ADR-009): termos de negocio em portugues, padroes tecnicos em ingles.
+Regra de dependência estrita: camadas internas nunca importam camadas externas. Convenção de idioma híbrida (ADR-009): termos de negócio em português, padrões técnicos em inglês.
 
 ### Contextos Delimitados
 
-| Contexto | Classificacao | Descricao |
+| Contexto | Classificação | Descrição |
 |---|---|---|
-| Ordem de Servico | Principal | Ciclo de vida da OS, orcamentos, maquina de estados |
-| Cliente + Veiculo | Suporte | Cadastro de clientes e veiculos vinculados |
-| Catalogo de Servicos | Suporte | Servicos oferecidos pela oficina |
+| Ordem de Serviço | Principal | Ciclo de vida da OS, orçamentos, máquina de estados |
+| Cliente + Veículo | Suporte | Cadastro de clientes e veículos vinculados |
+| Catálogo de Serviços | Suporte | Serviços oferecidos pela oficina |
 | Estoque | Principal | Pecas e insumos com controle de quantidade |
-| Autenticacao | Generico | JWT, controle de acesso por papel |
+| Autenticação | Genérico | JWT, controle de acesso por papel |
 
 ## API
 
-Documentacao interativa disponivel em `http://localhost:8000/docs` (Swagger UI).
+Documentação interativa disponível em `http://localhost:8000/docs` (Swagger UI).
 
-| Grupo | Prefixo | Operacoes |
+| Grupo | Prefixo | Operações |
 |---|---|---|
 | Clientes | /api/v1/clientes | CRUD + veiculos |
-| Servicos | /api/v1/servicos | CRUD catalogo |
+| Serviços | /api/v1/servicos | CRUD catálogo |
 | Estoque | /api/v1/estoque | CRUD + ajuste quantidade |
-| Ordens de Servico | /api/v1/ordens-de-servico | Ciclo completo da OS |
-| Autenticacao | /api/v1/autenticacao | Login, registro, refresh, logout |
+| Ordens de Serviço | /api/v1/ordens-de-servico | Ciclo completo da OS |
+| Autenticação | /api/v1/autenticacao | Login, registro, refresh, logout |
 | Saude | /api/v1/saude | Health check |
 
-## Variaveis de Ambiente
+## Variáveis de Ambiente
 
-| Variavel | Descricao | Padrao |
+| Variável | Descrição | Padrão |
 |---|---|---|
-| DATABASE_URL | URL de conexao PostgreSQL | postgresql://pytstop:pytstop@postgres:5432/pytstop |
+| DATABASE_URL | URL de conexão PostgreSQL | postgresql://pytstop:pytstop@postgres:5432/pytstop |
 | JWT_SECRET | Chave secreta para tokens JWT | change-this-in-production |
-| JWT_EXPIRATION_MINUTES | Tempo de expiracao do token | 30 |
+| JWT_EXPIRATION_MINUTES | Tempo de expiração do token | 30 |
 | ENVIRONMENT | Ambiente (development/production) | development |
 | CORS_ORIGINS | Origens permitidas para CORS | http://localhost:3000 |
 | RUN_MIGRATIONS_ON_STARTUP | Executar migrations ao iniciar o app | false |
@@ -152,10 +150,10 @@ Documentacao interativa disponivel em `http://localhost:8000/docs` (Swagger UI).
 - **Framework**: FastAPI
 - **Banco de dados**: PostgreSQL 16
 - **ORM**: SQLAlchemy 2.0 (mapeamento imperativo)
-- **Autenticacao**: JWT (HS256)
+- **Autenticação**: JWT (HS256)
 - **Testes**: pytest, testcontainers, polyfactory
 - **Linting**: ruff, mypy (strict), import-linter
-- **Containerizacao**: Docker, Docker Compose
+- **Containerização**: Docker, Docker Compose
 
 ## Testes
 
@@ -171,7 +169,7 @@ pytest tests/integracao/ --no-lint -v                                       # in
 uv run --extra test --extra ui pytest tests/unitarios/ --no-lint --cov=src  # cobertura local
 ```
 
-Detalhes do workflow de dev (lint, mypy, bandit, atualizar dependencias):
+Detalhes do workflow de dev (lint, mypy, bandit, atualizar dependências):
 [`docs/desenvolvimento.md`](docs/desenvolvimento.md).
 
 ## Code review automatizado pelo Claude
@@ -182,27 +180,27 @@ oficial usando o secret `CLAUDE_CODE_OAUTH_TOKEN`:
 
 | Workflow | Arquivo | Trigger | Perfil | Quando usar |
 |---|---|---|---|---|
-| **Claude Code Review** | `.github/workflows/claude-code-review.yml` | `pull_request` (`opened` / `reopened`) com **alvo `main`** | **Rapido**: `sonnet` + `--effort medium` + `--max-turns 30` | Review unica e automatica na abertura de PR pra main |
-| **Claude On-Demand** | `.github/workflows/claude-on-demand.yml` | `issue_comment`, `pull_request_review_comment`, `workflow_dispatch` | **Profundo**: `opus` + `--effort max` + `--max-turns 50` | Re-revisar apos mudancas, pedir tarefa especifica, ou rodar em PRs entre branches de feature |
+| **Claude Code Review** | `.github/workflows/claude-code-review.yml` | `pull_request` (`opened` / `reopened`) com **alvo `main`** | **Rápido**: `sonnet` + `--effort medium` + `--max-turns 30` | Review única e automática na abertura de PR pra main |
+| **Claude On-Demand** | `.github/workflows/claude-on-demand.yml` | `issue_comment`, `pull_request_review_comment`, `workflow_dispatch` | **Profundo**: `opus` + `--effort max` + `--max-turns 50` | Re-revisar após mudanças, pedir tarefa específica, ou rodar em PRs entre branches de feature |
 
 **Por que dois perfis**: o auto-review dispara em **todo** PR pra `main` --
-otimizar pra latencia/custo (sonnet faz review competente em ~30-60s pra PR
+otimizar pra latência/custo (sonnet faz review competente em ~30-60s pra PR
 pequeno; benchmark: PR #94 com opus/max levou 2m53s/$0.78 em 32 LOC). Quando
-voce **explicitamente** pede review manual, o sinal e claro ("quero revisao
-profunda mesmo que demore mais") -- dai o salto pra `opus` em `--effort max`,
-que tambem da folga a sub-agents (`Task` tool) em PR grande. Os defaults
+você **explicitamente** pede review manual, o sinal é claro ("quero revisão
+profunda mesmo que demore mais") -- daí o salto pra `opus` em `--effort max`,
+que também dá folga a sub-agents (`Task` tool) em PR grande. Os defaults
 ficam centralizados em
 [`.github/actions/claude/action.yml`](.github/actions/claude/action.yml) e o
 `claude-on-demand.yml` sobrescreve via inputs.
 
-**Politica de auto-review**: roda **uma vez** por PR para `main` (na abertura
-ou reabertura). Pushes seguintes **nao** re-disparam -- isso e proposital pra
-manter o custo previsivel. Se voce quiser nova review apos mudar codigo,
-acione manual (proxima secao).
+**Política de auto-review**: roda **uma vez** por PR para `main` (na abertura
+ou reabertura). Pushes seguintes **não** re-disparam -- isso é proposital pra
+manter o custo previsível. Se você quiser nova review após mudar código,
+acione manual (próxima seção).
 
 ### Acionar manualmente
 
-**Opcao A -- Comentar `@claude` no PR ou issue** (mais comum):
+**Opção A -- Comentar `@claude` no PR ou issue** (mais comum):
 
 Cole no comentario do PR/issue:
 
@@ -214,20 +212,20 @@ Cole no comentario do PR/issue:
 @claude tem alguma race condition em ui/cliente_api.py::_request?
 ```
 
-A action detecta `@claude` no body do comentario e responde inline. Funciona
-em PRs, em issues, e em comments de review (linha especifica). **So funciona
-quando o workflow ja esta na branch `main`** (limitacao do GitHub: events
+A action detecta `@claude` no body do comentário e responde inline. Funciona
+em PRs, em issues, e em comments de review (linha específica). **Só funciona
+quando o workflow já está na branch `main`** (limitação do GitHub: events
 `issue_comment` sempre executam o workflow do default branch).
 
-**Opcao B -- Run workflow manual via GitHub UI**:
+**Opção B -- Run workflow manual via GitHub UI**:
 
 1. Repo -> aba **Actions** -> **Claude On-Demand** (sidebar esquerda)
 2. Clique em **Run workflow** (canto direito)
 3. Em "Use workflow from", selecione a branch
-4. Em "Instrucao para o Claude", digite o que quer (ex.: `review PR #81 focando em LGPD`)
+4. Em "Instrução para o Claude", digite o que quer (ex.: `review PR #81 focando em LGPD`)
 5. **Run workflow**
 
-**Opcao C -- `gh` CLI**:
+**Opção C -- `gh` CLI**:
 
 ```bash
 gh workflow run claude-on-demand.yml \
@@ -235,11 +233,11 @@ gh workflow run claude-on-demand.yml \
   --field prompt="review este PR e foque em performance"
 ```
 
-> ⚠️ **Limitacao do GitHub Actions**: tanto a Opcao B quanto a Opcao C
-> precisam que o arquivo `claude-on-demand.yml` ja exista **na default
-> branch (main)**. O `--ref` (ou o seletor "Use workflow from") so muda
-> o checkout durante a execucao -- o lookup do workflow em si e sempre na
-> main. Se a action ainda nao foi mergeada, o comando retorna `HTTP 404
+> ⚠️ **Limitação do GitHub Actions**: tanto a Opção B quanto a Opção C
+> precisam que o arquivo `claude-on-demand.yml` já exista **na default
+> branch (main)**. O `--ref` (ou o seletor "Use workflow from") só muda
+> o checkout durante a execução -- o lookup do workflow em si é sempre na
+> main. Se a action ainda não foi mergeada, o comando retorna `HTTP 404
 > workflow not found on the default branch`.
 >
 > **Workaround antes do merge inicial**: re-acionar o auto-review fechando
@@ -251,50 +249,50 @@ gh workflow run claude-on-demand.yml \
 
 ### Custos e limites
 
-- Cada run consome creditos do plano Claude Max do owner do token.
+- Cada run consome créditos do plano Claude Max do owner do token.
 - Auto-review dispara **uma vez por PR para main** (na abertura/reabertura).
-  Pushes seguintes nao re-disparam -- pra revisar de novo, use a secao
+  Pushes seguintes não re-disparam -- pra revisar de novo, use a seção
   "Acionar manualmente" acima.
-- PRs entre branches de feature (target != main) nao disparam auto-review;
+- PRs entre branches de feature (target != main) não disparam auto-review;
   use Run workflow manual ou `@claude` mention quando quiser.
 - **Profundidade vs custo**: auto-review usa `--max-turns 30` (suficiente
-  pra `track_progress` + 4 eixos do prompt em PR tipico); on-demand usa
+  pra `track_progress` + 4 eixos do prompt em PR típico); on-demand usa
   `--max-turns 50` pra dar folga a sub-agents (`Task` tool) em PR grande.
   Se um run ficar batendo no limite, sobe o `max_turns` na chamada do
-  composite ao inves de subir o default global.
+  composite ao invés de subir o default global.
 - Se quiser desabilitar o auto-review temporariamente, comente o bloco
-  `on.pull_request` em `claude-code-review.yml` (deixa so quando precisar).
+  `on.pull_request` em `claude-code-review.yml` (deixa só quando precisar).
 
-## Decisoes de Arquitetura (ADRs)
+## Decisões de Arquitetura (ADRs)
 
-| ADR | Titulo | Status |
+| ADR | Título | Status |
 |---|---|---|
 | [000](docs/arquitetura/adr/000-template.md) | Template MADR | -- |
 | [001](docs/arquitetura/adr/001-framework-fastapi.md) | Framework FastAPI | Aceito |
 | [002](docs/arquitetura/adr/002-banco-postgresql.md) | Banco PostgreSQL | Aceito |
 | [003](docs/arquitetura/adr/003-arquitetura-ddd-onion.md) | Arquitetura DDD + Onion | Aceito |
 | [004](docs/arquitetura/adr/004-autenticacao-jwt.md) | Autenticacao JWT HS256 | Aceito |
-| [005](docs/arquitetura/adr/005-estrategia-testes.md) | Estrategia de testes | Aceito |
+| [005](docs/arquitetura/adr/005-estrategia-testes.md) | Estratégia de testes | Aceito |
 | [006](docs/arquitetura/adr/006-mapeamento-imperativo-sqlalchemy.md) | Mapeamento imperativo SQLAlchemy | Aceito |
-| [007](docs/arquitetura/adr/007-organizacao-contextos-delimitados.md) | Organizacao dos contextos delimitados | Aceito |
+| [007](docs/arquitetura/adr/007-organizacao-contextos-delimitados.md) | Organização dos contextos delimitados | Aceito |
 | [008](docs/arquitetura/adr/008-bloqueio-pessimista-estoque.md) | Bloqueio pessimista de estoque | Aceito |
-| [009](docs/arquitetura/adr/009-decisao-de-idioma.md) | Modelo hibrido de idioma | Aceito |
-| [010](docs/arquitetura/adr/010-validacao-documentos-brutils.md) | Validacao CPF/CNPJ/Placa com brutils | Proposta |
-| [011](docs/arquitetura/adr/011-pipeline-seguranca-analise-estatica.md) | Pipeline de seguranca e analise estatica | Aceito |
+| [009](docs/arquitetura/adr/009-decisao-de-idioma.md) | Modelo híbrido de idioma | Aceito |
+| [010](docs/arquitetura/adr/010-validacao-documentos-brutils.md) | Validação CPF/CNPJ/Placa com brutils | Proposta |
+| [011](docs/arquitetura/adr/011-pipeline-seguranca-analise-estatica.md) | Pipeline de segurança e análise estática | Aceito |
 | [012](docs/arquitetura/adr/012-licenciamento-software-sbom.md) | Licenciamento de software e SBOM | Aceito |
 | [013](docs/arquitetura/adr/013-testes-bdd-pytest-bdd.md) | Testes BDD com pytest-bdd | Aceito |
 | [014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md) | Gerenciador de pacotes uv | Aceita |
 
-## Documentacao
+## Documentação
 
-| Artefato | Descricao |
+| Artefato | Descrição |
 |---|---|
-| [Domain Storytelling](docs/arquitetura/domain-storytelling/) | 5 cenarios no egon.io + entrevistas com especialistas de dominio |
-| [Event Storming](docs/arquitetura/event-storming/) | 2 fluxos detalhados (ciclo da OS e gestao de estoque) |
-| [Mapa de Contextos](docs/arquitetura/mapa-contextos.md) | 5 contextos delimitados com padroes de integracao |
+| [Domain Storytelling](docs/arquitetura/domain-storytelling/) | 5 cenários no egon.io + entrevistas com especialistas de domínio |
+| [Event Storming](docs/arquitetura/event-storming/) | 2 fluxos detalhados (ciclo da OS e gestão de estoque) |
+| [Mapa de Contextos](docs/arquitetura/mapa-contextos.md) | 5 contextos delimitados com padrões de integração |
 | [Modelo de Dominio](docs/arquitetura/modelo-dominio.md) | Diagramas de classes por agregado |
-| [Glossario](docs/requisitos/glossario.md) | Linguagem Ubiqua -- termos de dominio |
-| [Entrega Fase 1](docs/entrega/entrega-fase-1.md) | Indice completo dos entregaveis |
+| [Glossário](docs/requisitos/glossario.md) | Linguagem Ubíqua -- termos de domínio |
+| [Entrega Fase 1](docs/entrega/entrega-fase-1.md) | Índice completo dos entregáveis |
 
 ## Equipe
 

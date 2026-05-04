@@ -1,5 +1,7 @@
 # Modelo híbrido de idioma para código e documentação
 
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
 * Status: Aceita
 * Data: 2026-03-20
 
@@ -86,3 +88,5 @@ Todo o código em português, incluindo padrões técnicos: `RepositorioOrdemDeS
 ## Decisões Relacionadas
 
 - [ADR-010](010-validacao-documentos-brutils.md): Validação com brutils — encapsula API em inglês da biblioteca dentro de Value Objects com interface em português, seguindo este ADR
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

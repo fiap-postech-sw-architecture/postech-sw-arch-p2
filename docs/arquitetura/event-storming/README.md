@@ -1,6 +1,8 @@
 # Event Storming
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 Documentação do Event Storming do projeto, conforme exigido pelo Tech Challenge Fase 1.
 
@@ -56,3 +58,5 @@ Os diagramas detalhados estão representados em Mermaid dentro de cada arquivo d
 - [Glossário](../../requisitos/glossario.md) — Linguagem Ubíqua com todos os termos de domínio
 - [Mapa de Contextos](../mapa-contextos.md) — Relação entre os 5 contextos delimitados
 - [Modelo de Domínio](../modelo-dominio.md) — Diagramas de classes por agregado
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

@@ -1,5 +1,7 @@
 # Usar DDD com Arquitetura Onion
 
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
 * Status: Proposta
 * Data: 2026-03-20
 
@@ -126,3 +128,5 @@ Baseada na análise da disciplina Software Architecture — Aula 1: Arquiteturas
 - [ADR-006](006-mapeamento-imperativo-sqlalchemy.md): Mapeamento imperativo do SQLAlchemy — garante que entidades de domínio permanecem como classes puras, sem herança de ORM
 - [ADR-007](007-organizacao-contextos-delimitados.md): Organização dos contextos delimitados — define as fronteiras dos Bounded Contexts dentro da estrutura Onion
 - [ADR-009](009-decisao-de-idioma.md): Modelo híbrido de idioma — define as convenções de nomenclatura usadas neste ADR
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

@@ -1,6 +1,8 @@
 # Glossário — Linguagem Ubíqua
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 Termos do domínio mapeados para identificadores no código, seguindo o modelo híbrido (ADR-009): termos de negócio em português sem acentos, sufixos de padrão técnico em inglês.
 
@@ -32,8 +34,8 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 | Cliente | `Cliente` | Agregado raiz que representa a pessoa física ou jurídica que traz veículos à oficina. Identificado por CPF ou CNPJ. |
 | Veículo | `Veiculo` | Entidade filha do agregado Cliente. Não tem ciclo de vida independente. Criado via `Cliente.adicionar_veiculo()`. |
 | Placa | `Placa` | Objeto de valor que representa a placa do veículo. Única entre todos os clientes. |
-| Marca | `marca: str` | Atributo do veículo (ex: Fiat, Volkswagen). |
-| Modelo | `modelo: str` | Atributo do veículo (ex: Uno, Gol). |
+| Marca | `marca: str` | Atributo do veículo (ex.: Fiat, Volkswagen). |
+| Modelo | `modelo: str` | Atributo do veículo (ex.: Uno, Gol). |
 | Ano | `ano: int` | Ano de fabricação do veículo. |
 | CPF | `CPF` | Objeto de valor com validação algorítmica. Implementa o protocolo `Documento`. |
 | CNPJ | `CNPJ` | Objeto de valor com validação algorítmica. Implementa o protocolo `Documento`. |
@@ -43,7 +45,7 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 
 | Termo do Domínio | Identificador no Código | Definição |
 |---|---|---|
-| Serviço Oferecido | `ServicoOferecido` | Agregado raiz que representa um tipo de serviço disponível na oficina (ex: troca de óleo, alinhamento). Pode ser desativado sem afetar OS históricas. |
+| Serviço Oferecido | `ServicoOferecido` | Agregado raiz que representa um tipo de serviço disponível na oficina (ex.: troca de óleo, alinhamento). Pode ser desativado sem afetar OS históricas. |
 | DTO de Serviço Oferecido | `ServicoOferecidoDTO` | Tipo de retorno da `CatalogoPort`. Representa dados do catálogo consumidos pelo contexto Ordem de Serviço. |
 
 ## Contexto: Estoque (Principal)
@@ -81,3 +83,5 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 | Port | Interface de comunicação entre contextos, definida pelo consumidor (ex: `EstoquePort`). |
 | Open Host Service (OHS) | Padrão de integração DDD: contexto fornecedor expõe serviço padronizado. |
 | Published Language | Padrão de integração DDD: linguagem compartilhada via DTOs. |
+
+> [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)

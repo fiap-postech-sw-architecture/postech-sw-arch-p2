@@ -1,5 +1,7 @@
 # Usar BrUtils para validação de CPF, CNPJ e Placa
 
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
 * Status: Aceita
 * Data: 2026-03-20
 
@@ -40,7 +42,7 @@ Algoritmos de dígitos verificadores para CPF e CNPJ, regex para placas.
 * Bom, porque controle total sobre a lógica
 * Ruim, porque duplica código já testado e estável
 * Ruim, porque risco de bugs em algoritmos de dígitos verificadores
-* Ruim, porque requer manter regex de ambos formatos de placa
+* Ruim, porque requer manter regex de ambos os formatos de placa
 
 ### validate-docbr
 
@@ -76,3 +78,5 @@ Biblioteca para validação de documentos brasileiros. Suporta CPF, CNPJ, CNH, R
 * GitHub: https://github.com/brazilian-utils/brutils-python
 * Licença: MIT
 * Versão: `>=2.3.0,<3` em `pyproject.toml`
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

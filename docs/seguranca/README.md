@@ -1,17 +1,22 @@
-# Seguranca
+# Segurança
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../README.md)
 
-Documentacao de seguranca do projeto, incluindo analise de vulnerabilidades e evidencias de scanning.
+> **Versão**: 1.0 — Fase 1 MVP.
+
+Documentação de segurança do projeto, incluindo análise de vulnerabilidades e evidências de scanning.
 
 ## Documentos
 
-| Arquivo | Descricao |
+| Arquivo | Descrição |
 |---------|-----------|
-| [relatorio-vulnerabilidades.md](relatorio-vulnerabilidades.md) | Relatorio de vulnerabilidades — scanning estatico (bandit), auditoria de dependencias (pip-audit) e scanning de container (trivy) |
+| [plano-seguranca.md](plano-seguranca.md) | Plano de segurança — modelo de ameaças, controles de acesso, resposta a incidentes e conformidade LGPD |
+| [relatorio-vulnerabilidades.md](relatorio-vulnerabilidades.md) | Relatório de vulnerabilidades — scanning estático (bandit), auditoria de dependências (pip-audit) e scanning de container (trivy) |
 
-## Relacao com Outros Documentos
+## Relação com Outros Documentos
 
-- [Requisitos Nao Funcionais](../requisitos/requisitos.md) — RNF-010 (scanning de seguranca)
-- [ADR-004](../arquitetura/adr/004-autenticacao-jwt.md) — Estrategia de autenticacao JWT
-- [DoR/DoD](../requisitos/dor-dod.md) — Criterios de prontidao e conclusao do relatorio (secao 4.3)
+- [Requisitos Não Funcionais](../requisitos/requisitos.md) — RNF-010 (scanning de segurança)
+- [ADR-004](../arquitetura/adr/004-autenticacao-jwt.md) — Estratégia de autenticação JWT
+- [DoR/DoD](../requisitos/dor-dod.md) — Critérios de prontidão e conclusão do relatório (seção 4.3)
+
+> [↑ Raiz do projeto](../../README.md)

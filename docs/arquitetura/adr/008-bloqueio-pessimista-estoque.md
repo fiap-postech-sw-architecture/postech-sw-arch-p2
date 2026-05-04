@@ -1,11 +1,13 @@
 # Bloqueio pessimista para reserva de estoque
 
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
 * Status: Aceita
 * Data: 2026-03-11
 
 ## Contexto e Problema
 
-Quando múltiplas Ordens de Servico são aprovadas simultaneamente, elas podem tentar reservar as mesmas peças do estoque. Sem controle de concorrência, o sistema pode aprovar reservas que excedem a quantidade disponível. Como garantir a atomicidade da reserva de estoque sob concorrência?
+Quando múltiplas Ordens de Serviço são aprovadas simultaneamente, elas podem tentar reservar as mesmas peças do estoque. Sem controle de concorrência, o sistema pode aprovar reservas que excedem a quantidade disponível. Como garantir a atomicidade da reserva de estoque sob concorrência?
 
 ## Decisão
 
@@ -84,3 +86,5 @@ Lock em memória (ou distribuído) na camada de aplicação para serializar aces
 
 - [ADR-002](002-banco-postgresql.md): PostgreSQL como banco de dados — `SELECT FOR UPDATE NOWAIT` é funcionalidade específica do PostgreSQL
 - [ADR-007](007-organizacao-contextos-delimitados.md): Organização dos contextos delimitados — a complexidade do bloqueio pessimista justifica Estoque como domínio Principal
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

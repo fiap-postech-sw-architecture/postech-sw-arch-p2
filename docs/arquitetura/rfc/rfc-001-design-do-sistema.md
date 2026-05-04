@@ -1,5 +1,7 @@
 # RFC-001: Design do Sistema — MVP Oficina Mecânica
 
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
 **Data**: 2026-03-11
 **Equipe**: PytStop (João Amaral, Allan Aurélio, Carlos Silva, Guilherme Sousa, Nicolas Gerbi)
 
@@ -359,4 +361,8 @@ outbox {
 - [ADR-003](../adr/003-arquitetura-ddd-onion.md) — Arquitetura DDD + Onion
 - [ADR-004](../adr/004-autenticacao-jwt.md) — Autenticação JWT
 - [ADR-008](../adr/008-bloqueio-pessimista-estoque.md) — Bloqueio pessimista de estoque
+
+---
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
 

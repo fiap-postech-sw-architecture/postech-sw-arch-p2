@@ -1,17 +1,19 @@
 # Fast Check -- Pre-requisitos: Docker/GH account no repo
 
+> [↑ Raiz do projeto](../README.md) · [↑ db-image](README.md)
+
 Stack completa (db seedada + backend + UI) em 2 comandos, puxando do GHCR. Sem build local, sem `.env`.
 
 ## 1. Login no GHCR (uma vez)
 
-As imagens sao **privadas** -- precisa autenticar. Forma mais simples:
+As imagens são **privadas** -- precisa autenticar. Forma mais simples:
 
 ```bash
 docker login ghcr.io -u <SEU_GH_USER>
 ```
 
 Quando pedir password, **cole um Personal Access Token (classic) com
-escopo `read:packages`**, NAO sua senha do GitHub (GitHub nao aceita
+escopo `read:packages`**, NÃO sua senha do GitHub (GitHub não aceita
 password em registry desde 2021). Pra criar o token:
 [github.com/settings/tokens/new](https://github.com/settings/tokens/new?scopes=read:packages&description=ghcr-pull).
 
@@ -24,9 +26,9 @@ cd db-image
 docker compose up -d --wait
 ```
 
-`--wait` segura o terminal ate todos os servicos passarem no healthcheck (~15-30s no x86 nativo, ate ~60s em amd64 emulando arm64 via QEMU). Quando o prompt volta, ja pode abrir o browser sem risco de `ERR_EMPTY_RESPONSE`.
+`--wait` segura o terminal até todos os serviços passarem no healthcheck (~15-30s no x86 nativo, até ~60s em amd64 emulando arm64 via QEMU). Quando o prompt volta, já pode abrir o browser sem risco de `ERR_EMPTY_RESPONSE`.
 
-Cada servico imprime a SHA do commit no startup:
+Cada serviço imprime a SHA do commit no startup:
 
 ```
 postgres-1  | >>> pytstop seeded DB | commit 3d94aff26b7b | 2026-05-03T19:31:37-03:00
@@ -39,7 +41,7 @@ ui-1        | >>> pytstop ui | commit 3d94aff26b7b | 2026-05-03T19:31:37-03:00
 
 | | |
 |---|---|
-| **UI (NiceGUI)** | http://localhost:8080 -- login: `admin@pytstop.dev` / `admin-dev-pass-2026` (atalho `ADMIN` na tela tambem loga direto) |
+| **UI (NiceGUI)** | http://localhost:8080 -- login: `admin@pytstop.dev` / `admin-dev-pass-2026` (atalho `ADMIN` na tela também loga direto) |
 | **Swagger / OpenAPI** | http://localhost:8000/docs |
 | **ReDoc** | http://localhost:8000/redoc |
 | **Health probe** | http://localhost:8000/api/v1/saude |
@@ -58,7 +60,7 @@ curl -fsSL http://localhost:8000/api/v1/clientes/ \
   -H "Authorization: Bearer $TOKEN" | jq '.total, .items[0]'
 ```
 
-Saida esperada (DB seedada com 7 clientes / 10 veiculos / 8 OS em estados
+Saída esperada (DB seedada com 7 clientes / 10 veículos / 8 OS em estados
 variados):
 
 ```json
@@ -72,16 +74,16 @@ variados):
 }
 ```
 
-## 5. Validar a versao
+## 5. Validar a versão
 
-A SHA do commit aparece em 3 lugares: nos logs de boot (acima), no rodape da pagina de login da UI (`vXXXXXXXXXXXX`), e no LABEL OCI das 3 imagens:
+A SHA do commit aparece em 3 lugares: nos logs de boot (acima), no rodapé da página de login da UI (`vXXXXXXXXXXXX`), e no LABEL OCI das 3 imagens:
 
 ```bash
 docker inspect ghcr.io/jbamaral/postech-sw-arch-p1-app:latest \
   --format '{{index .Config.Labels "org.opencontainers.image.revision"}}'
 ```
 
-Em runtime, tambem da `docker exec <container> printenv PYTSTOP_GIT_SHA`.
+Em runtime, também dá `docker exec <container> printenv PYTSTOP_GIT_SHA`.
 
 ## 6. Derrubar
 
@@ -89,25 +91,27 @@ Em runtime, tambem da `docker exec <container> printenv PYTSTOP_GIT_SHA`.
 docker compose down
 ```
 
-Sem volume nomeado -- a DB e re-seedada do dump em todo `docker compose
+Sem volume nomeado -- a DB é re-seedada do dump em todo `docker compose
 up`. Pra persistir entre runs, use `docker compose stop` / `start` em vez
 de `down`.
 
 ## Troubleshooting
 
-| Sintoma | Causa provavel | Acao |
+| Sintoma | Causa provável | Ação |
 |---|---|---|
 | `Error response from daemon: ... denied: denied` no login | Senha do GitHub em vez de PAT (GitHub depreciou password auth pra registry) | Use PAT com `read:packages`, ou `gh auth token` se tem `gh` CLI logado |
-| `denied` no `docker pull` apos login OK | PAT logado mas sem `read:packages`, ou PAT fine-grained (so funciona pra org); ou usuario nao tem acesso ao package privado | Recrie o PAT como **classic** com `read:packages`. Se for fork: dono do package precisa adicionar voce |
-| Porta 8000/8080 ja em uso | Outra stack rodando | `docker ps` pra ver, ou `APP_PORT=8001 UI_PORT=8081 docker compose up` (compose ja le essas vars) |
-| UI carrega mas API falha 500 | `ENCRYPTION_KEY` divergente | Compose ja traz a key correta -- nao sobrescrever |
-| Login API retorna 422 | Body usando `password` em vez de `senha` | API e pt-BR; use `{"email": "...", "senha": "..."}` |
+| `denied` no `docker pull` após login OK | PAT logado mas sem `read:packages`, ou PAT fine-grained (só funciona pra org); ou usuário não tem acesso ao package privado | Recrie o PAT como **classic** com `read:packages`. Se for fork: dono do package precisa adicionar você |
+| Porta 8000/8080 já em uso | Outra stack rodando | `docker ps` pra ver, ou `APP_PORT=8001 UI_PORT=8081 docker compose up` (compose já lê essas vars) |
+| UI carrega mas API falha 500 | `ENCRYPTION_KEY` divergente | Compose já traz a key correta -- não sobrescrever |
+| Login API retorna 422 | Body usando `password` em vez de `senha` | API é pt-BR; use `{"email": "...", "senha": "..."}` |
 | `docker compose up` puxa imagem stale | Cache local de uma corrida anterior | Compose tem `pull_policy: always` -- se ainda assim parecer stale, rode `docker compose pull` antes |
-| Browser mostra `ERR_EMPTY_RESPONSE` em `localhost:8000/docs` logo apos `up` | Subiu sem `--wait` -- porta esta aberta (proxy do Docker) mas uvicorn ainda nao atende, especialmente sob emulacao QEMU | Suba com `docker compose up -d --wait`, ou cheque `docker compose ps` ate ver `app` como `(healthy)` antes de abrir o browser |
-| `app` nunca fica `healthy` | App caiu no startup (DB unreachable, env var faltando) | `docker compose logs app` -- procure traceback Python ou erro de conexao no postgres |
+| Browser mostra `ERR_EMPTY_RESPONSE` em `localhost:8000/docs` logo após `up` | Subiu sem `--wait` -- porta está aberta (proxy do Docker) mas uvicorn ainda não atende, especialmente sob emulação QEMU | Suba com `docker compose up -d --wait`, ou cheque `docker compose ps` até ver `app` como `(healthy)` antes de abrir o browser |
+| `app` nunca fica `healthy` | App caiu no startup (DB unreachable, env var faltando) | `docker compose logs app` -- procure traceback Python ou erro de conexão no postgres |
 
 ## Setup completo (com source code)
 
-Este QUICKSTART e um atalho. Pra fazer mudancas, rodar testes, debug do
+Este QUICKSTART é um atalho. Pra fazer mudanças, rodar testes, debug do
 loop de dev, etc., siga o **[README principal](../README.md)** que cobre
 clone, `make reset-db`, `make test`, etc.
+
+> [↑ Raiz do projeto](../README.md) · [↑ db-image](README.md)

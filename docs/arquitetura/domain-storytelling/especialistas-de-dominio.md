@@ -1,6 +1,8 @@
 # Especialistas de Domínio e Entrevistas — Oficina Mecânica
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../../README.md) · [↑ Domain Storytelling](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 > Entrevistas simuladas geradas com assistência de IA (Claude) e revisadas pela equipe PytStop.
 > Os especialistas de domínio são fictícios — representam papéis típicos de uma oficina
@@ -97,7 +99,7 @@ Cada papel na oficina carrega conhecimento tácito — regras nunca escritas, ma
 
 **Dev**: Seu Carlos, me conta como funciona o dia a dia da oficina, desde que o cliente chega.
 
-**Seu Carlos**: *recosta na cadeira* Olha, o cliente chega, fala com a Dona Marta na recepção. Ela anota tudo: nome, telefone, placa do carro, quilometragem, e o que o cliente ta reclamando. Depois ela me chama e a gente decide o que fazer. Se é coisa simples, eu já sei o que é só de ouvir. Se não, a gente precisa fazer um diagnóstico mais detalhado.
+**Seu Carlos**: *recosta na cadeira* Olha, o cliente chega, fala com a Dona Marta na recepção. Ela anota tudo: nome, telefone, placa do carro, quilometragem, e o que o cliente tá reclamando. Depois ela me chama e a gente decide o que fazer. Se é coisa simples, eu já sei o que é só de ouvir. Se não, a gente precisa fazer um diagnóstico mais detalhado.
 
 **Dev**: E como é esse diagnóstico?
 
@@ -109,7 +111,7 @@ Cada papel na oficina carrega conhecimento tácito — regras nunca escritas, ma
 
 **Dev**: E se o carro ficar muito tempo esperando?
 
-**Seu Carlos**: *coça a cabeça* Ai é problema. Tem carro aqui que o dono sumiu. Mandou arrumar, a gente fez o orçamento, o cara não respondeu e nunca mais apareceu. Eu ligo, mando mensagem, nada. Ai o carro fica ocupando espaço. Depois de uns trinta dias eu penso em cobrar estadia, mas na prática nunca cobrei de ninguém. É uma dor de cabeça.
+**Seu Carlos**: *coça a cabeça* Aí é problema. Tem carro aqui que o dono sumiu. Mandou arrumar, a gente fez o orçamento, o cara não respondeu e nunca mais apareceu. Eu ligo, mando mensagem, nada. Aí o carro fica ocupando espaço. Depois de uns trinta dias eu penso em cobrar estadia, mas na prática nunca cobrei de ninguém. É uma dor de cabeça.
 
 **Dev**: Quando o orçamento é aprovado e o serviço começa, como vocês controlam o andamento?
 
@@ -117,7 +119,7 @@ Cada papel na oficina carrega conhecimento tácito — regras nunca escritas, ma
 
 **Dev**: E se aparece um serviço adicional durante o reparo?
 
-**Seu Carlos**: Ah, isso acontece toda hora. O cara traz pra trocar o freio e quando abre, descobre que o flexível tá rachado. Aí depende do valor. Se é coisa pequena, eu autorizo o mecânico a fazer e depois a gente avisa o cliente. Se é coisa grande, para tudo, faz novo orçamento.
+**Seu Carlos**: Ah, isso acontece toda hora. O cara traz pra trocar o freio e quando abre, descobre que o flexível tá rachado. Aí depende do valor. Se é coisa pequena, eu autorizo o mecânico a fazer e depois a gente avisa o cliente. Se é coisa grande, para tudo e faz novo orçamento.
 
 **Dev**: Qual o limite entre "coisa pequena" e "coisa grande"?
 
@@ -265,7 +267,7 @@ Outra coisa: histórico do cliente. Quando o cara volta e fala "eu troquei a emb
 
 **Dev**: Como você registra esses serviços adicionais?
 
-**Reginaldo**: *coça a cabeça* Aí que é o problema. Às vezes eu falo pro Carlos e ele anota. Às vezes eu anoto num papel avulso e grampeia na OS. Às vezes eu só falo e ninguém anota. Aí na hora de fechar a conta falta informação. Já aconteceu do cliente perguntar "mas por que tá mais caro do que o orçamento?" e a gente não ter registro do que foi aprovado a mais. É ruim.
+**Reginaldo**: *coça a cabeça* Aí que é o problema. Às vezes eu falo pro Carlos e ele anota. Às vezes eu anoto num papel avulso e grampeio na OS. Às vezes eu só falo e ninguém anota. Aí na hora de fechar a conta falta informação. Já aconteceu do cliente perguntar "mas por que tá mais caro do que o orçamento?" e a gente não ter registro do que foi aprovado a mais. É ruim.
 
 **Dev**: Quando você termina o serviço, o que acontece?
 
@@ -657,3 +659,5 @@ Funcionalidades presentes em todos os sistemas que estão fora do escopo do MVP:
 - [Mapa de Contextos](../mapa-contextos.md) — Relação entre os 5 contextos delimitados
 - [Modelo de Domínio](../modelo-dominio.md) — Diagramas de classes por agregado
 - [ADR-007](../adr/007-organizacao-contextos-delimitados.md) — Organização dos contextos delimitados
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Domain Storytelling](README.md)

@@ -1,6 +1,8 @@
 # Event Storming — Fluxo 2: Gestão de Peças e Insumos
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../../README.md) · [↑ Event Storming](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 Fluxo de gerenciamento do estoque da oficina: cadastro de itens, controle de quantidade, reserva durante aprovação de orçamento e liberação em caso de cancelamento.
 
@@ -158,3 +160,5 @@ stateDiagram-v2
 - [Workshop de Event Storming](workshop-event-storming.md) — Sessão que originou este fluxo
 - [Glossário — Linguagem Ubíqua](../../requisitos/glossario.md) — Termos de domínio mapeados para código
 - [Mapa de Contextos](../mapa-contextos.md) — Padrões de integração entre os 5 BCs
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Event Storming](README.md)

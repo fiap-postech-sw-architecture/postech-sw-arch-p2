@@ -1,23 +1,27 @@
 # Requisitos
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../README.md)
 
-Documentacao de requisitos do projeto, desde o desafio original ate o refinamento tecnico e criterios de qualidade.
+> **Versão**: 1.0 — Fase 1 MVP.
+
+Documentação de requisitos do projeto, desde o desafio original até o refinamento técnico e critérios de qualidade.
 
 ## Documentos
 
-| Arquivo | Descricao |
+| Arquivo | Descrição |
 |---------|-----------|
 | [desafio-tech-fase-1.md](desafio-tech-fase-1.md) | Enunciado original do Tech Challenge Fase 1 |
-| [levantamento-de-requisitos.md](levantamento-de-requisitos.md) | Levantamento de requisitos com jornada do usuario e analise de riscos |
-| [prd.md](prd.md) | Product Requirements Document — user stories com criterios de aceite e priorizacao MoSCoW |
-| [requisitos.md](requisitos.md) | Requisitos funcionais (RF), nao funcionais (RNF) e regras de negocio (RN) |
-| [refinamento-tecnico.md](refinamento-tecnico.md) | Refinamento tecnico com estimativas e consideracoes por etapa |
-| [glossario.md](glossario.md) | Glossario da linguagem ubiqua — termos de dominio padronizados |
-| [dor-dod.md](dor-dod.md) | Definition of Ready e Definition of Done por user story e por entregavel |
+| [levantamento-de-requisitos.md](levantamento-de-requisitos.md) | Levantamento de requisitos com jornada do usuário e análise de riscos |
+| [prd.md](prd.md) | Product Requirements Document — user stories com critérios de aceite e priorização MoSCoW |
+| [requisitos.md](requisitos.md) | Requisitos funcionais (RF), não funcionais (RNF) e regras de negócio (RN) |
+| [refinamento-tecnico.md](refinamento-tecnico.md) | Refinamento técnico com estimativas e considerações por etapa |
+| [glossario.md](glossario.md) | Glossário da linguagem ubíqua — termos de domínio padronizados |
+| [dor-dod.md](dor-dod.md) | Definition of Ready e Definition of Done por user story e por entregável |
 
-## Relacao com Outros Documentos
+## Relação com Outros Documentos
 
-- [RFC-001](../arquitetura/rfc/rfc-001-design-do-sistema.md) — Design tecnico derivado dos requisitos
+- [RFC-001](../arquitetura/rfc/rfc-001-design-do-sistema.md) — Design técnico derivado dos requisitos
 - [Mapa de Contextos](../arquitetura/mapa-contextos.md) — Contextos delimitados derivados do levantamento
 - [Event Storming](../arquitetura/event-storming/) — Fluxos de eventos derivados das user stories
+
+> [↑ Raiz do projeto](../../README.md)

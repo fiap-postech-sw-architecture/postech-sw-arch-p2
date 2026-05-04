@@ -1,6 +1,8 @@
 # Roteiro do Vídeo — Fase 1
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../README.md) · [↑ Entrega](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 Duração alvo: ~14 minutos (1 min de folga dentro do limite de 15 min).
 
@@ -92,3 +94,5 @@ Demonstrar cancelamento (segunda OS):
 - Swagger UI em tela cheia durante a demo
 - Ter dados de teste pré-preparados para evitar digitação ao vivo
 - Verificar que `docker compose up` funciona antes de gravar
+
+> [↑ Raiz do projeto](../../README.md) · [↑ Entrega](README.md)

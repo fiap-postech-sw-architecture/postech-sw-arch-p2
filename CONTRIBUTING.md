@@ -39,16 +39,13 @@ Branch `main` é protegida — todo conteúdo entra via PR com squash merge.
 ## Testes
 
 ```bash
-make test              # Testes unitários e integração
-make test-docker       # Testes com Docker (testcontainers)
-make lint              # Ruff + mypy
-make security-scan     # SonarQube + OWASP ZAP + bandit + pip-audit + gitleaks + trivy
+make test              # Testes unitários (com cobertura)
+make test-integ        # Testes de integração com testcontainers (requer Docker)
+make lint              # Ruff (lint e format)
+make security          # bandit (análise de segurança estática)
 ```
 
-Cobertura mínima por faixa:
-- 90%+ em `ordem_de_servico/dominio/` e `estoque/dominio/` (domínios principais)
-- 80%+ nos demais `*/dominio/`
-- 65%+ em `*/infraestrutura/` e `*/interfaces/`
+Cobertura mínima: **95%** em `src/` e `ui/` (gate configurado em `.coveragerc`).
 
 ## Receitas
 

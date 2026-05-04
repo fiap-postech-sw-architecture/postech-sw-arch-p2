@@ -1,11 +1,13 @@
-# Usar JWT HS256 para autenticacao
+# Usar JWT HS256 para autenticação
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
 
 * Status: Aceita
 * Data: 2026-03-20
 
 ## Contexto e Problema
 
-O sistema precisa de autenticacao para proteger endpoints administrativos (gestao de estoque, aprovacao de orcamentos, etc.). O enunciado do Tech Challenge exige explicitamente o uso de JWT. Como implementar autenticacao que atenda ao requisito e seja adequada ao escopo do MVP?
+O sistema precisa de autenticação para proteger endpoints administrativos (gestão de estoque, aprovação de orçamentos, etc.). O enunciado do Tech Challenge exige explicitamente o uso de JWT. Como implementar autenticação que atenda ao requisito e seja adequada ao escopo do MVP?
 
 ## Decisão
 
@@ -74,4 +76,4 @@ Delegação de autenticação para um provedor de identidade (Keycloak, Auth0, e
 
 ## Decisões Relacionadas
 
-
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

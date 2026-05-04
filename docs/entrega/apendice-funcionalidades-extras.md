@@ -1,6 +1,8 @@
 # Apêndice A — Funcionalidades Extras Implementadas
 
-> Documento complementar ao [Documento de Entrega — Fase 1](documento-entrega-fase-1.md). Descreve as features que foram implementadas **além** do escopo mínimo do desafio FIAP, com a motivação por trás de cada decisão (ancorada em commits/PRs do histórico).
+> [↑ Raiz do projeto](../../README.md) · [↑ Entrega](README.md)
+
+> Documento complementar ao [Documento de Entrega — Fase 1](entrega-fase-1.md). Descreve as features que foram implementadas **além** do escopo mínimo do desafio FIAP, com a motivação por trás de cada decisão (ancorada em commits/PRs do histórico).
 
 ## Critério para "extra"
 
@@ -11,7 +13,7 @@ Comparação direta com [docs/requisitos/desafio-tech-fase-1.md](../requisitos/d
 | Feature | RF | Onde vive | Origem | Motivação |
 |---|---|---|---|---|
 | Encriptação de PII (Fernet) + hash HMAC-SHA256 como índice | RF-011 | `src/compartilhado/infraestrutura/encryption_service.py`, `src/cliente_veiculo/infraestrutura/mapping.py` | PR #65 (commit `b4a0bd2`, 2026-04-16) | LGPD não é exigida pelo desafio. O achado #1 do relatório de vulnerabilidades classificou CPF/CNPJ em texto plano como Baixa (CVSS 3.1); a equipe escolheu cifragem simétrica em repouso + hash determinístico para busca sem expor o documento original. |
-| Endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) | RF-015 | `src/cliente_veiculo/aplicacao/lgpd_use_cases.py`; rotas `/clientes/{id}/dados-pessoais[/exportar]` | PR #65 | Achado #2 do relatório (Informativo). Endpoints implementam direitos do titular previstos em lei. A anonimização irreversível usa SQLAlchemy Core com tombstone para bypassar listeners de criptografia. |
+| Endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) | RF-015 | `src/cliente_veiculo/aplicacao/lgpd_use_cases.py`; rotas `/clientes/{id}/dados-pessoais[/exportar]` | PR #65 | Achado #2 do relatório (Informativo). Endpoints implementam direitos do titular previstos em lei. A anonimização irreversível usa SQLAlchemy Core com tombstone para contornar os listeners de criptografia. |
 | Consentimento explícito | RF-019 | `src/cliente_veiculo/dominio/consentimento.py`; rotas `/clientes/{id}/consentimento` | PR #65 | Achado #3 (Informativo). Modelagem com entidade `ConsentimentoCliente` e revogação por evento de domínio. |
 | Mascaramento de PII em respostas e logs | — | `mascarado()` nos schemas de listagem; `field(repr=False)` em DTOs com PII | parte de PR #65 + ajustes ao longo do projeto | Defesa em profundidade: mesmo com cifragem em repouso, evitar vazamento por logs estruturados ou tracebacks. |
 | Tombstone determinístico em anonimização | RF-015 | `src/cliente_veiculo/infraestrutura/repository.py:anonimizar_dados()` | parte de PR #65 (correção em commit dedicado) | Bug descoberto durante testes: ORM listeners re-cifravam o tombstone. A solução foi usar SQLAlchemy Core (`sqlalchemy.update()`) para escapar dos listeners. |
@@ -20,7 +22,7 @@ Comparação direta com [docs/requisitos/desafio-tech-fase-1.md](../requisitos/d
 
 | Feature | RF | Onde vive | Origem | Motivação |
 |---|---|---|---|---|
-| Revogação de JWT (blacklist por JTI) | RF-012 | `src/autenticacao/dominio/token_revogado.py`; rota `POST /autenticacao/logout` | PR #64 (commit `e028e63`, 2026-04-16) | Desafio exigia "JWT auth"; o achado #4 do relatório (Informativo, CVSS 2.0) flagou ausência de revogação. A equipe adicionou tabela `tokens_revogados` para invalidação antes do `exp`. |
+| Revogação de JWT (blacklist por JTI) | RF-012 | `src/autenticacao/dominio/token_revogado.py`; rota `POST /autenticacao/logout` | PR #64 (commit `e028e63`, 2026-04-16) | Desafio exigia "JWT auth"; o achado #4 do relatório (Informativo, CVSS 2.0) sinalizou ausência de revogação. A equipe adicionou tabela `tokens_revogados` para invalidação antes do `exp`. |
 | Refresh tokens com rotação | RF-013 | `src/autenticacao/aplicacao/refresh_use_case.py`; rota `POST /autenticacao/refresh` | PR #64 | Mesma origem de RF-012. Rotação previne reuso de refresh; TTL configurável; ADR-004. |
 | RBAC com Enum `Papel` (admin/mecanico/atendente) + hierarquia | RF-014 | `src/autenticacao/dominio/papel.py`; `exigir_papel(...)` em todos os routers | PR #64 + PR #75 (commit `a406756`, 2026-04-20) | Desafio só pedia auth; a equipe adicionou autorização granular por endpoint, conforme ADR-004. A hierarquia (PR #75) permite herança de permissões. |
 
@@ -28,7 +30,7 @@ Comparação direta com [docs/requisitos/desafio-tech-fase-1.md](../requisitos/d
 
 | Feature | RF | Onde vive | Origem | Motivação |
 |---|---|---|---|---|
-| Orçamento complementar (8º status `AGUARDANDO_APROVACAO_COMPLEMENTAR`) | RF-016 | `src/ordem_servico/dominio/status.py`; use cases `Gerar/Aprovar/Rejeitar OrcamentoComplementar` | PR #62 (commit `1ff1b6c`, 2026-04-15) | Desafio definiu 6 status; durante o refinamento via Domain Storytelling (entrevistas com Reginaldo/Leandro) emergiu a necessidade de re-orçamento mid-execution sem cancelar a OS. |
+| Orçamento complementar (8º status `AGUARDANDO_APROVACAO_COMPLEMENTAR`) | RF-016 | `src/ordem_servico/dominio/status.py`; use cases `Gerar/Aprovar/Rejeitar OrcamentoComplementar` | PR #62 (commit `1ff1b6c`, 2026-04-15) | Desafio definiu 6 status; durante o refinamento via Domain Storytelling (entrevistas com Reginaldo/Leandro) emergiu a necessidade de reorçamento mid-execution sem cancelar a OS. |
 | Histórico de orçamentos (JSONB array) | RF-017 | `OrdemDeServico.orcamentos_anteriores`; coluna `orcamentos_json` | PR #62 | Auditoria: cada novo orçamento empilha o anterior, preservando trilha completa. |
 
 ## A.4 Arquitetura (3 features)
@@ -76,3 +78,5 @@ Comparação direta com [docs/requisitos/desafio-tech-fase-1.md](../requisitos/d
 | [#65](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/pull/65) | 2026-04-16 | RF-011, RF-015, RF-019 (LGPD completo) |
 | [#75](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/pull/75) | 2026-04-20 | Hierarquia RBAC |
 | [#81](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/pull/81) | 2026-04-27 | NiceGUI UI (dev-only) |
+
+> [↑ Raiz do projeto](../../README.md) · [↑ Entrega](README.md)

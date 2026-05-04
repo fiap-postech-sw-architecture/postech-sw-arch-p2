@@ -1,5 +1,7 @@
 # Usar FastAPI como framework web
 
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
 * Status: Aceita
 * Data: 2026-03-20
 
@@ -73,3 +75,5 @@ Framework completo construído sobre o Django, com serializers, viewsets e brows
 ## Decisões Relacionadas
 
 - [ADR-003](003-arquitetura-ddd-onion.md): DDD com Arquitetura Onion — a injeção de dependências nativa do FastAPI facilita a inversão de dependências exigida pela Onion Architecture
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

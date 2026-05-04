@@ -1,6 +1,8 @@
 # PRD — Sistema Integrado de Atendimento e Execução de Serviços
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 ## Declaração do Problema
 
@@ -158,7 +160,7 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 
 ## Critérios de Sucesso
 
-1. Requisitos funcionais Must Have (RF-001 a RF-010) implementados e testados. Should Have e Could Have conforme priorização MoSCoW acima
+1. Requisitos funcionais Must Have (RF-001 a RF-010) implementados e testados. Should Have e Could Have conforme priorização MoSCoW acima.
 2. Cobertura de testes >= 90% nos domínios principais (OS e Estoque), >= 80% nos demais
 3. Docker Compose funcional com `docker compose up` e migrações automáticas
 4. Swagger UI acessível em desenvolvimento com todos os endpoints documentados
@@ -174,3 +176,5 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 | Cobertura de 90% nos domínios principais pode exigir tempo desproporcional em edge cases | Médio | Mutation testing para priorizar testes de maior valor. Metas por faixa, não globais. |
 | Tempo insuficiente para todos os entregáveis | Alto | Priorização MoSCoW. Feature freeze na semana 5. Entrega mínima viável definida pelos Must Have. |
 | CPF armazenado em texto plano (LGPD) | Baixo | Risco aceito no MVP. Documentado no relatório de vulnerabilidades. Encriptação via pgcrypto planejada (RF-011, Should Have). |
+
+> [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)

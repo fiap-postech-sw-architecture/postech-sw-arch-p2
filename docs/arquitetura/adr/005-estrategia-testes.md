@@ -1,5 +1,7 @@
 # Estratégia de testes com cobertura realista
 
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
 * Status: Em Proposta
 * Data: 2026-03-11
 
@@ -85,68 +87,68 @@ Substituir o repositório real por mocks em todos os testes de integração.
 
 Ciclo Red-Green-Refactor:
 
-1. **Red**: escrever um teste que falha, expressando o comportamento esperado do dominio
-2. **Green**: implementar o minimo de codigo para o teste passar
+1. **Red**: escrever um teste que falha, expressando o comportamento esperado do domínio
+2. **Green**: implementar o mínimo de código para o teste passar
 3. **Refactor**: melhorar estrutura e legibilidade mantendo os testes verdes
 
-Ordem de aplicacao ao DDD:
+Ordem de aplicação ao DDD:
 
 | Ordem | Artefato DDD       | Foco do TDD                                         | Exemplo                                        |
 |-------|--------------------|------------------------------------------------------|-------------------------------------------------|
-| 1     | Value Objects      | Validacoes, igualdade estrutural, imutabilidade      | CPF invalido, Dinheiro negativo, Placa invalida |
-| 2     | Entities           | Identidade, ciclo de vida, regras de negocio locais  | Cliente com CPF duplicado, Veiculo com placa    |
-| 3     | Aggregates         | Invariantes, maquina de estados, consistencia        | OrdemDeServico: transicoes de status            |
-| 4     | Domain Services    | Orquestracao entre aggregates, regras transversais   | MaquinaDeStatus: transicoes validas e invalidas |
+| 1     | Value Objects      | Validações, igualdade estrutural, imutabilidade      | CPF inválido, Dinheiro negativo, Placa inválida |
+| 2     | Entities           | Identidade, ciclo de vida, regras de negócio locais  | Cliente com CPF duplicado, Veiculo com placa    |
+| 3     | Aggregates         | Invariantes, máquina de estados, consistência        | OrdemDeServico: transições de status            |
+| 4     | Domain Services    | Orquestração entre aggregates, regras transversais   | MaquinaDeStatus: transições válidas e inválidas |
 
-Comecar pelos Value Objects garante que os blocos basicos estao corretos antes de compor Entities e Aggregates.
+Começar pelos Value Objects garante que os blocos básicos estão corretos antes de compor Entities e Aggregates.
 
 ## Taxonomia de Test Doubles
 
-Cada tipo de test double tem um proposito distinto:
+Cada tipo de test double tem um propósito distinto:
 
 ### Stub
 
-Retorna respostas pre-definidas, sem logica de verificacao.
+Retorna respostas pré-definidas, sem lógica de verificação.
 
-Exemplo: `StubEstoquePort` que sempre retorna estoque disponivel, independente do item consultado.
+Exemplo: `StubEstoquePort` que sempre retorna estoque disponível, independente do item consultado.
 
 ### Fake
 
-Implementacao funcional simplificada que reproduz o comportamento real sem infraestrutura.
+Implementação funcional simplificada que reproduz o comportamento real sem infraestrutura.
 
-Exemplo: `FakeOrdemDeServicoRepository` implementado com dicionario em memoria, suportando `salvar()`, `buscar_por_id()` e `listar()`.
+Exemplo: `FakeOrdemDeServicoRepository` implementado com dicionário em memória, suportando `salvar()`, `buscar_por_id()` e `listar()`.
 
 ### Spy
 
-Registra chamadas recebidas para verificacao posterior.
+Registra chamadas recebidas para verificação posterior.
 
-Exemplo: spy no `DomainEventPublisher` para verificar que `OrcamentoAprovadoEvent` foi emitido apos aprovar o orcamento.
+Exemplo: spy no `DomainEventPublisher` para verificar que `OrcamentoAprovadoEvent` foi emitido após aprovar o orcamento.
 
 ### Mock
 
-Define comportamento esperado antes da execucao e valida que as chamadas ocorreram conforme especificado.
+Define comportamento esperado antes da execução e valida que as chamadas ocorreram conforme especificado.
 
-Exemplo: mock do `ClientePort` que espera ser chamado exatamente uma vez com o ID do cliente e levanta excecao se chamado com argumentos diferentes.
+Exemplo: mock do `ClientePort` que espera ser chamado exatamente uma vez com o ID do cliente e levanta exceção se chamado com argumentos diferentes.
 
-### Padrao Arrange-Act-Assert-Verify
+### Padrão Arrange-Act-Assert-Verify
 
 1. **Arrange**: preparar dados de entrada, configurar test doubles
 2. **Act**: executar a acao sob teste
-3. **Assert**: validar o resultado direto (retorno, estado, excecao)
-4. **Verify**: verificar interacoes com test doubles (chamadas, argumentos)
+3. **Assert**: validar o resultado direto (retorno, estado, exceção)
+4. **Verify**: verificar interações com test doubles (chamadas, argumentos)
 
-Aplicacao por camada DDD:
+Aplicação por camada DDD:
 
 | Camada         | Test Double preferido | Justificativa                                           |
 |----------------|----------------------|---------------------------------------------------------|
-| Dominio        | Fake (repositories)  | Repositories em memoria preservam semantica do dominio  |
-| Dominio        | Stub (ports)         | Ports externos com respostas fixas isolam o dominio      |
-| Aplicacao      | Mock (domain services) | Verificar orquestracao entre servicos                  |
+| Domínio        | Fake (repositories)  | Repositories em memória preservam semântica do domínio  |
+| Domínio        | Stub (ports)         | Ports externos com respostas fixas isolam o domínio      |
+| Aplicação      | Mock (domain services) | Verificar orquestração entre serviços                  |
 | Infraestrutura | Testcontainers       | PostgreSQL real para validar SQL, ENUM, constraints      |
 
-## Perfis de Execucao de Testes
+## Perfis de Execução de Testes
 
-Tres perfis via pytest markers:
+Três perfis via pytest markers:
 
 ```
 pytest -m unit          # Rapido (~segundos), sem infraestrutura
@@ -154,10 +156,12 @@ pytest -m integration   # Medio (~minutos), requer Docker (testcontainers)
 pytest -m e2e           # Lento, fluxos completos com BDD (pytest-bdd)
 ```
 
-| Perfil      | Duracao     | Infraestrutura | Escopo                                        | Frequencia                |
+| Perfil      | Duração     | Infraestrutura | Escopo                                        | Frequência                |
 |-------------|-------------|----------------|-----------------------------------------------|---------------------------|
-| unit        | ~segundos   | Nenhuma        | Value Objects, Entities, Aggregates, Services | Cada alteracao de codigo  |
-| integration | ~minutos    | Docker         | Endpoints HTTP, repositorios, ports/adapters  | Antes de push             |
-| e2e         | ~minutos    | Docker + app   | Fluxos completos, cenarios BDD                | CI pipeline               |
+| unit        | ~segundos   | Nenhuma        | Value Objects, Entities, Aggregates, Services | Cada alteração de código  |
+| integration | ~minutos    | Docker         | Endpoints HTTP, repositórios, ports/adapters  | Antes de push             |
+| e2e         | ~minutos    | Docker + app   | Fluxos completos, cenários BDD                | CI pipeline               |
 
 CI executa `unit` → `integration` → `e2e` em sequencia; falha interrompe o pipeline.
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

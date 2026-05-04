@@ -57,5 +57,8 @@ db-image/00-init.sql
 *.log
 logs/
 
+# Intermediario do pandoc para PDF da entrega (links absolutos)
+docs/entrega/*.absolute-links.md
+
 # Mac OS
 **/.DS_Store

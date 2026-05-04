@@ -1,6 +1,8 @@
 # Requisitos — Sistema Integrado de Atendimento e Execução de Serviços
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 ## Requisitos Funcionais
 
@@ -208,3 +210,5 @@ Ver [Matriz de Rastreabilidade](matriz-rastreabilidade.md) — histórias de usu
 1. "Alteração automática dos status" significa que o status muda como resultado direto de ações na API, não automação em background.
 2. O tech challenge define 6 status; `Cancelada` é adição justificada para cobrir rejeição de orçamento e abandono ([ADR-007](../arquitetura/adr/007-organizacao-contextos-delimitados.md)).
 3. Ver RN-014 e RN-015 para premissas sobre orçamentos.
+
+> [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)

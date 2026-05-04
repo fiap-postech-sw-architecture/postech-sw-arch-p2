@@ -1,12 +1,14 @@
-# Worktrees paralelos — guia rapido
+# Worktrees paralelos — guia rápido
 
-Como rodar varios worktrees do mesmo repositorio em paralelo, cada um com sua propria stack `docker compose` no host, sem colisao de portas.
+> [↑ Raiz do projeto](../../README.md)
+
+Como rodar vários worktrees do mesmo repositório em paralelo, cada um com sua própria stack `docker compose` no host, sem colisão de portas.
 
 ## Por que parametrizar portas
 
-`docker-compose.yml` mapeia tres portas pro host: `app` em 8000, `postgres` em 5432, `ui` em 8080. Dois `docker compose up` simultaneos no mesmo host falham com `bind: address already in use`. Em testes (testcontainers) nao tem esse problema -- portas sao efemeras. Mas para `make up` / `make reset-db` / `make full-test` em multiplos worktrees, o host precisa de portas distintas por slot.
+`docker-compose.yml` mapeia três portas pro host: `app` em 8000, `postgres` em 5432, `ui` em 8080. Dois `docker compose up` simultâneos no mesmo host falham com `bind: address already in use`. Em testes (testcontainers) não tem esse problema -- portas são efêmeras. Mas para `make up` / `make reset-db` / `make full-test` em múltiplos worktrees, o host precisa de portas distintas por slot.
 
-A partir desta versao, as tres portas leem de variaveis de ambiente com defaults retro-compativeis. Sem `.env.dev`, tudo continua em 8000/5432/8080.
+A partir desta versão, as três portas leem de variáveis de ambiente com defaults retro-compatíveis. Sem `.env.dev`, tudo continua em 8000/5432/8080.
 
 ## Setup do worktree
 
@@ -27,11 +29,11 @@ echo 'UI_PORT=8081'  >> .env.dev
 echo 'BACKEND_URL=http://localhost:8002' >> .env.dev
 ```
 
-`docker compose` deriva o nome do projeto do nome da pasta (`postech-sw-arch-p1-review.wt-83`), entao volumes (`postgres_data`) e containers (`<projeto>-app-1` etc.) ja sao isolados por worktree automaticamente. Voce so precisa garantir que as portas do host nao colidam.
+`docker compose` deriva o nome do projeto do nome da pasta (`postech-sw-arch-p1-review.wt-83`), então volumes (`postgres_data`) e containers (`<projeto>-app-1` etc.) já são isolados por worktree automaticamente. Você só precisa garantir que as portas do host não colidam.
 
 ## Tabela de slots sugerida
 
-Reserve um slot por worktree ao iniciar para nao colidir entre si:
+Reserve um slot por worktree ao iniciar para não colidir entre si:
 
 | Slot | APP_PORT | DB_PORT | UI_PORT | BACKEND_URL |
 |---|---|---|---|---|
@@ -42,20 +44,20 @@ Reserve um slot por worktree ao iniciar para nao colidir entre si:
 | 5 | 8005 | 5436 | 8084 | http://localhost:8005 |
 | 6 | 8006 | 5437 | 8085 | http://localhost:8006 |
 
-Slot 2 pula `:8001` porque `UVICORN_PORT=8001` ja eh o default para uvicorn local fora do docker (ver `.env.dev.example`).
+Slot 2 pula `:8001` porque `UVICORN_PORT=8001` já é o default para uvicorn local fora do docker (ver `.env.dev.example`).
 
-## O que NAO precisa parametrizar
+## O que NÃO precisa parametrizar
 
-- **testcontainers** (`make test-integ`, `make test-all`): pega porta efemera por sessao do pytest. Roda paralelo sem ajuste.
-- **bandit, pip-audit, gitleaks** (issues #103, #104, #105): nao precisam de servico ativo, leem so arquivos.
-- **`uv sync`, `make lint`, `make typecheck`, `make format`**: nao tocam em rede.
+- **testcontainers** (`make test-integ`, `make test-all`): pega porta efêmera por sessão do pytest. Roda paralelo sem ajuste.
+- **bandit, pip-audit, gitleaks** (issues #103, #104, #105): não precisam de serviço ativo, leem só arquivos.
+- **`uv sync`, `make lint`, `make typecheck`, `make format`**: não tocam em rede.
 
 ## Cuidados
 
-- **Mesma branch nao pode estar em dois worktrees.** `git worktree add` exige branch propria.
-- **Docker daemon e compartilhado.** `docker build` em paralelo funciona; tag a imagem do trivy com hash do commit (ex.: `pytstop:$(git rev-parse --short HEAD)`) para nao sobrescrever entre worktrees.
-- **`postgres_data` por slot.** O nome do volume eh prefixado pelo project name, entao slots tem dados isolados. Se quiser zerar so o slot 2: `cd .../wt-83 && docker compose down -v`.
-- **`/etc/hosts`** nao precisa de mudanca -- todos respondem em `localhost` em portas distintas.
+- **Mesma branch não pode estar em dois worktrees.** `git worktree add` exige branch própria.
+- **Docker daemon é compartilhado.** `docker build` em paralelo funciona; tag a imagem do trivy com hash do commit (ex.: `pytstop:$(git rev-parse --short HEAD)`) para não sobrescrever entre worktrees.
+- **`postgres_data` por slot.** O nome do volume é prefixado pelo project name, então slots têm dados isolados. Se quiser zerar só o slot 2: `cd .../wt-83 && docker compose down -v`.
+- **`/etc/hosts`** não precisa de mudança -- todos respondem em `localhost` em portas distintas.
 
 ## Limpeza
 
@@ -74,3 +76,5 @@ git worktree prune
 - `.env.dev.example` -- vars com defaults
 - `Makefile` (`reset-db`) -- usa `APP_PORT`/`UI_PORT` no health-poll e no echo final
 - [git-worktree(1)](https://git-scm.com/docs/git-worktree)
+
+> [↑ Raiz do projeto](../../README.md)

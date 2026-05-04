@@ -1,6 +1,8 @@
 # Mapa de Contextos
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../README.md) · [↑ Arquitetura](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 5 contextos delimitados com padrões de integração DDD. Decisão de organização: [ADR-007](adr/007-organizacao-contextos-delimitados.md).
 
@@ -145,3 +147,5 @@ Toda comunicação é in-process via portas e adaptadores. Adaptadores vivem na 
 - Hierarquia de exceções: `DomainException` e subclasses
 
 Não é um Shared Kernel — é código utilitário sem regras de negócio específicas de um contexto.
+
+> [↑ Raiz do projeto](../../README.md) · [↑ Arquitetura](README.md)

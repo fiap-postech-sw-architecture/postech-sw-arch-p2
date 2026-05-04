@@ -1,6 +1,8 @@
 # Refinamento Técnico — Oficina Mecânica
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 > Refinamento técnico gerado com assistência de IA (Claude) e revisado pela equipe PytStop.
 > Segue a metodologia da Aula 08 aplicada ao domínio da oficina mecânica.
@@ -147,3 +149,5 @@ MCQUATER, R. A Simplified Checklist for Technical Backlog Refinement. 2021. Disp
 - [ADRs](../arquitetura/adr/) — Decisões arquiteturais documentadas
 - [DoR / DoD](dor-dod.md) — Gates de qualidade para desenvolvimento
 - [Glossário](glossario.md) — Linguagem Ubíqua
+
+> [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)

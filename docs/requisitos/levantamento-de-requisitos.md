@@ -1,6 +1,8 @@
 # Levantamento de Requisitos — Oficina Mecânica
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 > Levantamento de requisitos gerado com assistência de IA (Claude) e revisado pela equipe PytStop.
 > Segue a metodologia de Marty Cagan aplicada ao domínio da oficina mecânica.
@@ -151,19 +153,19 @@ A tabela abaixo segue a estrutura da Aula 07 (Figura 3): 4 atributos por etapa, 
 
 A numeração indica a sequência mais comum, não uma ordem obrigatória.
 
-| # | Etapa | Observacoes | Persona | Sistema |
+| # | Etapa | Observações | Persona | Sistema |
 |---|---|---|---|---|
-| 01 | Cadastrar cliente com CPF/CNPJ | Validacao algoritmica, duplicata rejeitada | Admin | API REST |
-| 02 | Adicionar veiculo ao cliente | Placa unica entre todos os clientes. Veiculo e entidade filha do agregado Cliente | Admin | API REST |
-| 03 | Criar OS associando cliente e veiculo | Status inicial: Recebida. Verifica existencia via ClientePort | Admin | API REST |
-| 04 | Iniciar diagnostico | Status: EmDiagnostico. Mecanico avalia o veiculo | Mecanico | API REST |
-| 05 | Adicionar itens a OS | Consulta CatalogoPort para preco. So aceito em Recebida/EmDiagnostico | Admin, Mecanico | API REST |
-| 06 | Gerar orcamento | So aceito em EmDiagnostico. Admin solicita, sistema calcula total dos itens. Status: AguardandoAprovacao | Admin | API REST |
+| 01 | Cadastrar cliente com CPF/CNPJ | Validação algorítmica, duplicata rejeitada | Admin | API REST |
+| 02 | Adicionar veiculo ao cliente | Placa única entre todos os clientes. Veículo é entidade filha do agregado Cliente | Admin | API REST |
+| 03 | Criar OS associando cliente e veiculo | Status inicial: Recebida. Verifica existência via ClientePort | Admin | API REST |
+| 04 | Iniciar diagnostico | Status: EmDiagnostico. Mecânico avalia o veículo | Mecanico | API REST |
+| 05 | Adicionar itens a OS | Consulta CatalogoPort para preço. Só aceito em Recebida/EmDiagnostico | Admin, Mecanico | API REST |
+| 06 | Gerar orcamento | Só aceito em EmDiagnostico. Admin solicita, sistema calcula total dos itens. Status: AguardandoAprovacao | Admin | API REST |
 | 07 | Aprovar orcamento | Estoque reservado atomicamente via EstoquePort. Status: EmExecucao | Admin | API REST, EstoquePort |
-| 08 | Executar servicos | Mecanico realiza os reparos | Mecanico | -- |
-| 09 | Finalizar servico | Mecanico confirma conclusao. Status: Finalizada | Mecanico | API REST |
+| 08 | Executar servicos | Mecânico realiza os reparos | Mecanico | -- |
+| 09 | Finalizar servico | Mecânico confirma conclusão. Status: Finalizada | Mecanico | API REST |
 | 10 | Registrar entrega | Admin confirma retirada pelo cliente. Status: Entregue | Admin | API REST |
-| 11 | Consultar status | Cliente acompanha a qualquer momento por placa + documento | Cliente | API publica |
+| 11 | Consultar status | Cliente acompanha a qualquer momento por placa + documento | Cliente | API pública |
 
 Caminhos alternativos (cancelamento, estoque insuficiente) estão documentados em [fluxo-1-ciclo-os.md](../arquitetura/event-storming/fluxo-1-ciclo-os.md).
 
@@ -235,3 +237,5 @@ RODRIGO, T. Documento de requisitos de produto (PRD) — o que é e como fazer u
 - [Refinamento Técnico](refinamento-tecnico.md) — Especificação técnica derivada desta jornada
 - [DoR / DoD](dor-dod.md) — Gates de qualidade para desenvolvimento
 - [Mapa de Contextos](../arquitetura/mapa-contextos.md) — Relação entre os 5 contextos delimitados
+
+> [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)

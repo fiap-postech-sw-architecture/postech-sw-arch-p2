@@ -1,6 +1,8 @@
 # Definition of Ready e Definition of Done — Oficina Mecânica
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 > Documento gerado com assistência de IA (Claude) e revisado pela equipe PytStop.
 > Segue os conceitos da Aula 09 aplicados ao projeto da oficina mecânica.
@@ -85,7 +87,7 @@ Além das user stories, cada artefato da entrega tem seus próprios critérios d
 - [ ] RFC de design do sistema ([RFC-001](../arquitetura/rfc/rfc-001-design-do-sistema.md))
 - [ ] Referências bibliográficas em todos os documentos
 
-### 4.2 Codigo-fonte
+### 4.2 Código-fonte
 
 **DoR — Pronto para implementar:**
 
@@ -94,10 +96,10 @@ Além das user stories, cada artefato da entrega tem seus próprios critérios d
 - [ ] User stories com critérios de aceite no PRD
 - [ ] Ambiente de desenvolvimento configurado (Python 3.12+, Docker)
 
-**DoD — Codigo-fonte concluído:**
+**DoD — Código-fonte concluído:**
 
 - [ ] Todos os bounded contexts implementados seguindo Onion Architecture
-- [ ] Cobertura de testes >= 80% nos domínios críticos (Ordem de Servico, Estoque)
+- [ ] Cobertura de testes >= 80% nos domínios críticos (Ordem de Serviço, Estoque)
 - [ ] Testes unitários e de integração passando
 - [ ] Autenticação JWT funcional
 - [ ] Swagger/OpenAPI gerado automaticamente
@@ -105,7 +107,7 @@ Além das user stories, cada artefato da entrega tem seus próprios critérios d
 - [ ] Migrações de banco aplicadas automaticamente no startup
 - [ ] Code review aprovado em todas as PRs
 
-### 4.3 Relatorio de vulnerabilidades
+### 4.3 Relatório de vulnerabilidades
 
 **DoR — Pronto para análise:**
 
@@ -121,7 +123,7 @@ Além das user stories, cada artefato da entrega tem seus próprios critérios d
 - [ ] Vulnerabilidades críticas e altas resolvidas ou justificadas
 - [ ] Relatório documentado com evidências ([relatorio-vulnerabilidades.md](../seguranca/relatorio-vulnerabilidades.md))
 
-### 4.4 Video de demonstração
+### 4.4 Vídeo de demonstração
 
 **DoR — Pronto para gravar:**
 
@@ -130,7 +132,7 @@ Além das user stories, cada artefato da entrega tem seus próprios critérios d
 - [ ] Ambiente de demonstração funcional
 - [ ] Ferramenta de gravação preparada
 
-**DoD — Video concluído:**
+**DoD — Vídeo concluído:**
 
 - [ ] Duração dentro do limite estabelecido
 - [ ] Demonstração de todos os fluxos principais (CRUD cliente, ciclo OS, estoque)
@@ -174,3 +176,5 @@ HUETHER, D. The Definition Of Done. 2017. Disponível em: <https://www.leadingag
 - [RFC-001](../arquitetura/rfc/rfc-001-design-do-sistema.md) — Design técnico
 - [ADRs](../arquitetura/adr/) — Decisões arquiteturais
 - [Glossário](glossario.md) — Linguagem Ubíqua
+
+> [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)

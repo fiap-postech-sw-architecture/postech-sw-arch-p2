@@ -1,6 +1,8 @@
 # Workshop de Event Storming — Oficina Mecânica
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> [↑ Raiz do projeto](../../../README.md) · [↑ Event Storming](README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
 
 > Workshop simulado com especialistas fictícios representando papéis típicos de uma oficina
 > mecânica de médio porte. Gerado com assistência de IA (Claude) e revisado pela equipe PytStop.
@@ -44,9 +46,9 @@ Workshop estruturado em 10 passos progressivos, seguindo o método de Alberto Br
 
 **Facilitador**: "Vamos começar. Quero que cada um de vocês pense em coisas que **acontecem** na oficina — fatos, acontecimentos. Escrevam no passado: 'tal coisa aconteceu'. Não se preocupem com ordem, só soltem as ideias."
 
-Seu Carlos foi o primeiro a se manifestar: "Bom, o básico: o carro chega, a gente olha, faz orçamento, e se o cliente aprovar, faz o serviço e entrega." Dona Marta complementou: "Antes de tudo, eu cadastro o cliente e anoto a placa." Reginaldo levantou: "Depois que eu começo o diagnóstico, às vezes descubro coisa extra que não tava no plano." Leandro acrescentou: "E quando o orçamento é aprovado, eu preciso separar as peças. Às vezes não tem e preciso encomendar." Fábio trouxe a visão do cliente: "Pra mim, o que importa é quando eu recebo o orçamento, quando eu aprovo, e quando me avisam que tá pronto."
+Seu Carlos foi o primeiro a se manifestar: "Bom, o básico: o carro chega, a gente olha, faz orçamento, e se o cliente aprovar, faz o serviço e entrega." Dona Marta complementou: "Antes de tudo, eu cadastro o cliente e anoto a placa." Reginaldo levantou: "Depois que eu começo o diagnóstico, às vezes descubro coisa extra que não estava no plano." Leandro acrescentou: "E quando o orçamento é aprovado, eu preciso separar as peças. Às vezes não tem e preciso encomendar." Fábio trouxe a visão do cliente: "Para mim, o que importa é quando eu recebo o orçamento, quando eu aprovo, e quando me avisam que está pronto."
 
-Seu Carlos ainda lembrou: "Tem ordem que é cancelada também. E tem carro que o dono some." Leandro completou: "E quando o estoque tá no limite, eu preciso saber pra não ficar sem peça."
+Seu Carlos ainda lembrou: "Tem ordem que é cancelada também. E tem carro que o dono some." Leandro completou: "E quando o estoque está no limite, eu preciso saber para não ficar sem peça."
 
 | # | 🟠 Evento | Sugerido por |
 |---|---|---|
@@ -128,7 +130,7 @@ flowchart LR
 
 **Facilitador**: "Ótimo, temos 22 eventos. Agora vamos organizar na linha do tempo. Qual é o caminho feliz — quando tudo dá certo?"
 
-Dona Marta começou: "O cliente chega, eu cadastro, registro o veículo, abro a OS." Seu Carlos continuou: "Aí o mecânico faz o diagnóstico, identifica o que precisa." Leandro encaixou: "Eu gero o orçamento, a Marta manda pro cliente." Fábio completou: "Eu recebo, aprovo." Leandro prosseguiu: "Aí eu reservo o estoque." Reginaldo fechou: "Eu executo, testo, e aviso que tá pronto. A Marta entrega."
+Dona Marta começou: "O cliente chega, eu cadastro, registro o veículo, abro a OS." Seu Carlos continuou: "Aí o mecânico faz o diagnóstico, identifica o que precisa." Leandro encaixou: "Eu gero o orçamento, a Marta manda para o cliente." Fábio completou: "Eu recebo, aprovo." Leandro prosseguiu: "Aí eu reservo o estoque." Reginaldo fechou: "Eu executo, testo, e aviso que está pronto. A Marta entrega."
 
 O facilitador organizou os caminhos alternativos: rejeição do orçamento, cancelamento em diversos estágios, estoque insuficiente e serviço adicional descoberto durante a execução.
 
@@ -191,7 +193,7 @@ flowchart LR
 
 **Facilitador**: "Agora quero ouvir o que preocupa vocês. Onde estão os problemas, as dúvidas, os gargalos?"
 
-Seu Carlos disparou primeiro: "Carro abandonado. O cliente some e o carro fica aqui ocupando espaço. Depois de trinta dias eu penso em cobrar estadia, mas nunca cobrei." Dona Marta complementou: "Achar informação. O cliente liga perguntando do carro e eu preciso largar tudo pra ir olhar no quadro. Perco quinze minutos pra responder uma pergunta simples." Reginaldo trouxe: "Histórico do carro. Quando o cara volta, eu queria saber o que já foi feito. Sem histórico, começo do zero toda vez." Leandro admitiu: "Às vezes esqueço de marcar que a peça chegou e fico ligando pro fornecedor perguntando de uma peça que já tá aqui." Fábio foi direto: "Três dias sem saber de nada. Aprovo o orçamento e ninguém me avisa que tá esperando peça."
+Seu Carlos disparou primeiro: "Carro abandonado. O cliente some e o carro fica aqui ocupando espaço. Depois de trinta dias eu penso em cobrar estadia, mas nunca cobrei." Dona Marta complementou: "Achar informação. O cliente liga perguntando do carro e eu preciso largar tudo para ir olhar no quadro. Perco quinze minutos para responder uma pergunta simples." Reginaldo trouxe: "Histórico do carro. Quando o cara volta, eu queria saber o que já foi feito. Sem histórico, começo do zero toda vez." Leandro admitiu: "Às vezes esqueço de marcar que a peça chegou e fico ligando para o fornecedor perguntando de uma peça que já está aqui." Fábio foi direto: "Três dias sem saber de nada. Aprovo o orçamento e ninguém me avisa que está esperando peça."
 
 | # | 🔴 Hotspot | Levantado por | Entre quais eventos |
 |---|---|---|---|
@@ -274,7 +276,7 @@ flowchart LR
 
 **Facilitador**: "Olhando a linha do tempo, quais eventos marcam uma mudança de fase? Onde o contexto muda?"
 
-Seu Carlos apontou: "Quando a OS é aberta, o carro sai da recepção e vai pro diagnóstico. Isso é uma virada." Leandro completou: "A aprovação do orçamento é o momento-chave. Ali o cliente se comprometeu, eu reservo peças, começa a execução de verdade." Reginaldo fechou: "E quando eu finalizo o serviço, acabou a parte técnica. Dali pra frente é só entrega e cobrança."
+Seu Carlos apontou: "Quando a OS é aberta, o carro sai da recepção e vai para o diagnóstico. Isso é uma virada." Leandro completou: "A aprovação do orçamento é o momento-chave. Ali o cliente se comprometeu, eu reservo peças, começa a execução de verdade." Reginaldo fechou: "E quando eu finalizo o serviço, acabou a parte técnica. Daí para frente é só entrega e cobrança."
 
 | 🟠 Evento Pivotal | Transição de fase | Justificativa |
 |---|---|---|
@@ -486,7 +488,7 @@ flowchart LR
 
 **Facilitador**: "Antes de executar um comando, vocês consultam alguma informação? Uma tela, um relatório, uma lista?"
 
-Dona Marta respondeu primeiro: "Quando o cliente chega, eu consulto a ficha dele — nome, telefone, veículos. E quando alguém liga perguntando, eu preciso ver o status da OS rapidinho." Leandro listou: "Eu preciso do catálogo de serviços pra montar o orçamento, com preços atualizados. E preciso ver o dashboard de estoque pra saber o que tem e o que tá no limite." Fábio acrescentou: "Quando eu recebo o orçamento, quero ver o detalhe — o que vai ser feito, quanto custa cada coisa, o total."
+Dona Marta respondeu primeiro: "Quando o cliente chega, eu consulto a ficha dele — nome, telefone, veículos. E quando alguém liga perguntando, eu preciso ver o status da OS rapidinho." Leandro listou: "Eu preciso do catálogo de serviços para montar o orçamento, com preços atualizados. E preciso ver o dashboard de estoque para saber o que tem e o que está no limite." Fábio acrescentou: "Quando eu recebo o orçamento, quero ver o detalhe — o que vai ser feito, quanto custa cada coisa, o total."
 
 | # | 🟢 Read Model | Consultado antes de | Informado por |
 |---|---|---|---|
@@ -537,7 +539,7 @@ flowchart LR
 
 **Facilitador**: "Quais sistemas de fora da oficina vocês interagem? Coisas que não são do sistema que estamos construindo."
 
-Dona Marta listou: "WhatsApp, com certeza. É por onde eu mando orçamento, recebo aprovação, aviso que o carro tá pronto. E a maquininha de cartão pra cobrar." Reginaldo acrescentou: "O scanner automotivo — é um equipamento externo que lê os códigos de erro do computador do carro." Leandro complementou: "Os sites e catálogos dos fornecedores de peças, pra cotar e encomendar."
+Dona Marta listou: "WhatsApp, com certeza. É por onde eu mando orçamento, recebo aprovação, aviso que o carro está pronto. E a maquininha de cartão para cobrar." Reginaldo acrescentou: "O scanner automotivo — é um equipamento externo que lê os códigos de erro do computador do carro." Leandro complementou: "Os sites e catálogos dos fornecedores de peças, para cotar e encomendar."
 
 | # | 🩷 Sistema Externo | Interage com | Informado por |
 |---|---|---|---|
@@ -586,7 +588,7 @@ flowchart LR
 
 **Facilitador**: "Vamos agrupar comandos e eventos pelo objeto principal que eles afetam. Qual é a 'coisa' central de cada grupo?"
 
-Seu Carlos apontou: "A Ordem de Serviço é o coração. Quase tudo gira em torno dela — diagnóstico, orçamento, execução, entrega." Dona Marta separou: "Mas o cliente e o veículo são coisas à parte. Eu cadastro o cliente uma vez e ele volta várias vezes com veículos diferentes." Leandro diferenciou: "O estoque é independente. A peça existe na prateleira antes de qualquer OS. E o catálogo de serviços também — o serviço 'troca de óleo' existe mesmo quando não tem nenhum carro pra trocar." Reginaldo concordou: "Faz sentido. A OS usa peças do estoque e serviços do catálogo, mas eles vivem separados."
+Seu Carlos apontou: "A Ordem de Serviço é o coração. Quase tudo gira em torno dela — diagnóstico, orçamento, execução, entrega." Dona Marta separou: "Mas o cliente e o veículo são coisas à parte. Eu cadastro o cliente uma vez e ele volta várias vezes com veículos diferentes." Leandro diferenciou: "O estoque é independente. A peça existe na prateleira antes de qualquer OS. E o catálogo de serviços também — o serviço 'troca de óleo' existe mesmo quando não tem nenhum carro para trocar." Reginaldo concordou: "Faz sentido. A OS usa peças do estoque e serviços do catálogo, mas eles vivem separados."
 
 | 🟡 Agregado | Comandos | Eventos | Contexto |
 |---|---|---|---|
@@ -659,7 +661,7 @@ flowchart TD
 
 **Facilitador**: "Por fim, quais agregados têm conexão forte entre si? Quais podem viver independentes?"
 
-Seu Carlos sintetizou: "O cliente é uma coisa. A ordem de serviço é outra. O estoque é outra. E o catálogo de serviços é outra." Leandro concordou: "Exato. Eu gerencio o estoque independente das OS. Quando a OS precisa de peça, ela pede pro estoque, mas o estoque não precisa saber dos detalhes da OS." Dona Marta complementou: "E o cadastro de clientes não muda porque uma OS foi criada ou cancelada." Reginaldo observou: "O login do sistema — quem pode acessar, mecânico ou admin — é totalmente separado de tudo isso."
+Seu Carlos sintetizou: "O cliente é uma coisa. A ordem de serviço é outra. O estoque é outra. E o catálogo de serviços é outra." Leandro concordou: "Exato. Eu gerencio o estoque independente das OS. Quando a OS precisa de peça, ela pede para o estoque, mas o estoque não precisa saber dos detalhes da OS." Dona Marta complementou: "E o cadastro de clientes não muda porque uma OS foi criada ou cancelada." Reginaldo observou: "O login do sistema — quem pode acessar, mecânico ou admin — é totalmente separado de tudo isso."
 
 O facilitador desenhou as fronteiras:
 
@@ -803,3 +805,5 @@ Aprovação → Execução → Verificação → Entrega → Pagamento
 - [Glossário — Linguagem Ubíqua](../../requisitos/glossario.md) — Termos de domínio mapeados para código
 - [Mapa de Contextos](../mapa-contextos.md) — Padrões de integração entre os 5 BCs
 - [Modelo de Domínio](../modelo-dominio.md) — Diagramas de classes por agregado
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Event Storming](README.md)

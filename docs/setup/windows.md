@@ -1,6 +1,8 @@
 # Setup do zero -- Windows 11
 
-Guia passo a passo para preparar uma maquina Windows do zero ate rodar o projeto. Todas as ferramentas sao instaladas via `winget` (gerenciador de pacotes oficial do Windows). Tempo estimado: 30-60 min com download da rede.
+> [↑ Raiz do projeto](../../README.md)
+
+Guia passo a passo para preparar uma máquina Windows do zero até rodar o projeto. Todas as ferramentas são instaladas via `winget` (gerenciador de pacotes oficial do Windows). Tempo estimado: 30-60 min com download da rede.
 
 - **Fase 1** (~20 min): clone-ready -- PowerShell 7+, Git, GitHub CLI, Docker Desktop.
 - **Fase 2** (~10 min): dev-ready -- uv, Python 3.12 (opcional, uv resolve), make.
@@ -10,17 +12,17 @@ Guia passo a passo para preparar uma maquina Windows do zero ate rodar o projeto
 
 ---
 
-## Antes de comecar
+## Antes de começar
 
 ### Abrindo um terminal como Administrador
 
-Os pacotes da fase 1 instalam componentes de sistema (services, drivers WSL, PATH machine-wide), entao precisam de UAC:
+Os pacotes da fase 1 instalam componentes de sistema (services, drivers WSL, PATH machine-wide), então precisam de UAC:
 
 1. Tecla Windows -> digita `powershell`
-2. Botao direito em **Windows PowerShell** -> **Run as administrator**
+2. Botão direito em **Windows PowerShell** -> **Run as administrator**
 3. Confirma o UAC
 
-Use esse terminal admin para os passos da fase 1. Os pacotes da fase 2 (uv, make) instalam em **escopo de usuario** com `--scope user` -- nao precisam admin.
+Use esse terminal admin para os passos da fase 1. Os pacotes da fase 2 (uv, make) instalam em **escopo de usuário** com `--scope user` -- não precisam admin.
 
 ### Verificando winget
 
@@ -28,7 +30,7 @@ Use esse terminal admin para os passos da fase 1. Os pacotes da fase 2 (uv, make
 winget --version
 ```
 
-Esperado: `v1.28.x` ou superior. Se nao tiver, atualize **App Installer** pela Microsoft Store ou baixe em https://aka.ms/getwinget.
+Esperado: `v1.28.x` ou superior. Se não tiver, atualize **App Installer** pela Microsoft Store ou baixe em https://aka.ms/getwinget.
 
 ---
 
@@ -38,17 +40,17 @@ Esperado: `v1.28.x` ou superior. Se nao tiver, atualize **App Installer** pela M
 
 ### Por que
 
-Windows PowerShell 5.1 (embutido) e legado. PowerShell 7+ tem `&&`/`||`, ternarios, melhor compatibilidade com CLIs modernas e menos quirks de encoding. Coexiste com o 5.1; comando e `pwsh` em vez de `powershell`.
+Windows PowerShell 5.1 (embutido) é legado. PowerShell 7+ tem `&&`/`||`, ternários, melhor compatibilidade com CLIs modernas e menos quirks de encoding. Coexiste com o 5.1; comando é `pwsh` em vez de `powershell`.
 
-### Verificacao previa
+### Verificação prévia
 
 ```powershell
 pwsh --version
 ```
 
-Se retornar `PowerShell 7.x.x`, pula esta secao.
+Se retornar `PowerShell 7.x.x`, pula esta seção.
 
-### Instalacao
+### Instalação
 
 PowerShell **admin**:
 
@@ -56,7 +58,7 @@ PowerShell **admin**:
 winget install --id Microsoft.PowerShell --source winget --accept-source-agreements --accept-package-agreements
 ```
 
-### Pos-instalacao
+### Pós-instalação
 
 Feche o admin, abra um terminal novo (qualquer um) e use `pwsh`:
 
@@ -70,20 +72,20 @@ pwsh --version
 
 ### Por que
 
-Sem Git, sem clone. O instalador "Git for Windows" tambem traz:
+Sem Git, sem clone. O instalador "Git for Windows" também traz:
 
-- **Git Bash** -- terminal estilo Unix com `bash`, `ls`, `grep`, `ssh`, etc. Necessario porque o `Makefile` deste projeto usa `bash -c '...'` em varias regras (nao roda em PowerShell).
-- **Git Credential Manager (GCM)** -- guarda token do GitHub no Windows Credential Vault. E o que o `gh` usa para autenticar `git push`/`pull` sem te perguntar senha.
+- **Git Bash** -- terminal estilo Unix com `bash`, `ls`, `grep`, `ssh`, etc. Necessário porque o `Makefile` deste projeto usa `bash -c '...'` em várias regras (não roda em PowerShell).
+- **Git Credential Manager (GCM)** -- guarda token do GitHub no Windows Credential Vault. É o que o `gh` usa para autenticar `git push`/`pull` sem te perguntar senha.
 
-### Verificacao previa
+### Verificação prévia
 
 ```powershell
 git --version
 ```
 
-Se retornar `git version 2.4x.x.windows.x`, pula a instalacao -- mas confirme a config inicial abaixo.
+Se retornar `git version 2.4x.x.windows.x`, pula a instalação -- mas confirme a config inicial abaixo.
 
-### Instalacao
+### Instalação
 
 PowerShell **admin**:
 
@@ -93,7 +95,7 @@ winget install --id Git.Git --source winget --accept-source-agreements --accept-
 
 Defaults aplicados (recomendados): branch inicial `main`, credential helper GCM, `core.autocrlf=true`. Se quiser controle fino, baixe o instalador interativo em https://git-scm.com/download/win.
 
-### Pos-instalacao
+### Pós-instalação
 
 Feche e reabra o terminal.
 
@@ -101,7 +103,7 @@ Feche e reabra o terminal.
 git --version
 ```
 
-### Configuracao inicial obrigatoria
+### Configuração inicial obrigatória
 
 Sem isso, git recusa criar commits. Em qualquer terminal:
 
@@ -112,7 +114,7 @@ git config --global user.email "seu@email.com"
 
 Use o **mesmo email** da sua conta GitHub para que commits apareçam associados ao seu perfil.
 
-### Configuracoes recomendadas
+### Configurações recomendadas
 
 ```powershell
 git config --global init.defaultBranch main
@@ -127,25 +129,25 @@ git config --global color.ui auto
 
 ### Por que
 
-Resolve autenticacao de uma vez (escreve token no GCM, entao `git clone https://...` funciona depois). Da comandos uteis para PRs, issues, runs de CI.
+Resolve autenticação de uma vez (escreve token no GCM, então `git clone https://...` funciona depois). Dá comandos úteis para PRs, issues, runs de CI.
 
-### Verificacao previa
+### Verificação prévia
 
 ```powershell
 gh --version
 ```
 
-Se retornar `gh version 2.x.x`, pula instalacao e va para autenticacao.
+Se retornar `gh version 2.x.x`, pula instalação e vá para autenticação.
 
-### Instalacao
+### Instalação
 
-PowerShell **admin** (suporta `--scope user` tambem, mas em admin garante PATH machine-wide):
+PowerShell **admin** (suporta `--scope user` também, mas em admin garante PATH machine-wide):
 
 ```powershell
 winget install --id GitHub.cli --source winget --accept-source-agreements --accept-package-agreements
 ```
 
-### Pos-instalacao
+### Pós-instalação
 
 Feche e reabra o terminal.
 
@@ -153,9 +155,9 @@ Feche e reabra o terminal.
 gh --version
 ```
 
-### Autenticacao
+### Autenticação
 
-Terminal **normal** (nao precisa admin):
+Terminal **normal** (não precisa admin):
 
 ```powershell
 gh auth login
@@ -170,18 +172,18 @@ Responda assim:
 | Authenticate Git with your GitHub credentials?      | **Yes**                      |
 | How would you like to authenticate GitHub CLI?      | **Login with a web browser** |
 
-Mostra um codigo `ABCD-1234`. Copia, abre o navegador na URL exibida (`https://github.com/login/device`), cola o codigo, autoriza.
+Mostra um código `ABCD-1234`. Copia, abre o navegador na URL exibida (`https://github.com/login/device`), cola o código, autoriza.
 
-### Verificacao da auth
+### Verificação da auth
 
 ```powershell
 gh auth status
 gh repo view fiap-postech-sw-architecture/postech-sw-arch-p1 --json name,visibility
 ```
 
-Se o `gh repo view` retornar JSON com o nome do repo, voce tem acesso.
+Se o `gh repo view` retornar JSON com o nome do repo, você tem acesso.
 
-> **Pre-requisito de acesso**: o repo e privado. Se voce nao foi adicionado como **collaborator** na organizacao `fiap-postech-sw-architecture`, o comando acima retorna 404 mesmo com `gh auth status` ok. Confira com algum mantenedor da equipe e peca o invite antes de prosseguir.
+> **Pré-requisito de acesso**: o repo é privado. Se você não foi adicionado como **collaborator** na organização `fiap-postech-sw-architecture`, o comando acima retorna 404 mesmo com `gh auth status` ok. Confira com algum mantenedor da equipe e peça o invite antes de prosseguir.
 
 ---
 
@@ -189,24 +191,24 @@ Se o `gh repo view` retornar JSON com o nome do repo, voce tem acesso.
 
 ### Por que
 
-O projeto roda em containers (Postgres + backend + UI). Docker Desktop e a forma mais comum no Windows.
+O projeto roda em containers (Postgres + backend + UI). Docker Desktop é a forma mais comum no Windows.
 
-### Verificacao previa
+### Verificação prévia
 
 ```powershell
 docker --version
 docker compose version
 ```
 
-Se ambos responderem, pula a instalacao. Confirma tambem que o icone da baleia esta na bandeja (sem animacao = engine subiu).
+Se ambos responderem, pula a instalação. Confirma também que o ícone da baleia está na bandeja (sem animação = engine subiu).
 
-### Pre-requisito: WSL 2
+### Pré-requisito: WSL 2
 
 ```powershell
 wsl --status
 ```
 
-Se nao tiver, em PowerShell admin:
+Se não tiver, em PowerShell admin:
 
 ```powershell
 wsl --install
@@ -214,7 +216,7 @@ wsl --install
 
 E reinicia.
 
-### Instalacao
+### Instalação
 
 PowerShell **admin**:
 
@@ -222,14 +224,14 @@ PowerShell **admin**:
 winget install --id Docker.DockerDesktop --source winget --accept-source-agreements --accept-package-agreements
 ```
 
-### Pos-instalacao
+### Pós-instalação
 
-1. **Reinicie a maquina** (Docker habilita componentes do Windows que exigem reboot).
+1. **Reinicie a máquina** (Docker habilita componentes do Windows que exigem reboot).
 2. Abre o **Docker Desktop** uma vez pelo menu Iniciar.
 3. Aceita o EULA, escolhe "Use recommended settings".
-4. Espera o icone da baleia ficar estavel na bandeja.
+4. Espera o ícone da baleia ficar estável na bandeja.
 
-### Verificacao
+### Verificação
 
 ```powershell
 docker --version
@@ -237,7 +239,7 @@ docker compose version
 docker run --rm hello-world
 ```
 
-O ultimo comando baixa uma imagem minima e executa. Se imprimir "Hello from Docker!", esta funcionando.
+O último comando baixa uma imagem mínima e executa. Se imprimir "Hello from Docker!", está funcionando.
 
 ### Erro "DockerDesktop must be owned by an elevated account"
 
@@ -273,20 +275,20 @@ Todos respondendo sem erro = pronto para a fase 2.
 
 # Fase 2 -- dev-ready
 
-> **Sem admin nesta fase**: `uv` e `make` instalam em escopo de usuario (`--scope user`). PowerShell normal serve.
+> **Sem admin nesta fase**: `uv` e `make` instalam em escopo de usuário (`--scope user`). PowerShell normal serve.
 
 ## 5. uv (gerenciador de pacotes Python)
 
 ### Por que
 
-uv e o gerenciador escolhido pelo projeto ([ADR-014](../arquitetura/adr/014-gerenciador-pacotes-uv.md)). Vantagens vs `pip + venv`:
+uv é o gerenciador escolhido pelo projeto ([ADR-014](../arquitetura/adr/014-gerenciador-pacotes-uv.md)). Vantagens vs `pip + venv`:
 
-- Lock file deterministico (`uv.lock`) com hashes SHA-256 -- resolucao reproduzivel entre maquinas e CI.
-- Gerencia o proprio Python: `uv sync` baixa o Python 3.12 automaticamente se nao estiver no sistema. Voce nao precisa instalar Python 3.12 separadamente.
-- 10-100x mais rapido que pip.
+- Lock file determinístico (`uv.lock`) com hashes SHA-256 -- resolução reproduzível entre máquinas e CI.
+- Gerencia o próprio Python: `uv sync` baixa o Python 3.12 automaticamente se não estiver no sistema. Você não precisa instalar Python 3.12 separadamente.
+- 10-100x mais rápido que pip.
 - `uv run <cmd>` executa no venv sem precisar `activate`.
 
-### Verificacao previa
+### Verificação prévia
 
 ```powershell
 uv --version
@@ -294,15 +296,15 @@ uv --version
 
 Se retornar `uv 0.x.x`, pula.
 
-### Instalacao (sem admin)
+### Instalação (sem admin)
 
 ```powershell
 winget install --id astral-sh.uv --scope user --accept-source-agreements --accept-package-agreements
 ```
 
-`--scope user` cai em `%LOCALAPPDATA%\Microsoft\WinGet\Packages\astral-sh.uv_*` e adiciona ao PATH do usuario. Sem UAC.
+`--scope user` cai em `%LOCALAPPDATA%\Microsoft\WinGet\Packages\astral-sh.uv_*` e adiciona ao PATH do usuário. Sem UAC.
 
-### Pos-instalacao
+### Pós-instalação
 
 Feche e reabra qualquer terminal.
 
@@ -314,23 +316,23 @@ uv --version
 
 ## 6. Python 3.12 (opcional)
 
-### Por que talvez voce nao precise
+### Por que talvez você não precise
 
-`pyproject.toml` exige `requires-python = ">=3.12"`. Se voce ja instalou o `uv` (passo 5), `uv sync` baixa o Python 3.12 automaticamente em `%LOCALAPPDATA%\uv\python` -- voce nao precisa fazer nada manual. **Esta e a forma recomendada.**
+`pyproject.toml` exige `requires-python = ">=3.12"`. Se você já instalou o `uv` (passo 5), `uv sync` baixa o Python 3.12 automaticamente em `%LOCALAPPDATA%\uv\python` -- você não precisa fazer nada manual. **Esta é a forma recomendada.**
 
-Instale Python 3.12 do sistema **so se** quiser usar `python` direto (fora do `uv run ...`), ou se preferir nao delegar a versao para o uv.
+Instale Python 3.12 do sistema **só se** quiser usar `python` direto (fora do `uv run ...`), ou se preferir não delegar a versão para o uv.
 
-### Verificacao via uv (recomendado)
+### Verificação via uv (recomendado)
 
-Apos rodar `uv sync` no projeto:
+Após rodar `uv sync` no projeto:
 
 ```powershell
 uv python list --only-installed
 ```
 
-Deve listar uma instalacao 3.12 baixada pelo uv.
+Deve listar uma instalação 3.12 baixada pelo uv.
 
-### Instalacao do sistema (opcional)
+### Instalação do sistema (opcional)
 
 PowerShell admin:
 
@@ -344,7 +346,7 @@ Verifica:
 py -3.12 --version
 ```
 
-O launcher `py` permite ter multiplas versoes -- `py -3.12`, `py -3.11`, etc.
+O launcher `py` permite ter múltiplas versões -- `py -3.12`, `py -3.11`, etc.
 
 ---
 
@@ -352,13 +354,13 @@ O launcher `py` permite ter multiplas versoes -- `py -3.12`, `py -3.11`, etc.
 
 ### Por que
 
-O `Makefile` e o caminho preferido para os comandos do dia a dia (`make up`, `make seed-demo`, `make reset-db`, `make check`, etc).
+O `Makefile` é o caminho preferido para os comandos do dia a dia (`make up`, `make seed-demo`, `make reset-db`, `make check`, etc).
 
 ### O detalhe importante
 
-O `Makefile` usa `bash -c '...'`, `source script.sh`, `command -v`, `printf` -- sintaxe POSIX/bash, **nao PowerShell**. Voce **nao roda `make` no PowerShell**, e sim no **Git Bash** (instalado junto com o Git for Windows na fase 1).
+O `Makefile` usa `bash -c '...'`, `source script.sh`, `command -v`, `printf` -- sintaxe POSIX/bash, **não PowerShell**. Você **não roda `make` no PowerShell**, e sim no **Git Bash** (instalado junto com o Git for Windows na fase 1).
 
-### Verificacao previa
+### Verificação prévia
 
 Abra o **Git Bash** (no menu Iniciar, "Git Bash"):
 
@@ -368,7 +370,7 @@ make --version
 
 Se retornar `GNU Make 4.x`, pula.
 
-### Instalacao (sem admin)
+### Instalação (sem admin)
 
 PowerShell normal:
 
@@ -376,9 +378,9 @@ PowerShell normal:
 winget install --id ezwinports.make --scope user --accept-source-agreements --accept-package-agreements
 ```
 
-User-scope cai em `%LOCALAPPDATA%\Microsoft\WinGet\Packages\ezwinports.make_*\bin\` e e adicionado ao PATH do usuario, acessivel tanto em PowerShell quanto Git Bash.
+User-scope cai em `%LOCALAPPDATA%\Microsoft\WinGet\Packages\ezwinports.make_*\bin\` e é adicionado ao PATH do usuário, acessível tanto em PowerShell quanto Git Bash.
 
-### Pos-instalacao
+### Pós-instalação
 
 Feche e reabra o Git Bash.
 
@@ -409,21 +411,21 @@ docker info >/dev/null && echo OK
 
 ### Por que (e quando pular)
 
-Os testes em `tests/unitarios/ui/componentes/` usam a fixture `screen` da NiceGUI, que sobe Chrome headless e navega na UI. Sao marcados `@pytest.mark.lento`. Por padrao `make test` e `make check` excluem (`-m "not lento"`), entao voce nao precisa de Selenium para o fluxo normal de dev.
+Os testes em `tests/unitarios/ui/componentes/` usam a fixture `screen` da NiceGUI, que sobe Chrome headless e navega na UI. São marcados `@pytest.mark.lento`. Por padrão `make test` e `make check` excluem (`-m "not lento"`), então você não precisa de Selenium para o fluxo normal de dev.
 
-Vale instalar se: quer rodar suite completa local (`make test-lento`), esta mexendo em paginas/componentes da UI, ou quer reproduzir falha E2E do CI.
+Vale instalar se: quer rodar suite completa local (`make test-lento`), está mexendo em páginas/componentes da UI, ou quer reproduzir falha E2E do CI.
 
-### Pre-requisito: Chrome
+### Pré-requisito: Chrome
 
-Tem 99% de chance de ja estar instalado. Senao:
+Tem 99% de chance de já estar instalado. Senão:
 
 ```powershell
 winget install --id Google.Chrome --scope user --accept-source-agreements --accept-package-agreements
 ```
 
-### O que **nao** precisa instalar
+### O que **não** precisa instalar
 
-**chromedriver** -- Selenium 4.6+ traz o **Selenium Manager** embutido que baixa o chromedriver compativel com sua versao do Chrome automaticamente, na primeira execucao. Sem PATH manual.
+**chromedriver** -- Selenium 4.6+ traz o **Selenium Manager** embutido que baixa o chromedriver compatível com sua versão do Chrome automaticamente, na primeira execução. Sem PATH manual.
 
 ### Instalar `selenium` no projeto
 
@@ -433,9 +435,9 @@ No Git Bash, dentro do repo:
 uv pip install selenium
 ```
 
-Instala no `.venv` do projeto sem tocar `pyproject.toml`/`uv.lock` (decisao consciente do projeto: extras leves por padrao).
+Instala no `.venv` do projeto sem tocar `pyproject.toml`/`uv.lock` (decisão consciente do projeto: extras leves por padrão).
 
-### Verificacao
+### Verificação
 
 ```bash
 uv run python -c "import selenium; print(selenium.__version__)"
@@ -447,7 +449,7 @@ uv run python -c "import selenium; print(selenium.__version__)"
 uv run pytest tests/unitarios/ui/componentes/ -m lento -v --no-lint
 ```
 
-Primeira execucao baixa o chromedriver (segundos). Cache em `%USERPROFILE%\.cache\selenium\`.
+Primeira execução baixa o chromedriver (segundos). Cache em `%USERPROFILE%\.cache\selenium\`.
 
 ---
 
@@ -455,25 +457,25 @@ Primeira execucao baixa o chromedriver (segundos). Cache em `%USERPROFILE%\.cach
 
 ### Quando considerar
 
-Se voce for desenvolver Python intensivamente, vale instalar uma distro Linux real no WSL2:
+Se você for desenvolver Python intensivamente, vale instalar uma distro Linux real no WSL2:
 
-- README, scripts e Makefile sao escritos pensando em Unix -- zero atrito.
-- Performance de I/O melhor para `uv sync`, pytest, etc (desde que o codigo esteja **dentro** do filesystem do WSL, ex.: `~/projetos/`, **nao** em `/mnt/c/`).
+- README, scripts e Makefile são escritos pensando em Unix -- zero atrito.
+- Performance de I/O melhor para `uv sync`, pytest, etc (desde que o código esteja **dentro** do filesystem do WSL, ex.: `~/projetos/`, **não** em `/mnt/c/`).
 - Docker Desktop integra com WSL2 -- `docker` funciona dentro da distro sem instalar nada extra.
 
 ### Quando pular
 
-Se prefere ficar no Windows nativo, o caminho native (Git Bash + make + uv) funciona perfeitamente. Pula esta secao.
+Se prefere ficar no Windows nativo, o caminho native (Git Bash + make + uv) funciona perfeitamente. Pula esta seção.
 
-### Verificacao previa
+### Verificação prévia
 
 ```powershell
 wsl --list --verbose
 ```
 
-Se listar `Ubuntu` (ou outra distro alem de `docker-desktop`), pula a instalacao.
+Se listar `Ubuntu` (ou outra distro além de `docker-desktop`), pula a instalação.
 
-### Instalacao
+### Instalação
 
 PowerShell admin:
 
@@ -481,13 +483,13 @@ PowerShell admin:
 wsl --install -d Ubuntu
 ```
 
-Apos o reboot, o Ubuntu abre uma janela pedindo username e senha (independente da sua conta Windows).
+Após o reboot, o Ubuntu abre uma janela pedindo username e senha (independente da sua conta Windows).
 
 ### Setup dentro do Ubuntu
 
-Veja o guia [Linux](linux.md) -- as mesmas instrucoes valem dentro do WSL.
+Veja o guia [Linux](linux.md) -- as mesmas instruções valem dentro do WSL.
 
-> Se voce usar WSL **e** Windows nativo, voce vai ter **duas instalacoes** (gh/git/uv) e duas autenticacoes. Escolha qual e sua "casa" e fica nela.
+> Se você usar WSL **e** Windows nativo, você vai ter **duas instalações** (gh/git/uv) e duas autenticações. Escolha qual é sua "casa" e fica nela.
 
 ---
 
@@ -495,7 +497,7 @@ Veja o guia [Linux](linux.md) -- as mesmas instrucoes valem dentro do WSL.
 
 ## Antes do primeiro `make`: garantir `make` e `uv` no PATH do Git Bash
 
-Pacotes instalados via `winget --scope user` (caso de `uv` e `ezwinports.make` na fase 2) entram no Windows User PATH, **mas o MSYS2 do Git Bash nao herda essas entradas no startup com confiabilidade**. Resultado: `bash: make: command not found` mesmo com o pacote instalado e sessao reaberta. A solucao padrao e adicionar os dois caminhos ao `~/.bashrc` -- uma vez so, vale para todas as sessoes futuras:
+Pacotes instalados via `winget --scope user` (caso de `uv` e `ezwinports.make` na fase 2) entram no Windows User PATH, **mas o MSYS2 do Git Bash não herda essas entradas no startup com confiabilidade**. Resultado: `bash: make: command not found` mesmo com o pacote instalado e sessão reaberta. A solução padrão é adicionar os dois caminhos ao `~/.bashrc` -- uma vez só, vale para todas as sessões futuras:
 
 ```bash
 cat >> ~/.bashrc <<'EOF'
@@ -508,13 +510,13 @@ source ~/.bashrc
 which make uv
 ```
 
-Esperado: dois paths sob `WinGet/Packages/`. Se o nome do pacote tiver versao no diretorio (winget atualizou), ajuste copiando o caminho exato de `ls "$HOME/AppData/Local/Microsoft/WinGet/Packages"`.
+Esperado: dois paths sob `WinGet/Packages/`. Se o nome do pacote tiver versão no diretório (winget atualizou), ajuste copiando o caminho exato de `ls "$HOME/AppData/Local/Microsoft/WinGet/Packages"`.
 
-> Se voce ja tem `make` e `uv` no PATH (instalados de outra forma, por exemplo brew/scoop), pula este passo. Confere com `which make uv` antes.
+> Se você já tem `make` e `uv` no PATH (instalados de outra forma, por exemplo brew/scoop), pula este passo. Confere com `which make uv` antes.
 
 ## Comandos do dia a dia
 
-Com a fase 1 e fase 2 prontas, no **Git Bash** dentro do diretorio do repo:
+Com a fase 1 e fase 2 prontas, no **Git Bash** dentro do diretório do repo:
 
 ```bash
 git clone https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1.git
@@ -529,39 +531,39 @@ de dev (uvicorn hot-reload, checks locais, atualizar deps):
 
 ---
 
-# Troubleshooting -- especifico do Windows
+# Troubleshooting -- específico do Windows
 
-### `winget` nao e reconhecido
+### `winget` não é reconhecido
 Atualize o App Installer pela Microsoft Store, ou baixe em https://aka.ms/getwinget.
 
 ### `winget install` retorna "already installed"
-Tudo certo, pula. Para forcar atualizacao:
+Tudo certo, pula. Para forçar atualização:
 ```powershell
 winget upgrade --id <pacote>
 ```
 
-### `git`, `gh` nao reconhecidos depois de instalar
-Feche **todos** os terminais (incluindo VS Code, IDEs) e abra um novo. PATH so recarrega em processos novos. Se persistir, confirme se o pacote esta no PATH:
+### `git`, `gh` não reconhecidos depois de instalar
+Feche **todos** os terminais (incluindo VS Code, IDEs) e abra um novo. PATH só recarrega em processos novos. Se persistir, confirme se o pacote está no PATH:
 ```powershell
 [System.Environment]::GetEnvironmentVariable('Path','User') -split ';' | Where-Object { $_ -like '*WinGet*' }
 [System.Environment]::GetEnvironmentVariable('Path','Machine') -split ';' | Where-Object { $_ -like '*GitHub*' -or $_ -like '*Git*' }
 ```
 
-### `make` ou `uv` nao reconhecidos no Git Bash mesmo apos reabrir
-MSYS2 nao herda algumas entradas user-scope do winget no startup. Adicione ambos no `~/.bashrc` -- veja a secao [Antes do primeiro `make`](#antes-do-primeiro-make-garantir-make-e-uv-no-path-do-git-bash) acima.
+### `make` ou `uv` não reconhecidos no Git Bash mesmo após reabrir
+MSYS2 não herda algumas entradas user-scope do winget no startup. Adicione ambos no `~/.bashrc` -- veja a seção [Antes do primeiro `make`](#antes-do-primeiro-make-garantir-make-e-uv-no-path-do-git-bash) acima.
 
 ### `git push`/`pull` pedindo senha o tempo todo
-Git Credential Manager nao esta ativo:
+Git Credential Manager não está ativo:
 ```powershell
 git config --global credential.helper manager
 gh auth login   # regrava o token no GCM
 ```
 
-### `gh auth login` nao abre o navegador
+### `gh auth login` não abre o navegador
 Copie a URL exibida no terminal e cole manualmente.
 
 ### `gh repo view` retorna 404
-Voce nao foi adicionado como colaborador no repo, ou logou na conta errada. Confere com `gh auth status`.
+Você não foi adicionado como colaborador no repo, ou logou na conta errada. Confere com `gh auth status`.
 
 ### Docker Desktop trava em "Starting..."
 Geralmente WSL 2 mal configurado. Em PowerShell admin:
@@ -571,14 +573,14 @@ wsl --set-default-version 2
 ```
 E reinicia.
 
-### Politica de execucao do PowerShell bloqueando scripts
+### Política de execução do PowerShell bloqueando scripts
 Se algum `.ps1` for bloqueado, em PowerShell admin:
 ```powershell
 Set-ExecutionPolicy -Scope CurrentUser -ExecutionPolicy RemoteSigned
 ```
 
 ### CRLF warnings no Git
-Mensagens `warning: LF will be replaced by CRLF` sao normais com `core.autocrlf=true`. Pode ignorar.
+Mensagens `warning: LF will be replaced by CRLF` são normais com `core.autocrlf=true`. Pode ignorar.
 
 ### Scripts `.sh` reclamam de `\r: command not found`
 Git for Windows converteu LF->CRLF nos scripts. Force LF:
@@ -589,23 +591,25 @@ git reset --hard
 ```
 
 ### `make up` falha com "Nenhum socket Docker encontrado"
-Apenas em commits antigos do projeto (anteriores a fix do `scripts/docker-check.sh` para Windows). Workaround:
+Apenas em commits antigos do projeto (anteriores ao fix do `scripts/docker-check.sh` para Windows). Workaround:
 ```bash
 echo 'export DOCKER_HOST="npipe:////./pipe/docker_engine"' >> ~/.bashrc
 source ~/.bashrc
 ```
 
 ### `make seed-users-docker` ou `make reset-db` quebram com "No such file or directory" referenciando algo tipo `/app/C:/Users/...`
-Era um bug conhecido quando o Makefile passava `/tmp/seed_usuarios.py` pro `docker compose exec`: MSYS2 (Git Bash) traduzia o `/tmp/...` pra um path Windows antes de chegar no docker.exe (binario nativo). O Makefile do projeto agora usa `MSYS_NO_PATHCONV=1` nesses comandos -- a flag desliga a traducao so pros docker compose calls. Se voce esta numa branch antiga sem esse fix, prefixe manualmente: `MSYS_NO_PATHCONV=1 make seed-users-docker`.
+Era um bug conhecido quando o Makefile passava `/tmp/seed_usuarios.py` pro `docker compose exec`: MSYS2 (Git Bash) traduzia o `/tmp/...` pra um path Windows antes de chegar no docker.exe (binário nativo). O Makefile do projeto agora usa `MSYS_NO_PATHCONV=1` nesses comandos -- a flag desliga a tradução só pros docker compose calls. Se você está numa branch antiga sem esse fix, prefixe manualmente: `MSYS_NO_PATHCONV=1 make seed-users-docker`.
 
 ### `winget install` requer admin mesmo com `--scope user`
-Algumas versoes antigas do winget tem bug que ignora `--scope user`. Atualize:
+Algumas versões antigas do winget têm bug que ignora `--scope user`. Atualize:
 ```powershell
 winget upgrade --id Microsoft.AppInstaller
 ```
 
 ### `uv sync` falha com erro de SSL/cert
-Em redes corporativas com proxy/MITM, configure `SSL_CERT_FILE` apontando para o cert da empresa. Como ultimo recurso:
+Em redes corporativas com proxy/MITM, configure `SSL_CERT_FILE` apontando para o cert da empresa. Como último recurso:
 ```powershell
 $env:UV_INSECURE_HOST = "pypi.org"
 ```
+
+> [↑ Raiz do projeto](../../README.md)
