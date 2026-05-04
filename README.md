@@ -299,10 +299,10 @@ gh workflow run claude-on-demand.yml \
 | Nome | Discord |
 |---|---|
 | Joao Amaral | jbamaral |
-| Allan Aurelio | [PREENCHER] |
-| Carlos Silva | [PREENCHER] |
-| Guilherme Sousa | [PREENCHER] |
-| Nicolas Gerbi | [PREENCHER] |
+| Allan Aurelio | all66_ |
+| Carlos Silva | carlossilva156 |
+| Guilherme Sousa | romen0 |
+| Nicolas Gerbi | sethiiz_gerbi |
 
 ## Curso
 

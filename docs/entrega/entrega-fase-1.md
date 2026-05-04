@@ -20,10 +20,10 @@ Documento de entrega da Fase 1 do Tech Challenge da Pós-Graduação em Arquitet
 | Nome | Discord |
 |---|---|
 | João Amaral | jbamaral |
-| Allan Aurélio | [PREENCHER] |
-| Carlos Silva | [PREENCHER] |
-| Guilherme Sousa | [PREENCHER] |
-| Nicolas Gerbi | [PREENCHER] |
+| Allan Aurélio | all66_ |
+| Carlos Silva | carlossilva156 |
+| Guilherme Sousa | romen0 |
+| Nicolas Gerbi | sethiiz_gerbi |
 
 ## 2. Link do Repositório
 
