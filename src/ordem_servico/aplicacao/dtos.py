@@ -90,7 +90,13 @@ class OrcamentoDTO:
 
 @dataclass(frozen=True, slots=True)
 class OrdemDeServicoDTO:
-    """Projecao completa da ordem; retorno padrao dos casos de uso de escrita."""
+    """Projecao completa da ordem; retorno padrao dos casos de uso de escrita.
+
+    ``cliente_nome`` e ``veiculo_placa`` ficam ``None`` quando o caso
+    de uso emite o DTO direto do agregado: ele so guarda IDs cross-context.
+    A query ``EnriquecerOrdemDeServico`` resolve os nomes via
+    ``ClientePort`` antes do DTO atravessar a fronteira HTTP.
+    """
 
     id: UUID
     cliente_id: UUID
@@ -100,17 +106,26 @@ class OrdemDeServicoDTO:
     orcamento: OrcamentoDTO | None
     criado_em: datetime
     atualizado_em: datetime
+    cliente_nome: str | None = None
+    veiculo_placa: str | None = None
 
 
 @dataclass(frozen=True, slots=True)
 class OrdemResumoDTO:
-    """Projecao enxuta usada em listagens paginadas de ordens."""
+    """Projecao enxuta usada em listagens paginadas de ordens.
+
+    ``cliente_nome`` e ``veiculo_placa`` seguem o mesmo contrato do
+    DTO completo: ficam ``None`` ate a query de enriquecimento batch
+    resolve-los via ``ClientePort`` antes do response HTTP.
+    """
 
     id: UUID
     cliente_id: UUID
     veiculo_id: UUID
     status: str
     criado_em: datetime
+    cliente_nome: str | None = None
+    veiculo_placa: str | None = None
 
 
 @dataclass(frozen=True, slots=True)

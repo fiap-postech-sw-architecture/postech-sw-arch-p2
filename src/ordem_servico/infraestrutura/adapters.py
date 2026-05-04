@@ -12,7 +12,12 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from src.compartilhado.dominio.exceptions import EntidadeNaoEncontradaException
-from src.ordem_servico.aplicacao.ports import ItemEstoqueDTO, ServicoOferecidoDTO
+from src.ordem_servico.aplicacao.ports import (
+    ClienteResumoDTO,
+    ItemEstoqueDTO,
+    ServicoOferecidoDTO,
+    VeiculoResumoDTO,
+)
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -190,3 +195,50 @@ class ClienteSQLAlchemyAdapter:
             )
         )
         return bool(self._session.scalar(stmt))
+
+    def obter_clientes_em_lote(
+        self, cliente_ids: set[UUID]
+    ) -> dict[UUID, ClienteResumoDTO]:
+        """Carrega varios clientes em uma unica consulta ``IN (...)``.
+
+        Le direto da tabela (``id``, ``nome``) em vez de hidratar o
+        agregado ``Cliente`` — a projecao de leitura nao precisa dos
+        listeners de VO (documento, contato) e evita o custo do load
+        completo so pra mostrar o nome na UI.
+        """
+        if not cliente_ids:
+            return {}
+
+        from sqlalchemy import select
+
+        from src.cliente_veiculo.infraestrutura.mapping import clientes_table
+
+        rows = self._session.execute(
+            select(clientes_table.c.id, clientes_table.c.nome).where(
+                clientes_table.c.id.in_(cliente_ids)
+            )
+        ).all()
+        return {row.id: ClienteResumoDTO(id=row.id, nome=row.nome) for row in rows}
+
+    def obter_veiculos_em_lote(
+        self, veiculo_ids: set[UUID]
+    ) -> dict[UUID, VeiculoResumoDTO]:
+        """Carrega varios veiculos em uma unica consulta ``IN (...)``.
+
+        Le ``id`` + ``placa`` direto da tabela; a placa e armazenada como
+        string sem mascara (VO ``Placa`` so reidrata se carregar via
+        agregado), entao o valor em ``veiculos_table.c.placa`` ja serve.
+        """
+        if not veiculo_ids:
+            return {}
+
+        from sqlalchemy import select
+
+        from src.cliente_veiculo.infraestrutura.mapping import veiculos_table
+
+        rows = self._session.execute(
+            select(veiculos_table.c.id, veiculos_table.c.placa).where(
+                veiculos_table.c.id.in_(veiculo_ids)
+            )
+        ).all()
+        return {row.id: VeiculoResumoDTO(id=row.id, placa=row.placa) for row in rows}

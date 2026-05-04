@@ -115,13 +115,28 @@ class OrcamentoResponse(BaseModel):
 
 
 class OrdemDeServicoResponse(BaseModel):
-    """Projecao completa de uma ordem (retorno padrao dos endpoints de mutacao)."""
+    """Projecao completa de uma ordem (retorno padrao dos endpoints de mutacao).
+
+    ``cliente_nome`` e ``veiculo_placa`` sao resolvidos server-side via
+    ``EnriquecerOrdemDeServico`` e podem ficar ``None`` se o cliente
+    ou o veiculo tiverem sido removidos depois da OS ser criada.
+    """
 
     model_config = ConfigDict(from_attributes=True)
 
     id: UUID
     cliente_id: UUID
+    cliente_nome: str | None = Field(
+        default=None,
+        description="Nome do cliente, resolvido server-side. None se o cliente "
+        "tiver sido removido apos a OS ser criada.",
+    )
     veiculo_id: UUID
+    veiculo_placa: str | None = Field(
+        default=None,
+        description="Placa do veiculo, resolvida server-side. None se o "
+        "veiculo tiver sido removido apos a OS ser criada.",
+    )
     status: str = Field(
         description="StatusOrdem.value (ex: 'recebida', 'em_diagnostico')."
     )
@@ -138,7 +153,15 @@ class OrdemResumoResponse(BaseModel):
 
     id: UUID
     cliente_id: UUID
+    cliente_nome: str | None = Field(
+        default=None,
+        description="Nome do cliente, resolvido server-side em batch.",
+    )
     veiculo_id: UUID
+    veiculo_placa: str | None = Field(
+        default=None,
+        description="Placa do veiculo, resolvida server-side em batch.",
+    )
     status: str
     criado_em: datetime
 

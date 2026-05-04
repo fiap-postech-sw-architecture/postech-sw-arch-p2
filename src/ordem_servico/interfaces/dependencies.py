@@ -214,16 +214,18 @@ def obter_consultar_acompanhamento(session: Session) -> ConsultarAcompanhamento:
 
 
 def obter_enriquecer_ordem(session: Session) -> EnriquecerOrdemDeServico:
-    """Wires ``EnriquecerOrdemDeServico`` com Catalogo + Estoque adapters.
+    """Wires ``EnriquecerOrdemDeServico`` com Catalogo + Estoque + Cliente adapters.
 
-    Query handler chamado pelo router para resolver ``servico_nome`` e
-    ``item_estoque_nome`` server-side antes de mapear o DTO pra Pydantic.
-    Mantem o router fora do contato direto com agregados de contextos
-    vizinhos (issue #87).
+    Query handler chamado pelo router para resolver ``servico_nome``,
+    ``item_estoque_nome``, ``cliente_nome`` e ``veiculo_placa``
+    server-side antes de mapear o DTO pra Pydantic. Mantem o router
+    fora do contato direto com agregados de contextos vizinhos
+    (issue #87).
     """
     from src.ordem_servico.aplicacao.queries import EnriquecerOrdemDeServico
 
     return EnriquecerOrdemDeServico(
         catalogo_port=CatalogoSQLAlchemyAdapter(session=session),
         estoque_port=EstoqueSQLAlchemyAdapter(session=session),
+        cliente_port=ClienteSQLAlchemyAdapter(session=session),
     )

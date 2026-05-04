@@ -1,10 +1,12 @@
 from __future__ import annotations
 
+from collections.abc import Iterator
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -71,6 +73,25 @@ _USUARIO = {"sub": str(uuid4()), "papel": "admin"}
 
 
 class TestRouterOS:
+    @pytest.fixture(autouse=True)
+    def _patch_enriquecer_ordem(self) -> Iterator[None]:
+        """Substitui ``EnriquecerOrdemDeServico`` por stub identidade.
+
+        Os testes deste arquivo trocam DTOs reais por ``SimpleNamespace``
+        para nao depender da camada de aplicacao. A query real chama
+        ``dataclasses.replace`` no DTO antes de devolver — operacao que
+        falha em ``SimpleNamespace``. O stub aqui devolve o input
+        intacto, mantendo o foco do teste no router.
+        """
+        stub = MagicMock()
+        stub.executar.side_effect = lambda dto: dto
+        stub.executar_lote.side_effect = lambda dtos: dtos
+        with patch(
+            "src.ordem_servico.interfaces.router.obter_enriquecer_ordem",
+            return_value=stub,
+        ):
+            yield
+
     def test_quantidade_de_rotas(self) -> None:
         assert len(router.routes) == 15
 
@@ -109,6 +130,12 @@ class TestRouterOS:
             client = TestClient(app)
             resp = client.get("/api/v1/ordens-de-servico/")
             assert resp.status_code == 200
+            # Schema da listagem expoe cliente_nome/veiculo_placa (defaults)
+            # — o stub de enriquecimento nao preenche os campos, mas a chave
+            # precisa existir no JSON pra UI nao cair em KeyError.
+            payload = resp.json()
+            assert payload["items"][0]["cliente_nome"] is None
+            assert payload["items"][0]["veiculo_placa"] is None
 
     def test_metricas(self) -> None:
         app = _criar_app()

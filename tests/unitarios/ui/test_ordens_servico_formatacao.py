@@ -11,6 +11,7 @@ nome da chave e na aritmetica centavos -> reais.
 from __future__ import annotations
 
 from ui.paginas.ordens_servico import (
+    _campo_ou_placeholder,
     _centavos_para_reais_label,
     _total_orcamento_label,
 )
@@ -73,3 +74,33 @@ class TestTotalOrcamentoLabel:
             ],
         }
         assert _total_orcamento_label(payload) == "Total: R$ 50.00"
+
+
+class TestCampoOuPlaceholder:
+    """Pinning de regressao: backend pode emitir ``cliente_nome`` /
+    ``veiculo_placa`` como ``null`` quando o cliente/veiculo foi removido
+    apos a OS ser criada (fallback graceful em ``EnriquecerOrdemDeServico``).
+    A leitura ingenua ``ordem.get(k, '-')`` rendia ``Cliente: None`` porque
+    ``dict.get`` so usa o default quando a chave esta ausente, nao quando
+    o valor e ``None``. Pego pela review do PR #140."""
+
+    def test_valor_string_normal_e_devolvido(self) -> None:
+        assert _campo_ou_placeholder({"cliente_nome": "Maria"}, "cliente_nome") == (
+            "Maria"
+        )
+
+    def test_valor_none_vira_placeholder(self) -> None:
+        """Cliente removido — backend devolve ``null``."""
+        assert _campo_ou_placeholder({"cliente_nome": None}, "cliente_nome", "-") == "-"
+
+    def test_chave_ausente_vira_placeholder(self) -> None:
+        """Resposta legacy/sem o campo enriquecido ainda nao explode."""
+        assert _campo_ou_placeholder({}, "cliente_nome", "-") == "-"
+
+    def test_string_vazia_vira_placeholder(self) -> None:
+        """Valor `""` (caso edge de seed bagunçado) tambem cai no placeholder."""
+        assert _campo_ou_placeholder({"cliente_nome": ""}, "cliente_nome") == ""
+
+    def test_placeholder_default_e_string_vazia(self) -> None:
+        """Lista de OS usa string vazia para nao desalinhar layout flex."""
+        assert _campo_ou_placeholder({"cliente_nome": None}, "cliente_nome") == ""

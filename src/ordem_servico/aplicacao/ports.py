@@ -44,6 +44,22 @@ class ItemEstoqueDTO:
     preco_unitario: Dinheiro
 
 
+@dataclass(frozen=True, slots=True)
+class ClienteResumoDTO:
+    """DTO imutavel para enriquecer projecoes de OS com o nome do cliente."""
+
+    id: UUID
+    nome: str
+
+
+@dataclass(frozen=True, slots=True)
+class VeiculoResumoDTO:
+    """DTO imutavel para enriquecer projecoes de OS com a placa do veiculo."""
+
+    id: UUID
+    placa: str
+
+
 class EstoquePort(Protocol):
     """Porta para reserva, liberacao e consulta de itens no contexto Estoque."""
 
@@ -117,4 +133,27 @@ class ClientePort(Protocol):
 
     def veiculo_pertence_ao_cliente(self, cliente_id: UUID, veiculo_id: UUID) -> bool:
         """Indica se o veiculo existe e pertence ao cliente informado."""
+        ...
+
+    def obter_clientes_em_lote(
+        self, cliente_ids: set[UUID]
+    ) -> dict[UUID, ClienteResumoDTO]:
+        """Resolve um conjunto de clientes em uma unica consulta.
+
+        Devolve um dict ``id -> DTO`` apenas com clientes existentes; ids
+        inexistentes (ex.: cliente removido) ficam de fora. ``cliente_ids``
+        vazio retorna dict vazio sem tocar a infraestrutura. Usado pela
+        query ``EnriquecerOrdemDeServico`` para evitar N+1 quando uma
+        listagem hidrata varias ordens de uma vez.
+        """
+        ...
+
+    def obter_veiculos_em_lote(
+        self, veiculo_ids: set[UUID]
+    ) -> dict[UUID, VeiculoResumoDTO]:
+        """Resolve um conjunto de veiculos em uma unica consulta.
+
+        Mesmo contrato batch de ``obter_clientes_em_lote``: ``set`` vazio
+        retorna dict vazio; ids inexistentes ficam de fora.
+        """
         ...

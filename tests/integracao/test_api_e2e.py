@@ -343,3 +343,50 @@ class TestFluxoOrdemClienteVeiculo:
             resposta_delete.json()["erro"]["mensagem"]
             == "Veiculo possui ordem de servico vinculada e nao pode ser removido"
         )
+
+    def test_get_ordem_e_listagem_resolvem_cliente_nome_e_veiculo_placa(
+        self, api_client: TestClient, admin_user: Usuario
+    ) -> None:
+        """Detalhe e listagem entregam ``cliente_nome`` e ``veiculo_placa`` resolvidos.
+
+        Reproduz o fluxo da UI (``ui/paginas/ordens_servico.py``): ao
+        clicar numa OS, a UI le ``ordem.get('cliente_nome')`` e
+        ``ordem.get('veiculo_placa')`` do response. Antes do
+        enriquecimento server-side via ``ClientePort`` esses campos
+        nao existiam no response e a UI mostrava ``-``.
+        """
+        headers = _headers_admin(api_client, admin_user)
+        cliente = _criar_cliente(
+            api_client,
+            headers,
+            nome="Maria Silva",
+            documento="21249722519",
+        )
+        veiculo = _adicionar_veiculo(
+            api_client,
+            headers,
+            cliente_id=str(cliente["id"]),
+            placa="ABC1234",
+        )
+
+        resposta_criar = api_client.post(
+            "/api/v1/ordens-de-servico/",
+            headers=headers,
+            json={"cliente_id": cliente["id"], "veiculo_id": veiculo["id"]},
+        )
+        assert resposta_criar.status_code == 201
+        ordem_id = resposta_criar.json()["id"]
+
+        resposta_detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        )
+        assert resposta_detalhe.status_code == 200
+        detalhe = resposta_detalhe.json()
+        assert detalhe["cliente_nome"] == "Maria Silva"
+        assert detalhe["veiculo_placa"] == "ABC1234"
+
+        resposta_lista = api_client.get("/api/v1/ordens-de-servico/", headers=headers)
+        assert resposta_lista.status_code == 200
+        item = next(i for i in resposta_lista.json()["items"] if i["id"] == ordem_id)
+        assert item["cliente_nome"] == "Maria Silva"
+        assert item["veiculo_placa"] == "ABC1234"

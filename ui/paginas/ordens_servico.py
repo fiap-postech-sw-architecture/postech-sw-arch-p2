@@ -32,6 +32,26 @@ def _centavos_para_reais_label(
     return f"{prefixo}{int(valor_centavos_raw or 0) / 100:.2f}"
 
 
+def _campo_ou_placeholder(
+    ordem: dict[str, Any],
+    chave: str,
+    placeholder: str = "",
+) -> str:
+    """Le ``ordem[chave]`` tratando chave ausente e ``None`` como placeholder.
+
+    Backend retorna ``cliente_nome``/``veiculo_placa`` como ``str | None``:
+    ``null`` no JSON quando o cliente/veiculo foi removido apos a OS ter
+    sido criada (fallback graceful em ``EnriquecerOrdemDeServico``).
+    ``dict.get(k, default)`` so usa o default quando a chave esta ausente,
+    deixando ``None`` cair literal no f-string como ``"Cliente: None"`` —
+    bug que a review do PR #140 pegou. Esse helper unifica os dois casos.
+    """
+    valor = ordem.get(chave)
+    if valor is None or valor == "":
+        return placeholder
+    return str(valor)
+
+
 def _total_orcamento_label(orcamento: dict[str, Any]) -> str:
     """Le ``total_centavos`` (chave canonica do backend) e formata em reais.
 
@@ -128,8 +148,8 @@ def _renderizar_lista() -> None:
         ):
             ui.label(str(ordem["id"])[:8]).classes("font-mono text-xs")
             ui.badge(status, color=None).classes(f"{cor} text-white")
-            ui.label(ordem.get("cliente_nome", "")).classes("flex-1")
-            ui.label(ordem.get("veiculo_placa", "")).classes("font-mono")
+            ui.label(_campo_ou_placeholder(ordem, "cliente_nome")).classes("flex-1")
+            ui.label(_campo_ou_placeholder(ordem, "veiculo_placa")).classes("font-mono")
 
 
 def _dialog_nova_ordem(on_sucesso: Callable[[], None]) -> None:
@@ -221,8 +241,8 @@ def _renderizar_detalhe(  # noqa: C901, PLR0915  # render coeso de detalhe
 
     with ui.card().classes("w-full"):
         ui.label("Dados").classes("font-bold")
-        ui.label(f"Cliente: {ordem.get('cliente_nome', '-')}")
-        ui.label(f"Veiculo: {ordem.get('veiculo_placa', '-')}")
+        ui.label(f"Cliente: {_campo_ou_placeholder(ordem, 'cliente_nome', '-')}")
+        ui.label(f"Veiculo: {_campo_ou_placeholder(ordem, 'veiculo_placa', '-')}")
         ui.label(f"Criada em: {ordem.get('criado_em', '-')}")
 
     with ui.card().classes("w-full"):

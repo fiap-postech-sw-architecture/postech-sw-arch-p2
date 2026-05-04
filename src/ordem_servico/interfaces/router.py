@@ -118,8 +118,9 @@ def listar_ordens(
     uc = obter_listar_ordens(session)
     items = uc.executar(offset=offset, limit=limit)
     total = uc.contar()
+    items_enriquecidos = obter_enriquecer_ordem(session).executar_lote(items)
     return OrdemListaResponse(
-        items=[OrdemResumoResponse.model_validate(i) for i in items],
+        items=[OrdemResumoResponse.model_validate(i) for i in items_enriquecidos],
         total=total,
         offset=offset,
         limit=limit,
