@@ -247,7 +247,7 @@ sudo systemctl enable --now docker
 ### Instalação (Arch)
 
 ```bash
-sudo pacman -S docker docker-compose
+sudo pacman -S docker docker-compose docker-buildx
 sudo systemctl enable --now docker
 ```
 
