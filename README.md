@@ -296,13 +296,13 @@ gh workflow run claude-on-demand.yml \
 
 ## Equipe
 
-| Nome | Discord |
-|---|---|
-| Joao Amaral | jbamaral |
-| Allan Aurelio | all66_ |
-| Carlos Silva | carlossilva156 |
-| Guilherme Sousa | romen0 |
-| Nicolas Gerbi | sethiiz_gerbi |
+| Nome | RM | Discord |
+|---|---|---|
+| Joao Amaral | RM373448 | joao_13997 |
+| Allan Aurelio | RM372116 | all66_ |
+| Carlos Silva | RM374191 | carlossilva156 |
+| Guilherme Sousa | RM373609 | romen0 |
+| Nicolas Gerbi | RM372644 | sethiiz_gerbi |
 
 ## Curso
 

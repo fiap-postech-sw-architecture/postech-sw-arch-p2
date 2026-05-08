@@ -6,6 +6,12 @@
 
 Documento de entrega da Fase 1 do Tech Challenge da Pós-Graduação em Arquitetura de Software (FIAP). O conteúdo cobre os itens exigidos pelo enunciado da fase: identificação do grupo, link do repositório, link da documentação, link do vídeo e relatório de análise de vulnerabilidades.
 
+## Como ler este documento
+
+O repositório é a fonte de verdade da entrega. Os artefatos exigidos pela fase — Linguagem Ubíqua, Event Storming, Domain Storytelling, mapa de contextos, modelo de domínio, plano de segurança e relatório de vulnerabilidades — estão versionados em Markdown no próprio projeto. Os links abaixo apontam diretamente para esses arquivos no GitHub (branch `main`), navegáveis pela UI nativa do GitHub com o avaliador adicionado como colaborador. Diagramas foram modelados em Mermaid (Event Storming, fluxos) e em egon.io (Domain Storytelling) — formatos textuais embutidos no repositório — e replicados no Miro para acompanhamento visual quando conveniente. Os SVGs do Domain Storytelling são regenerados a partir dos `.egn` pelo script [`scripts/export-egn-to-svg.js`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/blob/main/scripts/export-egn-to-svg.js), e os próprios `.egn` podem ser carregados em [egon.io](https://egon.io) para edição.
+
+A opção por documentação textual e versionada é intencional: o projeto é AI-first. Markdown + Mermaid + `.egn` permitem manutenção por agentes de IA sem prejuízo da leitura humana — a UI do GitHub renderiza Markdown e Mermaid nativamente, e os SVGs do egon.io seguem como apêndice neste PDF. GitHub Pages foi avaliado e descartado: a conta atual exige repositório público para publicação, o que conflita com o requisito de manter o código acessível apenas ao avaliador.
+
 ---
 
 ## 1. Identificação do Grupo
@@ -17,13 +23,13 @@ Documento de entrega da Fase 1 do Tech Challenge da Pós-Graduação em Arquitet
 
 ### Participantes
 
-| Nome | Discord |
-|---|---|
-| João Amaral | jbamaral |
-| Allan Aurélio | all66_ |
-| Carlos Silva | carlossilva156 |
-| Guilherme Sousa | romen0 |
-| Nicolas Gerbi | sethiiz_gerbi |
+| Nome | RM | Discord |
+|---|---|---|
+| João Amaral | RM373448 | joao_13997 |
+| Allan Aurélio | RM372116 | all66_ |
+| Carlos Silva | RM374191 | carlossilva156 |
+| Guilherme Sousa | RM373609 | romen0 |
+| Nicolas Gerbi | RM372644 | sethiiz_gerbi |
 
 ## 2. Link do Repositório
 
