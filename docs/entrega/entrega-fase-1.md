@@ -42,7 +42,7 @@ Vídeo de até 15 minutos demonstrando os pontos exigidos pela fase.
 
 | Recurso | URL |
 |---|---|
-| Vídeo de demonstração | _(link a ser adicionado pelo grupo até a entrega final)_ |
+| Vídeo de demonstração | https://drive.google.com/file/d/1-oXKWb4FcGxZtX2Pee7A6r2QWt4od8HD/view?usp=drive_link |
 
 ## 4. Link da Documentação
 
