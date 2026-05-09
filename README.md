@@ -73,7 +73,7 @@ seed (úteis pra testar a tela pública `/acompanhamento`), veja
 |---|---|
 | Setup do zero (instalar uv, Docker, etc.) | [`docs/setup/`](docs/setup/) (Windows / macOS / Linux) |
 | Loop de dev rápido (uvicorn hot-reload), checks locais, atualizar deps | [`docs/desenvolvimento.md`](docs/desenvolvimento.md) |
-| Troubleshooting Docker (socket, Compose v2) | [`docs/setup/troubleshooting.md`](docs/setup/troubleshooting.md) |
+| Troubleshooting Docker (socket, Compose v2) e conflito uv/venv | [`docs/setup/troubleshooting.md`](docs/setup/troubleshooting.md) |
 | Debugging do dev loop (Colima, JWT_SECRET, 500s comuns) | [`docs/debugging-guide.md`](docs/debugging-guide.md) |
 | UI NiceGUI (sandbox dev-only) | [`ui/README.md`](ui/README.md) |
 | Worktrees paralelos (rodar 2+ branches sem conflito de portas) | [`docs/setup/worktrees-paralelos.md`](docs/setup/worktrees-paralelos.md) |

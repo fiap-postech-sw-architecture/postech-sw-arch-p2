@@ -37,6 +37,12 @@ pip install -e ".[test]"
 Este fluxo não consome `uv.lock` (pip resolve versões novamente), então
 pode divergir do ambiente do CI/produção. Use só como fallback.
 
+> **Atenção**: nunca misture os dois fluxos no mesmo `.venv`. Se você já
+> rodou `uv sync` e depois rodar `pip install` (ou vice-versa), o ambiente
+> fica inconsistente com o lockfile sem nenhum aviso visível. Se isso
+> acontecer, apague o `.venv` e recrie com `uv sync --extra test --frozen`.
+> Veja também [`docs/setup/troubleshooting.md`](setup/troubleshooting.md#conflito-entre-venv-do-pip-e-ambiente-gerenciado-pelo-uv).
+
 ## Loop de desenvolvimento rápido (uvicorn com hot reload)
 
 Para iterar rapidamente sem rebuilds do container da aplicação, rode apenas

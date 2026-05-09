@@ -120,6 +120,39 @@ sudo apt install docker-compose-plugin
 
 ---
 
+## Conflito entre `.venv` do pip e ambiente gerenciado pelo `uv`
+
+### Sintoma
+
+Após rodar `pip install` ou `python -m venv .venv` manualmente, comandos como
+`uv sync` ou `make check` falham com erros de versão inesperados, ou os testes
+passam localmente mas quebram no CI.
+
+### Causa
+
+O `uv` cria e gerencia o `.venv` a partir do `uv.lock` (hashes SHA-256 fixados).
+Se o `.venv` for criado por `venv + pip`, o `pip` resolve versões de novo
+ignorando o lockfile — o ambiente local pode divergir silenciosamente do CI e
+da produção sem nenhum erro aparente na instalação.
+
+Misturar `pip install` em um `.venv` já gerenciado pelo `uv` tem o mesmo efeito:
+o lockfile deixa de ser a fonte de verdade.
+
+### Solução
+
+Apague o `.venv` corrompido e recrie a partir do lockfile:
+
+```bash
+rm -rf .venv
+uv sync --extra test --frozen
+```
+
+Se `uv` não estiver disponível no seu ambiente, veja a seção
+"Alternativa sem `uv`" em [`docs/desenvolvimento.md`](../desenvolvimento.md)
+e use o fallback pip/venv ciente de que o ambiente pode divergir do CI.
+
+---
+
 ## Outros problemas operacionais
 
 | Sintoma | Onde olhar |
