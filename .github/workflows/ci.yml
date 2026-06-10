@@ -1,0 +1,127 @@
+name: CI
+
+on:
+  push:
+    branches: [dev-start, main]
+  pull_request:
+    branches: [main]
+
+env:
+  PYTHONDONTWRITEBYTECODE: "1"
+  DATABASE_URL: "postgresql://pytstop:pytstop@localhost:5432/pytstop_test"
+  JWT_SECRET: "ci-test-secret-key-not-for-production"
+  ENCRYPTION_KEY: ""
+  ENVIRONMENT: "test"
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Verify uv.lock is up to date with pyproject.toml
+        run: uv lock --check
+      - name: Install dependencies from lockfile
+        run: uv sync --extra test --extra ui --frozen
+      - name: Ruff check
+        run: uv run ruff check src/ ui/ tests/
+      - name: Ruff format check
+        run: uv run ruff format --check src/ ui/ tests/
+
+  type-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Install dependencies from lockfile
+        run: uv sync --extra test --extra ui --frozen
+      - name: Mypy
+        run: uv run mypy src/ ui/
+
+  security:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Install dependencies from lockfile
+        run: uv sync --extra test --extra ui --frozen
+      - name: Bandit security scan
+        run: uv run bandit -r src/ ui/ -c pyproject.toml --severity-level high
+
+  test:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: pytstop
+          POSTGRES_PASSWORD: pytstop
+          POSTGRES_DB: pytstop_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      - name: Install dependencies from lockfile
+        run: uv sync --extra test --extra ui --frozen
+      - name: Run unit tests with coverage
+        run: |
+          uv run pytest tests/unitarios/ \
+            --no-lint \
+            --cov=src \
+            --cov-report=term-missing \
+            --cov-report=xml:coverage.xml \
+            -x \
+            --tb=short \
+            -m "not lento"
+      - name: Run UI unit tests with separate coverage gate
+        run: |
+          uv run pytest tests/unitarios/ui/ \
+            --no-lint \
+            --cov=ui \
+            --cov-report=term-missing \
+            --cov-fail-under=95 \
+            -m "not lento" \
+            -x \
+            --tb=short
+      - name: Run integration tests
+        run: |
+          set +e
+          uv run pytest tests/integracao/ \
+            --no-lint \
+            -x \
+            --tb=short
+          rc=$?
+          # Exit code 5 = no tests collected (acceptable when integration suite is empty)
+          if [ $rc -eq 5 ]; then
+            echo "No integration tests found — skipping."
+            exit 0
+          fi
+          exit $rc
+      - name: Upload coverage
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml

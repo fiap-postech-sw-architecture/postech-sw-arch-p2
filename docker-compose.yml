@@ -1,0 +1,69 @@
+services:
+  app:
+    build:
+      context: .
+      args:
+        # GIT_SHA / GIT_DATE injetadas pelo wrapper DOCKER_COMPOSE do
+        # Makefile (`GIT_SHA=$$(git rev-parse HEAD) docker compose ...`).
+        # Fallback `unknown` cobre o caso de invocacao manual (sem make).
+        GIT_SHA: ${GIT_SHA:-unknown}
+        GIT_DATE: ${GIT_DATE:-unknown}
+    ports:
+      - "${APP_PORT:-8000}:8000"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.dev
+    entrypoint: ["./entrypoint.sh"]
+
+  postgres:
+    image: postgres:16
+    ports:
+      - "127.0.0.1:${DB_PORT:-5432}:5432"
+    environment:
+      - POSTGRES_DB=${POSTGRES_DB:-pytstop}
+      - POSTGRES_USER=${POSTGRES_USER:-pytstop}
+      - POSTGRES_PASSWORD=${POSTGRES_PASSWORD:-pytstop}
+      - GIT_SHA=${GIT_SHA:-unknown}
+      - GIT_DATE=${GIT_DATE:-unknown}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    # Wrapper que loga SHA antes de delegar pra entrypoint default do
+    # postgres. `$$` escapa interpolacao do compose -- `$$VAR` chega como
+    # `$VAR` no string final, que bash expande em runtime usando o env
+    # passado em `environment:` acima. `:0:12` (substring bash) nao e
+    # suportado pela interpolacao do compose, daí o escape e a expansao
+    # so em runtime. `docker-entrypoint.sh` (sem path absoluto) ja esta
+    # no PATH da imagem postgres:16 -- evita acoplar a layout interno da
+    # imagem.
+    entrypoint:
+      - bash
+      - -c
+      - |
+        echo ">>> pytstop postgres | commit $${GIT_SHA:0:12} | $${GIT_DATE:-unknown}"
+        exec docker-entrypoint.sh postgres
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-pytstop}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  ui:
+    build:
+      context: .
+      dockerfile: ui/Dockerfile
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+        GIT_DATE: ${GIT_DATE:-unknown}
+    ports:
+      - "${UI_PORT:-8080}:8080"
+    depends_on:
+      app:
+        condition: service_started
+    environment:
+      - BACKEND_URL=http://app:8000
+      - UI_PORT=8080
+
+volumes:
+  postgres_data:

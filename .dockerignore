@@ -1,0 +1,51 @@
+# .dockerignore
+
+# Git 
+.git
+.gitignore
+
+# Documentação
+docs/
+README.md
+CONTRIBUTING.md
+MEMORY.md
+
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+.Python
+pytest_cache/
+.pytest_cache/
+pytest.egg-info/
+
+# Testes
+tests/
+full-test/
+
+
+# Scripts locais e Compose
+#scripts/
+docker-compose.yml
+Makefile
+
+# Arquivos de Lock de dev e coverage
+.coverage
+htmlcov/
+.mutmut-cache
+.mypy_cache/
+.ruff_cache/
+*.log
+
+# Ambiente Dev Local
+.venv
+venv/
+env/
+ENV/
+build/
+.cursor/
+.claude/
+.github/
+.review/
+.DS_Store

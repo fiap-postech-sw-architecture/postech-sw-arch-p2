@@ -1,0 +1,159 @@
+"""Portas de saida (Protocol) que a aplicacao OrdemDeServico consome.
+
+Cada Protocol e definido aqui (no contexto consumidor) e implementado
+em ``infraestrutura/`` do contexto provedor — padrao Anti-Corruption
+Layer. PRs futuros (10/11) registrarao adapters concretos.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from uuid import UUID
+
+    from src.compartilhado.dominio.dinheiro import Dinheiro
+
+
+@dataclass(frozen=True, slots=True)
+class ServicoOferecidoDTO:
+    """DTO imutavel devolvido por ``CatalogoPort.obter_servico``.
+
+    Carrega apenas os campos que a aplicacao OrdemDeServico precisa
+    para validar e snapshotar precos no orcamento.
+    """
+
+    id: UUID
+    nome: str
+    preco: Dinheiro
+    ativo: bool
+
+
+@dataclass(frozen=True, slots=True)
+class ItemEstoqueDTO:
+    """DTO imutavel devolvido por ``EstoquePort.obter_item``.
+
+    Snapshot do preco da peca no momento da consulta — usado por
+    ``AdicionarItem`` para registrar o preco da peca consumida (em vez
+    do preco do servico, que seria pra mao-de-obra).
+    """
+
+    id: UUID
+    nome: str
+    preco_unitario: Dinheiro
+
+
+@dataclass(frozen=True, slots=True)
+class ClienteResumoDTO:
+    """DTO imutavel para enriquecer projecoes de OS com o nome do cliente."""
+
+    id: UUID
+    nome: str
+
+
+@dataclass(frozen=True, slots=True)
+class VeiculoResumoDTO:
+    """DTO imutavel para enriquecer projecoes de OS com a placa do veiculo."""
+
+    id: UUID
+    placa: str
+
+
+class EstoquePort(Protocol):
+    """Porta para reserva, liberacao e consulta de itens no contexto Estoque."""
+
+    def reservar(self, item_estoque_id: UUID, quantidade: int) -> None:
+        """Reserva ``quantidade`` unidades do item.
+
+        Implementacoes devem levantar ``EstoqueInsuficienteException`` (ou
+        equivalente) se a quantidade disponivel for menor que a solicitada.
+        Nao e idempotente: chamadas repetidas reservam quantidades adicionais.
+        """
+        ...
+
+    def liberar(self, item_estoque_id: UUID, quantidade: int) -> None:
+        """Libera ``quantidade`` unidades previamente reservadas.
+
+        Implementacoes devem rejeitar liberacoes que excedam a reserva
+        ativa para o item.
+        """
+        ...
+
+    def obter_item(self, item_estoque_id: UUID) -> ItemEstoqueDTO | None:
+        """Retorna o DTO do item de estoque, ou ``None`` se nao existir.
+
+        Usado por ``AdicionarItem`` quando a linha da OS representa uma peca
+        consumida (item_estoque_id presente): o ``preco_unitario`` da
+        ItemDaOrdem precisa vir do estoque, nao do servico.
+        """
+        ...
+
+    def obter_itens_em_lote(
+        self, item_estoque_ids: set[UUID]
+    ) -> dict[UUID, ItemEstoqueDTO]:
+        """Resolve um conjunto de itens em uma unica consulta.
+
+        Devolve um dict ``id -> DTO`` apenas com itens existentes; ids
+        inexistentes ficam de fora. ``item_estoque_ids`` vazio retorna
+        dict vazio sem tocar a infraestrutura. Usado pela query
+        ``EnriquecerOrdemDeServico`` para evitar N+1 quando uma OS tem
+        varios itens.
+        """
+        ...
+
+
+class CatalogoPort(Protocol):
+    """Porta para consulta de servicos oferecidos no contexto Catalogo de Servicos."""
+
+    def obter_servico(self, servico_id: UUID) -> ServicoOferecidoDTO | None:
+        """Retorna o DTO do servico pelo id, ou ``None`` se nao existir."""
+        ...
+
+    def obter_servicos_em_lote(
+        self, servico_ids: set[UUID]
+    ) -> dict[UUID, ServicoOferecidoDTO]:
+        """Resolve um conjunto de servicos em uma unica consulta.
+
+        Devolve um dict ``id -> DTO`` apenas com servicos existentes; ids
+        inexistentes ficam de fora. ``servico_ids`` vazio retorna dict
+        vazio sem tocar a infraestrutura. Usado pela query
+        ``EnriquecerOrdemDeServico`` para evitar N+1 quando uma OS tem
+        varios itens.
+        """
+        ...
+
+
+class ClientePort(Protocol):
+    """Porta para validar cliente e seus veiculos no contexto Cliente+Veiculo."""
+
+    def cliente_existe(self, cliente_id: UUID) -> bool:
+        """Indica se o cliente existe e esta ativo no contexto Cliente+Veiculo."""
+        ...
+
+    def veiculo_pertence_ao_cliente(self, cliente_id: UUID, veiculo_id: UUID) -> bool:
+        """Indica se o veiculo existe e pertence ao cliente informado."""
+        ...
+
+    def obter_clientes_em_lote(
+        self, cliente_ids: set[UUID]
+    ) -> dict[UUID, ClienteResumoDTO]:
+        """Resolve um conjunto de clientes em uma unica consulta.
+
+        Devolve um dict ``id -> DTO`` apenas com clientes existentes; ids
+        inexistentes (ex.: cliente removido) ficam de fora. ``cliente_ids``
+        vazio retorna dict vazio sem tocar a infraestrutura. Usado pela
+        query ``EnriquecerOrdemDeServico`` para evitar N+1 quando uma
+        listagem hidrata varias ordens de uma vez.
+        """
+        ...
+
+    def obter_veiculos_em_lote(
+        self, veiculo_ids: set[UUID]
+    ) -> dict[UUID, VeiculoResumoDTO]:
+        """Resolve um conjunto de veiculos em uma unica consulta.
+
+        Mesmo contrato batch de ``obter_clientes_em_lote``: ``set`` vazio
+        retorna dict vazio; ids inexistentes ficam de fora.
+        """
+        ...

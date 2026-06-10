@@ -1,12 +1,12 @@
 ---
-description: "Regras do repo postech-sw-arch-p2"
+description: "Project AI rules (canonical pointer)"
 alwaysApply: true
 ---
 
-# Regras deste Repositório
+Read `postech-ai-helper/ai/agent-bootstrap.md` (resolve relative to the workspace root `$(HOME)/git/fiap/postech-sw-architecture/`) and follow it. This repo and `postech-ai-helper` are sibling repos under that workspace root -- do **not** resolve the path relative to this file's directory or this repo's root.
 
-Leia `../postech-ai-helper/ai/rules-index.md` para o índice de todas as regras canônicas.
+That bootstrap file is the single source of truth for what every AI agent must do in this workspace -- session start, task end, commit workflow, memory protocol.
 
-## Contexto deste Repo
+Project-specific accumulated learnings (decisions, conventions, gotchas, tech debt) live in `MEMORY.md` at this repo's root. Read it after the bootstrap.
 
-Placeholder para Fase 2 — a definir. Referencia: postech-sw-architecture para visao geral do curso.
+If `postech-ai-helper/` is not present as a sibling under the workspace root, **stop and ask the user to clone it** (`gh repo clone fiap-postech-sw-architecture/postech-ai-helper` from the workspace root) before doing any work. The canonical rules are required.
