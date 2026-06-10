@@ -81,6 +81,7 @@ Decisões técnicas com contexto, alternativas e consequências. Três estados p
 | [012](adr/012-licenciamento-software-sbom.md) | Licenciamento de Software e SBOM | Aceita |
 | [013](adr/013-testes-bdd-pytest-bdd.md) | Testes BDD com pytest-bdd e Gherkin | Proposta |
 | [014](adr/014-gerenciador-pacotes-uv.md) | Gerenciador de pacotes e ambientes virtuais com uv | Aceita |
+| [015](adr/fase2/015-arquitetura-alvo-fase-2.md) | Clean Architecture como arquitetura alvo da fase 2 | Proposta |
 
 ---
 
