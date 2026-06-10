@@ -30,7 +30,7 @@ Detalhes técnicos para desenvolvedores: estruturas internas, regras de negócio
 |-----------|-----------|
 | [C4 — Diagrama de Componentes](c4/c4-componentes.md) | Agregados e serviços por bounded context |
 | [Modelo de Dominio](modelo-dominio.md) | Diagramas de classes por agregado |
-| [ADRs (000-014)](adr/) | Decisões técnicas com contexto, alternativas e consequências |
+| [ADRs (000-018)](adr/) | Decisões técnicas com contexto, alternativas e consequências |
 | [Requisitos Funcionais e Nao-Funcionais](../requisitos/requisitos.md) | Especificações detalhadas de comportamento |
 | [Estrategia de Testes](../qualidade/estrategia-testes.md) | Pirâmide de testes, TDD, test doubles, metas de cobertura |
 
@@ -82,6 +82,9 @@ Decisões técnicas com contexto, alternativas e consequências. Três estados p
 | [013](adr/013-testes-bdd-pytest-bdd.md) | Testes BDD com pytest-bdd e Gherkin | Proposta |
 | [014](adr/014-gerenciador-pacotes-uv.md) | Gerenciador de pacotes e ambientes virtuais com uv | Aceita |
 | [015](adr/fase2/015-arquitetura-alvo-fase-2.md) | Clean Architecture como arquitetura alvo da fase 2 | Proposta |
+| [016](adr/fase2/016-plataforma-kubernetes.md) | kind como plataforma Kubernetes da fase 2 | Proposta |
+| [017](adr/fase2/017-provisionamento-banco.md) | PostgreSQL no cluster como StatefulSet provisionado pelo Terraform | Proposta |
+| [018](adr/fase2/018-notificacao-email.md) | Notificação de status por e-mail via adapter SMTP com Mailpit | Proposta |
 
 ---
 
