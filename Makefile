@@ -45,7 +45,7 @@ GIT_SHA  := $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 GIT_DATE := $(shell git show -s --format=%cI HEAD 2>/dev/null || echo unknown)
 DOCKER_COMPOSE := GIT_SHA=$(GIT_SHA) GIT_DATE=$(GIT_DATE) docker compose --env-file .env.dev
 
-.PHONY: lint format typecheck security test test-coverage test-integ test-all check all up down seed ui seed-users seed-users-docker seed-demo up-backend env-dev rebuild reset-db
+.PHONY: lint lint-arch format typecheck security test test-coverage test-integ test-all check all up down seed ui seed-users seed-users-docker seed-demo up-backend env-dev rebuild reset-db
 
 # Bootstrap do .env.dev a partir do example. `.env.dev` e gitignored
 # porque pode conter secrets reais; o `.env.dev.example` tem defaults
@@ -74,6 +74,12 @@ lint:
 	$(PY)ruff check src/ ui/ tests/
 	$(PY)ruff format --check src/ ui/ tests/
 
+# Contratos de arquitetura (ADR-015 / RNF-017): camadas Clean por contexto +
+# proibicao dominio -> infraestrutura. Config em [tool.importlinter] no
+# pyproject.toml.
+lint-arch:
+	$(PY)lint-imports
+
 format:
 	$(PY)ruff format src/ ui/ tests/
 	$(PY)ruff check src/ ui/ tests/ --fix
@@ -99,7 +105,7 @@ test-all:
 test-lento:
 	$(PY_UI_TEST)pytest tests/ -q --no-lint -m "lento"
 
-check: lint typecheck security test
+check: lint lint-arch typecheck security test
 	@echo "All checks passed"
 
 all: format check test-integ

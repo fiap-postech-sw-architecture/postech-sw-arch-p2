@@ -1,6 +1,6 @@
 [project]
 name = "pytstop"
-version = "0.1.0"
+version = "0.2.0"
 description = "Sistema Integrado de Atendimento e Execucao de Servicos"
 requires-python = ">=3.12"
 dependencies = [
@@ -30,6 +30,7 @@ test = [
     "ruff>=0.8",
     "mypy>=1.13",
     "bandit>=1.7",
+    "import-linter>=2.0",
 ]
 ui = [
     "nicegui>=2.0,<3",
@@ -125,6 +126,49 @@ known-first-party = ["src", "ui"]
 "migrations/**" = ["E402"]
 "**/dtos.py" = ["S105"]
 "migrations/env.py" = ["E402"]
+
+# Contratos de arquitetura (ADR-015 / RNF-017): a regra de dependencia da
+# Clean Architecture e verificada por lint (`make lint-arch` / CI).
+# `infraestrutura` (Frameworks & Drivers) fica fora do contrato de camadas
+# porque importa `aplicacao`/`dominio` legitimamente — adapters implementam
+# ports definidos pelas camadas internas; o sentido proibido (dominio ->
+# infraestrutura) e coberto pelo contrato forbidden. `compartilhado` e shared
+# kernel, nao contexto delimitado: fica fora dos containers de camadas, mas o
+# seu `dominio` entra no forbidden pelo mesmo motivo dos demais.
+[tool.importlinter]
+root_packages = ["src"]
+
+[[tool.importlinter.contracts]]
+name = "Camadas Clean por contexto (interfaces -> aplicacao -> dominio)"
+type = "layers"
+layers = ["interfaces", "aplicacao", "dominio"]
+containers = [
+    "src.cliente_veiculo",
+    "src.catalogo_servicos",
+    "src.estoque",
+    "src.ordem_servico",
+    "src.autenticacao",
+]
+
+[[tool.importlinter.contracts]]
+name = "Dominio nao importa infraestrutura de nenhum contexto"
+type = "forbidden"
+source_modules = [
+    "src.cliente_veiculo.dominio",
+    "src.catalogo_servicos.dominio",
+    "src.estoque.dominio",
+    "src.ordem_servico.dominio",
+    "src.autenticacao.dominio",
+    "src.compartilhado.dominio",
+]
+forbidden_modules = [
+    "src.cliente_veiculo.infraestrutura",
+    "src.catalogo_servicos.infraestrutura",
+    "src.estoque.infraestrutura",
+    "src.ordem_servico.infraestrutura",
+    "src.autenticacao.infraestrutura",
+    "src.compartilhado.infraestrutura",
+]
 
 [tool.mypy]
 strict = true

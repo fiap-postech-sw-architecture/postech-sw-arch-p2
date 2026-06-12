@@ -79,7 +79,8 @@ runtime do Docker (socket, Compose v2): [`docs/setup/troubleshooting.md`](setup/
 ## Checks locais (espelham o CI)
 
 ```bash
-make check         # lint + mypy + bandit + testes unitarios
+make check         # lint + contratos de arquitetura + mypy + bandit + testes unitarios
+make lint-arch     # so os contratos de arquitetura (import-linter, ADR-015)
 make test-coverage # testes unitarios + relatorio terminal + coverage.xml
 make test-integ    # testes de integracao (requer Docker)
 make test-all      # todos os 970+ testes
@@ -117,7 +118,7 @@ intenção:
 **Checklist após qualquer upgrade** (antes de abrir a PR):
 
 1. `uv sync --extra test --frozen` -- confirma que `uv.lock` resolve sem tocar nada.
-2. `make check` (lint + mypy + bandit + unitarios) -- nenhuma regressao de tipo/estilo/seguranca.
+2. `make check` (lint + contratos de arquitetura + mypy + bandit + unitarios) -- nenhuma regressao de tipo/estilo/seguranca.
 3. `make test-integ` -- integracao com Postgres real sob as novas versoes.
 4. `uv run --with pip-audit pip-audit` -- sem CVEs de severidade alta ou crítica nas novas versões.
 5. Commite `pyproject.toml` (se mudou) e `uv.lock` juntos, com mensagem do tipo `chore(deps): bump <pacote> to <versao>` ou `chore(deps): monthly lock refresh`.
