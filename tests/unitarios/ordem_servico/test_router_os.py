@@ -122,6 +122,54 @@ class TestRouterOS:
             assert payload["status"] == "recebida"
             assert payload["situacao"] == "Recebida"
 
+    def test_criar_ordem_com_servicos_e_pecas_mapeia_dto(self) -> None:
+        """RF-020: as listas do payload chegam ao use case como tuplas de DTO."""
+        from src.ordem_servico.aplicacao.dtos import (
+            PecaDaOrdemDTO,
+            ServicoDaOrdemDTO,
+        )
+
+        app = _criar_app()
+        servico_id = uuid4()
+        peca_id = uuid4()
+        with patch(
+            "src.ordem_servico.interfaces.router.obter_criar_ordem"
+        ) as mock_factory:
+            mock_uc = MagicMock()
+            mock_uc.executar.return_value = _ORDEM_NS
+            mock_factory.return_value = mock_uc
+
+            client = TestClient(app)
+            resp = client.post(
+                "/api/v1/ordens-de-servico/",
+                json={
+                    "cliente_id": str(uuid4()),
+                    "veiculo_id": str(uuid4()),
+                    "servicos": [
+                        {"servico_catalogo_id": str(servico_id), "quantidade": 2}
+                    ],
+                    "pecas": [
+                        {
+                            "servico_catalogo_id": str(servico_id),
+                            "item_estoque_id": str(peca_id),
+                            "quantidade": 3,
+                        }
+                    ],
+                },
+            )
+            assert resp.status_code == 201
+            dto = mock_uc.executar.call_args.args[0]
+            assert dto.servicos == (
+                ServicoDaOrdemDTO(servico_catalogo_id=servico_id, quantidade=2),
+            )
+            assert dto.pecas == (
+                PecaDaOrdemDTO(
+                    servico_catalogo_id=servico_id,
+                    item_estoque_id=peca_id,
+                    quantidade=3,
+                ),
+            )
+
     def test_listar_ordens(self) -> None:
         app = _criar_app()
         with patch(

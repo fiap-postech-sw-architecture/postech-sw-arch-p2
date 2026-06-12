@@ -20,6 +20,7 @@ from typing import TYPE_CHECKING
 from src.compartilhado.dominio.exceptions import ViolacaoRegraDeNegocioException
 from src.ordem_servico.aplicacao.dtos import (
     AcompanhamentoDTO,
+    AdicionarItemDTO,
     ItemDaOrdemDTO,
     LinhaOrcamentoDTO,
     MetricasDTO,
@@ -40,7 +41,6 @@ if TYPE_CHECKING:
     from src.compartilhado.aplicacao.unit_of_work import UnitOfWork
     from src.compartilhado.dominio.dinheiro import Dinheiro
     from src.ordem_servico.aplicacao.dtos import (
-        AdicionarItemDTO,
         CancelarOrdemDTO,
         CriarOrdemDTO,
     )
@@ -126,27 +126,105 @@ def _obter_ordem(repo: OrdemDeServicoRepository, ordem_id: UUID) -> OrdemDeServi
     return ordem
 
 
+def _montar_item(
+    catalogo_port: CatalogoPort,
+    estoque_port: EstoquePort,
+    dto: AdicionarItemDTO,
+) -> ItemDaOrdem:
+    """Valida servico/peca via ports e monta o ``ItemDaOrdem`` com o preco certo.
+
+    Unica fonte da regra de composicao de linha (compartilhada por
+    ``CriarOrdem`` RF-020 e ``AdicionarItem``):
+
+    - ``item_estoque_id`` presente => linha de peca consumida; preco vem
+      do ESTOQUE. Bug historico (corrigido): o preco era SEMPRE
+      ``servico.preco``, mesmo com ``item_estoque_id`` informado, o que
+      omitia o valor da peca no orcamento.
+    - ``item_estoque_id`` ausente => linha de mao de obra; preco do
+      servico no catalogo.
+    - ``descricao`` ``None`` => usa o nome do servico/peca resolvido via
+      port (caminho RF-020, em que o payload de criacao nao carrega
+      descricao livre).
+
+    Raises:
+        ViolacaoRegraDeNegocioException: servico inexistente, servico
+            inativo ou item de estoque inexistente.
+    """
+    from src.ordem_servico.dominio.item_da_ordem import ItemDaOrdem
+
+    servico = catalogo_port.obter_servico(dto.servico_catalogo_id)
+    if servico is None:
+        raise ViolacaoRegraDeNegocioException(
+            mensagem="Servico nao encontrado no catalogo"
+        )
+    if not servico.ativo:
+        raise ViolacaoRegraDeNegocioException(mensagem="Servico inativo")
+
+    if dto.item_estoque_id is not None:
+        peca = estoque_port.obter_item(dto.item_estoque_id)
+        if peca is None:
+            raise ViolacaoRegraDeNegocioException(
+                mensagem="Item de estoque nao encontrado"
+            )
+        preco_unitario = peca.preco_unitario
+        nome_padrao = peca.nome
+    else:
+        preco_unitario = servico.preco
+        nome_padrao = servico.nome
+    # `is None` (e nao falsy): descricao explicita vazia continua chegando
+    # ao dominio e falhando na invariante de ItemDaOrdem (422), como antes
+    # do RF-020 — apenas a ausencia deliberada resolve para o nome.
+    descricao = nome_padrao if dto.descricao is None else dto.descricao
+
+    return ItemDaOrdem(
+        _servico_catalogo_id=dto.servico_catalogo_id,
+        _item_estoque_id=dto.item_estoque_id,
+        _descricao=descricao,
+        _quantidade=dto.quantidade,
+        _preco_unitario=preco_unitario,
+    )
+
+
 class CriarOrdem:
-    """Cria uma nova ``OrdemDeServico`` apos validar cliente e veiculo dele."""
+    """Cria uma ``OrdemDeServico``, opcionalmente ja com servicos e pecas.
+
+    RF-020: a abertura recebe cliente, veiculo e listas opcionais de
+    servicos/pecas numa unica chamada. Os itens sao montados com a MESMA
+    regra do ``AdicionarItem`` (via ``_montar_item``) e persistidos com o
+    agregado na mesma UnitOfWork — falha em qualquer item aborta a
+    criacao inteira (a OS nao persiste). Listas vazias reproduzem o
+    comportamento da fase 1.
+    """
 
     def __init__(
         self,
         repo: OrdemDeServicoRepository,
         uow: UnitOfWork,
         cliente_port: ClientePort,
+        catalogo_port: CatalogoPort,
+        estoque_port: EstoquePort,
     ) -> None:
         self._repo = repo
         self._uow = uow
         self._cliente_port = cliente_port
+        self._catalogo_port = catalogo_port
+        self._estoque_port = estoque_port
 
     def executar(self, dto: CriarOrdemDTO) -> OrdemDeServicoDTO:
-        """Valida cliente + veiculo do cliente via ``ClientePort`` e persiste.
+        """Valida cliente + veiculo, monta itens (se houver) e persiste.
+
+        Toda a montagem acontece em memoria ANTES do unico
+        ``repo.salvar`` dentro da UoW: qualquer item invalido levanta
+        antes de existir escrita pendente, e o commit unico garante
+        atomicidade agregado + itens no banco.
 
         Raises:
             ClienteNaoEncontradoException: cliente_id nao existe (404).
             VeiculoNaoEncontradoException: veiculo nao existe ou nao pertence
                 ao cliente informado (404). Os dois casos sao indistinguiveis
                 na resposta para preservar defesa em profundidade.
+            ViolacaoRegraDeNegocioException: servico/peca de algum item
+                inexistente ou servico inativo (409) — nada e persistido.
         """
         from src.ordem_servico.dominio.ordem_de_servico import (
             OrdemDeServico,
@@ -162,6 +240,27 @@ class CriarOrdem:
         ordem = OrdemDeServico.criar(
             cliente_id=dto.cliente_id, veiculo_id=dto.veiculo_id
         )
+        linhas = [
+            AdicionarItemDTO(
+                servico_catalogo_id=servico.servico_catalogo_id,
+                item_estoque_id=None,
+                descricao=None,
+                quantidade=servico.quantidade,
+            )
+            for servico in dto.servicos
+        ] + [
+            AdicionarItemDTO(
+                servico_catalogo_id=peca.servico_catalogo_id,
+                item_estoque_id=peca.item_estoque_id,
+                descricao=None,
+                quantidade=peca.quantidade,
+            )
+            for peca in dto.pecas
+        ]
+        for linha in linhas:
+            ordem.adicionar_item(
+                _montar_item(self._catalogo_port, self._estoque_port, linha)
+            )
         with self._uow:
             self._repo.salvar(ordem)
             self._uow.commit()
@@ -169,16 +268,11 @@ class CriarOrdem:
 
 
 class AdicionarItem:
-    """Adiciona um item a uma ordem.
+    """Adiciona um item a uma ordem existente.
 
-    Resolve o ``preco_unitario`` da fonte certa:
-    - ``item_estoque_id`` presente => preco do estoque (linha de peca consumida).
-    - ``item_estoque_id`` ausente => preco do servico (linha de mao de obra).
-
-    Bug historico (corrigido aqui): o preco era SEMPRE ``servico.preco``,
-    mesmo quando ``item_estoque_id`` era informado, o que omitia o valor da
-    peca no orcamento. Agora a peca consumida e cobrada pelo seu proprio
-    preco no estoque.
+    A montagem da linha (validacao de servico/peca e resolucao do preco
+    da fonte certa) e compartilhada com ``CriarOrdem`` em ``_montar_item``
+    — ver docstring do helper para a regra e o bug historico de preco.
     """
 
     def __init__(
@@ -201,38 +295,8 @@ class AdicionarItem:
             ViolacaoRegraDeNegocioException: servico inativo, servico/peca
                 inexistente.
         """
-        from src.ordem_servico.dominio.item_da_ordem import ItemDaOrdem
-
         ordem = _obter_ordem(self._repo, ordem_id)
-        servico = self._catalogo_port.obter_servico(dto.servico_catalogo_id)
-        if servico is None:
-            raise ViolacaoRegraDeNegocioException(
-                mensagem="Servico nao encontrado no catalogo"
-            )
-        if not servico.ativo:
-            raise ViolacaoRegraDeNegocioException(mensagem="Servico inativo")
-
-        if dto.item_estoque_id is not None:
-            # Linha de peca consumida: preco vem do estoque (NAO do servico).
-            # Sem essa branch, o preco da peca seria silenciosamente ignorado
-            # e o orcamento ficaria subavaliado pra cada peca consumida.
-            peca = self._estoque_port.obter_item(dto.item_estoque_id)
-            if peca is None:
-                raise ViolacaoRegraDeNegocioException(
-                    mensagem="Item de estoque nao encontrado"
-                )
-            preco_unitario = peca.preco_unitario
-        else:
-            # Linha de mao de obra (servico puro): preco do catalogo.
-            preco_unitario = servico.preco
-
-        item = ItemDaOrdem(
-            _servico_catalogo_id=dto.servico_catalogo_id,
-            _item_estoque_id=dto.item_estoque_id,
-            _descricao=dto.descricao,
-            _quantidade=dto.quantidade,
-            _preco_unitario=preco_unitario,
-        )
+        item = _montar_item(self._catalogo_port, self._estoque_port, dto)
         ordem.adicionar_item(item)
         with self._uow:
             self._repo.salvar(ordem)

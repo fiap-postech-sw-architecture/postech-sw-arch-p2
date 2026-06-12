@@ -99,6 +99,44 @@ def _adicionar_veiculo(
     return resposta.json()
 
 
+def _criar_servico(
+    api_client: TestClient,
+    headers: dict[str, str],
+    *,
+    nome: str,
+    preco: str,
+) -> dict[str, object]:
+    resposta = api_client.post(
+        "/api/v1/servicos/",
+        headers=headers,
+        json={"nome": nome, "descricao": f"{nome} (e2e)", "preco": preco},
+    )
+    assert resposta.status_code == 201
+    return resposta.json()
+
+
+def _criar_item_estoque(
+    api_client: TestClient,
+    headers: dict[str, str],
+    *,
+    nome: str,
+    quantidade: int,
+    preco_unitario: str,
+) -> dict[str, object]:
+    resposta = api_client.post(
+        "/api/v1/estoque/",
+        headers=headers,
+        json={
+            "nome": nome,
+            "descricao": f"{nome} (e2e)",
+            "quantidade": quantidade,
+            "preco_unitario": preco_unitario,
+        },
+    )
+    assert resposta.status_code == 201
+    return resposta.json()
+
+
 @pytest.fixture
 def session_factory(
     engine: Engine,
@@ -447,3 +485,232 @@ class TestFluxoOrdemClienteVeiculo:
         assert resposta_lista.status_code == 200
         item = next(i for i in resposta_lista.json()["items"] if i["id"] == ordem_id)
         assert item["situacao"] == "Em diagnóstico"
+
+
+class TestCriacaoOsComItens:
+    """RF-020: abertura de OS recebendo servicos e pecas num unico POST.
+
+    Exercita o caminho completo contra PostgreSQL real: criacao atomica
+    (itens na mesma transacao), erro de dominio sem efeito colateral
+    (OS nao persiste) e a interacao dos itens criados na abertura com a
+    reserva de estoque da aprovacao (ADR-008, all-or-nothing).
+    """
+
+    def _setup_cliente_veiculo(
+        self, api_client: TestClient, headers: dict[str, str], documento: str
+    ) -> tuple[str, str]:
+        cliente = _criar_cliente(
+            api_client, headers, nome="Cliente RF020", documento=documento
+        )
+        veiculo = _adicionar_veiculo(
+            api_client, headers, cliente_id=str(cliente["id"]), placa="RFA0020"
+        )
+        return str(cliente["id"]), str(veiculo["id"])
+
+    def test_post_com_servicos_e_pecas_cria_os_completa(
+        self, api_client: TestClient, admin_user: Usuario
+    ) -> None:
+        headers = _headers_admin(api_client, admin_user)
+        cliente_id, veiculo_id = self._setup_cliente_veiculo(
+            api_client, headers, documento="21249722519"
+        )
+        troca = _criar_servico(
+            api_client, headers, nome="Troca de oleo", preco="100.00"
+        )
+        alinhamento = _criar_servico(
+            api_client, headers, nome="Alinhamento", preco="80.00"
+        )
+        filtro = _criar_item_estoque(
+            api_client,
+            headers,
+            nome="Filtro de oleo",
+            quantidade=10,
+            preco_unitario="35.00",
+        )
+
+        resposta = api_client.post(
+            "/api/v1/ordens-de-servico/",
+            headers=headers,
+            json={
+                "cliente_id": cliente_id,
+                "veiculo_id": veiculo_id,
+                "servicos": [
+                    {"servico_catalogo_id": troca["id"]},
+                    {"servico_catalogo_id": alinhamento["id"], "quantidade": 2},
+                ],
+                "pecas": [
+                    {
+                        "servico_catalogo_id": troca["id"],
+                        "item_estoque_id": filtro["id"],
+                        "quantidade": 2,
+                    }
+                ],
+            },
+        )
+
+        assert resposta.status_code == 201
+        criada = resposta.json()
+        assert criada["status"] == "recebida"
+        assert criada["situacao"] == "Recebida"
+        assert len(criada["itens"]) == 3
+
+        # Detalhe persistido reflete os itens com preco da fonte certa.
+        detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{criada['id']}", headers=headers
+        ).json()
+        assert len(detalhe["itens"]) == 3
+        linha_peca = next(
+            i for i in detalhe["itens"] if i["item_estoque_id"] == filtro["id"]
+        )
+        assert linha_peca["preco_unitario_centavos"] == 3500  # preco do ESTOQUE
+        assert linha_peca["subtotal_centavos"] == 7000
+        assert linha_peca["descricao"] == "Filtro de oleo"
+        assert linha_peca["item_estoque_nome"] == "Filtro de oleo"
+        linha_alinhamento = next(
+            i for i in detalhe["itens"] if i["descricao"] == "Alinhamento"
+        )
+        assert linha_alinhamento["item_estoque_id"] is None
+        assert linha_alinhamento["subtotal_centavos"] == 16000
+        assert linha_alinhamento["servico_nome"] == "Alinhamento"
+
+    def test_post_com_peca_inexistente_nao_cria_os(
+        self, api_client: TestClient, admin_user: Usuario
+    ) -> None:
+        from uuid import uuid4
+
+        headers = _headers_admin(api_client, admin_user)
+        cliente_id, veiculo_id = self._setup_cliente_veiculo(
+            api_client, headers, documento="57648016648"
+        )
+        troca = _criar_servico(
+            api_client, headers, nome="Troca de oleo", preco="100.00"
+        )
+
+        resposta = api_client.post(
+            "/api/v1/ordens-de-servico/",
+            headers=headers,
+            json={
+                "cliente_id": cliente_id,
+                "veiculo_id": veiculo_id,
+                "servicos": [{"servico_catalogo_id": troca["id"]}],
+                "pecas": [
+                    {
+                        "servico_catalogo_id": troca["id"],
+                        "item_estoque_id": str(uuid4()),
+                        "quantidade": 1,
+                    }
+                ],
+            },
+        )
+
+        assert resposta.status_code == 409
+        assert resposta.json()["erro"]["mensagem"] == "Item de estoque nao encontrado"
+        # Rollback total: nenhuma OS persistida (nem com o servico valido).
+        listagem = api_client.get(
+            "/api/v1/ordens-de-servico/?incluir_encerradas=true", headers=headers
+        ).json()
+        assert listagem["total"] == 0
+
+    def test_post_sem_itens_mantem_comportamento_fase_1(
+        self, api_client: TestClient, admin_user: Usuario
+    ) -> None:
+        headers = _headers_admin(api_client, admin_user)
+        cliente_id, veiculo_id = self._setup_cliente_veiculo(
+            api_client, headers, documento="93214407473"
+        )
+
+        resposta = api_client.post(
+            "/api/v1/ordens-de-servico/",
+            headers=headers,
+            json={"cliente_id": cliente_id, "veiculo_id": veiculo_id},
+        )
+
+        assert resposta.status_code == 201
+        criada = resposta.json()
+        assert criada["status"] == "recebida"
+        assert criada["itens"] == []
+        assert criada["orcamento"] is None
+
+    def test_aprovacao_de_os_criada_com_pecas_respeita_saldo_com_rollback(
+        self, api_client: TestClient, admin_user: Usuario
+    ) -> None:
+        """Peca com quantidade > saldo: a criacao nao reserva estoque
+        (reserva acontece na aprovacao, ADR-008), entao o POST cria a OS;
+        a aprovacao falha com o erro atual de estoque insuficiente e faz
+        rollback all-or-nothing — a peca com saldo suficiente NAO fica
+        reservada e a OS permanece aguardando aprovacao.
+        """
+        headers = _headers_admin(api_client, admin_user)
+        cliente_id, veiculo_id = self._setup_cliente_veiculo(
+            api_client, headers, documento="21249722519"
+        )
+        troca = _criar_servico(
+            api_client, headers, nome="Troca de oleo", preco="100.00"
+        )
+        filtro = _criar_item_estoque(
+            api_client,
+            headers,
+            nome="Filtro de oleo",
+            quantidade=10,
+            preco_unitario="35.00",
+        )
+        vela = _criar_item_estoque(
+            api_client,
+            headers,
+            nome="Vela de ignicao",
+            quantidade=1,
+            preco_unitario="20.00",
+        )
+
+        resposta = api_client.post(
+            "/api/v1/ordens-de-servico/",
+            headers=headers,
+            json={
+                "cliente_id": cliente_id,
+                "veiculo_id": veiculo_id,
+                "pecas": [
+                    {
+                        "servico_catalogo_id": troca["id"],
+                        "item_estoque_id": filtro["id"],
+                        "quantidade": 2,
+                    },
+                    {
+                        "servico_catalogo_id": troca["id"],
+                        "item_estoque_id": vela["id"],
+                        "quantidade": 5,  # > saldo (1)
+                    },
+                ],
+            },
+        )
+        assert resposta.status_code == 201
+        ordem_id = resposta.json()["id"]
+
+        assert (
+            api_client.post(
+                f"/api/v1/ordens-de-servico/{ordem_id}/diagnostico", headers=headers
+            ).status_code
+            == 200
+        )
+        assert (
+            api_client.post(
+                f"/api/v1/ordens-de-servico/{ordem_id}/orcamento", headers=headers
+            ).status_code
+            == 200
+        )
+
+        resposta_aprovacao = api_client.post(
+            f"/api/v1/ordens-de-servico/{ordem_id}/aprovacao", headers=headers
+        )
+
+        assert resposta_aprovacao.status_code == 409
+        assert "insuficiente" in resposta_aprovacao.json()["erro"]["mensagem"]
+        # Rollback total da aprovacao: o filtro (saldo suficiente) nao
+        # ficou reservado e a ordem nao avancou de status.
+        saldo_filtro = api_client.get(
+            f"/api/v1/estoque/{filtro['id']}", headers=headers
+        ).json()["quantidade"]
+        assert saldo_filtro == 10
+        detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        ).json()
+        assert detalhe["status"] == "aguardando_aprovacao"
