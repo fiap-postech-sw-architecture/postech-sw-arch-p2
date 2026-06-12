@@ -1,0 +1,33 @@
+# HPA por CPU e memoria (RNF-020; RNF-023). Valores baseline da RFC-002
+# §5, a calibrar com a medicao de carga do full-test/:
+# - CPU 70%: margem antes da saturacao;
+# - memoria 80%: segunda linha de defesa -- CPython raramente devolve
+#   memoria ao sistema, o sinal serve para detectar saturacao, nao para
+#   scale-down.
+# Pre-requisito: metrics-server instalado no provisionamento do cluster
+# (/infra -- ADR-016).
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: pytstop-api
+  namespace: pytstop
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: pytstop-api
+  minReplicas: 1
+  maxReplicas: 5
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: 70
+    - type: Resource
+      resource:
+        name: memory
+        target:
+          type: Utilization
+          averageUtilization: 80

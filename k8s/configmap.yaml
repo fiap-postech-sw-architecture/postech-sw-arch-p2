@@ -1,0 +1,32 @@
+# Configuracao NAO sensivel da API (RNF-020; RFC-002 §6). Segredos vivem
+# em secret.yaml -- nunca aqui.
+#
+# Sem destino no cluster (RFC-002 §6): UVICORN_HOST/UVICORN_PORT (o
+# entrypoint.sh fixa `--host 0.0.0.0 --port 8000` no container),
+# POSTGRES_* (Secret do StatefulSet em /infra -- ADR-017),
+# PYTSTOP_GIT_SHA/PYTSTOP_GIT_DATE (gravadas na imagem como build args),
+# APP_PORT/DB_PORT/UI_PORT/BACKEND_URL (mapeamentos do compose e ui/
+# dev-only), RATE_LIMIT e JWT_REFRESH_EXPIRATION_MINUTES (defaults
+# internos do codigo, adequados a demo).
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pytstop-config
+  namespace: pytstop
+data:
+  # `production` desabilitaria /docs e /redoc (src/main.py); o cluster da
+  # fase 2 e ambiente de demo e a banca valida pela UI do Swagger.
+  ENVIRONMENT: "development"
+  CORS_ORIGINS: "http://localhost:3000"
+  JWT_EXPIRATION_MINUTES: "30"
+  # Migracao no boot via entrypoint.sh (ADR-019; RFC-002 §7). O rollout
+  # inicial de replica unica (deployment.yaml) evita corrida entre
+  # migracoes concorrentes.
+  RUN_MIGRATIONS_ON_STARTUP: "true"
+  # Admin inicial da demo, best-effort (credenciais em secret.yaml);
+  # falha de seed nao bloqueia o boot (entrypoint.sh).
+  RUN_SEED_ON_STARTUP: "true"
+  # SMTP do Mailpit (ADR-018): Service `mailpit` neste namespace.
+  SMTP_HOST: "mailpit"
+  SMTP_PORT: "1025"
+  SMTP_FROM: "oficina@pytstop.local"
