@@ -13,6 +13,8 @@ from src.ordem_servico.interfaces.schemas import (
     CriarOrdemRequest,
     OrdemDeServicoResponse,
     OrdemResumoResponse,
+    PecaDaOrdemRequest,
+    ServicoDaOrdemRequest,
 )
 
 
@@ -27,6 +29,66 @@ class TestCriarOrdemRequest:
                 cliente_id=uuid4(),
                 veiculo_id=uuid4(),
                 extra="x",  # type: ignore[call-arg]
+            )
+
+    def test_sem_itens_defaults_vazios(self) -> None:
+        # Compatibilidade fase 1 (RF-020): payload sem listas continua
+        # valido e equivale a criacao sem itens.
+        req = CriarOrdemRequest(cliente_id=uuid4(), veiculo_id=uuid4())
+        assert req.servicos == []
+        assert req.pecas == []
+
+    def test_com_servicos_e_pecas(self) -> None:
+        servico_id = uuid4()
+        peca_id = uuid4()
+        req = CriarOrdemRequest.model_validate(
+            {
+                "cliente_id": str(uuid4()),
+                "veiculo_id": str(uuid4()),
+                "servicos": [{"servico_catalogo_id": str(servico_id)}],
+                "pecas": [
+                    {
+                        "servico_catalogo_id": str(servico_id),
+                        "item_estoque_id": str(peca_id),
+                        "quantidade": 2,
+                    }
+                ],
+            }
+        )
+        assert req.servicos[0].servico_catalogo_id == servico_id
+        assert req.servicos[0].quantidade == 1  # default
+        assert req.pecas[0].item_estoque_id == peca_id
+        assert req.pecas[0].quantidade == 2
+
+
+class TestServicoDaOrdemRequest:
+    def test_rejeita_quantidade_zero(self) -> None:
+        with pytest.raises(ValidationError):
+            ServicoDaOrdemRequest(servico_catalogo_id=uuid4(), quantidade=0)
+
+    def test_rejeita_extras(self) -> None:
+        with pytest.raises(ValidationError):
+            ServicoDaOrdemRequest(
+                servico_catalogo_id=uuid4(),
+                descricao="livre",  # type: ignore[call-arg]
+            )
+
+
+class TestPecaDaOrdemRequest:
+    def test_quantidade_obrigatoria(self) -> None:
+        with pytest.raises(ValidationError):
+            PecaDaOrdemRequest(  # type: ignore[call-arg]
+                servico_catalogo_id=uuid4(),
+                item_estoque_id=uuid4(),
+            )
+
+    def test_servico_obrigatorio(self) -> None:
+        # Toda linha de peca referencia o servico que a consome
+        # (invariante de ItemDaOrdem; coluna NOT NULL).
+        with pytest.raises(ValidationError):
+            PecaDaOrdemRequest(  # type: ignore[call-arg]
+                item_estoque_id=uuid4(),
+                quantidade=1,
             )
 
 

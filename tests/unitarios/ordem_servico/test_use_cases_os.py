@@ -11,8 +11,10 @@ from src.ordem_servico.aplicacao.dtos import (
     AdicionarItemDTO,
     CancelarOrdemDTO,
     CriarOrdemDTO,
+    PecaDaOrdemDTO,
+    ServicoDaOrdemDTO,
 )
-from src.ordem_servico.aplicacao.ports import ServicoOferecidoDTO
+from src.ordem_servico.aplicacao.ports import ItemEstoqueDTO, ServicoOferecidoDTO
 from src.ordem_servico.aplicacao.use_cases import (
     AdicionarItem,
     AprovarOrcamento,
@@ -167,6 +169,21 @@ class StubCatalogoPort:
         return self._servico
 
 
+class CatalogoPorIdStub:
+    """``CatalogoPort`` fake que resolve servicos pelo id (multi-servico).
+
+    ``StubCatalogoPort`` devolve sempre o mesmo DTO; os cenarios RF-020
+    com mais de um servico precisam de resolucao por id para validar
+    que cada linha recebe o preco/nome do servico certo.
+    """
+
+    def __init__(self, servicos: dict[UUID, ServicoOferecidoDTO]) -> None:
+        self._servicos = servicos
+
+    def obter_servico(self, servico_id: UUID) -> ServicoOferecidoDTO | None:
+        return self._servicos.get(servico_id)
+
+
 class StubEstoquePort:
     def __init__(self, item: object | None = None) -> None:
         self.reservas: list[tuple[UUID, int]] = []
@@ -215,7 +232,13 @@ class TestCriarOrdem:
         repo = FakeOrdemDeServicoRepository()
         uow = FakeUnitOfWork()
         cp = StubClientePort()
-        uc = CriarOrdem(repo=repo, uow=uow, cliente_port=cp)
+        uc = CriarOrdem(
+            repo=repo,
+            uow=uow,
+            cliente_port=cp,
+            catalogo_port=StubCatalogoPort(),
+            estoque_port=StubEstoquePort(),
+        )
         dto = CriarOrdemDTO(cliente_id=uuid4(), veiculo_id=uuid4())
         result = uc.executar(dto)
         assert result.status == "recebida"
@@ -224,7 +247,13 @@ class TestCriarOrdem:
         repo = FakeOrdemDeServicoRepository()
         uow = FakeUnitOfWork()
         cp = StubClientePort(cliente_ok=False)
-        uc = CriarOrdem(repo=repo, uow=uow, cliente_port=cp)
+        uc = CriarOrdem(
+            repo=repo,
+            uow=uow,
+            cliente_port=cp,
+            catalogo_port=StubCatalogoPort(),
+            estoque_port=StubEstoquePort(),
+        )
         with pytest.raises(ClienteNaoEncontradoException):
             uc.executar(CriarOrdemDTO(uuid4(), uuid4()))
 
@@ -232,9 +261,195 @@ class TestCriarOrdem:
         repo = FakeOrdemDeServicoRepository()
         uow = FakeUnitOfWork()
         cp = StubClientePort(veiculo_pertence=False)
-        uc = CriarOrdem(repo=repo, uow=uow, cliente_port=cp)
+        uc = CriarOrdem(
+            repo=repo,
+            uow=uow,
+            cliente_port=cp,
+            catalogo_port=StubCatalogoPort(),
+            estoque_port=StubEstoquePort(),
+        )
         with pytest.raises(VeiculoNaoEncontradoException):
             uc.executar(CriarOrdemDTO(uuid4(), uuid4()))
+
+
+class TestCriarOrdemComItens:
+    """RF-020: abertura de OS ja com servicos e pecas em uma unica chamada.
+
+    A criacao orquestra a montagem dos itens (validacao via ports de
+    catalogo/estoque, preco da fonte certa) e persiste agregado + itens
+    na MESMA UnitOfWork: falha em qualquer item significa rollback total
+    (a OS nao pode aparecer no repositorio).
+    """
+
+    def _servico(self, nome: str, preco: str) -> ServicoOferecidoDTO:
+        return ServicoOferecidoDTO(
+            id=uuid4(),
+            nome=nome,
+            preco=Dinheiro(valor=Decimal(preco)),
+            ativo=True,
+        )
+
+    def test_cria_os_com_dois_servicos_e_uma_peca(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        troca = self._servico("Troca de oleo", "100.00")
+        alinhamento = self._servico("Alinhamento", "80.00")
+        peca = ItemEstoqueDTO(
+            id=uuid4(),
+            nome="Filtro de oleo",
+            preco_unitario=Dinheiro(valor=Decimal("35.00")),
+        )
+        uc = CriarOrdem(
+            repo=repo,
+            uow=uow,
+            cliente_port=StubClientePort(),
+            catalogo_port=CatalogoPorIdStub(
+                {troca.id: troca, alinhamento.id: alinhamento}
+            ),
+            estoque_port=StubEstoquePort(item=peca),
+        )
+        dto = CriarOrdemDTO(
+            cliente_id=uuid4(),
+            veiculo_id=uuid4(),
+            servicos=(
+                ServicoDaOrdemDTO(servico_catalogo_id=troca.id),
+                ServicoDaOrdemDTO(servico_catalogo_id=alinhamento.id, quantidade=2),
+            ),
+            pecas=(
+                PecaDaOrdemDTO(
+                    servico_catalogo_id=troca.id,
+                    item_estoque_id=peca.id,
+                    quantidade=2,
+                ),
+            ),
+        )
+
+        result = uc.executar(dto)
+
+        assert result.status == "recebida"
+        assert len(result.itens) == 3
+        # Linha de servico puro: preco do catalogo, descricao = nome do
+        # servico, sem contrapartida no estoque; quantidade default 1.
+        linha_troca = next(i for i in result.itens if i.descricao == "Troca de oleo")
+        assert linha_troca.item_estoque_id is None
+        assert linha_troca.quantidade == 1
+        assert linha_troca.preco_unitario_centavos == 10000
+        linha_alinhamento = next(
+            i for i in result.itens if i.descricao == "Alinhamento"
+        )
+        assert linha_alinhamento.subtotal_centavos == 16000
+        # Linha de peca: preco do ESTOQUE (nao do servico), descricao =
+        # nome da peca — mesma regra do AdicionarItem (bug historico).
+        linha_peca = next(i for i in result.itens if i.descricao == "Filtro de oleo")
+        assert linha_peca.item_estoque_id == peca.id
+        assert linha_peca.servico_catalogo_id == troca.id
+        assert linha_peca.preco_unitario_centavos == 3500
+        assert linha_peca.subtotal_centavos == 7000
+        # Agregado completo persistido na mesma UoW.
+        assert uow.committed is True
+        persistida = repo.obter_por_id(result.id)
+        assert persistida is not None
+        assert len(persistida.itens) == 3
+
+    def test_rollback_total_com_peca_inexistente(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        troca = self._servico("Troca de oleo", "100.00")
+        uc = CriarOrdem(
+            repo=repo,
+            uow=uow,
+            cliente_port=StubClientePort(),
+            catalogo_port=CatalogoPorIdStub({troca.id: troca}),
+            estoque_port=StubEstoquePort(item=None),
+        )
+        dto = CriarOrdemDTO(
+            cliente_id=uuid4(),
+            veiculo_id=uuid4(),
+            servicos=(ServicoDaOrdemDTO(servico_catalogo_id=troca.id),),
+            pecas=(
+                PecaDaOrdemDTO(
+                    servico_catalogo_id=troca.id,
+                    item_estoque_id=uuid4(),
+                    quantidade=1,
+                ),
+            ),
+        )
+
+        with pytest.raises(ViolacaoRegraDeNegocioException):
+            uc.executar(dto)
+
+        # Rollback TOTAL: nem a OS nem o servico valido persistem.
+        assert repo.contar() == 0
+        assert uow.committed is False
+
+    def test_rollback_total_com_servico_inexistente(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        uc = CriarOrdem(
+            repo=repo,
+            uow=uow,
+            cliente_port=StubClientePort(),
+            catalogo_port=CatalogoPorIdStub({}),
+            estoque_port=StubEstoquePort(),
+        )
+        dto = CriarOrdemDTO(
+            cliente_id=uuid4(),
+            veiculo_id=uuid4(),
+            servicos=(ServicoDaOrdemDTO(servico_catalogo_id=uuid4()),),
+        )
+
+        with pytest.raises(ViolacaoRegraDeNegocioException):
+            uc.executar(dto)
+
+        assert repo.contar() == 0
+        assert uow.committed is False
+
+    def test_rollback_total_com_servico_inativo(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        inativo = ServicoOferecidoDTO(
+            id=uuid4(),
+            nome="Servico desativado",
+            preco=Dinheiro(valor=Decimal("10.00")),
+            ativo=False,
+        )
+        uc = CriarOrdem(
+            repo=repo,
+            uow=uow,
+            cliente_port=StubClientePort(),
+            catalogo_port=CatalogoPorIdStub({inativo.id: inativo}),
+            estoque_port=StubEstoquePort(),
+        )
+        dto = CriarOrdemDTO(
+            cliente_id=uuid4(),
+            veiculo_id=uuid4(),
+            servicos=(ServicoDaOrdemDTO(servico_catalogo_id=inativo.id),),
+        )
+
+        with pytest.raises(ViolacaoRegraDeNegocioException):
+            uc.executar(dto)
+
+        assert repo.contar() == 0
+        assert uow.committed is False
+
+    def test_sem_itens_mantem_comportamento_fase_1(self) -> None:
+        """Payload sem listas continua criando OS vazia (compatibilidade)."""
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        uc = CriarOrdem(
+            repo=repo,
+            uow=uow,
+            cliente_port=StubClientePort(),
+            catalogo_port=CatalogoPorIdStub({}),
+            estoque_port=StubEstoquePort(item=None),
+        )
+
+        result = uc.executar(CriarOrdemDTO(cliente_id=uuid4(), veiculo_id=uuid4()))
+
+        assert result.status == "recebida"
+        assert result.itens == []
+        assert uow.committed is True
+        assert repo.contar() == 1
 
 
 class TestAdicionarItem:
@@ -330,6 +545,29 @@ class TestAdicionarItem:
             "Bug regressado: preco_unitario veio do servico em vez do estoque"
         )
         assert nova.subtotal_centavos == 7000
+
+    def test_descricao_vazia_explicita_continua_invalida(self) -> None:
+        """``descricao=""`` NAO cai no fallback de nome (so ``None`` cai):
+        a string vazia segue chegando ao dominio e violando a invariante
+        de ``ItemDaOrdem``, como antes do RF-020."""
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        servico = _servico_dto()
+        uc = AdicionarItem(
+            repo=repo,
+            uow=uow,
+            catalogo_port=StubCatalogoPort(servico=servico),
+            estoque_port=StubEstoquePort(),
+        )
+        ordem = _criar_ordem_com_item(repo)
+        dto = AdicionarItemDTO(
+            servico_catalogo_id=servico.id,
+            item_estoque_id=None,
+            descricao="",
+            quantidade=1,
+        )
+        with pytest.raises(ValueError, match="Descricao"):
+            uc.executar(ordem.id, dto)
 
     def test_item_estoque_inexistente_levanta(self) -> None:
         """``EstoquePort.obter_item`` retornando None deve resultar em
@@ -754,7 +992,13 @@ class TestUoWBoundaryAndMissingNegatives:
     def test_criar_ordem_commit_da_uow(self) -> None:
         repo = FakeOrdemDeServicoRepository()
         uow = FakeUnitOfWork()
-        uc = CriarOrdem(repo=repo, uow=uow, cliente_port=StubClientePort())
+        uc = CriarOrdem(
+            repo=repo,
+            uow=uow,
+            cliente_port=StubClientePort(),
+            catalogo_port=StubCatalogoPort(),
+            estoque_port=StubEstoquePort(),
+        )
         uc.executar(CriarOrdemDTO(cliente_id=uuid4(), veiculo_id=uuid4()))
         assert uow.committed is True
 

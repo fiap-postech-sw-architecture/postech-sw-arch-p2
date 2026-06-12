@@ -31,6 +31,8 @@ from src.ordem_servico.aplicacao.dtos import (
     AdicionarItemDTO,
     CancelarOrdemDTO,
     CriarOrdemDTO,
+    PecaDaOrdemDTO,
+    ServicoDaOrdemDTO,
 )
 from src.ordem_servico.interfaces.dependencies import (
     obter_adicionar_item,
@@ -94,9 +96,32 @@ def criar_ordem(
     usuario: dict[str, object] = Depends(exigir_papel("admin")),
     session: Session = Depends(obter_session),
 ) -> OrdemDeServicoResponse:
-    """Abre uma ordem de servico para o par ``cliente + veiculo`` informado."""
+    """Abre uma ordem de servico, opcionalmente ja com servicos e pecas.
+
+    RF-020: itens informados no payload sao criados na mesma transacao
+    da OS — item invalido (servico/peca inexistente, servico inativo)
+    aborta a criacao inteira. Payload sem itens equivale a fase 1.
+    """
     uc = obter_criar_ordem(session)
-    dto = CriarOrdemDTO(cliente_id=body.cliente_id, veiculo_id=body.veiculo_id)
+    dto = CriarOrdemDTO(
+        cliente_id=body.cliente_id,
+        veiculo_id=body.veiculo_id,
+        servicos=tuple(
+            ServicoDaOrdemDTO(
+                servico_catalogo_id=servico.servico_catalogo_id,
+                quantidade=servico.quantidade,
+            )
+            for servico in body.servicos
+        ),
+        pecas=tuple(
+            PecaDaOrdemDTO(
+                servico_catalogo_id=peca.servico_catalogo_id,
+                item_estoque_id=peca.item_estoque_id,
+                quantidade=peca.quantidade,
+            )
+            for peca in body.pecas
+        ),
+    )
     result = uc.executar(dto)
     return _to_ordem_response(result, session)
 

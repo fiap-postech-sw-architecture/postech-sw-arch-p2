@@ -73,13 +73,20 @@ def _uow(session: Session) -> SQLAlchemyUnitOfWork:
 
 
 def obter_criar_ordem(session: Session) -> CriarOrdem:
-    """Wires ``CriarOrdem`` with ``ClienteSQLAlchemyAdapter`` as ``ClientePort``."""
+    """Wires ``CriarOrdem`` com os adapters de Cliente, Catalogo e Estoque.
+
+    Catalogo e Estoque entraram com o RF-020: a criacao pode receber
+    servicos/pecas e usa os ports para validar e precificar cada linha
+    na mesma transacao da OS.
+    """
     from src.ordem_servico.aplicacao.use_cases import CriarOrdem
 
     return CriarOrdem(
         repo=_repo(session),
         uow=_uow(session),
         cliente_port=ClienteSQLAlchemyAdapter(session=session),
+        catalogo_port=CatalogoSQLAlchemyAdapter(session=session),
+        estoque_port=EstoqueSQLAlchemyAdapter(session=session),
     )
 
 

@@ -32,13 +32,62 @@ _DESCRICAO_SITUACAO = (
 )
 
 
+class ServicoDaOrdemRequest(BaseModel):
+    """Linha de servico no payload de criacao da OS (RF-020).
+
+    A descricao da linha e resolvida server-side a partir do nome do
+    servico no catalogo; para descricao livre, use o endpoint
+    ``POST /{ordem_id}/itens`` apos a criacao.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    servico_catalogo_id: UUID = Field(
+        description="Identificador do ServicoOferecido no contexto Catalogo."
+    )
+    quantidade: int = Field(
+        default=1, gt=0, description="Quantidade em unidades (> 0, default 1)."
+    )
+
+
+class PecaDaOrdemRequest(BaseModel):
+    """Linha de peca no payload de criacao da OS (RF-020).
+
+    ``servico_catalogo_id`` e obrigatorio: no modelo de itens da ordem,
+    toda peca consumida e vinculada ao servico que a utiliza. O preco da
+    linha vem do estoque e a descricao do nome da peca.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    servico_catalogo_id: UUID = Field(
+        description="Servico do catalogo que consome a peca."
+    )
+    item_estoque_id: UUID = Field(description="Identificador do ItemEstoque consumido.")
+    quantidade: int = Field(gt=0, description="Quantidade em unidades (> 0).")
+
+
 class CriarOrdemRequest(BaseModel):
-    """Request body do endpoint ``POST /api/v1/ordens-de-servico``."""
+    """Request body do endpoint ``POST /api/v1/ordens-de-servico``.
+
+    ``servicos`` e ``pecas`` sao opcionais (RF-020): a OS pode nascer ja
+    com itens, criados na mesma transacao — qualquer item invalido
+    aborta a criacao inteira. Payloads da fase 1 (so ``cliente_id`` +
+    ``veiculo_id``) continuam validos e equivalentes.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     cliente_id: UUID = Field(description="Identificador do cliente dono do veiculo.")
     veiculo_id: UUID = Field(description="Identificador do veiculo a ser atendido.")
+    servicos: list[ServicoDaOrdemRequest] = Field(
+        default_factory=list,
+        description="Servicos a executar, ja na abertura da OS (opcional).",
+    )
+    pecas: list[PecaDaOrdemRequest] = Field(
+        default_factory=list,
+        description="Pecas a consumir, ja na abertura da OS (opcional).",
+    )
 
 
 class AdicionarItemRequest(BaseModel):

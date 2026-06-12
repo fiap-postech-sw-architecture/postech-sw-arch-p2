@@ -19,24 +19,63 @@ if TYPE_CHECKING:
 
 
 @dataclass(frozen=True, slots=True)
+class ServicoDaOrdemDTO:
+    """Linha de servico solicitada na abertura da OS (RF-020).
+
+    ``quantidade`` default 1: a maioria dos servicos e contratada uma
+    unica vez por OS. A descricao da linha e resolvida pelo caso de uso
+    a partir do nome do servico no catalogo.
+    """
+
+    servico_catalogo_id: UUID
+    quantidade: int = 1
+
+
+@dataclass(frozen=True, slots=True)
+class PecaDaOrdemDTO:
+    """Linha de peca solicitada na abertura da OS (RF-020).
+
+    ``servico_catalogo_id`` e obrigatorio porque toda linha de item da
+    ordem referencia o servico que consome a peca (invariante de
+    ``ItemDaOrdem``). A descricao e resolvida a partir do nome da peca
+    no estoque; o preco vem do estoque, nao do servico.
+    """
+
+    servico_catalogo_id: UUID
+    item_estoque_id: UUID
+    quantidade: int
+
+
+@dataclass(frozen=True, slots=True)
 class CriarOrdemDTO:
-    """Comando de entrada do caso de uso ``CriarOrdem``."""
+    """Comando de entrada do caso de uso ``CriarOrdem``.
+
+    ``servicos`` e ``pecas`` sao opcionais (RF-020): vazios reproduzem o
+    comportamento da fase 1 (OS aberta sem itens). Tuplas preservam a
+    imutabilidade do comando.
+    """
 
     cliente_id: UUID
     veiculo_id: UUID
+    servicos: tuple[ServicoDaOrdemDTO, ...] = ()
+    pecas: tuple[PecaDaOrdemDTO, ...] = ()
 
 
 @dataclass(frozen=True, slots=True)
 class AdicionarItemDTO:
-    """Comando de entrada do caso de uso ``AdicionarItem``.
+    """Comando de montagem de uma linha de item (``AdicionarItem`` e RF-020).
 
     ``item_estoque_id`` e opcional: itens puramente de servico (mao-de-obra)
-    nao tem contrapartida no estoque.
+    nao tem contrapartida no estoque. ``descricao`` ``None`` significa
+    "resolver do nome do servico/peca via port" — caminho usado pela
+    criacao com itens (RF-020), em que o payload nao carrega descricao
+    livre; o endpoint de adicionar item continua exigindo descricao no
+    schema HTTP.
     """
 
     servico_catalogo_id: UUID
     item_estoque_id: UUID | None
-    descricao: str
+    descricao: str | None
     quantidade: int
 
 
