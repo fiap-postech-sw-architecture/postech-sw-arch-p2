@@ -1,0 +1,29 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "FastAPI (uvicorn dev server)",
+      "runtimeExecutable": "./scripts/run-dev.sh",
+      "runtimeArgs": [],
+      "port": 8001
+    },
+    {
+      "name": "PostgreSQL (docker compose)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "postgres"],
+      "port": 5432
+    },
+    {
+      "name": "Full stack (docker compose)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up"],
+      "port": 8000
+    },
+    {
+      "name": "NiceGUI (docker compose)",
+      "runtimeExecutable": "docker",
+      "runtimeArgs": ["compose", "up", "ui"],
+      "port": 8080
+    }
+  ]
+}

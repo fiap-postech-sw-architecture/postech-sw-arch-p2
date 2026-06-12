@@ -1,0 +1,152 @@
+name: Run Claude Code Action
+description: >-
+  Wrapper local que encapsula args, tools e secrets comuns do
+  anthropics/claude-code-action@v1. Mantem a configuracao em UM lugar
+  pra evitar drift entre os workflows de auto-review e on-demand.
+  Workflows chamadores passam secrets via inputs (oauth_token,
+  github_token) e parametros que variam (prompt, trigger_phrase,
+  extra_allowed_tools). Trigger, permissions, concurrency,
+  timeout-minutes, if-gate e checkout ficam no workflow chamador
+  (sao propriedades do job, nao do step composite).
+
+inputs:
+  oauth_token:
+    description: Claude Code OAuth token (Claude Max plan). Passar via secrets.
+    required: true
+  github_token:
+    description: >-
+      GitHub token auto-gerado pelo runner — workaround pro bug
+      anthropics/claude-code-action#721 (sem ele a action tenta
+      GitHub App OIDC e falha com 401 quando o auth e via OAuth).
+    required: true
+  prompt:
+    description: >-
+      Prompt completo. Pra mention em comment/issue, deixe vazio —
+      a action detecta o texto pos-mencao automaticamente via
+      trigger_phrase.
+    required: false
+    default: ''
+  trigger_phrase:
+    description: >-
+      Texto que ativa a action em comments (ex.: @claude). So usado
+      em on-demand. Vazio no auto-review.
+    required: false
+    default: ''
+  extra_allowed_tools:
+    description: >-
+      Tools adicionais a anexar ao set base (CSV). Ex.: on-demand
+      adiciona Bash(gh issue comment:*),Bash(gh issue view:*) pra
+      responder em issues alem de PRs.
+    required: false
+    default: ''
+  model:
+    description: >-
+      Modelo do Claude (sonnet | opus). Default sonnet — rapido e
+      barato pra reviews do dia-a-dia (~30-60s pra PR pequeno).
+      claude-on-demand.yml sobrescreve pra opus quando o usuario
+      pede review manual e aceita mais latencia em troca de
+      profundidade.
+    required: false
+    default: 'sonnet'
+  effort:
+    description: >-
+      Esforco de raciocinio (low | medium | high | max). Default
+      medium — extended thinking moderado, suficiente pra cobrir as
+      9 secoes do prompt single-shot (correctness/security/tests/
+      DDD/architecture/naming/ops/docs/ai-trace) sem explodir o
+      tempo de run. On-demand sobe pra max pra dar mais budget de
+      extended thinking (deep mode = pensar mais por turn, NAO
+      paralelismo nem evaluator-optimizer instrumentado — esses
+      patterns precisariam de prompt dedicado).
+    required: false
+    default: 'medium'
+  max_turns:
+    description: >-
+      Numero maximo de turns (loop tool-use). Default 30 cobre o
+      caso tipico do auto-review com track_progress ligado (cada
+      checkbox atualizado consome 1 turn). On-demand sobe pra 50
+      pra dar folga em diffs grandes (mais arquivos pra ler com
+      Read/Grep, mais inline comments via mcp__github_inline_comment).
+    required: false
+    default: '30'
+
+runs:
+  using: composite
+  steps:
+    - name: Build claude_args
+      id: args
+      shell: bash
+      env:
+        # Inputs vao via env (nao via interpolacao YAML direta no shell)
+        # pra evitar shell injection caso algum dia esses inputs venham
+        # de fonte nao-confiavel (ex.: workflow_dispatch). Com `${{ }}`
+        # direto no `run:`, um valor como `sonnet" --evil "` quebraria
+        # quoting e injetaria comandos. Via env, o valor fica preso na
+        # variavel — ainda tem que validar (case/regex abaixo) pra
+        # rejeitar lixo, mas nao tem como escapar pra outro comando.
+        # Pattern recomendado pela propria GitHub:
+        # https://docs.github.com/en/actions/security-guides/security-hardening-for-github-actions#using-an-intermediate-environment-variable
+        MODEL_INPUT: ${{ inputs.model }}
+        EFFORT_INPUT: ${{ inputs.effort }}
+        MAX_TURNS_INPUT: ${{ inputs.max_turns }}
+        EXTRA_TOOLS_INPUT: ${{ inputs.extra_allowed_tools }}
+      run: |
+        # Whitelisting dos inputs (defesa em profundidade — mesmo que
+        # hoje os valores venham so dos workflows YAML do repo).
+        case "$MODEL_INPUT" in
+          sonnet|opus) ;;
+          *) echo "::error::model invalido: '$MODEL_INPUT' (use 'sonnet' ou 'opus')"; exit 1 ;;
+        esac
+        case "$EFFORT_INPUT" in
+          low|medium|high|max) ;;
+          *) echo "::error::effort invalido: '$EFFORT_INPUT' (use low|medium|high|max)"; exit 1 ;;
+        esac
+        if ! [[ "$MAX_TURNS_INPUT" =~ ^[0-9]+$ ]]; then
+          echo "::error::max_turns invalido: '$MAX_TURNS_INPUT' (esperado inteiro)"; exit 1
+        fi
+
+        # Lista base de tools — alinhada com o template oficial
+        # https://github.com/anthropics/claude-code-action/blob/v1/docs/solutions.md#automatic-pr-code-review
+        # Sem essas tools, o Claude nao consegue publicar review (run
+        # anterior em PR #81 gastou $9.59 sem postar nada).
+        BASE_TOOLS="mcp__github_inline_comment__create_inline_comment,mcp__github_ci__get_ci_status,mcp__github_ci__download_job_log,Bash(gh pr comment:*),Bash(gh pr diff:*),Bash(gh pr view:*),Bash(gh pr checks:*),Bash(git diff:*),Bash(git log:*),Bash(git show:*),Read,Grep,Glob,Task"
+
+        if [ -n "$EXTRA_TOOLS_INPUT" ]; then
+          ALLOWED_TOOLS="${BASE_TOOLS},${EXTRA_TOOLS_INPUT}"
+        else
+          ALLOWED_TOOLS="$BASE_TOOLS"
+        fi
+
+        {
+          echo 'value<<EOF_ARGS'
+          echo "--model $MODEL_INPUT"
+          echo "--effort $EFFORT_INPUT"
+          echo "--max-turns $MAX_TURNS_INPUT"
+          echo "--allowedTools \"${ALLOWED_TOOLS}\""
+          echo 'EOF_ARGS'
+        } >> "$GITHUB_OUTPUT"
+
+    - name: Run Claude Code Action
+      uses: anthropics/claude-code-action@v1
+      env:
+        # Timeouts internos do MCP. Defaults da action.yml podem ser
+        # curtos demais pra MCPs lentos (gh API, github inline comment)
+        # em PRs grandes — subir explicitamente cobre o caso e fica
+        # bem dentro do timeout-minutes do job (20min = 1.2M ms).
+        MCP_TIMEOUT: "60000"
+        MCP_TOOL_TIMEOUT: "300000"
+      with:
+        claude_code_oauth_token: ${{ inputs.oauth_token }}
+        github_token: ${{ inputs.github_token }}
+        prompt: ${{ inputs.prompt }}
+        trigger_phrase: ${{ inputs.trigger_phrase }}
+        track_progress: true
+        use_sticky_comment: true
+        # display_report posta um summary no Step Summary do Actions
+        # (visivel via UI sem precisar abrir os logs). Ajuda debug
+        # sem ligar show_full_output (que pode vazar secrets, ver
+        # warning explicito do action.yml upstream).
+        display_report: true
+        additional_permissions: |
+          actions: read
+        claude_args: ${{ steps.args.outputs.value }}

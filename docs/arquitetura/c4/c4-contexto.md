@@ -1,0 +1,42 @@
+# C4 — Diagrama de Contexto (Level 1)
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
+
+> **Versão**: 1.0 — Fase 1 MVP.
+
+Visão de mais alto nível do sistema, mostrando o PytStop e seus relacionamentos com atores e sistemas externos. Baseado no modelo C4 de Simon Brown (Software Architecture — Aula 2).
+
+## Diagrama
+
+```mermaid
+C4Context
+    title Diagrama de Contexto — PytStop
+
+    Person(admin, "Admin", "Gerente da oficina.")
+
+    System(pytstop, "PytStop", "Sistema Integrado de Atendimento<br/>e Execucao de Servicos.<br/>Gerencia o ciclo completo de<br/>Ordens de Servico, clientes,<br/>estoque e catalogo.")
+
+    Rel(admin, pytstop, "Gerencia OS, clientes,<br/>estoque e catalogo", "HTTPS / JWT")
+```
+
+## Atores
+
+| Ator | Papel (`Papel` enum) | Descrição |
+|---|---|---|
+| **Admin** | `Papel.Admin` | Gerente da oficina. Único papel no MVP conforme glossário. |
+
+O papel `Mecanico` está planejado para evolução futura; consulte o [glossário](../../requisitos/glossario.md). No MVP o mecânico opera com credenciais de Admin, por isso não aparece como ator separado no diagrama.
+
+## Sistemas Externos
+
+Nenhum sistema externo no MVP. O Tech Challenge define um sistema autocontido com autenticacao propria via JWT ([ADR-004](../adr/004-autenticacao-jwt.md)) e banco de dados local.
+
+## Rastreabilidade
+
+- Nome do sistema: conforme [PRD](../../requisitos/prd.md) e [RFC-001](../rfc/rfc-001-design-do-sistema.md)
+- Papel Admin: conforme [glossario](../../requisitos/glossario.md) (contexto Autenticacao)
+- Decisao arquitetural: [ADR-003](../adr/003-arquitetura-ddd-onion.md)
+
+---
+
+> [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

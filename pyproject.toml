@@ -1,0 +1,172 @@
+[project]
+name = "pytstop"
+version = "0.1.0"
+description = "Sistema Integrado de Atendimento e Execucao de Servicos"
+requires-python = ">=3.12"
+dependencies = [
+    "fastapi>=0.115",
+    "uvicorn[standard]>=0.32",
+    "sqlalchemy>=2.0,<2.1",
+    "psycopg2-binary>=2.9",
+    "alembic>=1.14",
+    "pyjwt>=2.9",
+    "pwdlib[bcrypt]>=0.2",
+    "brutils>=2.3,<3",
+    "pydantic[email]>=2.0,<3",
+    "structlog>=24.0",
+    "slowapi>=0.1",
+    "cryptography>=42.0",
+]
+
+[project.optional-dependencies]
+test = [
+    "pytest>=8.0",
+    "pytest-cov>=6.0",
+    "pytest-xdist>=3.0",
+    "testcontainers[postgres]>=4.0",
+    "polyfactory>=2.0",
+    "httpx>=0.27",
+    "mutmut>=3.0",
+    "ruff>=0.8",
+    "mypy>=1.13",
+    "bandit>=1.7",
+]
+ui = [
+    "nicegui>=2.0,<3",
+    # httpx e usado direto por ui/cliente_api.py (wrapper HTTP da UI). NiceGUI
+    # 2.x nao puxa httpx transitivamente, entao precisa estar declarado aqui.
+    # Sem isso, `uv run --extra ui` (incluindo make ui, make seed-demo,
+    # scripts/seed_demo.py) explode com ModuleNotFoundError em fresh venv.
+    "httpx>=0.27",
+    # Necessarios para a fixture `screen` de nicegui.testing executar os testes
+    # lentos de browser em vez de marca-los como skipped por dependencia ausente.
+    "pytest-selenium>=4.1",
+    "selenium>=4.0",
+]
+full-test = [
+    "httpx>=0.27",
+    "pytest>=8",
+    "pytest-xdist>=3.5",
+    "python-dotenv>=1.0",
+    "sqlalchemy>=2.0",
+]
+
+[build-system]
+requires = ["setuptools>=75.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+where = ["."]
+# UI e dev-only: NAO e empacotada em wheels/sdists distribuiveis.
+# Docker do UI copia `ui/` e `src/` diretamente (ver `ui/Dockerfile`) e
+# roda via `python -m ui` com CWD no path, sem depender de `pip install`.
+include = ["src*"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 88
+
+[tool.ruff.lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "N",   # pep8-naming
+    "UP",  # pyupgrade
+    "B",   # flake8-bugbear
+    "A",   # flake8-builtins
+    "C4",  # flake8-comprehensions
+    "SIM", # flake8-simplify
+    "TCH", # flake8-type-checking
+    "RUF", # ruff-specific
+    "S",   # flake8-bandit
+    "PT",  # flake8-pytest-style
+    "ANN",     # flake8-annotations (codigo de prod; ignorado em tests/)
+    "BLE001",  # blind except
+    "FBT001",  # boolean-type-hint-positional-argument
+    "C901",    # complex-structure (mccabe)
+    "PLR2004", # magic-value-comparison
+    "PLR0912", # too-many-branches
+    "PLR0913", # too-many-arguments
+    "PLR0915", # too-many-statements
+    "PLW0603", # global-statement
+    "PYI034",  # non-self-return-type
+    "LOG014",  # exc-info-outside-except-handler
+]
+fixable = ["ALL"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["src", "ui"]
+
+[tool.ruff.lint.per-file-ignores]
+"tests/**" = [
+    "S101", "S105", "S106", "TCH", "SIM105", "PT012", "RUF059",
+    "ANN",                                  # tests podem ser destipados
+    "PLR2004",                              # magic values em asserts
+    "PLR0913", "PLR0915", "PLR0912",        # fixtures e factories sao grandes
+    "C901",                                 # tests podem ter setup complexo
+    "FBT001",                               # callsites de stub/fake
+    "BLE001",                               # tests as vezes capturam Exception
+    "LOG014",                               # tests nao usam exc_info
+    "PLW0603",                              # tests podem manipular singletons
+    "PYI034",                               # FakeUnitOfWork etc sao stubs
+]
+"full-test/tests/**" = [
+    "S101", "S105", "S106", "TCH", "SIM105", "PT012", "RUF059",
+    "ANN", "PLR2004", "PLR0913", "PLR0915", "PLR0912",
+    "C901", "FBT001", "BLE001", "LOG014", "PLW0603", "PYI034",
+]
+"**/exceptions.py" = ["N818"]
+"**/interfaces/schemas.py" = ["S105", "TCH003"]
+"**/interfaces/router*.py" = ["B008"]
+"**/interfaces/middleware.py" = ["B008", "TCH002"]
+"**/interfaces/dependencies.py" = ["B008"]
+"migrations/**" = ["E402"]
+"**/dtos.py" = ["S105"]
+"migrations/env.py" = ["E402"]
+
+[tool.mypy]
+strict = true
+python_version = "3.13"
+warn_return_any = true
+warn_unused_ignores = true
+
+[[tool.mypy.overrides]]
+module = "brutils.*"
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = [
+    "pwdlib.*",
+    "slowapi.*",
+    "structlog.*",
+    "testcontainers.*",
+    "polyfactory.*",
+    "cryptography.*",
+]
+ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+module = "nicegui.*"
+ignore_missing_imports = true
+
+[tool.pytest.ini_options]
+markers = [
+    "serial: testes que nao podem rodar em paralelo",
+    "integracao: testes de integracao",
+    "e2e: testes end-to-end",
+    "lento: testes que demoram mais de 1s",
+    "slow: roda contra instancia viva (docker compose); nao entra em unit-tests puros",
+    "slowest: tem sleep obrigatorio >= 1s dentro da journey; NAO entra em CI — rodar apenas em make full-test",
+    "module_under_test(module): registrado pelo plugin nicegui.testing; declarado aqui para sobreviver a coleta sem o extra `ui` instalado (--strict-markers)",
+]
+addopts = "--strict-markers"
+testpaths = ["tests"]
+
+# Configuracao do coverage.py esta em `.coveragerc` na raiz — coverage.py
+# prefere .coveragerc quando ambos existem. Consolidar em um unico arquivo
+# evita duplicacao divergente.
+
+[tool.bandit]
+targets = ["src", "ui"]
