@@ -58,6 +58,10 @@ class FakeUnitOfWork:
         pass
 
 
+# Estados fora da listagem padrao (RN-019/RN-020) — espelha o repositorio real.
+_STATUS_ENCERRADOS = frozenset({"finalizada", "entregue", "cancelada"})
+
+
 class FakeOrdemDeServicoRepository:
     def __init__(self) -> None:
         self._ordens: dict[UUID, OrdemDeServico] = {}
@@ -69,11 +73,29 @@ class FakeOrdemDeServicoRepository:
     def salvar(self, ordem: OrdemDeServico) -> None:
         self._ordens[ordem.id] = ordem
 
-    def listar(self, offset: int = 0, limit: int = 20) -> list[OrdemDeServico]:
-        return list(self._ordens.values())[offset : offset + limit]
+    def listar(
+        self,
+        offset: int = 0,
+        limit: int = 20,
+        *,
+        incluir_encerradas: bool = False,
+    ) -> list[OrdemDeServico]:
+        # Espelha o filtro de leitura RN-019/RN-020 do repositorio real.
+        ordens = [
+            ordem
+            for ordem in self._ordens.values()
+            if incluir_encerradas or ordem.status.value not in _STATUS_ENCERRADOS
+        ]
+        return ordens[offset : offset + limit]
 
-    def contar(self) -> int:
-        return len(self._ordens)
+    def contar(self, *, incluir_encerradas: bool = True) -> int:
+        if incluir_encerradas:
+            return len(self._ordens)
+        return sum(
+            1
+            for ordem in self._ordens.values()
+            if ordem.status.value not in _STATUS_ENCERRADOS
+        )
 
     def contar_por_status(self) -> dict[str, int]:
         resultado: dict[str, int] = {}
@@ -473,6 +495,29 @@ class TestListarOrdens:
         uc = ListarOrdens(repo=repo)
         assert len(uc.executar()) == 1
 
+    def test_default_exclui_encerradas(self) -> None:
+        """RF-023: listagem padrao nao expoe ordens encerradas (RN-019/RN-020)."""
+        repo = FakeOrdemDeServicoRepository()
+        ativa = _criar_ordem_com_item(repo)
+        cancelada = _criar_ordem_com_item(repo)
+        cancelada.cancelar(motivo="Cliente desistiu")
+
+        uc = ListarOrdens(repo=repo)
+        resultado = uc.executar()
+
+        assert [dto.id for dto in resultado] == [ativa.id]
+
+    def test_incluir_encerradas_devolve_visao_completa(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        _criar_ordem_com_item(repo)
+        cancelada = _criar_ordem_com_item(repo)
+        cancelada.cancelar(motivo="Cliente desistiu")
+
+        uc = ListarOrdens(repo=repo)
+        resultado = uc.executar(incluir_encerradas=True)
+
+        assert len(resultado) == 2
+
 
 class TestObterOrdem:
     def test_encontrada(self) -> None:
@@ -653,6 +698,18 @@ class TestListarOrdensContar:
         _criar_ordem_com_item(repo)
         uc = ListarOrdens(repo=repo)
         assert uc.contar() == 2
+
+    def test_contar_acompanha_filtro_de_encerradas(self) -> None:
+        """Total de paginacao consistente com o universo listado (RF-023)."""
+        repo = FakeOrdemDeServicoRepository()
+        _criar_ordem_com_item(repo)
+        cancelada = _criar_ordem_com_item(repo)
+        cancelada.cancelar(motivo="Cliente desistiu")
+
+        uc = ListarOrdens(repo=repo)
+
+        assert uc.contar() == 1
+        assert uc.contar(incluir_encerradas=True) == 2
 
 
 class _RaisingEstoquePort:

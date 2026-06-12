@@ -103,21 +103,37 @@ def criar_ordem(
 
 @router.get(
     "/",
-    summary="Lista ordens paginadas",
+    summary="Lista ordens paginadas por prioridade de status",
     response_model=OrdemListaResponse,
 )
 def listar_ordens(
+    *,
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
+    incluir_encerradas: bool = Query(
+        default=False,
+        description=(
+            "Inclui FINALIZADA/ENTREGUE/CANCELADA ao final da listagem "
+            "(visao administrativa completa). Default exclui encerradas "
+            "(RN-019/RN-020)."
+        ),
+    ),
     usuario: dict[str, object] = Depends(
         exigir_papel("admin", "atendente", "mecanico")
     ),
     session: Session = Depends(obter_session),
 ) -> OrdemListaResponse:
-    """Retorna pagina determinista (criado_em DESC, id) com ``total`` p/ paginacao."""
+    """Pagina ordens por prioridade de status + antiguidade (RF-023).
+
+    Ordenacao: EM_EXECUCAO > AGUARDANDO_APROVACAO (+ COMPLEMENTAR) >
+    EM_DIAGNOSTICO > RECEBIDA; no grupo, mais antiga primeiro com desempate
+    por id (RN-018/RN-020). ``total`` acompanha o filtro aplicado.
+    """
     uc = obter_listar_ordens(session)
-    items = uc.executar(offset=offset, limit=limit)
-    total = uc.contar()
+    items = uc.executar(
+        offset=offset, limit=limit, incluir_encerradas=incluir_encerradas
+    )
+    total = uc.contar(incluir_encerradas=incluir_encerradas)
     items_enriquecidos = obter_enriquecer_ordem(session).executar_lote(items)
     return OrdemListaResponse(
         items=[OrdemResumoResponse.model_validate(i) for i in items_enriquecidos],

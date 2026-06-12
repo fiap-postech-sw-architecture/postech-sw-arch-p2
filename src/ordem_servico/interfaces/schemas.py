@@ -170,7 +170,12 @@ class OrdemListaResponse(BaseModel):
     """Pagina de ``OrdemResumoResponse`` + metadata de paginacao."""
 
     items: list[OrdemResumoResponse]
-    total: int = Field(description="Total de ordens persistidas no sistema.")
+    total: int = Field(
+        description=(
+            "Total de ordens no universo listado (acompanha o filtro "
+            "incluir_encerradas, RF-023)."
+        )
+    )
     offset: int = Field(description="Offset da pagina atual (>= 0).")
     limit: int = Field(description="Tamanho da pagina atual (1..100).")
 

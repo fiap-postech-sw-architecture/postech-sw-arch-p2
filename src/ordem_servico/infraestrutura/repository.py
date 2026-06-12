@@ -5,7 +5,7 @@ from __future__ import annotations
 import re
 from typing import TYPE_CHECKING, Final
 
-from sqlalchemy import extract, func, select
+from sqlalchemy import case, extract, func, select
 
 from src.cliente_veiculo.infraestrutura.mapping import (
     clientes_table,
@@ -33,6 +33,27 @@ _ESTADOS_TERMINAIS: Final[frozenset[str]] = frozenset(
 _ESTADOS_FINALIZADOS: Final[frozenset[str]] = frozenset(
     {StatusOrdem.ENTREGUE.value, StatusOrdem.FINALIZADA.value}
 )
+# Estados encerrados ficam fora da listagem padrao (RN-019/RN-020).
+# Filtro de leitura: nenhum delete fisico, nenhuma coluna de soft-delete —
+# o proprio status e o marcador.
+_ESTADOS_ENCERRADOS: Final[frozenset[str]] = frozenset(
+    {
+        StatusOrdem.FINALIZADA.value,
+        StatusOrdem.ENTREGUE.value,
+        StatusOrdem.CANCELADA.value,
+    }
+)
+# Prioridade de exibicao da listagem (RN-018; RN-020 agrupa a COMPLEMENTAR
+# com AGUARDANDO_APROVACAO). Estados encerrados caem no else_ (9), ao final,
+# quando a visao administrativa completa e solicitada.
+_PRIORIDADE_STATUS: Final[dict[str, int]] = {
+    StatusOrdem.EM_EXECUCAO.value: 0,
+    StatusOrdem.AGUARDANDO_APROVACAO.value: 1,
+    StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR.value: 1,
+    StatusOrdem.EM_DIAGNOSTICO.value: 2,
+    StatusOrdem.RECEBIDA.value: 3,
+}
+_PRIORIDADE_ENCERRADAS: Final[int] = 9
 # Regex compatibility com cliente_veiculo: CPF/CNPJ sao armazenados
 # apenas com digitos (ver `cliente_veiculo/dominio/cpf.py:_NAO_DIGITO`),
 # e placa e normalizada para uppercase sem hifen (ver
@@ -63,24 +84,56 @@ class OrdemDeServicoSQLAlchemyRepository:
         self._session.add(ordem)
         self._session.flush()
 
-    def listar(self, offset: int = 0, limit: int = 20) -> list[OrdemDeServico]:
-        """Pagina ordens em ordem deterministica (criado_em DESC, id)."""
-        # order_by(criado_em DESC, id) garante paginacao deterministica
-        # mesmo quando duas ordens compartilham criado_em (PR #58 lesson).
+    def listar(
+        self,
+        offset: int = 0,
+        limit: int = 20,
+        *,
+        incluir_encerradas: bool = False,
+    ) -> list[OrdemDeServico]:
+        """Pagina ordens por prioridade de status + antiguidade (RF-023).
+
+        Ordenacao SQL: ``CASE`` de prioridade no status (RN-018/RN-020),
+        depois ``criado_em ASC`` (mais antiga primeiro) e ``id`` como
+        desempate — paginacao deterministica mesmo quando duas ordens
+        compartilham criado_em (PR #58 lesson). Por padrao, estados
+        encerrados ficam fora (RN-019/RN-020); ``incluir_encerradas=True``
+        devolve a visao completa, com encerradas ao final (prioridade 9).
+        """
+        prioridade = case(
+            _PRIORIDADE_STATUS,
+            value=ordens_de_servico_table.c.status,
+            else_=_PRIORIDADE_ENCERRADAS,
+        )
         stmt = (
             select(OrdemDeServico)
             .order_by(
-                ordens_de_servico_table.c.criado_em.desc(),
+                prioridade,
+                ordens_de_servico_table.c.criado_em.asc(),
                 ordens_de_servico_table.c.id,
             )
             .offset(offset)
             .limit(limit)
         )
+        if not incluir_encerradas:
+            stmt = stmt.where(
+                ordens_de_servico_table.c.status.notin_(_ESTADOS_ENCERRADOS)
+            )
         return list(self._session.scalars(stmt))
 
-    def contar(self) -> int:
-        """Total de ordens persistidas."""
+    def contar(self, *, incluir_encerradas: bool = True) -> int:
+        """Total de ordens persistidas.
+
+        ``incluir_encerradas=False`` restringe ao universo da listagem
+        padrao (RN-019/RN-020), mantendo o ``total`` de paginacao
+        consistente com ``listar``; o default preserva o total historico
+        usado pelas metricas.
+        """
         stmt = select(func.count()).select_from(ordens_de_servico_table)
+        if not incluir_encerradas:
+            stmt = stmt.where(
+                ordens_de_servico_table.c.status.notin_(_ESTADOS_ENCERRADOS)
+            )
         result = self._session.scalar(stmt)
         return result if result is not None else 0
 
