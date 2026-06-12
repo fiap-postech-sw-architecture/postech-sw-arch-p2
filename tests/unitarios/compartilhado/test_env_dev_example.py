@@ -85,3 +85,19 @@ def test_encryption_key_aparece_apenas_uma_vez() -> None:
         f"{len(linhas_encryption)}: {linhas_encryption!r}. "
         "Conflito de merge resolvido a toa?"
     )
+
+
+def test_orcamento_webhook_token_presente_e_nao_vazio() -> None:
+    """RF-022 (ADR-021): sem ``ORCAMENTO_WEBHOOK_TOKEN`` no example, o dev
+    que copia o arquivo sobe o backend com o canal externo de decisao de
+    orcamento desabilitado (503) sem perceber."""
+    variaveis = _parse_env_file(_ENV_EXAMPLE)
+    assert "ORCAMENTO_WEBHOOK_TOKEN" in variaveis, (
+        "ORCAMENTO_WEBHOOK_TOKEN deve estar definida em .env.dev.example. "
+        "Sem ela o endpoint externo de decisao de orcamento responde 503 "
+        "(canal desabilitado) em dev."
+    )
+    assert variaveis["ORCAMENTO_WEBHOOK_TOKEN"], (
+        "ORCAMENTO_WEBHOOK_TOKEN nao pode ser vazia em .env.dev.example: "
+        "vazio significa canal externo desabilitado (503)."
+    )

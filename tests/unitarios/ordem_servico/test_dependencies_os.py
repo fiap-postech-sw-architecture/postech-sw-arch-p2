@@ -10,6 +10,7 @@ from src.ordem_servico.aplicacao.use_cases import (
     CancelarOrdem,
     ConsultarAcompanhamento,
     CriarOrdem,
+    DecidirOrcamento,
     FinalizarServico,
     GerarOrcamento,
     GerarOrcamentoComplementar,
@@ -28,6 +29,7 @@ from src.ordem_servico.interfaces.dependencies import (
     obter_cancelar_ordem,
     obter_consultar_acompanhamento,
     obter_criar_ordem,
+    obter_decidir_orcamento,
     obter_enriquecer_ordem,
     obter_finalizar_servico,
     obter_gerar_complementar,
@@ -117,3 +119,11 @@ class TestDependenciesOS:
     def test_obter_enriquecer_ordem(self) -> None:
         query = obter_enriquecer_ordem(MagicMock())
         assert isinstance(query, EnriquecerOrdemDeServico)
+
+    def test_obter_decidir_orcamento(self) -> None:
+        uc = obter_decidir_orcamento(MagicMock())
+        assert isinstance(uc, DecidirOrcamento)
+        # Composicao correta: os tres caminhos delegados (RF-022).
+        assert isinstance(uc._aprovar_orcamento, AprovarOrcamento)
+        assert isinstance(uc._aprovar_complementar, AprovarOrcamentoComplementar)
+        assert isinstance(uc._cancelar_ordem, CancelarOrdem)

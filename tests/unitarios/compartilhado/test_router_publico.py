@@ -3,7 +3,9 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
+from uuid import uuid4
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -94,5 +96,134 @@ class TestRouterPublico:
         resp = client.get(
             "/api/v1/acompanhamento",
             params={"placa": "ABC1D23", "documento": "123"},
+        )
+        assert resp.status_code == 422
+
+
+class TestDecisaoOrcamentoExterna:
+    """RF-022 (ADR-021): endpoint externo de decisao do orcamento.
+
+    Autenticacao por token estatico dedicado (header ``X-Webhook-Token``)
+    validada ANTES de tocar o caso de uso — os cenarios 401/503 afirmam
+    que a factory nem chega a ser invocada (non-effect).
+    """
+
+    _ROTA = "/api/v1/publico/ordens-de-servico/{oid}/decisao-orcamento"
+    _FACTORY = "src.ordem_servico.interfaces.dependencies.obter_decidir_orcamento"
+
+    @pytest.fixture
+    def token_configurado(self, monkeypatch: pytest.MonkeyPatch) -> str:
+        valor = "demo-webhook-orcamento-unit"
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", valor)
+        return valor
+
+    def _dto(self, status: str) -> SimpleNamespace:
+        return SimpleNamespace(
+            status=status,
+            criado_em=datetime(2026, 6, 12, 12, 0, tzinfo=UTC),
+            atualizado_em=datetime(2026, 6, 12, 15, 30, tzinfo=UTC),
+        )
+
+    def test_aprovada_com_token_correto_retorna_situacao_nova(
+        self, token_configurado: str
+    ) -> None:
+        app = _criar_app()
+        ordem_id = uuid4()
+        uc = MagicMock(executar=MagicMock(return_value=self._dto("em_execucao")))
+        with patch(self._FACTORY) as factory:
+            factory.return_value = uc
+            resp = TestClient(app).post(
+                self._ROTA.format(oid=ordem_id),
+                json={"decisao": "aprovada"},
+                headers={"X-Webhook-Token": token_configurado},
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "em_execucao"
+        assert body["situacao"] == "Em execução"
+        uc.executar.assert_called_once_with(ordem_id, decisao="aprovada")
+
+    def test_recusada_com_token_correto_retorna_cancelada(
+        self, token_configurado: str
+    ) -> None:
+        app = _criar_app()
+        uc = MagicMock(executar=MagicMock(return_value=self._dto("cancelada")))
+        with patch(self._FACTORY) as factory:
+            factory.return_value = uc
+            resp = TestClient(app).post(
+                self._ROTA.format(oid=uuid4()),
+                json={"decisao": "recusada"},
+                headers={"X-Webhook-Token": token_configurado},
+            )
+        assert resp.status_code == 200
+        body = resp.json()
+        assert body["status"] == "cancelada"
+        assert body["situacao"] == "Cancelada"
+
+    def test_sem_header_retorna_401_sem_tocar_use_case(
+        self, token_configurado: str
+    ) -> None:
+        app = _criar_app()
+        with patch(self._FACTORY) as factory:
+            resp = TestClient(app).post(
+                self._ROTA.format(oid=uuid4()),
+                json={"decisao": "aprovada"},
+            )
+        assert resp.status_code == 401
+        factory.assert_not_called()
+
+    def test_token_errado_retorna_401_sem_tocar_use_case(
+        self, token_configurado: str
+    ) -> None:
+        app = _criar_app()
+        with patch(self._FACTORY) as factory:
+            resp = TestClient(app).post(
+                self._ROTA.format(oid=uuid4()),
+                json={"decisao": "aprovada"},
+                headers={"X-Webhook-Token": "outro-valor"},
+            )
+        assert resp.status_code == 401
+        factory.assert_not_called()
+
+    def test_token_nao_configurado_no_servidor_retorna_503(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # ADR-021: ausencia de configuracao = canal externo desabilitado
+        # (503), nunca canal aberto sem credencial.
+        monkeypatch.delenv("ORCAMENTO_WEBHOOK_TOKEN", raising=False)
+        app = _criar_app()
+        with patch(self._FACTORY) as factory:
+            resp = TestClient(app).post(
+                self._ROTA.format(oid=uuid4()),
+                json={"decisao": "aprovada"},
+                headers={"X-Webhook-Token": "qualquer"},
+            )
+        assert resp.status_code == 503
+        factory.assert_not_called()
+
+    def test_decisao_invalida_retorna_422(self, token_configurado: str) -> None:
+        app = _criar_app()
+        resp = TestClient(app).post(
+            self._ROTA.format(oid=uuid4()),
+            json={"decisao": "talvez"},
+            headers={"X-Webhook-Token": token_configurado},
+        )
+        assert resp.status_code == 422
+
+    def test_payload_com_campo_extra_retorna_422(self, token_configurado: str) -> None:
+        app = _criar_app()
+        resp = TestClient(app).post(
+            self._ROTA.format(oid=uuid4()),
+            json={"decisao": "aprovada", "motivo": "x"},
+            headers={"X-Webhook-Token": token_configurado},
+        )
+        assert resp.status_code == 422
+
+    def test_ordem_id_nao_uuid_retorna_422(self, token_configurado: str) -> None:
+        app = _criar_app()
+        resp = TestClient(app).post(
+            self._ROTA.format(oid="nao-e-uuid"),
+            json={"decisao": "aprovada"},
+            headers={"X-Webhook-Token": token_configurado},
         )
         assert resp.status_code == 422
