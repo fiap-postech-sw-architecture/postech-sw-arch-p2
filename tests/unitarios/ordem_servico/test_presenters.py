@@ -39,3 +39,14 @@ class TestSituacaoDe:
         from src.ordem_servico.interfaces.presenters import _SITUACAO_POR_STATUS
 
         assert set(_SITUACAO_POR_STATUS) == set(StatusOrdem)
+
+    def test_presenters_reexporta_a_fonte_unica_em_aplicacao(self) -> None:
+        # RF-024 moveu o vocabulario de situacao para aplicacao/situacoes.py
+        # (a notificacao por e-mail tambem o consome e aplicacao nao pode
+        # importar interfaces). presenters.py reexporta para preservar os
+        # imports existentes; este guard impede que as duas copias divirjam.
+        from src.ordem_servico.aplicacao import situacoes
+        from src.ordem_servico.interfaces import presenters
+
+        assert presenters.situacao_de is situacoes.situacao_de
+        assert presenters._SITUACAO_POR_STATUS is situacoes._SITUACAO_POR_STATUS

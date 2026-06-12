@@ -1040,3 +1040,70 @@ class TestDecisaoExternaOrcamento:
             f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
         ).json()
         assert detalhe["status"] == "recebida"
+
+
+class TestNotificacaoEmailViaApi:
+    """RF-024 (e2e leve): transicao via API dispara e-mail pelo wiring real.
+
+    O adapter SMTP e substituido por um fake no seam de composicao
+    (``dependencies.obter_email_port``) — as factories de use case do
+    contexto OS nao sao FastAPI ``Depends``, entao o override de
+    dependencia acontece no composition root, nao em
+    ``app.dependency_overrides``. Todo o resto (dispatcher, handler,
+    ``ClientePort.obter_contato``) e o wiring de producao.
+    """
+
+    def test_transicao_via_api_envia_email_para_contato_do_cliente(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        from src.ordem_servico.interfaces import dependencies as dependencias_os
+
+        enviados: list[tuple[str, str, str]] = []
+
+        class FakeEmailPort:
+            def enviar(self, destinatario: str, assunto: str, corpo: str) -> None:
+                enviados.append((destinatario, assunto, corpo))
+
+        monkeypatch.setattr(
+            dependencias_os, "obter_email_port", lambda: FakeEmailPort()
+        )
+
+        headers = _headers_admin(api_client, admin_user)
+        resposta_cliente = api_client.post(
+            "/api/v1/clientes/",
+            headers=headers,
+            json={
+                "nome": "Maria Notificada",
+                "documento": "21249722519",
+                "tipo_documento": "cpf",
+                "contato": "Maria - maria@cliente.com / (11) 99999-0000",
+            },
+        )
+        assert resposta_cliente.status_code == 201
+        cliente = resposta_cliente.json()
+        veiculo = _adicionar_veiculo(
+            api_client, headers, cliente_id=str(cliente["id"]), placa="EML5678"
+        )
+        resposta_criar = api_client.post(
+            "/api/v1/ordens-de-servico/",
+            headers=headers,
+            json={"cliente_id": cliente["id"], "veiculo_id": veiculo["id"]},
+        )
+        assert resposta_criar.status_code == 201
+        ordem_id = resposta_criar.json()["id"]
+        # Criacao nao notifica: RF-024 cobre atualizacoes de status.
+        assert enviados == []
+
+        resposta_diagnostico = api_client.post(
+            f"/api/v1/ordens-de-servico/{ordem_id}/diagnostico", headers=headers
+        )
+
+        assert resposta_diagnostico.status_code == 200
+        assert len(enviados) == 1
+        destinatario, assunto, _corpo = enviados[0]
+        assert destinatario == "maria@cliente.com"
+        assert "Em diagnóstico" in assunto
+        assert ordem_id[:8] in assunto

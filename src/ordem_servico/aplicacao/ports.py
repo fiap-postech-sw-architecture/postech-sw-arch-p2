@@ -53,6 +53,20 @@ class ClienteResumoDTO:
 
 
 @dataclass(frozen=True, slots=True)
+class ClienteContatoDTO:
+    """DTO imutavel devolvido por ``ClientePort.obter_contato`` (RF-024).
+
+    ``contato`` e o campo livre do cadastro (telefone, e-mail ou ambos);
+    a extracao/validacao do e-mail e responsabilidade do consumidor
+    (``aplicacao/notificacoes.py``), nao do contexto Cliente+Veiculo.
+    """
+
+    id: UUID
+    nome: str
+    contato: str
+
+
+@dataclass(frozen=True, slots=True)
 class VeiculoResumoDTO:
     """DTO imutavel para enriquecer projecoes de OS com a placa do veiculo."""
 
@@ -156,4 +170,27 @@ class ClientePort(Protocol):
         Mesmo contrato batch de ``obter_clientes_em_lote``: ``set`` vazio
         retorna dict vazio; ids inexistentes ficam de fora.
         """
+        ...
+
+    def obter_contato(self, cliente_id: UUID) -> ClienteContatoDTO | None:
+        """Retorna nome + contato do cliente, ou ``None`` se nao existir.
+
+        Usado pela notificacao de mudanca de status (RF-024) para resolver
+        o destinatario do e-mail sem que este contexto importe o agregado
+        ``Cliente`` do vizinho.
+        """
+        ...
+
+
+class EmailPort(Protocol):
+    """Porta de envio de e-mail (RF-024 / ADR-018).
+
+    Declarada no contexto consumidor (OrdemDeServico) e realizada na
+    borda por ``infraestrutura/email_adapter.py`` (SMTP generico).
+    Implementacoes DEVEM propagar falhas de envio: a tolerancia a falha
+    (logar e seguir) e politica do handler de notificacao, nao da porta.
+    """
+
+    def enviar(self, destinatario: str, assunto: str, corpo: str) -> None:
+        """Envia um e-mail texto-plano para ``destinatario``."""
         ...

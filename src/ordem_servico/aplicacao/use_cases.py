@@ -7,10 +7,15 @@ As regras de negocio ficam no agregado ``OrdemDeServico``; os casos de
 uso apenas compoem a sequencia de operacoes, mapeiam entrada/saida para
 DTOs e garantem a fronteira transacional via ``with self._uow:``.
 
-Event dispatch (publicacao de eventos de dominio a partir de
-``ordem.coletar_eventos()``) esta DEFERIDO para a PR 13 (wiring final do
-app e event bus); ate la, os eventos se acumulam em
-``_eventos_pendentes`` e sao mantidos junto com a instancia na sessao.
+Event dispatch (RF-024): os casos de uso de TRANSICAO de status aceitam
+um ``EventDispatcher`` opcional e entregam ``ordem.coletar_eventos()`` a
+ele APOS o commit da UnitOfWork — o handler enxerga a OS ja persistida e
+falha de handler nunca desfaz a transicao (o dispatcher engole e loga).
+O dispatch nao limpa ``_eventos_pendentes``: agregados sao request-scoped
+e a semantica de acumulacao observada desde a fase 1 permanece. Sem
+dispatcher injetado (default ``None``), o comportamento da fase 1 e
+preservado integralmente. ``CriarOrdem`` nao despacha por desenho:
+criacao nao e atualizacao de status.
 """
 
 from __future__ import annotations
@@ -44,6 +49,7 @@ if TYPE_CHECKING:
 
     from src.compartilhado.aplicacao.unit_of_work import UnitOfWork
     from src.compartilhado.dominio.dinheiro import Dinheiro
+    from src.ordem_servico.aplicacao.dispatcher import EventDispatcher
     from src.ordem_servico.aplicacao.dtos import CriarOrdemDTO
     from src.ordem_servico.aplicacao.ports import (
         CatalogoPort,
@@ -132,6 +138,22 @@ def _obter_ordem(repo: OrdemDeServicoRepository, ordem_id: UUID) -> OrdemDeServi
     if ordem is None:
         raise OrdemNaoEncontradaException()
     return ordem
+
+
+def _despachar_pos_commit(
+    dispatcher: EventDispatcher | None, ordem: OrdemDeServico
+) -> None:
+    """Publica os eventos pendentes da ordem apos o commit (RF-024).
+
+    Chamado pelos casos de uso de transicao DEPOIS do bloco ``with uow``:
+    o commit ja aconteceu e o dispatcher engole qualquer falha de handler,
+    entao a transicao persistida nunca e afetada. Nao limpa os eventos do
+    agregado (semantica request-scoped preservada — ver docstring do
+    modulo).
+    """
+    if dispatcher is None:
+        return
+    dispatcher.despachar(ordem.coletar_eventos())
 
 
 def _montar_item(
@@ -337,9 +359,15 @@ class RemoverItem:
 class IniciarDiagnostico:
     """Transita a ordem para EM_DIAGNOSTICO (emite ``DiagnosticoIniciadoEvent``)."""
 
-    def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
+    def __init__(
+        self,
+        repo: OrdemDeServicoRepository,
+        uow: UnitOfWork,
+        dispatcher: EventDispatcher | None = None,
+    ) -> None:
         self._repo = repo
         self._uow = uow
+        self._dispatcher = dispatcher
 
     def executar(self, ordem_id: UUID) -> OrdemDeServicoDTO:
         """Delega ao agregado ``OrdemDeServico.iniciar_diagnostico``.
@@ -353,15 +381,22 @@ class IniciarDiagnostico:
         with self._uow:
             self._repo.salvar(ordem)
             self._uow.commit()
+        _despachar_pos_commit(self._dispatcher, ordem)
         return _ordem_dto(ordem)
 
 
 class GerarOrcamento:
     """Gera o ``Orcamento`` a partir dos itens e transita para AGUARDANDO_APROVACAO."""
 
-    def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
+    def __init__(
+        self,
+        repo: OrdemDeServicoRepository,
+        uow: UnitOfWork,
+        dispatcher: EventDispatcher | None = None,
+    ) -> None:
         self._repo = repo
         self._uow = uow
+        self._dispatcher = dispatcher
 
     def executar(self, ordem_id: UUID) -> OrdemDeServicoDTO:
         """Delega ao agregado ``OrdemDeServico.gerar_orcamento``.
@@ -376,6 +411,7 @@ class GerarOrcamento:
         with self._uow:
             self._repo.salvar(ordem)
             self._uow.commit()
+        _despachar_pos_commit(self._dispatcher, ordem)
         return _ordem_dto(ordem)
 
 
@@ -387,10 +423,12 @@ class AprovarOrcamento:
         repo: OrdemDeServicoRepository,
         uow: UnitOfWork,
         estoque_port: EstoquePort,
+        dispatcher: EventDispatcher | None = None,
     ) -> None:
         self._repo = repo
         self._uow = uow
         self._estoque_port = estoque_port
+        self._dispatcher = dispatcher
 
     def executar(self, ordem_id: UUID) -> OrdemDeServicoDTO:
         """Reserva estoque e delega ao agregado ``OrdemDeServico.aprovar_orcamento``.
@@ -412,15 +450,22 @@ class AprovarOrcamento:
             ordem.aprovar_orcamento()
             self._repo.salvar(ordem)
             self._uow.commit()
+        _despachar_pos_commit(self._dispatcher, ordem)
         return _ordem_dto(ordem)
 
 
 class FinalizarServico:
     """Transita a ordem para FINALIZADA (emite ``ServicoFinalizadoEvent``)."""
 
-    def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
+    def __init__(
+        self,
+        repo: OrdemDeServicoRepository,
+        uow: UnitOfWork,
+        dispatcher: EventDispatcher | None = None,
+    ) -> None:
         self._repo = repo
         self._uow = uow
+        self._dispatcher = dispatcher
 
     def executar(self, ordem_id: UUID) -> OrdemDeServicoDTO:
         """Delega ao agregado ``OrdemDeServico.finalizar_servico``.
@@ -434,15 +479,22 @@ class FinalizarServico:
         with self._uow:
             self._repo.salvar(ordem)
             self._uow.commit()
+        _despachar_pos_commit(self._dispatcher, ordem)
         return _ordem_dto(ordem)
 
 
 class RegistrarEntrega:
     """Transita a ordem para ENTREGUE (emite ``EntregaRegistradaEvent``)."""
 
-    def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
+    def __init__(
+        self,
+        repo: OrdemDeServicoRepository,
+        uow: UnitOfWork,
+        dispatcher: EventDispatcher | None = None,
+    ) -> None:
         self._repo = repo
         self._uow = uow
+        self._dispatcher = dispatcher
 
     def executar(self, ordem_id: UUID) -> OrdemDeServicoDTO:
         """Delega ao agregado ``OrdemDeServico.registrar_entrega``.
@@ -456,6 +508,7 @@ class RegistrarEntrega:
         with self._uow:
             self._repo.salvar(ordem)
             self._uow.commit()
+        _despachar_pos_commit(self._dispatcher, ordem)
         return _ordem_dto(ordem)
 
 
@@ -467,10 +520,12 @@ class CancelarOrdem:
         repo: OrdemDeServicoRepository,
         uow: UnitOfWork,
         estoque_port: EstoquePort,
+        dispatcher: EventDispatcher | None = None,
     ) -> None:
         self._repo = repo
         self._uow = uow
         self._estoque_port = estoque_port
+        self._dispatcher = dispatcher
 
     def executar(self, ordem_id: UUID, dto: CancelarOrdemDTO) -> OrdemDeServicoDTO:
         """Libera reservas (se aplicavel) e delega ao agregado ``cancelar``.
@@ -506,15 +561,22 @@ class CancelarOrdem:
             ordem.cancelar(dto.motivo)
             self._repo.salvar(ordem)
             self._uow.commit()
+        _despachar_pos_commit(self._dispatcher, ordem)
         return _ordem_dto(ordem)
 
 
 class GerarOrcamentoComplementar:
     """Gera um orcamento complementar a partir dos itens adicionais."""
 
-    def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
+    def __init__(
+        self,
+        repo: OrdemDeServicoRepository,
+        uow: UnitOfWork,
+        dispatcher: EventDispatcher | None = None,
+    ) -> None:
         self._repo = repo
         self._uow = uow
+        self._dispatcher = dispatcher
 
     def executar(self, ordem_id: UUID) -> OrdemDeServicoDTO:
         """Delega ao agregado ``OrdemDeServico.gerar_orcamento_complementar``.
@@ -529,15 +591,22 @@ class GerarOrcamentoComplementar:
         with self._uow:
             self._repo.salvar(ordem)
             self._uow.commit()
+        _despachar_pos_commit(self._dispatcher, ordem)
         return _ordem_dto(ordem)
 
 
 class AprovarOrcamentoComplementar:
     """Aprova o orcamento complementar, retornando a ordem a EM_EXECUCAO."""
 
-    def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
+    def __init__(
+        self,
+        repo: OrdemDeServicoRepository,
+        uow: UnitOfWork,
+        dispatcher: EventDispatcher | None = None,
+    ) -> None:
         self._repo = repo
         self._uow = uow
+        self._dispatcher = dispatcher
 
     def executar(self, ordem_id: UUID) -> OrdemDeServicoDTO:
         """Delega ao agregado ``OrdemDeServico.aprovar_orcamento_complementar``.
@@ -551,15 +620,22 @@ class AprovarOrcamentoComplementar:
         with self._uow:
             self._repo.salvar(ordem)
             self._uow.commit()
+        _despachar_pos_commit(self._dispatcher, ordem)
         return _ordem_dto(ordem)
 
 
 class RejeitarOrcamentoComplementar:
     """Rejeita o orcamento complementar, retornando a ordem a EM_EXECUCAO."""
 
-    def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
+    def __init__(
+        self,
+        repo: OrdemDeServicoRepository,
+        uow: UnitOfWork,
+        dispatcher: EventDispatcher | None = None,
+    ) -> None:
         self._repo = repo
         self._uow = uow
+        self._dispatcher = dispatcher
 
     def executar(self, ordem_id: UUID) -> OrdemDeServicoDTO:
         """Delega ao agregado ``OrdemDeServico.rejeitar_orcamento_complementar``.
@@ -573,6 +649,7 @@ class RejeitarOrcamentoComplementar:
         with self._uow:
             self._repo.salvar(ordem)
             self._uow.commit()
+        _despachar_pos_commit(self._dispatcher, ordem)
         return _ordem_dto(ordem)
 
 
