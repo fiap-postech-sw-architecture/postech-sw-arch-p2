@@ -13,6 +13,7 @@ from typing import TYPE_CHECKING
 
 from src.compartilhado.dominio.exceptions import EntidadeNaoEncontradaException
 from src.ordem_servico.aplicacao.ports import (
+    ClienteContatoDTO,
     ClienteResumoDTO,
     ItemEstoqueDTO,
     ServicoOferecidoDTO,
@@ -242,3 +243,24 @@ class ClienteSQLAlchemyAdapter:
             )
         ).all()
         return {row.id: VeiculoResumoDTO(id=row.id, placa=row.placa) for row in rows}
+
+    def obter_contato(self, cliente_id: UUID) -> ClienteContatoDTO | None:
+        """Le ``nome`` + ``contato`` direto da tabela (RF-024).
+
+        Mesmo racional de ``obter_clientes_em_lote``: a projecao de
+        leitura nao precisa hidratar o agregado ``Cliente`` (listeners de
+        VO, decrypt de documento) so para resolver o destinatario do
+        e-mail — ``contato`` e armazenado em texto plano.
+        """
+        from sqlalchemy import select
+
+        from src.cliente_veiculo.infraestrutura.mapping import clientes_table
+
+        row = self._session.execute(
+            select(
+                clientes_table.c.id, clientes_table.c.nome, clientes_table.c.contato
+            ).where(clientes_table.c.id == cliente_id)
+        ).first()
+        if row is None:
+            return None
+        return ClienteContatoDTO(id=row.id, nome=row.nome, contato=row.contato)

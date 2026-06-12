@@ -1302,3 +1302,185 @@ class TestDecidirOrcamento:
         with pytest.raises(ValueError, match="decisao"):
             uc.executar(ordem.id, decisao="talvez")
         assert uow.committed is False
+
+
+class TestDispatchDeEventosPosCommit:
+    """RF-024: casos de uso de transicao despacham eventos APOS o commit.
+
+    O dispatcher e opcional (default ``None`` preserva o comportamento da
+    fase 1); quando presente, recebe ``ordem.coletar_eventos()`` somente
+    depois de ``uow.commit()`` — o handler enxerga a OS ja persistida.
+    O dispatch NAO limpa ``_eventos_pendentes`` (semantica observada
+    pelos testes existentes e pela fase 1 permanece intacta).
+    """
+
+    @staticmethod
+    def _ordem_em(
+        repo: FakeOrdemDeServicoRepository, *transicoes: str
+    ) -> OrdemDeServico:
+        ordem = _criar_ordem_com_item(repo)
+        for nome in transicoes:
+            getattr(ordem, nome)()
+        ordem.limpar_eventos()
+        repo.salvar(ordem)
+        return ordem
+
+    def test_iniciar_diagnostico_despacha_apos_commit_com_ordem_persistida(
+        self,
+    ) -> None:
+        from src.ordem_servico.aplicacao.dispatcher import EventDispatcher
+        from src.ordem_servico.dominio.events import DiagnosticoIniciadoEvent
+
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        ordem = _criar_ordem_com_item(repo)
+        visto: list[tuple[type, bool, str]] = []
+
+        def handler(evento: object) -> None:
+            persistida = repo.obter_por_id(ordem.id)
+            assert persistida is not None
+            visto.append((type(evento), uow.committed, persistida.status.value))
+
+        uc = IniciarDiagnostico(
+            repo=repo, uow=uow, dispatcher=EventDispatcher(handlers=(handler,))
+        )
+        uc.executar(ordem.id)
+
+        # Uma unica notificacao, depois do commit, com o estado novo visivel.
+        assert visto == [(DiagnosticoIniciadoEvent, True, "em_diagnostico")]
+
+    def test_dispatch_nao_limpa_eventos_pendentes(self) -> None:
+        from src.ordem_servico.aplicacao.dispatcher import EventDispatcher
+        from src.ordem_servico.dominio.events import DiagnosticoIniciadoEvent
+
+        repo = FakeOrdemDeServicoRepository()
+        ordem = _criar_ordem_com_item(repo)
+        uc = IniciarDiagnostico(
+            repo=repo,
+            uow=FakeUnitOfWork(),
+            dispatcher=EventDispatcher(handlers=()),
+        )
+
+        uc.executar(ordem.id)
+
+        eventos = ordem.coletar_eventos()
+        assert len(eventos) == 1
+        assert isinstance(eventos[0], DiagnosticoIniciadoEvent)
+
+    def test_falha_de_handler_nao_afeta_a_transicao(self) -> None:
+        from src.ordem_servico.aplicacao.dispatcher import EventDispatcher
+
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        ordem = _criar_ordem_com_item(repo)
+
+        def handler_quebrado(_evento: object) -> None:
+            raise RuntimeError("notificacao falhou")
+
+        uc = IniciarDiagnostico(
+            repo=repo, uow=uow, dispatcher=EventDispatcher(handlers=(handler_quebrado,))
+        )
+        result = uc.executar(ordem.id)
+
+        assert result.status == "em_diagnostico"
+        assert uow.committed is True
+        assert repo.obter_por_id(ordem.id).status.value == "em_diagnostico"  # type: ignore[union-attr]
+
+    def test_todas_as_transicoes_despacham_o_evento_correspondente(self) -> None:
+        """Cobertura exaustiva: TODOS os casos de uso que mudam status
+        publicam o evento da transicao quando ha dispatcher injetado.
+        ``CriarOrdem`` fica de fora por desenho (criacao nao e mudanca
+        de status — RF-024 notifica atualizacoes).
+        """
+        from src.ordem_servico.aplicacao.dispatcher import EventDispatcher
+        from src.ordem_servico.dominio.events import (
+            DiagnosticoIniciadoEvent,
+            EntregaRegistradaEvent,
+            OrcamentoComplementarGeradoEvent,
+            OrcamentoComplementarRejeitadoEvent,
+            OrcamentoGeradoEvent,
+            ServicoFinalizadoEvent,
+        )
+
+        ate_execucao = ("iniciar_diagnostico", "gerar_orcamento", "aprovar_orcamento")
+        casos = [
+            (
+                (),
+                lambda r, u, d: IniciarDiagnostico(repo=r, uow=u, dispatcher=d),
+                lambda uc, oid: uc.executar(oid),
+                DiagnosticoIniciadoEvent,
+            ),
+            (
+                ("iniciar_diagnostico",),
+                lambda r, u, d: GerarOrcamento(repo=r, uow=u, dispatcher=d),
+                lambda uc, oid: uc.executar(oid),
+                OrcamentoGeradoEvent,
+            ),
+            (
+                ("iniciar_diagnostico", "gerar_orcamento"),
+                lambda r, u, d: AprovarOrcamento(
+                    repo=r, uow=u, estoque_port=StubEstoquePort(), dispatcher=d
+                ),
+                lambda uc, oid: uc.executar(oid),
+                OrcamentoAprovadoEvent,
+            ),
+            (
+                ate_execucao,
+                lambda r, u, d: FinalizarServico(repo=r, uow=u, dispatcher=d),
+                lambda uc, oid: uc.executar(oid),
+                ServicoFinalizadoEvent,
+            ),
+            (
+                (*ate_execucao, "finalizar_servico"),
+                lambda r, u, d: RegistrarEntrega(repo=r, uow=u, dispatcher=d),
+                lambda uc, oid: uc.executar(oid),
+                EntregaRegistradaEvent,
+            ),
+            (
+                (),
+                lambda r, u, d: CancelarOrdem(
+                    repo=r, uow=u, estoque_port=StubEstoquePort(), dispatcher=d
+                ),
+                lambda uc, oid: uc.executar(
+                    oid, CancelarOrdemDTO(motivo="desistencia")
+                ),
+                OrdemCanceladaEvent,
+            ),
+            (
+                ate_execucao,
+                lambda r, u, d: GerarOrcamentoComplementar(repo=r, uow=u, dispatcher=d),
+                lambda uc, oid: uc.executar(oid),
+                OrcamentoComplementarGeradoEvent,
+            ),
+            (
+                (*ate_execucao, "gerar_orcamento_complementar"),
+                lambda r, u, d: AprovarOrcamentoComplementar(
+                    repo=r, uow=u, dispatcher=d
+                ),
+                lambda uc, oid: uc.executar(oid),
+                OrcamentoComplementarAprovadoEvent,
+            ),
+            (
+                (*ate_execucao, "gerar_orcamento_complementar"),
+                lambda r, u, d: RejeitarOrcamentoComplementar(
+                    repo=r, uow=u, dispatcher=d
+                ),
+                lambda uc, oid: uc.executar(oid),
+                OrcamentoComplementarRejeitadoEvent,
+            ),
+        ]
+
+        for transicoes, montar_uc, executar, evento_esperado in casos:
+            repo = FakeOrdemDeServicoRepository()
+            uow = FakeUnitOfWork()
+            ordem = self._ordem_em(repo, *transicoes)
+            despachados: list[object] = []
+            uc = montar_uc(repo, uow, EventDispatcher(handlers=(despachados.append,)))
+
+            executar(uc, ordem.id)
+
+            tipos = [type(e) for e in despachados]
+            assert tipos == [evento_esperado], (
+                f"{type(uc).__name__} deveria despachar {evento_esperado.__name__}, "
+                f"despachou {tipos}"
+            )

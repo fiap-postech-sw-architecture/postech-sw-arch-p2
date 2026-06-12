@@ -22,6 +22,14 @@ services:
       # Para trocar, exporte ORCAMENTO_WEBHOOK_TOKEN no shell antes do
       # `docker compose up` e mantenha .env.dev em sincronia.
       - ORCAMENTO_WEBHOOK_TOKEN=${ORCAMENTO_WEBHOOK_TOKEN:-demo-webhook-orcamento-nao-usar-em-producao}
+      # Notificacao de status por e-mail (RF-024 / ADR-018): defaults de
+      # demo apontam para o servico mailpit abaixo, mesmo com .env.dev
+      # copiado antes do RF-024 (mesmo racional do token acima). Falha de
+      # envio nunca bloqueia a transicao — sem mailpit no ar, o app loga
+      # e segue.
+      - SMTP_HOST=${SMTP_HOST:-mailpit}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_FROM=${SMTP_FROM:-oficina@pytstop.local}
     entrypoint: ["./entrypoint.sh"]
 
   postgres:
@@ -55,6 +63,17 @@ services:
       interval: 5s
       timeout: 5s
       retries: 5
+
+  # Servidor SMTP de dev/demo (ADR-018): aceita qualquer mensagem sem
+  # credencial e exibe numa caixa de entrada web — a demo do RF-024 mostra
+  # a transicao de status e o e-mail materializado na UI. SMTP fica na
+  # rede interna do compose (porta 1025, sem publicar no host); apenas a
+  # UI web e exposta em http://localhost:8025.
+  mailpit:
+    image: axllent/mailpit
+    container_name: pytstop-mailpit
+    ports:
+      - "${MAILPIT_UI_PORT:-8025}:8025"
 
   ui:
     build:

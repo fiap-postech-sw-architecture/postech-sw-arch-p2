@@ -24,11 +24,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 from src.compartilhado.infraestrutura.unit_of_work import SQLAlchemyUnitOfWork
+from src.ordem_servico.aplicacao.dispatcher import EventDispatcher
+from src.ordem_servico.aplicacao.notificacoes import NotificarMudancaDeStatus
 from src.ordem_servico.infraestrutura.adapters import (
     CatalogoSQLAlchemyAdapter,
     ClienteSQLAlchemyAdapter,
     EstoqueSQLAlchemyAdapter,
 )
+from src.ordem_servico.infraestrutura.email_adapter import SmtpEmailAdapter
 from src.ordem_servico.infraestrutura.repository import (
     OrdemDeServicoSQLAlchemyRepository,
 )
@@ -36,6 +39,7 @@ from src.ordem_servico.infraestrutura.repository import (
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
+    from src.ordem_servico.aplicacao.ports import EmailPort
     from src.ordem_servico.aplicacao.queries import EnriquecerOrdemDeServico
     from src.ordem_servico.aplicacao.use_cases import (
         AdicionarItem,
@@ -71,6 +75,39 @@ def _uow(session: Session) -> SQLAlchemyUnitOfWork:
     escopo transacional dos casos de uso como ``AprovarOrcamento``.
     """
     return SQLAlchemyUnitOfWork(session_factory=lambda: session)
+
+
+def obter_email_port() -> EmailPort:
+    """Factory do adapter de e-mail (RF-024 / ADR-018).
+
+    Seam unico de substituicao: os use cases do contexto OS sao
+    construidos por estas factories (nao por FastAPI ``Depends``), entao
+    testes E2E trocam o SMTP por um fake com
+    ``monkeypatch.setattr(dependencies, "obter_email_port", ...)`` em vez
+    de ``app.dependency_overrides``. Sem SMTP no ar (dev/test), a falha
+    de conexao e engolida e logada pelo handler — nunca bloqueia a
+    transicao.
+    """
+    return SmtpEmailAdapter()
+
+
+def _dispatcher(session: Session) -> EventDispatcher:
+    """Monta o dispatcher com os handlers de evento do contexto OS.
+
+    Hoje ha um unico handler (notificacao de status por e-mail, RF-024);
+    novos consumidores de eventos entram aqui sem tocar os use cases.
+    Sempre ligado — a tolerancia a falha mora no handler/dispatcher, nao
+    em flag de ambiente.
+    """
+    return EventDispatcher(
+        handlers=(
+            NotificarMudancaDeStatus(
+                repo=_repo(session),
+                cliente_port=ClienteSQLAlchemyAdapter(session=session),
+                email_port=obter_email_port(),
+            ),
+        )
+    )
 
 
 def obter_criar_ordem(session: Session) -> CriarOrdem:
@@ -120,14 +157,22 @@ def obter_iniciar_diagnostico(session: Session) -> IniciarDiagnostico:
     """Wires ``IniciarDiagnostico`` (pure domain transition)."""
     from src.ordem_servico.aplicacao.use_cases import IniciarDiagnostico
 
-    return IniciarDiagnostico(repo=_repo(session), uow=_uow(session))
+    return IniciarDiagnostico(
+        repo=_repo(session),
+        uow=_uow(session),
+        dispatcher=_dispatcher(session),
+    )
 
 
 def obter_gerar_orcamento(session: Session) -> GerarOrcamento:
     """Wires ``GerarOrcamento`` (pure domain transition)."""
     from src.ordem_servico.aplicacao.use_cases import GerarOrcamento
 
-    return GerarOrcamento(repo=_repo(session), uow=_uow(session))
+    return GerarOrcamento(
+        repo=_repo(session),
+        uow=_uow(session),
+        dispatcher=_dispatcher(session),
+    )
 
 
 def obter_aprovar_orcamento(session: Session) -> AprovarOrcamento:
@@ -138,6 +183,7 @@ def obter_aprovar_orcamento(session: Session) -> AprovarOrcamento:
         repo=_repo(session),
         uow=_uow(session),
         estoque_port=EstoqueSQLAlchemyAdapter(session=session),
+        dispatcher=_dispatcher(session),
     )
 
 
@@ -145,14 +191,22 @@ def obter_finalizar_servico(session: Session) -> FinalizarServico:
     """Wires ``FinalizarServico`` (pure domain transition)."""
     from src.ordem_servico.aplicacao.use_cases import FinalizarServico
 
-    return FinalizarServico(repo=_repo(session), uow=_uow(session))
+    return FinalizarServico(
+        repo=_repo(session),
+        uow=_uow(session),
+        dispatcher=_dispatcher(session),
+    )
 
 
 def obter_registrar_entrega(session: Session) -> RegistrarEntrega:
     """Wires ``RegistrarEntrega`` (pure domain transition)."""
     from src.ordem_servico.aplicacao.use_cases import RegistrarEntrega
 
-    return RegistrarEntrega(repo=_repo(session), uow=_uow(session))
+    return RegistrarEntrega(
+        repo=_repo(session),
+        uow=_uow(session),
+        dispatcher=_dispatcher(session),
+    )
 
 
 def obter_cancelar_ordem(session: Session) -> CancelarOrdem:
@@ -163,6 +217,7 @@ def obter_cancelar_ordem(session: Session) -> CancelarOrdem:
         repo=_repo(session),
         uow=_uow(session),
         estoque_port=EstoqueSQLAlchemyAdapter(session=session),
+        dispatcher=_dispatcher(session),
     )
 
 
@@ -172,7 +227,11 @@ def obter_gerar_complementar(session: Session) -> GerarOrcamentoComplementar:
         GerarOrcamentoComplementar,
     )
 
-    return GerarOrcamentoComplementar(repo=_repo(session), uow=_uow(session))
+    return GerarOrcamentoComplementar(
+        repo=_repo(session),
+        uow=_uow(session),
+        dispatcher=_dispatcher(session),
+    )
 
 
 def obter_aprovar_complementar(session: Session) -> AprovarOrcamentoComplementar:
@@ -181,7 +240,11 @@ def obter_aprovar_complementar(session: Session) -> AprovarOrcamentoComplementar
         AprovarOrcamentoComplementar,
     )
 
-    return AprovarOrcamentoComplementar(repo=_repo(session), uow=_uow(session))
+    return AprovarOrcamentoComplementar(
+        repo=_repo(session),
+        uow=_uow(session),
+        dispatcher=_dispatcher(session),
+    )
 
 
 def obter_rejeitar_complementar(session: Session) -> RejeitarOrcamentoComplementar:
@@ -190,7 +253,11 @@ def obter_rejeitar_complementar(session: Session) -> RejeitarOrcamentoComplement
         RejeitarOrcamentoComplementar,
     )
 
-    return RejeitarOrcamentoComplementar(repo=_repo(session), uow=_uow(session))
+    return RejeitarOrcamentoComplementar(
+        repo=_repo(session),
+        uow=_uow(session),
+        dispatcher=_dispatcher(session),
+    )
 
 
 def obter_decidir_orcamento(session: Session) -> DecidirOrcamento:
