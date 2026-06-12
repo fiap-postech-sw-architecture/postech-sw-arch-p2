@@ -510,14 +510,27 @@ class ListarOrdens:
     def __init__(self, repo: OrdemDeServicoRepository) -> None:
         self._repo = repo
 
-    def executar(self, offset: int = 0, limit: int = 20) -> list[OrdemResumoDTO]:
-        """Pagina ordens em ordem deterministica (criado_em DESC, id)."""
-        ordens = self._repo.listar(offset=offset, limit=limit)
+    def executar(
+        self,
+        offset: int = 0,
+        limit: int = 20,
+        *,
+        incluir_encerradas: bool = False,
+    ) -> list[OrdemResumoDTO]:
+        """Pagina ordens por prioridade de status + antiguidade (RF-023).
+
+        Default exclui estados encerrados (RN-019/RN-020);
+        ``incluir_encerradas=True`` preserva a visao administrativa
+        completa, com encerradas ao final da ordenacao.
+        """
+        ordens = self._repo.listar(
+            offset=offset, limit=limit, incluir_encerradas=incluir_encerradas
+        )
         return [_ordem_resumo(o) for o in ordens]
 
-    def contar(self) -> int:
-        """Total de ordens persistidas (usado para paginacao junto com ``executar``)."""
-        return self._repo.contar()
+    def contar(self, *, incluir_encerradas: bool = False) -> int:
+        """Total do universo listado (paginacao consistente com ``executar``)."""
+        return self._repo.contar(incluir_encerradas=incluir_encerradas)
 
 
 class ObterOrdem:

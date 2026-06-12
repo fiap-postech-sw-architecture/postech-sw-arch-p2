@@ -26,12 +26,32 @@ class OrdemDeServicoRepository(Protocol):
         """Persiste a ordem (insert ou update conforme a identidade)."""
         ...
 
-    def listar(self, offset: int = 0, limit: int = 20) -> list[OrdemDeServico]:
-        """Pagina ordens em ordem deterministica (por id)."""
+    def listar(
+        self,
+        offset: int = 0,
+        limit: int = 20,
+        *,
+        incluir_encerradas: bool = False,
+    ) -> list[OrdemDeServico]:
+        """Pagina ordens por prioridade de status + antiguidade (RF-023).
+
+        Prioridade RN-018/RN-020: EM_EXECUCAO > AGUARDANDO_APROVACAO (junto
+        com AGUARDANDO_APROVACAO_COMPLEMENTAR) > EM_DIAGNOSTICO > RECEBIDA;
+        dentro do grupo, ``criado_em ASC`` com desempate por ``id``. Por
+        padrao exclui estados encerrados (FINALIZADA/ENTREGUE/CANCELADA,
+        RN-019/RN-020); ``incluir_encerradas=True`` devolve a visao completa
+        com encerradas ao final da ordenacao.
+        """
         ...
 
-    def contar(self) -> int:
-        """Total de ordens persistidas."""
+    def contar(self, *, incluir_encerradas: bool = True) -> int:
+        """Total de ordens persistidas.
+
+        Com ``incluir_encerradas=False`` conta apenas o universo da
+        listagem padrao (exclui FINALIZADA/ENTREGUE/CANCELADA), mantendo a
+        paginacao consistente com ``listar``. O default ``True`` preserva a
+        semantica historica de "total persistido" (ex.: metricas).
+        """
         ...
 
     def contar_por_status(self) -> dict[str, int]:

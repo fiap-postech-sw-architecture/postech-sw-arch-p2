@@ -3,7 +3,7 @@ from __future__ import annotations
 from collections.abc import Generator
 from datetime import UTC, datetime, timedelta
 from unittest.mock import MagicMock
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import pytest
 from sqlalchemy import Engine, create_engine
@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 import src.cliente_veiculo.infraestrutura.mapping  # noqa: F401
 from src.compartilhado.infraestrutura.database import metadata
 from src.compartilhado.infraestrutura.encryption import EncryptionService
+from src.ordem_servico.dominio.status import StatusOrdem
 from src.ordem_servico.infraestrutura.mapping import (
     iniciar_mapeamentos,
     ordens_de_servico_table,
@@ -101,6 +102,21 @@ class TestRepositoryOS:
         repo = OrdemDeServicoSQLAlchemyRepository(session=session)
         assert repo.calcular_tempo_medio_execucao() == 120.5
 
+    def test_prioridade_e_encerradas_cobrem_todos_os_status(self) -> None:
+        # Guard de drift (RF-023): um novo membro em StatusOrdem precisa
+        # ser classificado — prioridade ativa (RN-018/RN-020) OU estado
+        # encerrado (RN-019/RN-020). Sem classificacao, a listagem
+        # degradaria em silencio (ordem ativa caindo no else_ 9, junto
+        # das encerradas).
+        from src.ordem_servico.infraestrutura.repository import (
+            _ESTADOS_ENCERRADOS,
+            _PRIORIDADE_STATUS,
+        )
+
+        classificados = _ESTADOS_ENCERRADOS | set(_PRIORIDADE_STATUS)
+        assert classificados == {status.value for status in StatusOrdem}
+        assert not (_ESTADOS_ENCERRADOS & set(_PRIORIDADE_STATUS))
+
 
 @pytest.fixture
 def engine_sqlite() -> Generator[Engine]:
@@ -114,37 +130,138 @@ def engine_sqlite() -> Generator[Engine]:
         engine.dispose()
 
 
+def _inserir_ordem_crua(
+    sessao: Session,
+    *,
+    status: StatusOrdem,
+    criado_em: datetime,
+    cliente_id: UUID,
+    veiculo_id: UUID,
+) -> UUID:
+    ordem_id = uuid4()
+    sessao.execute(
+        ordens_de_servico_table.insert().values(
+            id=ordem_id,
+            cliente_id=cliente_id,
+            veiculo_id=veiculo_id,
+            status=status.value,
+            orcamento_json=None,
+            criado_em=criado_em,
+            atualizado_em=criado_em,
+        )
+    )
+    return ordem_id
+
+
 class TestRepositoryOSIntegracao:
-    def test_listar_paginado_ordenado_por_criado_em_desc(
-        self, engine_sqlite: Engine
-    ) -> None:
+    def test_listar_paginado_mais_antiga_primeiro(self, engine_sqlite: Engine) -> None:
+        # RF-023/RN-018: dentro do mesmo status, criado_em ASC (mais
+        # antiga primeiro) — substitui a ordenacao criado_em DESC da fase 1.
         cliente_id = uuid4()
         veiculo_id = uuid4()
         base = datetime.now(UTC)
 
         with Session(engine_sqlite) as sessao_setup:
             for i in range(3):
-                session_stmt = ordens_de_servico_table.insert().values(
-                    id=uuid4(),
+                _inserir_ordem_crua(
+                    sessao_setup,
+                    status=StatusOrdem.RECEBIDA,
+                    criado_em=base + timedelta(minutes=i),
                     cliente_id=cliente_id,
                     veiculo_id=veiculo_id,
-                    status="recebida",
-                    orcamento_json=None,
-                    criado_em=base + timedelta(minutes=i),
-                    atualizado_em=base + timedelta(minutes=i),
                 )
-                sessao_setup.execute(session_stmt)
             sessao_setup.commit()
 
         with Session(engine_sqlite) as sessao_query:
             repo = OrdemDeServicoSQLAlchemyRepository(session=sessao_query)
             pagina1 = repo.listar(offset=0, limit=2)
             assert len(pagina1) == 2
-            # Ordem decrescente: o mais recente primeiro
-            assert pagina1[0].criado_em > pagina1[1].criado_em
+            assert pagina1[0].criado_em < pagina1[1].criado_em
 
             pagina2 = repo.listar(offset=2, limit=2)
             assert len(pagina2) == 1
+
+    def test_listar_prioriza_status_e_exclui_encerradas(
+        self, engine_sqlite: Engine
+    ) -> None:
+        # RN-018 + RN-020: CASE de prioridade; COMPLEMENTAR no mesmo grupo
+        # de AGUARDANDO_APROVACAO; encerradas fora do default (RN-019).
+        cliente_id = uuid4()
+        veiculo_id = uuid4()
+        base = datetime.now(UTC)
+        cenario = {
+            "finalizada": (StatusOrdem.FINALIZADA, 1),
+            "entregue": (StatusOrdem.ENTREGUE, 2),
+            "cancelada": (StatusOrdem.CANCELADA, 3),
+            "complementar": (StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR, 5),
+            "aguardando": (StatusOrdem.AGUARDANDO_APROVACAO, 10),
+            "diagnostico": (StatusOrdem.EM_DIAGNOSTICO, 20),
+            "execucao": (StatusOrdem.EM_EXECUCAO, 30),
+            "recebida": (StatusOrdem.RECEBIDA, 0),
+        }
+
+        with Session(engine_sqlite) as sessao_setup:
+            ids = {
+                nome: _inserir_ordem_crua(
+                    sessao_setup,
+                    status=status,
+                    criado_em=base + timedelta(minutes=minutos),
+                    cliente_id=cliente_id,
+                    veiculo_id=veiculo_id,
+                )
+                for nome, (status, minutos) in cenario.items()
+            }
+            sessao_setup.commit()
+
+        with Session(engine_sqlite) as sessao_query:
+            repo = OrdemDeServicoSQLAlchemyRepository(session=sessao_query)
+
+            listadas = [o.id for o in repo.listar(offset=0, limit=10)]
+            assert listadas == [
+                ids["execucao"],
+                ids["complementar"],
+                ids["aguardando"],
+                ids["diagnostico"],
+                ids["recebida"],
+            ]
+
+            completas = [
+                o.id for o in repo.listar(offset=0, limit=10, incluir_encerradas=True)
+            ]
+            # Encerradas ao final (prioridade 9), criado_em ASC entre si.
+            assert completas == [
+                *listadas,
+                ids["finalizada"],
+                ids["entregue"],
+                ids["cancelada"],
+            ]
+
+    def test_contar_com_e_sem_encerradas(self, engine_sqlite: Engine) -> None:
+        cliente_id = uuid4()
+        veiculo_id = uuid4()
+        base = datetime.now(UTC)
+
+        with Session(engine_sqlite) as sessao_setup:
+            for status in (
+                StatusOrdem.RECEBIDA,
+                StatusOrdem.EM_EXECUCAO,
+                StatusOrdem.FINALIZADA,
+                StatusOrdem.ENTREGUE,
+                StatusOrdem.CANCELADA,
+            ):
+                _inserir_ordem_crua(
+                    sessao_setup,
+                    status=status,
+                    criado_em=base,
+                    cliente_id=cliente_id,
+                    veiculo_id=veiculo_id,
+                )
+            sessao_setup.commit()
+
+        with Session(engine_sqlite) as sessao_query:
+            repo = OrdemDeServicoSQLAlchemyRepository(session=sessao_query)
+            assert repo.contar() == 5
+            assert repo.contar(incluir_encerradas=False) == 2
 
     def test_obter_por_placa_e_documento_encontra_ordem(
         self, engine_sqlite: Engine

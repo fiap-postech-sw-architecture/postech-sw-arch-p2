@@ -137,6 +137,44 @@ class TestRouterOS:
             assert payload["items"][0]["cliente_nome"] is None
             assert payload["items"][0]["veiculo_placa"] is None
 
+    def test_listar_ordens_default_exclui_encerradas(self) -> None:
+        """RF-023: sem query param, o router pede o universo filtrado."""
+        app = _criar_app()
+        with patch(
+            "src.ordem_servico.interfaces.router.obter_listar_ordens"
+        ) as mock_factory:
+            mock_uc = MagicMock()
+            mock_uc.executar.return_value = []
+            mock_uc.contar.return_value = 0
+            mock_factory.return_value = mock_uc
+
+            client = TestClient(app)
+            resp = client.get("/api/v1/ordens-de-servico/")
+            assert resp.status_code == 200
+            mock_uc.executar.assert_called_once_with(
+                offset=0, limit=20, incluir_encerradas=False
+            )
+            mock_uc.contar.assert_called_once_with(incluir_encerradas=False)
+
+    def test_listar_ordens_repassa_incluir_encerradas(self) -> None:
+        """RF-023: ``incluir_encerradas=true`` chega ao use case e ao total."""
+        app = _criar_app()
+        with patch(
+            "src.ordem_servico.interfaces.router.obter_listar_ordens"
+        ) as mock_factory:
+            mock_uc = MagicMock()
+            mock_uc.executar.return_value = []
+            mock_uc.contar.return_value = 0
+            mock_factory.return_value = mock_uc
+
+            client = TestClient(app)
+            resp = client.get("/api/v1/ordens-de-servico/?incluir_encerradas=true")
+            assert resp.status_code == 200
+            mock_uc.executar.assert_called_once_with(
+                offset=0, limit=20, incluir_encerradas=True
+            )
+            mock_uc.contar.assert_called_once_with(incluir_encerradas=True)
+
     def test_metricas(self) -> None:
         app = _criar_app()
         with patch(
