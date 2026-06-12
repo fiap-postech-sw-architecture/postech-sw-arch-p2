@@ -15,6 +15,7 @@ wire format.
 """
 
 from datetime import datetime
+from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
@@ -119,6 +120,27 @@ class CancelarOrdemRequest(BaseModel):
         min_length=1,
         max_length=500,
         description="Motivo livre do cancelamento (obrigatorio, <= 500 chars).",
+    )
+
+
+class DecisaoOrcamentoRequest(BaseModel):
+    """Request body do endpoint externo de decisao de orcamento (RF-022).
+
+    Canal publico autenticado por ``X-Webhook-Token`` (ADR-021). O
+    contrato e binario por design: ``recusada`` significa desistencia do
+    cliente (OS cancelada com motivo fixo); a rejeicao parcial do
+    orcamento complementar continua exclusiva do endpoint interno.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    decisao: Literal["aprovada", "recusada"] = Field(
+        description=(
+            "Decisao do cliente sobre o orcamento aguardando aprovacao: "
+            "'aprovada' transita a OS para em_execucao (caminho inicial ou "
+            "complementar conforme o estado corrente); 'recusada' cancela "
+            "a OS com motivo 'orcamento recusado pelo cliente'."
+        )
     )
 
 

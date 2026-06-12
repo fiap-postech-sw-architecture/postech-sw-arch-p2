@@ -10,6 +10,7 @@ from __future__ import annotations
 
 from collections.abc import Generator
 from typing import TYPE_CHECKING
+from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
@@ -576,8 +577,6 @@ class TestCriacaoOsComItens:
     def test_post_com_peca_inexistente_nao_cria_os(
         self, api_client: TestClient, admin_user: Usuario
     ) -> None:
-        from uuid import uuid4
-
         headers = _headers_admin(api_client, admin_user)
         cliente_id, veiculo_id = self._setup_cliente_veiculo(
             api_client, headers, documento="57648016648"
@@ -714,3 +713,330 @@ class TestCriacaoOsComItens:
             f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
         ).json()
         assert detalhe["status"] == "aguardando_aprovacao"
+
+
+class TestDecisaoExternaOrcamento:
+    """RF-022 (ADR-021): decisao externa de orcamento contra Postgres real.
+
+    Cobre as quatro transicoes do canal externo (aprovada/recusada x
+    inicial/complementar), a autenticacao por ``X-Webhook-Token`` e os
+    erros padrao (401, 404, 409, 422, 503). O token e lido do ambiente a
+    cada request, entao ``monkeypatch.setenv`` depois do app criado vale.
+    """
+
+    def _rota(self, ordem_id: object) -> str:
+        return f"/api/v1/publico/ordens-de-servico/{ordem_id}/decisao-orcamento"
+
+    def _criar_os_aguardando_aprovacao(
+        self,
+        api_client: TestClient,
+        headers: dict[str, str],
+        *,
+        documento: str,
+        placa: str,
+        item_estoque_id: str | None = None,
+        quantidade_peca: int = 2,
+    ) -> str:
+        """Cria OS com 1 servico (e opcionalmente 1 peca) e leva ate
+        AGUARDANDO_APROVACAO pelos endpoints internos."""
+        cliente = _criar_cliente(
+            api_client, headers, nome="Cliente RF022", documento=documento
+        )
+        veiculo = _adicionar_veiculo(
+            api_client, headers, cliente_id=str(cliente["id"]), placa=placa
+        )
+        servico = _criar_servico(
+            api_client, headers, nome="Revisao geral", preco="200.00"
+        )
+        payload: dict[str, object] = {
+            "cliente_id": cliente["id"],
+            "veiculo_id": veiculo["id"],
+            "servicos": [{"servico_catalogo_id": servico["id"]}],
+        }
+        if item_estoque_id is not None:
+            payload["pecas"] = [
+                {
+                    "servico_catalogo_id": servico["id"],
+                    "item_estoque_id": item_estoque_id,
+                    "quantidade": quantidade_peca,
+                }
+            ]
+        resposta = api_client.post(
+            "/api/v1/ordens-de-servico/", headers=headers, json=payload
+        )
+        assert resposta.status_code == 201
+        ordem_id = str(resposta.json()["id"])
+        assert (
+            api_client.post(
+                f"/api/v1/ordens-de-servico/{ordem_id}/diagnostico", headers=headers
+            ).status_code
+            == 200
+        )
+        assert (
+            api_client.post(
+                f"/api/v1/ordens-de-servico/{ordem_id}/orcamento", headers=headers
+            ).status_code
+            == 200
+        )
+        return ordem_id
+
+    def test_aprovada_transita_para_em_execucao(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        credencial = "e2e-webhook-aprovacao"
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", credencial)
+        headers = _headers_admin(api_client, admin_user)
+        ordem_id = self._criar_os_aguardando_aprovacao(
+            api_client, headers, documento="21249722519", placa="RFB0022"
+        )
+
+        resposta = api_client.post(
+            self._rota(ordem_id),
+            json={"decisao": "aprovada"},
+            headers={"X-Webhook-Token": credencial},
+        )
+
+        assert resposta.status_code == 200
+        corpo = resposta.json()
+        assert corpo["status"] == "em_execucao"
+        assert corpo["situacao"] == "Em execução"
+        # Resposta publica nao vaza dados internos da OS (LGPD).
+        assert "cliente_id" not in corpo
+        assert "itens" not in corpo
+        detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        ).json()
+        assert detalhe["status"] == "em_execucao"
+
+    def test_recusada_cancela_a_ordem(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        credencial = "e2e-webhook-recusa"
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", credencial)
+        headers = _headers_admin(api_client, admin_user)
+        ordem_id = self._criar_os_aguardando_aprovacao(
+            api_client, headers, documento="57648016648", placa="RFC0022"
+        )
+
+        resposta = api_client.post(
+            self._rota(ordem_id),
+            json={"decisao": "recusada"},
+            headers={"X-Webhook-Token": credencial},
+        )
+
+        assert resposta.status_code == 200
+        corpo = resposta.json()
+        assert corpo["status"] == "cancelada"
+        assert corpo["situacao"] == "Cancelada"
+        detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        ).json()
+        assert detalhe["status"] == "cancelada"
+
+    def test_aprovada_com_complementar_pendente_volta_a_execucao(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        credencial = "e2e-webhook-complementar"
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", credencial)
+        headers = _headers_admin(api_client, admin_user)
+        ordem_id = self._criar_os_aguardando_aprovacao(
+            api_client, headers, documento="93214407473", placa="RFD0022"
+        )
+        # Aprovacao interna -> EM_EXECUCAO -> orcamento complementar.
+        assert (
+            api_client.post(
+                f"/api/v1/ordens-de-servico/{ordem_id}/aprovacao", headers=headers
+            ).status_code
+            == 200
+        )
+        resposta_compl = api_client.post(
+            f"/api/v1/ordens-de-servico/{ordem_id}/orcamento-complementar",
+            headers=headers,
+        )
+        assert resposta_compl.status_code == 200
+        assert resposta_compl.json()["status"] == "aguardando_aprovacao_complementar"
+
+        resposta = api_client.post(
+            self._rota(ordem_id),
+            json={"decisao": "aprovada"},
+            headers={"X-Webhook-Token": credencial},
+        )
+
+        assert resposta.status_code == 200
+        assert resposta.json()["status"] == "em_execucao"
+
+    def test_recusada_com_complementar_pendente_cancela_e_libera_estoque(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """ADR-021: recusa externa do complementar = desistencia total.
+
+        A OS inteira vai a CANCELADA e a reserva de estoque feita na
+        aprovacao do orcamento inicial e devolvida (CancelarOrdem).
+        """
+        credencial = "e2e-webhook-compl-recusa"
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", credencial)
+        headers = _headers_admin(api_client, admin_user)
+        filtro = _criar_item_estoque(
+            api_client,
+            headers,
+            nome="Filtro RF022",
+            quantidade=10,
+            preco_unitario="35.00",
+        )
+        ordem_id = self._criar_os_aguardando_aprovacao(
+            api_client,
+            headers,
+            documento="21249722519",
+            placa="RFE0022",
+            item_estoque_id=str(filtro["id"]),
+            quantidade_peca=2,
+        )
+        assert (
+            api_client.post(
+                f"/api/v1/ordens-de-servico/{ordem_id}/aprovacao", headers=headers
+            ).status_code
+            == 200
+        )
+        saldo_reservado = api_client.get(
+            f"/api/v1/estoque/{filtro['id']}", headers=headers
+        ).json()["quantidade"]
+        assert saldo_reservado == 8
+        assert (
+            api_client.post(
+                f"/api/v1/ordens-de-servico/{ordem_id}/orcamento-complementar",
+                headers=headers,
+            ).status_code
+            == 200
+        )
+
+        resposta = api_client.post(
+            self._rota(ordem_id),
+            json={"decisao": "recusada"},
+            headers={"X-Webhook-Token": credencial},
+        )
+
+        assert resposta.status_code == 200
+        assert resposta.json()["status"] == "cancelada"
+        saldo_final = api_client.get(
+            f"/api/v1/estoque/{filtro['id']}", headers=headers
+        ).json()["quantidade"]
+        assert saldo_final == 10
+
+    def test_token_errado_retorna_401_e_nao_transita(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", "valor-correto-e2e")
+        headers = _headers_admin(api_client, admin_user)
+        ordem_id = self._criar_os_aguardando_aprovacao(
+            api_client, headers, documento="57648016648", placa="RFF0022"
+        )
+
+        resposta = api_client.post(
+            self._rota(ordem_id),
+            json={"decisao": "aprovada"},
+            headers={"X-Webhook-Token": "valor-errado"},
+        )
+
+        assert resposta.status_code == 401
+        detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        ).json()
+        assert detalhe["status"] == "aguardando_aprovacao"
+
+    def test_token_nao_configurado_retorna_503(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        monkeypatch.delenv("ORCAMENTO_WEBHOOK_TOKEN", raising=False)
+        resposta = api_client.post(
+            self._rota(uuid4()),
+            json={"decisao": "aprovada"},
+            headers={"X-Webhook-Token": "qualquer"},
+        )
+        assert resposta.status_code == 503
+
+    def test_ordem_inexistente_retorna_404_no_envelope_padrao(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        credencial = "e2e-webhook-404"
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", credencial)
+        resposta = api_client.post(
+            self._rota(uuid4()),
+            json={"decisao": "aprovada"},
+            headers={"X-Webhook-Token": credencial},
+        )
+        assert resposta.status_code == 404
+        assert "erro" in resposta.json()
+
+    def test_decisao_invalida_retorna_422(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        credencial = "e2e-webhook-422"
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", credencial)
+        resposta = api_client.post(
+            self._rota(uuid4()),
+            json={"decisao": "talvez"},
+            headers={"X-Webhook-Token": credencial},
+        )
+        assert resposta.status_code == 422
+
+    def test_status_fora_de_espera_retorna_409(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """OS RECEBIDA: o guard do caso de uso impede a recusa externa de
+        virar cancelamento generico (409 no envelope padrao)."""
+        credencial = "e2e-webhook-409"
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", credencial)
+        headers = _headers_admin(api_client, admin_user)
+        cliente = _criar_cliente(
+            api_client, headers, nome="Cliente 409", documento="93214407473"
+        )
+        veiculo = _adicionar_veiculo(
+            api_client, headers, cliente_id=str(cliente["id"]), placa="RFG0022"
+        )
+        resposta_criar = api_client.post(
+            "/api/v1/ordens-de-servico/",
+            headers=headers,
+            json={"cliente_id": cliente["id"], "veiculo_id": veiculo["id"]},
+        )
+        assert resposta_criar.status_code == 201
+        ordem_id = resposta_criar.json()["id"]
+
+        resposta = api_client.post(
+            self._rota(ordem_id),
+            json={"decisao": "recusada"},
+            headers={"X-Webhook-Token": credencial},
+        )
+
+        assert resposta.status_code == 409
+        assert "erro" in resposta.json()
+        detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        ).json()
+        assert detalhe["status"] == "recebida"

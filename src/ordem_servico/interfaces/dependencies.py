@@ -44,6 +44,7 @@ if TYPE_CHECKING:
         CancelarOrdem,
         ConsultarAcompanhamento,
         CriarOrdem,
+        DecidirOrcamento,
         FinalizarServico,
         GerarOrcamento,
         GerarOrcamentoComplementar,
@@ -190,6 +191,24 @@ def obter_rejeitar_complementar(session: Session) -> RejeitarOrcamentoComplement
     )
 
     return RejeitarOrcamentoComplementar(repo=_repo(session), uow=_uow(session))
+
+
+def obter_decidir_orcamento(session: Session) -> DecidirOrcamento:
+    """Wires ``DecidirOrcamento`` compondo os tres caminhos delegados (RF-022).
+
+    Consumido pelo router publico (canal externo autenticado por token
+    dedicado, ADR-021) via import lazy — mesmo trilho da consulta de
+    acompanhamento. Reusa as factories dos casos de uso existentes para
+    que a reserva/liberacao de estoque continue com o wiring canonico.
+    """
+    from src.ordem_servico.aplicacao.use_cases import DecidirOrcamento
+
+    return DecidirOrcamento(
+        repo=_repo(session),
+        aprovar_orcamento=obter_aprovar_orcamento(session),
+        aprovar_complementar=obter_aprovar_complementar(session),
+        cancelar_ordem=obter_cancelar_ordem(session),
+    )
 
 
 def obter_listar_ordens(session: Session) -> ListarOrdens:

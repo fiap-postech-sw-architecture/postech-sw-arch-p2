@@ -16,12 +16,14 @@ from src.ordem_servico.aplicacao.dtos import (
 )
 from src.ordem_servico.aplicacao.ports import ItemEstoqueDTO, ServicoOferecidoDTO
 from src.ordem_servico.aplicacao.use_cases import (
+    MOTIVO_RECUSA_EXTERNA,
     AdicionarItem,
     AprovarOrcamento,
     AprovarOrcamentoComplementar,
     CancelarOrdem,
     ConsultarAcompanhamento,
     CriarOrdem,
+    DecidirOrcamento,
     FinalizarServico,
     GerarOrcamento,
     GerarOrcamentoComplementar,
@@ -32,6 +34,11 @@ from src.ordem_servico.aplicacao.use_cases import (
     RegistrarEntrega,
     RejeitarOrcamentoComplementar,
     RemoverItem,
+)
+from src.ordem_servico.dominio.events import (
+    OrcamentoAprovadoEvent,
+    OrcamentoComplementarAprovadoEvent,
+    OrdemCanceladaEvent,
 )
 from src.ordem_servico.dominio.exceptions import (
     ClienteNaoEncontradoException,
@@ -1123,4 +1130,175 @@ class TestUoWBoundaryAndMissingNegatives:
         with pytest.raises(EntidadeNaoEncontradaException):
             uc.executar(ordem.id, CancelarOrdemDTO(motivo="qualquer"))
         # UoW nao deve ter comitado
+        assert uow.committed is False
+
+
+class TestDecidirOrcamento:
+    """RF-022 (ADR-021): decisao externa sobre o orcamento corrente.
+
+    ``DecidirOrcamento`` compoe os casos de uso existentes:
+    ``aprovada`` delega a ``AprovarOrcamento`` (inicial) ou
+    ``AprovarOrcamentoComplementar`` (complementar pendente);
+    ``recusada`` delega a ``CancelarOrdem`` com motivo fixo. Fora dos
+    dois estados de espera, o guard levanta o erro de transicao ANTES
+    de qualquer delegacao — sem ele, uma recusa externa cancelaria OS
+    em qualquer estado ativo (``CancelarOrdem`` aceita todos).
+    """
+
+    def _montar_uc(
+        self,
+        repo: FakeOrdemDeServicoRepository,
+        uow: FakeUnitOfWork,
+        estoque: StubEstoquePort,
+    ) -> DecidirOrcamento:
+        return DecidirOrcamento(
+            repo=repo,
+            aprovar_orcamento=AprovarOrcamento(
+                repo=repo, uow=uow, estoque_port=estoque
+            ),
+            aprovar_complementar=AprovarOrcamentoComplementar(repo=repo, uow=uow),
+            cancelar_ordem=CancelarOrdem(repo=repo, uow=uow, estoque_port=estoque),
+        )
+
+    def _ordem_aguardando_aprovacao(
+        self, repo: FakeOrdemDeServicoRepository, *, com_estoque: bool = False
+    ) -> OrdemDeServico:
+        ordem = OrdemDeServico.criar(cliente_id=uuid4(), veiculo_id=uuid4())
+        ordem.adicionar_item(
+            ItemDaOrdem(
+                _servico_catalogo_id=uuid4(),
+                _item_estoque_id=uuid4() if com_estoque else None,
+                _descricao="Troca de oleo",
+                _quantidade=2,
+                _preco_unitario=Dinheiro(valor=Decimal("100.00")),
+            )
+        )
+        ordem.iniciar_diagnostico()
+        ordem.gerar_orcamento()
+        ordem.limpar_eventos()
+        repo.salvar(ordem)
+        return ordem
+
+    def _ordem_aguardando_complementar(
+        self, repo: FakeOrdemDeServicoRepository, *, com_estoque: bool = False
+    ) -> OrdemDeServico:
+        ordem = self._ordem_aguardando_aprovacao(repo, com_estoque=com_estoque)
+        ordem.aprovar_orcamento()
+        ordem.gerar_orcamento_complementar()
+        ordem.limpar_eventos()
+        repo.salvar(ordem)
+        return ordem
+
+    def test_aprovada_em_aguardando_aprovacao_reserva_e_executa(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        estoque = StubEstoquePort()
+        ordem = self._ordem_aguardando_aprovacao(repo, com_estoque=True)
+        uc = self._montar_uc(repo, uow, estoque)
+
+        result = uc.executar(ordem.id, decisao="aprovada")
+
+        assert result.status == "em_execucao"
+        # Delegou a AprovarOrcamento: reserva de estoque aconteceu.
+        assert len(estoque.reservas) == 1
+        assert uow.committed is True
+
+    def test_aprovada_em_complementar_usa_caminho_complementar(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        estoque = StubEstoquePort()
+        ordem = self._ordem_aguardando_complementar(repo, com_estoque=True)
+        reservas_antes = len(estoque.reservas)
+        uc = self._montar_uc(repo, uow, estoque)
+
+        result = uc.executar(ordem.id, decisao="aprovada")
+
+        assert result.status == "em_execucao"
+        # Caminho correto: AprovarOrcamentoComplementar nao re-reserva
+        # estoque nem emite OrcamentoAprovadoEvent (semantica interna).
+        assert len(estoque.reservas) == reservas_antes
+        eventos = repo.obter_por_id(ordem.id).coletar_eventos()  # type: ignore[union-attr]
+        assert any(isinstance(e, OrcamentoComplementarAprovadoEvent) for e in eventos)
+        assert not any(isinstance(e, OrcamentoAprovadoEvent) for e in eventos)
+
+    def test_recusada_em_aguardando_aprovacao_cancela_com_motivo_fixo(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        estoque = StubEstoquePort()
+        ordem = self._ordem_aguardando_aprovacao(repo)
+        uc = self._montar_uc(repo, uow, estoque)
+
+        result = uc.executar(ordem.id, decisao="recusada")
+
+        assert result.status == "cancelada"
+        eventos = repo.obter_por_id(ordem.id).coletar_eventos()  # type: ignore[union-attr]
+        cancelamentos = [e for e in eventos if isinstance(e, OrdemCanceladaEvent)]
+        assert len(cancelamentos) == 1
+        assert cancelamentos[0].motivo == MOTIVO_RECUSA_EXTERNA
+        # Sem reserva ativa em AGUARDANDO_APROVACAO: nada a liberar.
+        assert estoque.liberacoes == []
+
+    def test_recusada_em_complementar_cancela_e_libera_estoque(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        estoque = StubEstoquePort()
+        ordem = self._ordem_aguardando_complementar(repo, com_estoque=True)
+        uc = self._montar_uc(repo, uow, estoque)
+
+        result = uc.executar(ordem.id, decisao="recusada")
+
+        assert result.status == "cancelada"
+        # CancelarOrdem libera a reserva feita na aprovacao do inicial.
+        assert len(estoque.liberacoes) == 1
+
+    def test_recusada_fora_de_espera_nao_cancela(self) -> None:
+        """Guard: sem ele, CancelarOrdem aceitaria cancelar OS RECEBIDA."""
+        from src.compartilhado.dominio.exceptions import (
+            TransicaoStatusInvalidaException,
+        )
+
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        ordem = _criar_ordem_com_item(repo)  # RECEBIDA
+        uc = self._montar_uc(repo, uow, StubEstoquePort())
+
+        with pytest.raises(TransicaoStatusInvalidaException):
+            uc.executar(ordem.id, decisao="recusada")
+
+        assert repo.obter_por_id(ordem.id).status.value == "recebida"  # type: ignore[union-attr]
+        assert uow.committed is False
+
+    def test_aprovada_fora_de_espera_levanta_transicao_invalida(self) -> None:
+        from src.compartilhado.dominio.exceptions import (
+            TransicaoStatusInvalidaException,
+        )
+
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        ordem = self._ordem_aguardando_aprovacao(repo)
+        ordem.aprovar_orcamento()  # EM_EXECUCAO
+        ordem.limpar_eventos()
+        repo.salvar(ordem)
+        uc = self._montar_uc(repo, uow, StubEstoquePort())
+
+        with pytest.raises(TransicaoStatusInvalidaException):
+            uc.executar(ordem.id, decisao="aprovada")
+        assert uow.committed is False
+
+    def test_ordem_inexistente_levanta_nao_encontrada(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        uc = self._montar_uc(repo, FakeUnitOfWork(), StubEstoquePort())
+        with pytest.raises(OrdemNaoEncontradaException):
+            uc.executar(uuid4(), decisao="aprovada")
+
+    def test_decisao_invalida_levanta_value_error(self) -> None:
+        """Defesa em profundidade: o schema HTTP ja restringe via Literal,
+        mas o caso de uso nao confia na borda (422 via handler global)."""
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        ordem = self._ordem_aguardando_aprovacao(repo)
+        uc = self._montar_uc(repo, uow, StubEstoquePort())
+
+        with pytest.raises(ValueError, match="decisao"):
+            uc.executar(ordem.id, decisao="talvez")
         assert uow.committed is False

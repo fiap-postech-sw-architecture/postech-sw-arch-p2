@@ -31,7 +31,7 @@ Detalhes técnicos para desenvolvedores: estruturas internas, regras de negócio
 |-----------|-----------|
 | [C4 — Diagrama de Componentes](c4/c4-componentes.md) | Agregados e serviços por bounded context |
 | [Modelo de Dominio](modelo-dominio.md) | Diagramas de classes por agregado |
-| [ADRs (000-020)](adr/) | Decisões técnicas com contexto, alternativas e consequências |
+| [ADRs (000-021)](adr/) | Decisões técnicas com contexto, alternativas e consequências |
 | [Requisitos Funcionais e Nao-Funcionais](../requisitos/requisitos.md) | Especificações detalhadas de comportamento |
 | [Estrategia de Testes](../qualidade/estrategia-testes.md) | Pirâmide de testes, TDD, test doubles, metas de cobertura |
 
@@ -88,6 +88,7 @@ Decisões técnicas com contexto, alternativas e consequências. Três estados p
 | [018](adr/fase2/018-notificacao-email.md) | Notificação de status por e-mail via adapter SMTP com Mailpit | Proposta |
 | [019](adr/fase2/019-pipeline-cicd-deploy.md) | Pipeline de CI/CD com deploy em cluster kind efêmero no runner | Proposta |
 | [020](adr/fase2/020-observabilidade-opentelemetry.md) | Observabilidade com OpenTelemetry e Jaeger em escopo mínimo condicional | Proposta |
+| [021](adr/fase2/021-aprovacao-externa-orcamento.md) | Aprovação e recusa externas de orçamento via token dedicado | Proposta |
 
 ---
 

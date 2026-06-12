@@ -11,6 +11,7 @@ from src.ordem_servico.interfaces.schemas import (
     AdicionarItemRequest,
     CancelarOrdemRequest,
     CriarOrdemRequest,
+    DecisaoOrcamentoRequest,
     OrdemDeServicoResponse,
     OrdemResumoResponse,
     PecaDaOrdemRequest,
@@ -215,3 +216,30 @@ class TestAcompanhamentoResponse:
         dump = resp.model_dump()
         assert dump["situacao"] == "Em execução"
         assert dump["status"] == "em_execucao"
+
+
+class TestDecisaoOrcamentoRequest:
+    """RF-022 (ADR-021): contrato do endpoint externo de decisao."""
+
+    def test_aprovada_valida(self) -> None:
+        req = DecisaoOrcamentoRequest(decisao="aprovada")
+        assert req.decisao == "aprovada"
+
+    def test_recusada_valida(self) -> None:
+        req = DecisaoOrcamentoRequest(decisao="recusada")
+        assert req.decisao == "recusada"
+
+    def test_decisao_fora_do_literal_rejeitada(self) -> None:
+        with pytest.raises(ValidationError):
+            DecisaoOrcamentoRequest.model_validate({"decisao": "talvez"})
+
+    def test_decisao_obrigatoria(self) -> None:
+        with pytest.raises(ValidationError):
+            DecisaoOrcamentoRequest.model_validate({})
+
+    def test_rejeita_extras(self) -> None:
+        # extra='forbid': payload smuggling no canal externo e rejeitado.
+        with pytest.raises(ValidationError):
+            DecisaoOrcamentoRequest.model_validate(
+                {"decisao": "aprovada", "motivo": "x"}
+            )

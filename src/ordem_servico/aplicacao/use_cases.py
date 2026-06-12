@@ -15,12 +15,16 @@ app e event bus); ate la, os eventos se acumulam em
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, ClassVar
 
-from src.compartilhado.dominio.exceptions import ViolacaoRegraDeNegocioException
+from src.compartilhado.dominio.exceptions import (
+    TransicaoStatusInvalidaException,
+    ViolacaoRegraDeNegocioException,
+)
 from src.ordem_servico.aplicacao.dtos import (
     AcompanhamentoDTO,
     AdicionarItemDTO,
+    CancelarOrdemDTO,
     ItemDaOrdemDTO,
     LinhaOrcamentoDTO,
     MetricasDTO,
@@ -40,10 +44,7 @@ if TYPE_CHECKING:
 
     from src.compartilhado.aplicacao.unit_of_work import UnitOfWork
     from src.compartilhado.dominio.dinheiro import Dinheiro
-    from src.ordem_servico.aplicacao.dtos import (
-        CancelarOrdemDTO,
-        CriarOrdemDTO,
-    )
+    from src.ordem_servico.aplicacao.dtos import CriarOrdemDTO
     from src.ordem_servico.aplicacao.ports import (
         CatalogoPort,
         ClientePort,
@@ -53,6 +54,13 @@ if TYPE_CHECKING:
     from src.ordem_servico.dominio.orcamento import Orcamento
     from src.ordem_servico.dominio.ordem_de_servico import OrdemDeServico
     from src.ordem_servico.dominio.repository import OrdemDeServicoRepository
+
+# Vocabulario do canal externo de decisao de orcamento (RF-022 / ADR-021).
+# O schema HTTP restringe via Literal; o caso de uso revalida (defesa em
+# profundidade) e usa o motivo fixo na recusa via CancelarOrdem.
+DECISAO_APROVADA = "aprovada"
+DECISAO_RECUSADA = "recusada"
+MOTIVO_RECUSA_EXTERNA = "orcamento recusado pelo cliente"
 
 
 def _to_centavos(dinheiro: Dinheiro) -> int:
@@ -566,6 +574,74 @@ class RejeitarOrcamentoComplementar:
             self._repo.salvar(ordem)
             self._uow.commit()
         return _ordem_dto(ordem)
+
+
+class DecidirOrcamento:
+    """Processa a decisao externa (aprovada/recusada) do orcamento corrente.
+
+    RF-022 (ADR-021): compoe os casos de uso existentes em vez de duplicar
+    regra — ``aprovada`` delega a ``AprovarOrcamento`` (espera inicial) ou
+    ``AprovarOrcamentoComplementar`` (complementar pendente, espelhando o
+    endpoint interno correspondente); ``recusada`` delega a
+    ``CancelarOrdem`` com ``MOTIVO_RECUSA_EXTERNA`` (desistencia total,
+    incluindo liberacao de reservas de estoque quando aplicavel).
+
+    O guard de estado e indispensavel: ``CancelarOrdem`` aceita qualquer
+    estado ativo, entao sem o guard uma recusa via canal externo
+    cancelaria OS em ``RECEBIDA``/``EM_EXECUCAO``. A decisao externa so
+    vale nos dois estados de espera de aprovacao.
+    """
+
+    _ESTADOS_DE_ESPERA: ClassVar[frozenset[StatusOrdem]] = frozenset(
+        {
+            StatusOrdem.AGUARDANDO_APROVACAO,
+            StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR,
+        }
+    )
+
+    def __init__(
+        self,
+        repo: OrdemDeServicoRepository,
+        aprovar_orcamento: AprovarOrcamento,
+        aprovar_complementar: AprovarOrcamentoComplementar,
+        cancelar_ordem: CancelarOrdem,
+    ) -> None:
+        self._repo = repo
+        self._aprovar_orcamento = aprovar_orcamento
+        self._aprovar_complementar = aprovar_complementar
+        self._cancelar_ordem = cancelar_ordem
+
+    def executar(self, ordem_id: UUID, *, decisao: str) -> OrdemDeServicoDTO:
+        """Aplica a decisao externa sobre o orcamento aguardando aprovacao.
+
+        Raises:
+            ValueError: decisao fora do vocabulario aprovada/recusada
+                (o handler global converte em 422).
+            OrdemNaoEncontradaException: ordem inexistente.
+            TransicaoStatusInvalidaException: ordem fora dos estados de
+                espera de aprovacao.
+        """
+        if decisao not in (DECISAO_APROVADA, DECISAO_RECUSADA):
+            raise ValueError(
+                f"decisao invalida: {decisao!r}; "
+                f"use {DECISAO_APROVADA!r} ou {DECISAO_RECUSADA!r}"
+            )
+        ordem = _obter_ordem(self._repo, ordem_id)
+        if ordem.status not in self._ESTADOS_DE_ESPERA:
+            validos = sorted(s.value for s in self._ESTADOS_DE_ESPERA)
+            raise TransicaoStatusInvalidaException(
+                mensagem=(
+                    f"Decisao externa de orcamento invalida em "
+                    f"{ordem.status.value}; valida apenas em {validos}"
+                )
+            )
+        if decisao == DECISAO_RECUSADA:
+            return self._cancelar_ordem.executar(
+                ordem_id, CancelarOrdemDTO(motivo=MOTIVO_RECUSA_EXTERNA)
+            )
+        if ordem.status is StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR:
+            return self._aprovar_complementar.executar(ordem_id)
+        return self._aprovar_orcamento.executar(ordem_id)
 
 
 class ListarOrdens:

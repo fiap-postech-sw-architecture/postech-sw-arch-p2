@@ -15,6 +15,13 @@ services:
         condition: service_healthy
     env_file:
       - .env.dev
+    environment:
+      # Token do canal externo de decisao de orcamento (RF-022 / ADR-021).
+      # `environment` vence `env_file` no compose: o default de demo abaixo
+      # garante o canal ativo mesmo com .env.dev copiado antes do RF-022.
+      # Para trocar, exporte ORCAMENTO_WEBHOOK_TOKEN no shell antes do
+      # `docker compose up` e mantenha .env.dev em sincronia.
+      - ORCAMENTO_WEBHOOK_TOKEN=${ORCAMENTO_WEBHOOK_TOKEN:-demo-webhook-orcamento-nao-usar-em-producao}
     entrypoint: ["./entrypoint.sh"]
 
   postgres:
