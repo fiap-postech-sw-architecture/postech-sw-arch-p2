@@ -31,6 +31,8 @@ jobs:
         run: uv run ruff check src/ ui/ tests/
       - name: Ruff format check
         run: uv run ruff format --check src/ ui/ tests/
+      - name: Architecture contracts (import-linter)
+        run: uv run lint-imports
 
   type-check:
     runs-on: ubuntu-latest
