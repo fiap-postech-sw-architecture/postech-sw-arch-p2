@@ -174,29 +174,18 @@ Detalhes do workflow de dev (lint, mypy, bandit, atualizar dependências):
 
 ## Code review automatizado pelo Claude
 
-O repositorio tem dois workflows GitHub Actions que rodam o
+O repositorio tem um workflow GitHub Actions que roda o
 [Claude Code Action](https://github.com/anthropics/claude-code-action)
 oficial usando o secret `CLAUDE_CODE_OAUTH_TOKEN`:
 
 | Workflow | Arquivo | Trigger | Perfil | Quando usar |
 |---|---|---|---|---|
-| **Claude Code Review** | `.github/workflows/claude-code-review.yml` | `pull_request` (`opened` / `reopened`) com **alvo `main`** | **Rápido**: `sonnet` + `--effort medium` + `--max-turns 30` | Review única e automática na abertura de PR pra main |
-| **Claude On-Demand** | `.github/workflows/claude-on-demand.yml` | `issue_comment`, `pull_request_review_comment`, `workflow_dispatch` | **Profundo**: `opus` + `--effort max` + `--max-turns 50` | Re-revisar após mudanças, pedir tarefa específica, ou rodar em PRs entre branches de feature |
+| **Claude On-Demand** | `.github/workflows/claude-on-demand.yml` | `issue_comment`, `pull_request_review_comment`, `workflow_dispatch` | **Profundo**: `opus` + `--effort max` + `--max-turns 50` | Review sob demanda, pedir tarefa específica, ou rodar em PRs entre branches de feature |
 
-**Por que dois perfis**: o auto-review dispara em **todo** PR pra `main` --
-otimizar pra latência/custo (sonnet faz review competente em ~30-60s pra PR
-pequeno; benchmark: PR #94 com opus/max levou 2m53s/$0.78 em 32 LOC). Quando
-você **explicitamente** pede review manual, o sinal é claro ("quero revisão
-profunda mesmo que demore mais") -- daí o salto pra `opus` em `--effort max`,
-que também dá folga a sub-agents (`Task` tool) em PR grande. Os defaults
-ficam centralizados em
+O auto-review em PR (`claude-code-review.yml`, perfil rápido `sonnet`) foi
+removido na fase 2: review é sob demanda. Os defaults ficam centralizados em
 [`.github/actions/claude/action.yml`](.github/actions/claude/action.yml) e o
 `claude-on-demand.yml` sobrescreve via inputs.
-
-**Política de auto-review**: roda **uma vez** por PR para `main` (na abertura
-ou reabertura). Pushes seguintes **não** re-disparam -- isso é proposital pra
-manter o custo previsível. Se você quiser nova review após mudar código,
-acione manual (próxima seção).
 
 ### Acionar manualmente
 
