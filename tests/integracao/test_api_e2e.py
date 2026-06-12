@@ -390,3 +390,60 @@ class TestFluxoOrdemClienteVeiculo:
         item = next(i for i in resposta_lista.json()["items"] if i["id"] == ordem_id)
         assert item["cliente_nome"] == "Maria Silva"
         assert item["veiculo_placa"] == "ABC1234"
+
+    def test_consulta_de_status_retorna_situacao_do_challenge(
+        self, api_client: TestClient, admin_user: Usuario
+    ) -> None:
+        """RF-021: detalhe e listagem informam ``situacao`` no vocabulario
+        do challenge; ``status`` tecnico snake_case permanece intacto.
+
+        Exercita uma transicao real (diagnostico) para garantir que o
+        rotulo acentuado atravessa a serializacao JSON do response.
+        """
+        headers = _headers_admin(api_client, admin_user)
+        cliente = _criar_cliente(
+            api_client,
+            headers,
+            nome="Cliente Consulta Status",
+            documento="57648016648",
+        )
+        veiculo = _adicionar_veiculo(
+            api_client,
+            headers,
+            cliente_id=str(cliente["id"]),
+            placa="JKL3456",
+        )
+        resposta_criar = api_client.post(
+            "/api/v1/ordens-de-servico/",
+            headers=headers,
+            json={"cliente_id": cliente["id"], "veiculo_id": veiculo["id"]},
+        )
+        assert resposta_criar.status_code == 201
+        ordem_id = resposta_criar.json()["id"]
+
+        resposta_detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        )
+        assert resposta_detalhe.status_code == 200
+        detalhe = resposta_detalhe.json()
+        assert detalhe["status"] == "recebida"
+        assert detalhe["situacao"] == "Recebida"
+
+        resposta_diagnostico = api_client.post(
+            f"/api/v1/ordens-de-servico/{ordem_id}/diagnostico", headers=headers
+        )
+        assert resposta_diagnostico.status_code == 200
+        assert resposta_diagnostico.json()["situacao"] == "Em diagnóstico"
+
+        resposta_detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        )
+        assert resposta_detalhe.status_code == 200
+        detalhe = resposta_detalhe.json()
+        assert detalhe["status"] == "em_diagnostico"
+        assert detalhe["situacao"] == "Em diagnóstico"
+
+        resposta_lista = api_client.get("/api/v1/ordens-de-servico/", headers=headers)
+        assert resposta_lista.status_code == 200
+        item = next(i for i in resposta_lista.json()["items"] if i["id"] == ordem_id)
+        assert item["situacao"] == "Em diagnóstico"

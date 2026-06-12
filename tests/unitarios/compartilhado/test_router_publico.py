@@ -49,6 +49,9 @@ class TestRouterPublico:
             assert resp.status_code == 200
             body = resp.json()
             assert body["status"] == "em_execucao"
+            # RF-021: a consulta publica tambem informa `situacao` no
+            # vocabulario do challenge ao lado do `status` tecnico.
+            assert body["situacao"] == "Em execução"
             assert "criado_em" in body
             assert "atualizado_em" in body
 
