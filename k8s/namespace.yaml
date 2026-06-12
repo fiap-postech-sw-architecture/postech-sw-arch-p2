@@ -1,0 +1,11 @@
+# Namespace da aplicacao (RNF-020). O banco vive em `pytstop-infra`,
+# criado pelo Terraform de /infra (ADR-017) -- a fronteira separa
+# infraestrutura-base de artefatos de implantacao (RFC-002 §2).
+#
+# Num cluster novo, aplique este arquivo ANTES do diretorio inteiro:
+# `kubectl apply -f k8s/` processa em ordem alfabetica e este arquivo
+# nao vem primeiro -- ver k8s/README.md.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pytstop

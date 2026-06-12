@@ -1,0 +1,17 @@
+# Service ClusterIP na frente dos pods da API (RNF-020). Exposicao
+# externa na demo e por port-forward -- ver k8s/README.md.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pytstop-api
+  namespace: pytstop
+  labels:
+    app: pytstop-api
+spec:
+  type: ClusterIP
+  selector:
+    app: pytstop-api
+  ports:
+    - name: http
+      port: 8000
+      targetPort: 8000

@@ -1,0 +1,58 @@
+# Servidor SMTP de demonstracao (ADR-018; RF-024): recebe os e-mails de
+# notificacao de status e os exibe numa caixa de entrada web. SMTP fica
+# interno ao cluster (ClusterIP, porta 1025); a UI web (8025) e acessada
+# por port-forward na gravacao do video. Mesma imagem do
+# docker-compose.yml -- paridade dev x cluster.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: mailpit
+  namespace: pytstop
+  labels:
+    app: mailpit
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mailpit
+  template:
+    metadata:
+      labels:
+        app: mailpit
+    spec:
+      containers:
+        - name: mailpit
+          image: axllent/mailpit
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: smtp
+              containerPort: 1025
+            - name: http
+              containerPort: 8025
+          # Footprint minimo: binario Go unico, so para a demo.
+          resources:
+            requests:
+              cpu: 25m
+              memory: 64Mi
+            limits:
+              cpu: 100m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: mailpit
+  namespace: pytstop
+  labels:
+    app: mailpit
+spec:
+  type: ClusterIP
+  selector:
+    app: mailpit
+  ports:
+    - name: smtp
+      port: 1025
+      targetPort: 1025
+    - name: http
+      port: 8025
+      targetPort: 8025

@@ -1,0 +1,66 @@
+# Deployment da API (RNF-020). Probes e resources sao pre-requisitos do
+# HPA (RNF-023); valores baseline da RFC-002 §5, a calibrar com a
+# medicao de carga do full-test/.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pytstop-api
+  namespace: pytstop
+  labels:
+    app: pytstop-api
+spec:
+  # Replica unica no boot: o entrypoint roda `alembic upgrade head` e o
+  # rollout inicial com 1 replica evita corrida de migracoes concorrentes
+  # (ADR-019; RFC-002 §7). Depois do boot o HPA assume a contagem
+  # (hpa.yaml, min 1 / max 5); reaplicar este manifest com o HPA ativo
+  # reduz momentaneamente para 1 -- aceito no cluster de demo.
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pytstop-api
+  template:
+    metadata:
+      labels:
+        app: pytstop-api
+    spec:
+      containers:
+        - name: api
+          # O CD troca esta tag pela tag imutavel do SHA do commit
+          # (ADR-019). `dev` e a tag do fluxo local: build + `kind load`.
+          image: ghcr.io/jbamaral/postech-sw-arch-p2-app:dev
+          # A imagem chega aos nos via `kind load`, nao por pull do GHCR
+          # privado -- sem imagePullSecret (RFC-002 §4).
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8000
+          envFrom:
+            - configMapRef:
+                name: pytstop-config
+            - secretRef:
+                name: pytstop-secrets
+          # Probes na rota de saude real, fora do middleware de
+          # autenticacao -- o kubelet nao envia token (RNF-023; RFC-002
+          # §5). O initialDelay da readiness cobre migracao + seed que o
+          # entrypoint executa antes de o uvicorn atender.
+          readinessProbe:
+            httpGet:
+              path: /api/v1/saude
+              port: 8000
+            initialDelaySeconds: 10
+            periodSeconds: 5
+          livenessProbe:
+            httpGet:
+              path: /api/v1/saude
+              port: 8000
+            initialDelaySeconds: 20
+            periodSeconds: 10
+          # Baseline RFC-002 §5 -- o HPA calcula a porcentagem de
+          # utilizacao sobre o REQUEST, nao sobre o limit.
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
