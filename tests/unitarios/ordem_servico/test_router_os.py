@@ -116,6 +116,11 @@ class TestRouterOS:
                 },
             )
             assert resp.status_code == 201
+            # RF-021: todo response de detalhe carrega `situacao` no
+            # vocabulario do challenge ao lado do `status` tecnico.
+            payload = resp.json()
+            assert payload["status"] == "recebida"
+            assert payload["situacao"] == "Recebida"
 
     def test_listar_ordens(self) -> None:
         app = _criar_app()
@@ -136,6 +141,9 @@ class TestRouterOS:
             payload = resp.json()
             assert payload["items"][0]["cliente_nome"] is None
             assert payload["items"][0]["veiculo_placa"] is None
+            # RF-021: item de listagem tambem expoe `situacao`.
+            assert payload["items"][0]["status"] == "recebida"
+            assert payload["items"][0]["situacao"] == "Recebida"
 
     def test_listar_ordens_default_exclui_encerradas(self) -> None:
         """RF-023: sem query param, o router pede o universo filtrado."""
@@ -193,6 +201,7 @@ class TestRouterOS:
             m.return_value = MagicMock(executar=MagicMock(return_value=_ORDEM_NS))
             result = obter_ordem(_ID, _USUARIO, MagicMock())
             assert result.id == _ID
+            assert result.situacao == "Recebida"
 
     def test_adicionar_item_direto(self) -> None:
         body = AdicionarItemRequest(

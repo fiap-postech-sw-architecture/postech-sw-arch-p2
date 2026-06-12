@@ -17,7 +17,19 @@ wire format.
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, computed_field
+
+from src.ordem_servico.dominio.status import StatusOrdem
+from src.ordem_servico.interfaces.presenters import situacao_de
+
+# Descricao OpenAPI do campo derivado `situacao` (RF-021): lista os
+# rotulos do challenge esperados pelos consumidores da API.
+_DESCRICAO_SITUACAO = (
+    "Situacao no vocabulario do challenge (RF-021), derivada de `status`: "
+    "Recebida, Em diagnóstico, Aguardando aprovação, Em execução, "
+    "Finalizada, Entregue ou Cancelada. A espera de aprovacao complementar "
+    "apresenta o mesmo rotulo de Aguardando aprovação."
+)
 
 
 class CriarOrdemRequest(BaseModel):
@@ -145,6 +157,14 @@ class OrdemDeServicoResponse(BaseModel):
     criado_em: datetime
     atualizado_em: datetime
 
+    @computed_field(  # type: ignore[prop-decorator]
+        description=_DESCRICAO_SITUACAO,
+    )
+    @property
+    def situacao(self) -> str:
+        """Rotulo de apresentacao derivado de ``status`` (RF-021)."""
+        return situacao_de(StatusOrdem(self.status))
+
 
 class OrdemResumoResponse(BaseModel):
     """Projecao enxuta para listagens paginadas."""
@@ -165,6 +185,14 @@ class OrdemResumoResponse(BaseModel):
     status: str
     criado_em: datetime
 
+    @computed_field(  # type: ignore[prop-decorator]
+        description=_DESCRICAO_SITUACAO,
+    )
+    @property
+    def situacao(self) -> str:
+        """Rotulo de apresentacao derivado de ``status`` (RF-021)."""
+        return situacao_de(StatusOrdem(self.status))
+
 
 class OrdemListaResponse(BaseModel):
     """Pagina de ``OrdemResumoResponse`` + metadata de paginacao."""
@@ -183,8 +211,8 @@ class OrdemListaResponse(BaseModel):
 class AcompanhamentoResponse(BaseModel):
     """Projecao publica de acompanhamento (endpoint rate-limited).
 
-    Contem apenas status + timestamps; nao expoe cliente_id, veiculo_id,
-    itens ou orcamento por razoes de privacidade (LGPD).
+    Contem apenas status/situacao + timestamps; nao expoe cliente_id,
+    veiculo_id, itens ou orcamento por razoes de privacidade (LGPD).
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -192,6 +220,14 @@ class AcompanhamentoResponse(BaseModel):
     status: str
     criado_em: datetime
     atualizado_em: datetime
+
+    @computed_field(  # type: ignore[prop-decorator]
+        description=_DESCRICAO_SITUACAO,
+    )
+    @property
+    def situacao(self) -> str:
+        """Rotulo de apresentacao derivado de ``status`` (RF-021)."""
+        return situacao_de(StatusOrdem(self.status))
 
 
 class MetricasResponse(BaseModel):

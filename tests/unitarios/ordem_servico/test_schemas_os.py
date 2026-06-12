@@ -7,6 +7,7 @@ import pytest
 from pydantic import ValidationError
 
 from src.ordem_servico.interfaces.schemas import (
+    AcompanhamentoResponse,
     AdicionarItemRequest,
     CancelarOrdemRequest,
     CriarOrdemRequest,
@@ -79,6 +80,24 @@ class TestOrdemDeServicoResponse:
         assert resp.cliente_nome == "Maria Silva"
         assert resp.veiculo_placa == "ABC1234"
 
+    def test_situacao_derivada_do_status(self) -> None:
+        # RF-021: `situacao` traduz o status tecnico para o vocabulario
+        # do challenge sem substituir o campo `status` (compatibilidade).
+        resp = OrdemDeServicoResponse(
+            id=uuid4(),
+            cliente_id=uuid4(),
+            veiculo_id=uuid4(),
+            status="em_diagnostico",
+            itens=[],
+            orcamento=None,
+            criado_em=datetime.now(UTC),
+            atualizado_em=datetime.now(UTC),
+        )
+        assert resp.situacao == "Em diagnóstico"
+        dump = resp.model_dump()
+        assert dump["situacao"] == "Em diagnóstico"
+        assert dump["status"] == "em_diagnostico"
+
 
 class TestOrdemResumoResponse:
     def test_aceita_cliente_nome_e_veiculo_placa(self) -> None:
@@ -104,3 +123,33 @@ class TestOrdemResumoResponse:
         )
         assert resp.cliente_nome is None
         assert resp.veiculo_placa is None
+
+    def test_situacao_derivada_do_status(self) -> None:
+        # RF-021 + gap §2/RN-020: o item de listagem tambem expoe
+        # `situacao`; a espera complementar apresenta o mesmo rotulo
+        # da espera de aprovacao.
+        resp = OrdemResumoResponse(
+            id=uuid4(),
+            cliente_id=uuid4(),
+            veiculo_id=uuid4(),
+            status="aguardando_aprovacao_complementar",
+            criado_em=datetime.now(UTC),
+        )
+        assert resp.situacao == "Aguardando aprovação"
+        assert resp.model_dump()["status"] == "aguardando_aprovacao_complementar"
+
+
+class TestAcompanhamentoResponse:
+    def test_situacao_derivada_do_status(self) -> None:
+        # RF-021: a consulta publica por placa+documento tambem informa
+        # `situacao` no vocabulario do challenge ao lado do `status`
+        # tecnico, mesmo padrao dos responses autenticados.
+        resp = AcompanhamentoResponse(
+            status="em_execucao",
+            criado_em=datetime.now(UTC),
+            atualizado_em=datetime.now(UTC),
+        )
+        assert resp.situacao == "Em execução"
+        dump = resp.model_dump()
+        assert dump["situacao"] == "Em execução"
+        assert dump["status"] == "em_execucao"
