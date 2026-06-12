@@ -50,6 +50,15 @@ ENV PATH="/app/.venv/bin:$PATH" \
     PYTSTOP_GIT_SHA="${GIT_SHA}" \
     PYTSTOP_GIT_DATE="${GIT_DATE}"
 
+# Healthcheck embutido na imagem (RNF-019): cobre `docker run` standalone e
+# tooling que le o HEALTHCHECK do manifest. Probe em Python+urllib porque a
+# imagem slim nao tem curl/wget; 127.0.0.1 evita depender da resolucao de
+# localhost. O docker-compose.yml define um healthcheck identico (compose
+# tem precedencia quando ambos existem); probes K8s (RNF-023) ignoram este
+# HEALTHCHECK e apontam direto para GET /api/v1/saude.
+HEALTHCHECK --interval=30s --timeout=3s --start-period=20s --retries=3 \
+  CMD ["python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/saude', timeout=2).status==200 else 1)"]
+
 RUN chmod +x entrypoint.sh
 
 USER pytstop

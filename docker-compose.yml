@@ -31,6 +31,22 @@ services:
       - SMTP_PORT=${SMTP_PORT:-1025}
       - SMTP_FROM=${SMTP_FROM:-oficina@pytstop.local}
     entrypoint: ["./entrypoint.sh"]
+    # Healthcheck do app (RNF-019): probe em /api/v1/saude via Python+urllib
+    # porque a imagem slim nao tem curl/wget. Espelha o HEALTHCHECK do
+    # Dockerfile (a definicao do compose tem precedencia). "Up" do Docker
+    # significa apenas entrypoint disparado — migrations + uvicorn ainda
+    # levam segundos; com o healthcheck, `docker compose up -d --wait` e
+    # `docker compose ps` passam a refletir o app realmente atendendo.
+    healthcheck:
+      test:
+        - CMD
+        - python
+        - -c
+        - "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/v1/saude', timeout=2).status==200 else 1)"
+      interval: 30s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
 
   postgres:
     image: postgres:16
@@ -86,7 +102,15 @@ services:
       - "${UI_PORT:-8080}:8080"
     depends_on:
       app:
-        condition: service_started
+        # Promovido de service_started para service_healthy (RNF-019): a ui
+        # so e criada com o backend de fato atendendo, alinhado ao compose
+        # de demo (db-image/) e habilitando `docker compose up -d --wait`.
+        # Custo medido no boot frio: ~3-5s (engine 25+ proba a cada 5s
+        # durante o start_period via start_interval default; so em engines
+        # pre-25 o primeiro probe cairia no interval de 30s). O fluxo do
+        # reset-db nao muda: o poll de /api/v1/saude via curl do host passa
+        # na primeira tentativa.
+        condition: service_healthy
     environment:
       - BACKEND_URL=http://app:8000
       - UI_PORT=8080
