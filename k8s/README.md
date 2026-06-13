@@ -14,11 +14,23 @@ Manifests da aplicação PytStop para o cluster kind da fase 2 (RNF-020): Deploy
 | `hpa.yaml` | HPA por CPU e memória, 1–5 réplicas |
 | `mailpit.yaml` | Mailpit — SMTP de demo + UI web |
 
-A infraestrutura-base (cluster kind, metrics-server e PostgreSQL no namespace `pytstop-infra`) é provisionada pelo Terraform de `/infra` (RNF-021) — fronteira descrita na RFC-002 §2.
+A infraestrutura-base (cluster kind e PostgreSQL no namespace `pytstop-infra`) é provisionada pelo Terraform de `/infra` (RNF-021); o **metrics-server** (pré-requisito do HPA) é instalado pelo fluxo integrado abaixo — fronteira descrita na RFC-002 §2.
+
+## Fluxo integrado (`make cd-local` / CD na main)
+
+O caminho recomendado executa tudo de uma vez ([ADR-019](../docs/arquitetura/adr/fase2/019-pipeline-cicd-deploy.md)):
+
+```bash
+make cd-local    # = k8s-up (terraform + build + kind load + metrics-server + manifests + rollout) + k8s-smoke
+make k8s-down    # terraform destroy — remove cluster, banco e app
+```
+
+Push na `main` roda o mesmo fluxo num cluster kind efêmero do runner, com a imagem publicada no GHCR com tag por SHA do commit — workflow [`.github/workflows/cd.yml`](../.github/workflows/cd.yml) (RNF-022). As seções seguintes documentam os mesmos passos para execução manual.
 
 ## Pré-requisitos
 
-- Cluster kind no ar com **metrics-server** e PostgreSQL acessível em `postgres.pytstop-infra.svc.cluster.local:5432`, ambos provisionados pelo `terraform apply` de `/infra` ([ADR-016](../docs/arquitetura/adr/fase2/016-plataforma-kubernetes.md), [ADR-017](../docs/arquitetura/adr/fase2/017-provisionamento-banco.md));
+- Cluster kind no ar com PostgreSQL acessível em `postgres.pytstop-infra.svc.cluster.local:5432`, provisionados pelo `terraform apply` de `/infra` ([ADR-016](../docs/arquitetura/adr/fase2/016-plataforma-kubernetes.md), [ADR-017](../docs/arquitetura/adr/fase2/017-provisionamento-banco.md));
+- **metrics-server** instalado (`make k8s-up` instala e aplica o patch `--kubelet-insecure-tls` que o kind exige);
 - Imagem da API carregada nos nós — o repositório GHCR é privado e o fluxo usa `kind load`, sem `imagePullSecret` (RFC-002 §4):
 
   ```bash

@@ -1,0 +1,123 @@
+# CD da fase 2 (RNF-022; ADR-019): push na main publica a imagem da API no
+# GHCR com tag imutavel por SHA e faz deploy em cluster kind efemero criado
+# no proprio runner (terraform apply de /infra + manifests de /k8s + smoke
+# test). PRs mantem apenas a CI (ci.yml); `workflow_dispatch` permite
+# reexecutar o deploy sob demanda (ex.: gravacao do video da entrega).
+#
+# O fluxo local equivalente e `make cd-local` -- o pipeline executa o que o
+# desenvolvedor executa (DevOps, Aula 03). Mantenha os dois espelhados.
+name: CD
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+# GITHUB_TOKEN efemero do job e a unica credencial: packages:write cobre o
+# push/pull no GHCR; o cluster nasce no runner e o kubeconfig sai do
+# terraform apply (ADR-019).
+permissions:
+  contents: read
+  packages: write
+
+# Um deploy por vez, sem cancelar o que ja esta em andamento: a main
+# converge para o ultimo push assim que a fila drena.
+concurrency:
+  group: cd-main
+  cancel-in-progress: false
+
+jobs:
+  image:
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.meta.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      # GHCR exige owner/repo em lowercase -- `${VAR,,}` normaliza.
+      - id: meta
+        name: Compute image tag
+        run: echo "tag=ghcr.io/${GITHUB_REPOSITORY,,}-app:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # GIT_SHA/GIT_DATE viram LABEL OCI + env PYTSTOP_GIT_* na imagem
+      # (mesmos build args do compose e do `make k8s-up`).
+      - name: Build image
+        run: |
+          docker build -t "${{ steps.meta.outputs.tag }}" \
+            --build-arg GIT_SHA="${GITHUB_SHA}" \
+            --build-arg GIT_DATE="$(git show -s --format=%cI HEAD)" .
+      - name: Push image
+        run: docker push "${{ steps.meta.outputs.tag }}"
+
+  deploy:
+    needs: image
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_wrapper: false
+      # Instala so o binario do kind (sem criar cluster): quem cria o
+      # cluster e o terraform de /infra; o CLI e usado pelo `kind load`.
+      - uses: helm/kind-action@v1
+        with:
+          install_only: true
+      # Cria cluster kind `pytstop` + PostgreSQL (ADR-016/ADR-017). O
+      # provider tehcyx/kind mescla o contexto kind-pytstop no kubeconfig
+      # do runner; o use-context fixa explicitamente o alvo dos kubectl.
+      - name: Provision cluster and database (Terraform)
+        run: |
+          terraform -chdir=infra init -input=false
+          terraform -chdir=infra apply -auto-approve -input=false
+          kubectl config use-context kind-pytstop
+      # O repositorio GHCR e privado: o pull da imagem recem-publicada
+      # exige login com o GITHUB_TOKEN tambem neste job.
+      - uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # `kind load` injeta a imagem nos nos -- sem imagePullSecret no
+      # cluster (ADR-019; RFC-002 §4).
+      - name: Load image into kind
+        run: |
+          docker pull "${{ needs.image.outputs.tag }}"
+          kind load docker-image "${{ needs.image.outputs.tag }}" --name pytstop
+      # metrics-server alimenta o HPA (RNF-023). `--kubelet-insecure-tls`
+      # e o ajuste padrao para kind (certificados do kubelet sem SAN de
+      # IP); o guard do grep torna o patch idempotente. A URL `latest` e
+      # mutavel — tradeoff deliberado num cluster efemero de demonstracao
+      # (pin por versao/digest fica para um alvo persistente).
+      - name: Install metrics-server
+        run: |
+          kubectl apply -f https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+          kubectl -n kube-system get deployment metrics-server -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -q kubelet-insecure-tls || \
+            kubectl patch deployment metrics-server -n kube-system --type json \
+              -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+      # namespace.yaml primeiro: `kubectl apply -f k8s/` processa o
+      # diretorio em ordem alfabetica (ver k8s/README.md). O set image
+      # troca a tag `dev` do manifest pela tag imutavel do SHA.
+      - name: Deploy app manifests
+        run: |
+          kubectl apply -f k8s/namespace.yaml
+          kubectl apply -f k8s/
+          kubectl -n pytstop set image deployment/pytstop-api api="${{ needs.image.outputs.tag }}"
+          kubectl -n pytstop rollout status deployment/pytstop-api --timeout=300s
+      # Porta local 18000 para casar com o `make k8s-smoke` (que evita
+      # colisao com a stack compose em 8000 na maquina do dev).
+      - name: Smoke test
+        run: |
+          kubectl -n pytstop port-forward svc/pytstop-api 18000:8000 &
+          for _ in $(seq 1 20); do
+            if curl -fsS http://127.0.0.1:18000/api/v1/saude; then
+              echo
+              echo "smoke OK"
+              exit 0
+            fi
+            sleep 2
+          done
+          kubectl -n pytstop logs deploy/pytstop-api --tail=50
+          exit 1

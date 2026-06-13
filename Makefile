@@ -431,3 +431,78 @@ full-test-teardown: .env.dev
 	rm -rf full-test/reports
 
 full-test: full-test-up full-test-seed full-test-run full-test-teardown
+
+# ---- k8s / CD local (RNF-022; ADR-019) ----
+# Espelho local do workflow de CD (.github/workflows/cd.yml): o pipeline
+# executa o que o desenvolvedor executa (DevOps, Aula 03). Mesmos passos,
+# mesma ordem -- terraform apply (cluster kind + postgres), build da imagem
+# com tag por SHA, kind load, metrics-server, manifests de k8s/, set image
+# e rollout. Diferencas deliberadas vs o runner:
+#   - a imagem nao passa pelo GHCR: build local + `kind load` direto
+#     (mesmo racional do ADR-019 -- sem PAT pessoal);
+#   - todo kubectl usa `--context kind-$(K8S_CLUSTER)` explicito, sem
+#     mudar o current-context da sua maquina (o runner e descartavel e
+#     usa `kubectl config use-context`).
+# A tag repete o SHA do HEAD: alteracoes NAO commitadas reusam a tag e o
+# set image vira no-op -- commite, ou force com
+# `kubectl --context kind-pytstop -n pytstop rollout restart deployment/pytstop-api`.
+# `K8S_CLUSTER` alimenta tambem o `-var cluster_name` do terraform, entao
+# `make k8s-up K8S_CLUSTER=foo` cria cluster/contexto proprios (branches
+# irmas coexistem -- ver infra/README.md).
+K8S_CLUSTER ?= pytstop
+K8S_NS      ?= pytstop
+K8S_APP_IMAGE ?= $(GHCR_REGISTRY)/$(GHCR_USER)/postech-sw-arch-p2-app
+K8S_TAG     = $(K8S_APP_IMAGE):$(GIT_SHA)
+KUBECTL     = kubectl --context kind-$(K8S_CLUSTER)
+TF_INFRA    = terraform -chdir=infra
+METRICS_SERVER_MANIFEST = https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
+
+.PHONY: k8s-up k8s-smoke k8s-down cd-local
+
+k8s-up:
+	@echo ">> provisionando cluster kind '$(K8S_CLUSTER)' + postgres via terraform (infra/)..."
+	$(TF_INFRA) init -input=false
+	$(TF_INFRA) apply -auto-approve -input=false -var cluster_name=$(K8S_CLUSTER)
+	@echo ">> build da imagem $(K8S_TAG)..."
+	docker build -t $(K8S_TAG) --build-arg GIT_SHA=$(GIT_SHA) --build-arg GIT_DATE=$(GIT_DATE) .
+	kind load docker-image $(K8S_TAG) --name $(K8S_CLUSTER)
+	@echo ">> instalando metrics-server (pre-requisito do HPA)..."
+	$(KUBECTL) apply -f $(METRICS_SERVER_MANIFEST)
+	$(KUBECTL) -n kube-system get deployment metrics-server -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -q kubelet-insecure-tls || \
+		$(KUBECTL) patch deployment metrics-server -n kube-system --type json \
+			-p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
+	@echo ">> aplicando manifests do app (k8s/)..."
+	$(KUBECTL) apply -f k8s/namespace.yaml
+	$(KUBECTL) apply -f k8s/
+	$(KUBECTL) -n $(K8S_NS) set image deployment/pytstop-api api=$(K8S_TAG)
+	$(KUBECTL) -n $(K8S_NS) rollout status deployment/pytstop-api --timeout=300s
+	@echo ">> deploy concluido: $(K8S_TAG) no cluster kind-$(K8S_CLUSTER)."
+
+# Porta local 18000 (nao 8000) para nao colidir com a stack compose, que
+# publica o app em APP_PORT (default 8000) -- senao o smoke poderia passar
+# contra o container do compose em vez do cluster.
+k8s-smoke:
+	@bash -c 'set -e; \
+		$(KUBECTL) -n $(K8S_NS) port-forward svc/pytstop-api 18000:8000 >/dev/null & \
+		pf=$$!; \
+		trap "kill $$pf 2>/dev/null || true" EXIT; \
+		echo ">> smoke: aguardando GET /api/v1/saude responder em 127.0.0.1:18000..."; \
+		for i in $$(seq 1 20); do \
+			if curl -fsS http://127.0.0.1:18000/api/v1/saude; then \
+				echo; echo ">> smoke OK ($$i tentativa(s))."; exit 0; \
+			fi; \
+			sleep 2; \
+		done; \
+		echo "!! smoke falhou apos 40s -- ultimos logs do deploy:"; \
+		$(KUBECTL) -n $(K8S_NS) logs deploy/pytstop-api --tail=50; \
+		exit 1'
+
+k8s-down:
+	$(TF_INFRA) destroy -auto-approve -input=false -var cluster_name=$(K8S_CLUSTER)
+	@echo ">> cluster kind-$(K8S_CLUSTER) destruido (app, banco e dados inclusos)."
+
+# Ciclo completo do CD em maquina local: provisiona, implanta e valida do
+# zero -- o mesmo que o workflow executa na main (roteiro do video).
+cd-local: k8s-up k8s-smoke
+	@echo ">> cd-local completo: cluster kind-$(K8S_CLUSTER) no ar com a API saudavel."
+	@echo ">> derrube com 'make k8s-down' quando terminar."
