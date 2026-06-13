@@ -19,4 +19,26 @@ paths = [
   # Fixtures de senha de teste em test_seed_admin.py validam regras de
   # validacao de senha do seeder; nao sao credenciais reais.
   '''^tests/unitarios/scripts/test_seed_admin\.py$''',
+  # ENCRYPTION_KEY de demo da fase 1, committada DELIBERADAMENTE para
+  # decifrar o dump seedado publicado no GHCR (7 clientes sinteticos).
+  # O proprio arquivo carrega o aviso de seguranca ("NUNCA reutilizar
+  # este valor em ambiente nao-demo"). Artefato congelado da fase 1.
+  '''^db-image/docker-compose\.yml$''',
+  # Relatorio de scan do trivy: os matches de generic-api-key sao
+  # digests/hashes de pacotes da imagem auditada, nao segredos.
+  '''^docs/seguranca/trivy-image-report\.json$''',
+  # Estado local do Terraform (kind): contem credenciais do cluster
+  # kind descartavel de dev. Gitignored (infra/.gitignore), nunca
+  # chega ao repo -- aparece so no scan --no-git do working tree.
+  '''^infra/terraform\.tfstate''',
+  # Kubeconfig que o provider kind grava no apply (<cluster>-config).
+  # Gitignored (infra/.gitignore); credencial de cluster local de dev.
+  '''^infra/pytstop-config$''',
+]
+
+regexes = [
+  # Token de demo do webhook de decisao de orcamento (RF-022/ADR-021).
+  # Valor placeholder auto-documentado ("nao-usar-em-producao"), usado
+  # como default de dev no compose, k8s de demo e exemplos de docs.
+  '''demo-webhook-orcamento-nao-usar-em-producao''',
 ]

@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md)
 
-> **Versão**: 1.0 — Fase 1 MVP.
+> **Versão**: 1.1 — Fase 1 MVP + scans de fechamento da fase 2.
 
 Documentação de segurança do projeto, incluindo análise de vulnerabilidades e evidências de scanning.
 
@@ -12,6 +12,7 @@ Documentação de segurança do projeto, incluindo análise de vulnerabilidades 
 |---------|-----------|
 | [plano-seguranca.md](plano-seguranca.md) | Plano de segurança — modelo de ameaças, controles de acesso, resposta a incidentes e conformidade LGPD |
 | [relatorio-vulnerabilidades.md](relatorio-vulnerabilidades.md) | Relatório de vulnerabilidades — scanning estático (bandit), auditoria de dependências (pip-audit) e scanning de container (trivy) |
+| [scan-fase-2.md](scan-fase-2.md) | Scans de fechamento da fase 2 — bandit, pip-audit (upgrades aplicados) e gitleaks (working tree + histórico) |
 
 ## Relação com Outros Documentos
 

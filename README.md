@@ -333,13 +333,13 @@ gh workflow run claude-on-demand.yml \
 | Artefato | Título | Status |
 |---|---|---|
 | [RFC-002](docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md) | Infraestrutura e deploy da fase 2 (desenho integrado) | Proposta |
-| [ADR-015](docs/arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md) | Clean Architecture como arquitetura alvo | Proposta |
-| [ADR-016](docs/arquitetura/adr/fase2/016-plataforma-kubernetes.md) | kind como plataforma Kubernetes | Proposta |
-| [ADR-017](docs/arquitetura/adr/fase2/017-provisionamento-banco.md) | PostgreSQL StatefulSet via Terraform | Proposta |
-| [ADR-018](docs/arquitetura/adr/fase2/018-notificacao-email.md) | Notificação de status por e-mail (SMTP + Mailpit) | Proposta |
-| [ADR-019](docs/arquitetura/adr/fase2/019-pipeline-cicd-deploy.md) | Pipeline de CI/CD com deploy em kind efêmero | Proposta |
-| [ADR-020](docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md) | Observabilidade OpenTelemetry mínima | Proposta |
-| [ADR-021](docs/arquitetura/adr/fase2/021-aprovacao-externa-orcamento.md) | Aprovação/recusa externa de orçamento | Proposta |
+| [ADR-015](docs/arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md) | Clean Architecture como arquitetura alvo | Aceita |
+| [ADR-016](docs/arquitetura/adr/fase2/016-plataforma-kubernetes.md) | kind como plataforma Kubernetes | Aceita |
+| [ADR-017](docs/arquitetura/adr/fase2/017-provisionamento-banco.md) | PostgreSQL StatefulSet via Terraform | Aceita |
+| [ADR-018](docs/arquitetura/adr/fase2/018-notificacao-email.md) | Notificação de status por e-mail (SMTP + Mailpit) | Aceita |
+| [ADR-019](docs/arquitetura/adr/fase2/019-pipeline-cicd-deploy.md) | Pipeline de CI/CD com deploy em kind efêmero | Aceita |
+| [ADR-020](docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md) | Observabilidade OpenTelemetry mínima | Aceita |
+| [ADR-021](docs/arquitetura/adr/fase2/021-aprovacao-externa-orcamento.md) | Aprovação/recusa externa de orçamento | Aceita |
 
 ### Fase 1
 
@@ -348,7 +348,7 @@ gh workflow run claude-on-demand.yml \
 | [000](docs/arquitetura/adr/000-template.md) | Template MADR | -- |
 | [001](docs/arquitetura/adr/001-framework-fastapi.md) | Framework FastAPI | Aceito |
 | [002](docs/arquitetura/adr/002-banco-postgresql.md) | Banco PostgreSQL | Aceito |
-| [003](docs/arquitetura/adr/003-arquitetura-ddd-onion.md) | Arquitetura DDD + Onion | Aceito (evoluído pelo ADR-015) |
+| [003](docs/arquitetura/adr/003-arquitetura-ddd-onion.md) | Arquitetura DDD + Onion | Parcialmente substituído pelo [ADR-015](docs/arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md) |
 | [004](docs/arquitetura/adr/004-autenticacao-jwt.md) | Autenticação JWT HS256 | Aceito |
 | [005](docs/arquitetura/adr/005-estrategia-testes.md) | Estratégia de testes | Aceito |
 | [006](docs/arquitetura/adr/006-mapeamento-imperativo-sqlalchemy.md) | Mapeamento imperativo SQLAlchemy | Aceito |
