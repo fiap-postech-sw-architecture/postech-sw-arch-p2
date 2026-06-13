@@ -2,9 +2,9 @@
 
 > [↑ Raiz do projeto](../../README.md)
 
-> **Versão**: 1.0 — Fase 1 MVP.
+> **Versão**: 1.1 — Fase 1 MVP + índice da Fase 2.
 
-Artefatos relacionados à entrega da Fase 1 do Tech Challenge FIAP.
+Artefatos relacionados à entrega da Fase 1 do Tech Challenge FIAP. Os artefatos da **Fase 2** estão em [fase2/](fase2/README.md).
 
 ## Documentos
 
