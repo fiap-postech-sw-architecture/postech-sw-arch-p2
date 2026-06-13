@@ -1,0 +1,65 @@
+# Jaeger all-in-one — backend de traces da demonstracao (diferencial
+# ADR-020; UI via port-forward na gravacao do video). Recebe OTLP/gRPC
+# direto do SDK da API (sem Collector — divergencia consciente registrada
+# no ADR para cluster de demo local/efemero). Mesmo padrao de workload de
+# demo do Mailpit (ADR-018): Deployment + Service ClusterIP, storage em
+# memoria, zero persistencia.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: jaeger
+  namespace: pytstop
+  labels:
+    app: jaeger
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: jaeger
+  template:
+    metadata:
+      labels:
+        app: jaeger
+    spec:
+      containers:
+        - name: jaeger
+          image: jaegertracing/all-in-one:1
+          imagePullPolicy: IfNotPresent
+          env:
+            # Habilita o receiver OTLP nativo (gRPC 4317 / HTTP 4318);
+            # o SDK da API exporta gRPC para a 4317.
+            - name: COLLECTOR_OTLP_ENABLED
+              value: "true"
+          ports:
+            - name: otlp-grpc
+              containerPort: 4317
+            - name: ui
+              containerPort: 16686
+          # Footprint modesto: all-in-one com storage em memoria, carga de
+          # demo. Memoria acima do Mailpit porque o Jaeger bufferiza spans.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 512Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: pytstop
+  labels:
+    app: jaeger
+spec:
+  type: ClusterIP
+  selector:
+    app: jaeger
+  ports:
+    - name: otlp-grpc
+      port: 4317
+      targetPort: 4317
+    - name: ui
+      port: 16686
+      targetPort: 16686

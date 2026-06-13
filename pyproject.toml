@@ -51,6 +51,20 @@ full-test = [
     "python-dotenv>=1.0",
     "sqlalchemy>=2.0",
 ]
+# Observabilidade OTLP (ADR-020, diferencial opcional). Fora do extra `test`
+# de proposito: o CI nao paga o custo de instalar SDK + grpcio, e o codigo
+# que consome estes pacotes (observability.py) importa lazy dentro da funcao
+# com try/ImportError — flag ligada sem o extra instalado degrada para
+# warning + no-op, nunca quebra o boot. Exporter gRPC (porta 4317) escolhido
+# para casar com o endpoint default http://jaeger:4317 do manifest/compose.
+otel = [
+    # Par compativel: SDK 1.42.x <-> instrumentation 0.63bx (o sdk exige
+    # semantic-conventions ==0.63bx). Atualizar os 4 juntos, em milestones.
+    "opentelemetry-sdk>=1.42,<1.43",
+    "opentelemetry-exporter-otlp-proto-grpc>=1.42,<1.43",
+    "opentelemetry-instrumentation-fastapi>=0.63b1,<0.64",
+    "opentelemetry-instrumentation-sqlalchemy>=0.63b1,<0.64",
+]
 
 [build-system]
 requires = ["setuptools>=75.0"]
@@ -193,6 +207,13 @@ ignore_missing_imports = true
 
 [[tool.mypy.overrides]]
 module = "nicegui.*"
+ignore_missing_imports = true
+
+# O CI roda mypy com `--extra test --extra ui` (sem `otel`): os imports lazy
+# de observability.py apontam para pacotes ausentes nesse ambiente. Override
+# de terceiro (nao src.*) permitido pela regra de tooling do projeto.
+[[tool.mypy.overrides]]
+module = "opentelemetry.*"
 ignore_missing_imports = true
 
 [tool.pytest.ini_options]

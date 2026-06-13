@@ -30,6 +30,13 @@ services:
       - SMTP_HOST=${SMTP_HOST:-mailpit}
       - SMTP_PORT=${SMTP_PORT:-1025}
       - SMTP_FROM=${SMTP_FROM:-oficina@pytstop.local}
+      # Traces OTLP (ADR-020): default OFF — zero custo no fluxo normal.
+      # Para ligar: `OTEL_ENABLED=true docker compose --profile otel up -d`
+      # (o profile sobe o servico jaeger abaixo). Sem depends_on no jaeger:
+      # o servico e do profile e o exporter em batch apenas descarta spans
+      # enquanto o backend nao atende.
+      - OTEL_ENABLED=${OTEL_ENABLED:-false}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4317}
     entrypoint: ["./entrypoint.sh"]
     # Healthcheck do app (RNF-019): probe em /api/v1/saude via Python+urllib
     # porque a imagem slim nao tem curl/wget. Espelha o HEALTHCHECK do
@@ -90,6 +97,24 @@ services:
     container_name: pytstop-mailpit
     ports:
       - "${MAILPIT_UI_PORT:-8025}:8025"
+
+  # Backend de traces de dev/demo (diferencial ADR-020): so sobe com
+  # `--profile otel` — o fluxo normal (make up, CI, full-test) nao paga o
+  # custo. Recebe OTLP/gRPC do app na 4317 (rede interna do compose) e
+  # expoe a UI em http://localhost:16686. Ligue a instrumentacao do app
+  # com OTEL_ENABLED=true (ver environment do app acima).
+  jaeger:
+    image: jaegertracing/all-in-one:1
+    container_name: pytstop-jaeger
+    profiles: ["otel"]
+    environment:
+      - COLLECTOR_OTLP_ENABLED=true
+    ports:
+      - "127.0.0.1:${JAEGER_UI_PORT:-16686}:16686"
+      # OTLP/gRPC publicado no loopback para rodar o backend FORA do docker
+      # (uvicorn local) exportando para o Jaeger do compose:
+      # OTEL_EXPORTER_OTLP_ENDPOINT=http://localhost:4317
+      - "127.0.0.1:${JAEGER_OTLP_PORT:-4317}:4317"
 
   ui:
     build:

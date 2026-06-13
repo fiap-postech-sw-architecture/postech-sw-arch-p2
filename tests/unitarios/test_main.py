@@ -164,6 +164,47 @@ class TestMain:
 
         asyncio.run(_run())
 
+    def test_lifespan_chama_configurar_otel_com_app_e_engine(self) -> None:
+        """ADR-020: o boot liga a observabilidade no ponto unico em que app e
+        engine existem juntos. Com OTEL_ENABLED ausente a funcao e no-op,
+        entao a chamada incondicional nao afeta os demais testes de lifespan."""
+        app = FastAPI()
+
+        async def _run() -> None:
+            with (
+                patch("src.compartilhado.infraestrutura.logging.configurar_logging"),
+                patch("src.cliente_veiculo.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch(
+                    "src.catalogo_servicos.infraestrutura.mapping.iniciar_mapeamentos"
+                ),
+                patch("src.estoque.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.ordem_servico.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.autenticacao.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_engine"
+                ) as mock_engine,
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_session_factory"
+                ),
+                patch(
+                    "src.compartilhado.interfaces.dependencies.configurar_session_factory"
+                ),
+                patch(
+                    "src.compartilhado.infraestrutura.observability.configurar_otel"
+                ) as mock_otel,
+                patch.dict(
+                    os.environ,
+                    {"DATABASE_URL": "postgresql://x:x@localhost:5432/x"},
+                    clear=False,
+                ),
+            ):
+                mock_engine.return_value.dispose = lambda: None
+                async with lifespan(app):
+                    pass
+                mock_otel.assert_called_once_with(app, mock_engine.return_value)
+
+        asyncio.run(_run())
+
     def test_lifespan_configura_session_factory_com_database_url(self) -> None:
         app = FastAPI()
         url_customizada = "postgresql://custom:custom@remote:5433/db"
