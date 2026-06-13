@@ -30,3 +30,9 @@ data:
   SMTP_HOST: "mailpit"
   SMTP_PORT: "1025"
   SMTP_FROM: "oficina@pytstop.local"
+  # Traces OTLP (ADR-020): o cluster de demo liga a instrumentacao —
+  # FastAPI + SQLAlchemy exportam para o Jaeger (jaeger.yaml, Service
+  # `jaeger` neste namespace, porta OTLP/gRPC). Default do codigo e off;
+  # compose e CI nao pagam custo algum.
+  OTEL_ENABLED: "true"
+  OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"

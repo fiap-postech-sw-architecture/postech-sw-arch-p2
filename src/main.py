@@ -107,6 +107,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         criar_engine,
         criar_session_factory,
     )
+    from src.compartilhado.infraestrutura.observability import configurar_otel
     from src.compartilhado.interfaces.dependencies import (
         configurar_session_factory,
     )
@@ -118,6 +119,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     database_url = _obter_database_url(environment)
     engine = criar_engine(database_url)
     configurar_session_factory(criar_session_factory(engine))
+
+    # Observabilidade OTLP (ADR-020): unico ponto onde app + engine existem
+    # juntos. Default OFF (OTEL_ENABLED ausente/false) — no-op sem custo.
+    configurar_otel(app, engine)
     try:
         yield
     finally:

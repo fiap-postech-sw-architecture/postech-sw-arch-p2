@@ -15,14 +15,18 @@ COPY pyproject.toml uv.lock ./
 
 # --frozen falha se uv.lock estiver desatualizado em relacao a pyproject.toml;
 # --no-dev exclui extras de teste do ambiente de producao.
+# --extra otel (ADR-020): imagem unica com o SDK OpenTelemetry disponivel —
+# a instrumentacao liga somente por env (OTEL_ENABLED, default off). Custo
+# aceito: ~40MB no venv (grpcio e o maior componente) em troca de nao manter
+# duas imagens nem rebuildar para a demo de traces.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev --no-install-project
+    uv sync --frozen --no-dev --no-install-project --extra otel
 
 COPY . .
 
 # Re-sync apos COPY instala o proprio projeto.
 RUN --mount=type=cache,target=/root/.cache/uv \
-    uv sync --frozen --no-dev
+    uv sync --frozen --no-dev --extra otel
 
 FROM python:3.13-slim AS runtime
 

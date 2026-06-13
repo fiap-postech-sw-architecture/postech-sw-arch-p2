@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../README.md)
 
-Manifests da aplicação PytStop para o cluster kind da fase 2 (RNF-020): Deployment, Service, ConfigMap, Secret e HPA, mais o Mailpit de demonstração ([ADR-018](../docs/arquitetura/adr/fase2/018-notificacao-email.md)). O desenho integrado está na [RFC-002](../docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md) (§2, §5 e §6).
+Manifests da aplicação PytStop para o cluster kind da fase 2 (RNF-020): Deployment, Service, ConfigMap, Secret e HPA, mais o Mailpit de demonstração ([ADR-018](../docs/arquitetura/adr/fase2/018-notificacao-email.md)) e o Jaeger de traces ([ADR-020](../docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md)). O desenho integrado está na [RFC-002](../docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md) (§2, §5 e §6).
 
 | Arquivo | Recurso |
 |---|---|
@@ -13,6 +13,7 @@ Manifests da aplicação PytStop para o cluster kind da fase 2 (RNF-020): Deploy
 | `service.yaml` | `pytstop-api` — ClusterIP na porta 8000 |
 | `hpa.yaml` | HPA por CPU e memória, 1–5 réplicas |
 | `mailpit.yaml` | Mailpit — SMTP de demo + UI web |
+| `jaeger.yaml` | Jaeger all-in-one — traces OTLP da demo (ADR-020) |
 
 A infraestrutura-base (cluster kind e PostgreSQL no namespace `pytstop-infra`) é provisionada pelo Terraform de `/infra` (RNF-021); o **metrics-server** (pré-requisito do HPA) é instalado pelo fluxo integrado abaixo — fronteira descrita na RFC-002 §2.
 
@@ -54,7 +55,7 @@ Com o namespace já existente, reaplicações funcionam direto com `kubectl appl
 ## Conferir
 
 ```bash
-kubectl get pods -n pytstop                  # pytstop-api e mailpit 1/1 Running
+kubectl get pods -n pytstop                  # pytstop-api, mailpit e jaeger 1/1 Running
 kubectl get hpa -n pytstop                   # percentuais de cpu/memoria (exige metrics-server)
 kubectl logs -n pytstop deploy/pytstop-api   # migracao + seed + uvicorn no boot
 ```
@@ -66,7 +67,12 @@ O primeiro boot roda `alembic upgrade head` e o seed do admin (best-effort) ante
 ```bash
 kubectl port-forward -n pytstop svc/pytstop-api 8000:8000   # API: http://localhost:8000/docs
 kubectl port-forward -n pytstop svc/mailpit 8025:8025       # Mailpit UI: http://localhost:8025
+kubectl port-forward -n pytstop svc/jaeger 16686:16686      # Jaeger UI: http://localhost:16686
 ```
+
+## Ver traces no Jaeger (ADR-020)
+
+O ConfigMap liga a instrumentação no cluster de demo (`OTEL_ENABLED=true`): a API exporta traces OTLP direto para o Service `jaeger` (porta 4317). Com o port-forward acima ativo, faça qualquer requisição à API (ex.: login no Swagger ou uma listagem) e abra **http://localhost:16686** — selecione o serviço `pytstop-api` e clique em *Find Traces*. Cada trace mostra a jornada da requisição: span do endpoint FastAPI com os spans das queries SQLAlchemy aninhados. `/api/v1/saude` fica fora do trace de propósito (probes do kubelet gerariam ruído contínuo).
 
 ## Validar o HPA
 
@@ -95,7 +101,7 @@ kubectl delete pod -n pytstop gerador-carga
 kubectl delete namespace pytstop
 ```
 
-Remove aplicação, Mailpit e configuração de uma vez. A infraestrutura de `/infra` (cluster e banco) é gerenciada pelo Terraform (`terraform destroy`).
+Remove aplicação, Mailpit, Jaeger e configuração de uma vez. A infraestrutura de `/infra` (cluster e banco) é gerenciada pelo Terraform (`terraform destroy`).
 
 ---
 
