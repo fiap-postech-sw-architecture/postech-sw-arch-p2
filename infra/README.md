@@ -32,6 +32,17 @@ terraform -chdir=infra apply    # cria cluster + banco (~2 min)
 
 O apply só termina com o PostgreSQL pronto (o provider espera o rollout do StatefulSet) e imprime os outputs: nome do cluster, endpoint do API server, caminho do kubeconfig e DNS do banco.
 
+## Fluxo integrado (`make cd-local` / CD na main)
+
+O `terraform apply` daqui é o primeiro passo do deploy completo ([ADR-019](../docs/arquitetura/adr/fase2/019-pipeline-cicd-deploy.md)):
+
+```bash
+make cd-local    # terraform apply + build da imagem + kind load + metrics-server + manifests de /k8s + smoke
+make k8s-down    # terraform destroy
+```
+
+Push na `main` executa o mesmo encadeamento num runner do GitHub Actions, em cluster efêmero — workflow [`.github/workflows/cd.yml`](../.github/workflows/cd.yml) (RNF-022). Os alvos `make` passam `-var cluster_name=$(K8S_CLUSTER)` (default `pytstop`), então `make k8s-up K8S_CLUSTER=outro-nome` provisiona um cluster paralelo — útil para branches irmãs coexistirem.
+
 ## Conferir
 
 O provider grava o kubeconfig em `infra/pytstop-config` (caminho no output `kubeconfig_path`, ignorado pelo git) e também o mescla no kubeconfig default, sob o contexto `kind-pytstop`:
