@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
 
-* Status: Proposta
+* Status: Parcialmente substituída pela [ADR-015](fase2/015-arquitetura-alvo-fase-2.md) — o núcleo DDD, a regra de dependência e a organização por contextos permanecem; a nomenclatura de camadas evolui da Onion para a Clean Architecture
 * Data: 2026-03-20
 
 ## Contexto e Problema

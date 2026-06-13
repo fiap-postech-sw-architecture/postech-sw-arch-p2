@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md)
 
-> **Versao**: 1.0 — Fase 1 MVP.
+> **Versao**: 1.1 — Fase 1 MVP + fase 2 (ADRs 015-021 aceitas).
 
 Classificação dos documentos de arquitetura do projeto conforme HLD (High-Level Design) e LLD (Low-Level Design).
 
@@ -70,7 +70,7 @@ Decisões técnicas com contexto, alternativas e consequências. Três estados p
 | [000](adr/000-template.md) | Template de ADR | Template |
 | [001](adr/001-framework-fastapi.md) | Usar FastAPI como framework web | Aceita |
 | [002](adr/002-banco-postgresql.md) | Usar PostgreSQL 16 como banco de dados | Aceita |
-| [003](adr/003-arquitetura-ddd-onion.md) | Usar DDD com Arquitetura Onion | Aceita |
+| [003](adr/003-arquitetura-ddd-onion.md) | Usar DDD com Arquitetura Onion | Parcialmente substituída pela [ADR-015](adr/fase2/015-arquitetura-alvo-fase-2.md) |
 | [004](adr/004-autenticacao-jwt.md) | Usar JWT HS256 para autenticação | Aceita |
 | [005](adr/005-estrategia-testes.md) | Estratégia de testes com cobertura realista | Aceita |
 | [006](adr/006-mapeamento-imperativo-sqlalchemy.md) | Mapeamento imperativo do SQLAlchemy para entidades de domínio | Aceita |
@@ -82,13 +82,13 @@ Decisões técnicas com contexto, alternativas e consequências. Três estados p
 | [012](adr/012-licenciamento-software-sbom.md) | Licenciamento de Software e SBOM | Aceita |
 | [013](adr/013-testes-bdd-pytest-bdd.md) | Testes BDD com pytest-bdd e Gherkin | Proposta |
 | [014](adr/014-gerenciador-pacotes-uv.md) | Gerenciador de pacotes e ambientes virtuais com uv | Aceita |
-| [015](adr/fase2/015-arquitetura-alvo-fase-2.md) | Clean Architecture como arquitetura alvo da fase 2 | Proposta |
-| [016](adr/fase2/016-plataforma-kubernetes.md) | kind como plataforma Kubernetes da fase 2 | Proposta |
-| [017](adr/fase2/017-provisionamento-banco.md) | PostgreSQL no cluster como StatefulSet provisionado pelo Terraform | Proposta |
-| [018](adr/fase2/018-notificacao-email.md) | Notificação de status por e-mail via adapter SMTP com Mailpit | Proposta |
-| [019](adr/fase2/019-pipeline-cicd-deploy.md) | Pipeline de CI/CD com deploy em cluster kind efêmero no runner | Proposta |
-| [020](adr/fase2/020-observabilidade-opentelemetry.md) | Observabilidade com OpenTelemetry e Jaeger em escopo mínimo condicional | Proposta |
-| [021](adr/fase2/021-aprovacao-externa-orcamento.md) | Aprovação e recusa externas de orçamento via token dedicado | Proposta |
+| [015](adr/fase2/015-arquitetura-alvo-fase-2.md) | Clean Architecture como arquitetura alvo da fase 2 | Aceita |
+| [016](adr/fase2/016-plataforma-kubernetes.md) | kind como plataforma Kubernetes da fase 2 | Aceita |
+| [017](adr/fase2/017-provisionamento-banco.md) | PostgreSQL no cluster como StatefulSet provisionado pelo Terraform | Aceita |
+| [018](adr/fase2/018-notificacao-email.md) | Notificação de status por e-mail via adapter SMTP com Mailpit | Aceita |
+| [019](adr/fase2/019-pipeline-cicd-deploy.md) | Pipeline de CI/CD com deploy em cluster kind efêmero no runner | Aceita |
+| [020](adr/fase2/020-observabilidade-opentelemetry.md) | Observabilidade com OpenTelemetry e Jaeger em escopo mínimo condicional | Aceita |
+| [021](adr/fase2/021-aprovacao-externa-orcamento.md) | Aprovação e recusa externas de orçamento via token dedicado | Aceita |
 
 ---
 

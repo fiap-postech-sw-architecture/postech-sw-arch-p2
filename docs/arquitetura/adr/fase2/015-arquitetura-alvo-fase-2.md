@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../../../README.md) · [↑ Arquitetura](../../README.md)
 
-* Status: Proposta
+* Status: Aceita
 * Data: 2026-06-10
 
 ## Contexto e Problema
@@ -89,7 +89,7 @@ Adotar o modelo de referência de Robert C. Martin como arquitetura alvo, mapean
 
 ## Decisões Relacionadas
 
-- [ADR-003](../003-arquitetura-ddd-onion.md): DDD com Arquitetura Onion — este ADR o evolui e o substitui parcialmente; quando este ADR for aceito, o ADR-003 recebe a marcação de substituição parcial
+- [ADR-003](../003-arquitetura-ddd-onion.md): DDD com Arquitetura Onion — este ADR o evolui e o substitui parcialmente; com o aceite deste ADR, o ADR-003 recebeu a marcação de substituição parcial
 - [ADR-005](../005-estrategia-testes.md): Estratégia de testes — o gate de cobertura é a principal mitigação do churn da refatoração
 - [ADR-006](../006-mapeamento-imperativo-sqlalchemy.md): Mapeamento imperativo do SQLAlchemy — realiza o pré-requisito de entidades desacopladas do banco (Aula 03); nada a mudar
 - [ADR-007](../007-organizacao-contextos-delimitados.md): Contextos delimitados — o agrupamento de casos de uso por contexto segue a "regra de organização coerente" exigida pela Aula 04; a refatoração preserva as fronteiras
