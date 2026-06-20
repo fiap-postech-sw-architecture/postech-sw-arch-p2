@@ -337,25 +337,49 @@ class ClienteApi:
 
     # ordens de servico
 
-    def listar_ordens(self, *, offset: int = 0, limit: int = 20) -> dict[str, Any]:
+    def listar_ordens(
+        self,
+        *,
+        offset: int = 0,
+        limit: int = 20,
+        incluir_encerradas: bool = False,
+    ) -> dict[str, Any]:
+        # RF-023: por padrao o backend exclui FINALIZADA/ENTREGUE/CANCELADA;
+        # ``incluir_encerradas=True`` anexa as encerradas (ordem do backend).
         return cast(
             "dict[str, Any]",
             self.get(
                 "/api/v1/ordens-de-servico",
-                params={"offset": offset, "limit": limit},
+                params={
+                    "offset": offset,
+                    "limit": limit,
+                    "incluir_encerradas": incluir_encerradas,
+                },
             ),
         )
 
     def obter_ordem(self, ordem_id: str) -> dict[str, Any]:
         return cast("dict[str, Any]", self.get(f"/api/v1/ordens-de-servico/{ordem_id}"))
 
-    def criar_ordem(self, cliente_id: str, veiculo_id: str) -> dict[str, Any]:
+    def criar_ordem(
+        self,
+        cliente_id: str,
+        veiculo_id: str,
+        *,
+        servicos: list[dict[str, Any]] | None = None,
+        pecas: list[dict[str, Any]] | None = None,
+    ) -> dict[str, Any]:
+        # RF-020: servicos/pecas opcionais na criacao. O backend usa
+        # ``extra='forbid'``, entao so incluimos as chaves com valor — sem
+        # itens o corpo fica byte-identico ao da fase 1.
+        body: dict[str, Any] = {"cliente_id": cliente_id, "veiculo_id": veiculo_id}
+        if servicos is not None:
+            body["servicos"] = servicos
+        if pecas is not None:
+            body["pecas"] = pecas
         return cast(
             "dict[str, Any]",
-            self.post(
-                "/api/v1/ordens-de-servico",
-                json_body={"cliente_id": cliente_id, "veiculo_id": veiculo_id},
-            ),
+            self.post("/api/v1/ordens-de-servico", json_body=body),
         )
 
     def adicionar_item_ordem(

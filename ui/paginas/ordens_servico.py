@@ -84,6 +84,16 @@ _CORES_STATUS: dict[str, str] = {
 _ESTADOS_PERMITE_ITENS: frozenset[str] = frozenset({"recebida", "em_diagnostico"})
 
 
+def _situacao_para_exibir(ordem: dict[str, Any]) -> str:
+    """Rotulo amigavel da OS para DISPLAY (RF-021).
+
+    Le ``situacao`` (rotulo computado pelo backend: "Em diagnóstico", etc.)
+    com fallback para o ``status`` snake_case cru caso o campo ainda nao venha
+    no payload — a logica de transicao continua lendo ``status`` direto.
+    """
+    return _campo_ou_placeholder(ordem, "situacao") or str(ordem.get("status", "?"))
+
+
 @ui.page("/ordens-servico")
 @exige_autenticacao
 def pagina_ordens() -> None:
@@ -94,10 +104,17 @@ def pagina_ordens() -> None:
 
         container = ui.column().classes("w-full")
 
+        # RF-023: toggle pra reexibir OS encerradas (FINALIZADA/ENTREGUE/
+        # CANCELADA), escondidas por padrao pelo backend. Default off.
+        mostrar_encerradas = ui.checkbox("Mostrar encerradas")
+
         def refresh() -> None:
             container.clear()
             with container:
-                _renderizar_lista()
+                _renderizar_lista(incluir_encerradas=bool(mostrar_encerradas.value))
+
+        # Re-renderiza reativamente ao alternar o checkbox.
+        mostrar_encerradas.on_value_change(lambda _e: refresh())
 
         ui.button(
             "Nova OS",
@@ -125,16 +142,18 @@ def _quantidade_valida(valor: Any) -> int | None:  # noqa: ANN401  # ui.number()
     return n
 
 
-def _renderizar_lista() -> None:
+def _renderizar_lista(*, incluir_encerradas: bool = False) -> None:
     from ui.app import obter_api
 
     try:
-        dados = obter_api().listar_ordens()
+        dados = obter_api().listar_ordens(incluir_encerradas=incluir_encerradas)
     except ApiError as exc:
         ui.label(f"Erro: {exc}").classes("text-red-600")
         return
 
     for ordem in dados.get("items", []):
+        # Cor segue o status snake_case (mapa estavel); o texto do badge usa o
+        # rotulo amigavel ``situacao`` (RF-021).
         status = ordem.get("status", "?")
         cor = _CORES_STATUS.get(status, "bg-gray-300")
         with (
@@ -147,15 +166,73 @@ def _renderizar_lista() -> None:
             ui.row().classes("items-center gap-4"),
         ):
             ui.label(str(ordem["id"])[:8]).classes("font-mono text-xs")
-            ui.badge(status, color=None).classes(f"{cor} text-white")
+            ui.badge(_situacao_para_exibir(ordem), color=None).classes(
+                f"{cor} text-white"
+            )
             ui.label(_campo_ou_placeholder(ordem, "cliente_nome")).classes("flex-1")
             ui.label(_campo_ou_placeholder(ordem, "veiculo_placa")).classes("font-mono")
 
 
-def _dialog_nova_ordem(on_sucesso: Callable[[], None]) -> None:
+def _coletar_servicos_inline(
+    linhas: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Monta a lista ``servicos`` (RF-020) das linhas dinamicas do dialog.
+
+    Linha em branco (sem servico escolhido) e ignorada. Retorna
+    ``(servicos, erro)``: ``erro`` != None aborta o salvar com a mensagem.
+    Cada item segue o contrato ``{servico_catalogo_id, quantidade>0}``.
+    """
+    servicos: list[dict[str, Any]] = []
+    for ld in linhas:
+        servico_id = ld["servico_picker"].valor()
+        if not servico_id:
+            continue  # linha em branco, ignora
+        qtd = _quantidade_valida(ld["quantidade"].value)
+        if qtd is None:
+            return [], "Quantidade do servico precisa ser >= 1."
+        servicos.append({"servico_catalogo_id": servico_id, "quantidade": qtd})
+    return servicos, None
+
+
+def _coletar_pecas_inline(
+    linhas: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], str | None]:
+    """Monta a lista ``pecas`` (RF-020) das linhas dinamicas do dialog.
+
+    Cada peca exige servico (mao de obra que a consome) + item de estoque, por
+    contrato (``{servico_catalogo_id, item_estoque_id, quantidade>0}``). Linha
+    totalmente em branco e ignorada; linha parcial vira erro.
+    """
+    pecas: list[dict[str, Any]] = []
+    for ld in linhas:
+        servico_id = ld["servico_picker"].valor()
+        item_id = ld["item_picker"].valor()
+        if not servico_id and not item_id:
+            continue  # linha em branco, ignora
+        if not servico_id or not item_id:
+            return [], "Cada peca precisa de servico e item de estoque."
+        qtd = _quantidade_valida(ld["quantidade"].value)
+        if qtd is None:
+            return [], "Quantidade da peca precisa ser >= 1."
+        pecas.append(
+            {
+                "servico_catalogo_id": servico_id,
+                "item_estoque_id": item_id,
+                "quantidade": qtd,
+            }
+        )
+    return pecas, None
+
+
+def _dialog_nova_ordem(on_sucesso: Callable[[], None]) -> None:  # noqa: C901, PLR0915
     from ui.app import obter_api
 
-    with ui.dialog() as dialog, ui.card().classes("w-96"):
+    # Linhas dinamicas opcionais (RF-020): servicos (mao de obra) e pecas
+    # (item de estoque consumido por um servico) ja na criacao da OS.
+    linhas_servicos: list[dict[str, Any]] = []
+    linhas_pecas: list[dict[str, Any]] = []
+
+    with ui.dialog() as dialog, ui.card().classes("w-[40rem]"):
         ui.label("Nova OS").classes("text-lg font-bold")
 
         cliente_picker = PickerRecurso(
@@ -180,6 +257,85 @@ def _dialog_nova_ordem(on_sucesso: Callable[[], None]) -> None:
 
         cliente_picker.on_change(refresh_veiculos)
 
+        ui.separator()
+        ui.label("Servicos (opcional)").classes("font-medium")
+        ui.label(
+            "Mao de obra cobrada pelo preco do catalogo. Pode adicionar depois "
+            "de criar a OS."
+        ).classes("text-xs text-gray-500")
+        container_servicos = ui.column().classes("gap-2 w-full")
+
+        def adicionar_linha_servico() -> None:
+            with (
+                container_servicos,
+                ui.row().classes("items-center gap-2 w-full") as linha,
+            ):
+                servico_picker = PickerRecurso(
+                    rotulo="Servico",
+                    fetcher=lambda: (
+                        obter_api().listar_servicos(limit=100).get("items", [])
+                    ),
+                    campo_label="nome",
+                )
+                qtd = ui.number("Qtd", value=1, min=1, step=1).classes("w-24")
+                linha_dict: dict[str, Any] = {
+                    "row": linha,
+                    "servico_picker": servico_picker,
+                    "quantidade": qtd,
+                }
+                ui.button(
+                    icon="close",
+                    on_click=lambda ld=linha_dict: _remover_linha(ld, linhas_servicos),
+                ).props("flat dense round")
+                linhas_servicos.append(linha_dict)
+
+        ui.button(
+            "+ adicionar servico", icon="add", on_click=adicionar_linha_servico
+        ).props("flat dense")
+
+        ui.separator()
+        ui.label("Pecas (opcional)").classes("font-medium")
+        ui.label(
+            "Item de estoque consumido por um servico (preco do estoque)."
+        ).classes("text-xs text-gray-500")
+        container_pecas = ui.column().classes("gap-2 w-full")
+
+        def adicionar_linha_peca() -> None:
+            with (
+                container_pecas,
+                ui.row().classes("items-center gap-2 w-full") as linha,
+            ):
+                servico_picker = PickerRecurso(
+                    rotulo="Servico",
+                    fetcher=lambda: (
+                        obter_api().listar_servicos(limit=100).get("items", [])
+                    ),
+                    campo_label="nome",
+                )
+                item_picker = PickerRecurso(
+                    rotulo="Item",
+                    fetcher=lambda: (
+                        obter_api().listar_estoque(limit=100).get("items", [])
+                    ),
+                    campo_label="nome",
+                )
+                qtd = ui.number("Qtd", value=1, min=1, step=1).classes("w-24")
+                linha_dict = {
+                    "row": linha,
+                    "servico_picker": servico_picker,
+                    "item_picker": item_picker,
+                    "quantidade": qtd,
+                }
+                ui.button(
+                    icon="close",
+                    on_click=lambda ld=linha_dict: _remover_linha(ld, linhas_pecas),
+                ).props("flat dense round")
+                linhas_pecas.append(linha_dict)
+
+        ui.button("+ adicionar peca", icon="add", on_click=adicionar_linha_peca).props(
+            "flat dense"
+        )
+
         def salvar() -> None:
             cid = cliente_picker.valor()
             vp = veiculo_picker_holder.get("v")
@@ -187,11 +343,33 @@ def _dialog_nova_ordem(on_sucesso: Callable[[], None]) -> None:
             if not cid or not vid:
                 ui.notify("Escolha cliente e veiculo", type="warning")
                 return
+
+            servicos, erro_s = _coletar_servicos_inline(linhas_servicos)
+            if erro_s:
+                ui.notify(erro_s, type="warning")
+                return
+            pecas, erro_p = _coletar_pecas_inline(linhas_pecas)
+            if erro_p:
+                ui.notify(erro_p, type="warning")
+                return
+
+            # extra='forbid' no backend: so passa a lista quando ha itens —
+            # criacao simples (fase 1) manda so cliente_id + veiculo_id.
             try:
-                resposta = obter_api().criar_ordem(cid, vid)
+                resposta = obter_api().criar_ordem(
+                    cid,
+                    vid,
+                    servicos=servicos or None,
+                    pecas=pecas or None,
+                )
                 dialog.close()
                 ui.notify("OS criada", type="positive")
                 ui.navigate.to(f"/ordens-servico/{resposta['id']}")
+            except ConflitoEstadoError as exc:
+                ui.notify(f"Nao permitido: {exc.detail}", type="warning")
+            except ValidacaoError as exc:
+                msgs = "; ".join(str(d.get("msg", "")) for d in exc.detalhes)
+                ui.notify(f"Invalido: {msgs}", type="negative")
             except ApiError as exc:
                 ui.notify(f"Erro: {exc}", type="negative")
 
@@ -236,8 +414,12 @@ def _renderizar_detalhe(  # noqa: C901, PLR0915  # render coeso de detalhe
         ui.label(f"Status invalido: {status_str}").classes("text-red-600")
         return
 
+    # Cor + maquina de estados usam o status snake_case; o badge mostra o
+    # rotulo amigavel ``situacao`` (RF-021).
     cor = _CORES_STATUS.get(status_str, "bg-gray-300")
-    ui.badge(status_str, color=None).classes(f"{cor} text-white text-lg px-3 py-1")
+    ui.badge(_situacao_para_exibir(ordem), color=None).classes(
+        f"{cor} text-white text-lg px-3 py-1"
+    )
 
     with ui.card().classes("w-full"):
         ui.label("Dados").classes("font-bold")
