@@ -35,8 +35,8 @@ Push na `main` roda o mesmo fluxo num cluster kind efêmero do runner, com a ima
 - Imagem da API carregada nos nós — o repositório GHCR é privado e o fluxo usa `kind load`, sem `imagePullSecret` (RFC-002 §4):
 
   ```bash
-  docker build -t ghcr.io/jbamaral/postech-sw-arch-p2-app:dev .
-  kind load docker-image ghcr.io/jbamaral/postech-sw-arch-p2-app:dev --name <nome-do-cluster>
+  docker build -t ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev .
+  kind load docker-image ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev --name <nome-do-cluster>
   ```
 
   No CD, a tag `dev` é substituída pela tag imutável do SHA do commit ([ADR-019](../docs/arquitetura/adr/fase2/019-pipeline-cicd-deploy.md)).

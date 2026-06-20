@@ -51,8 +51,8 @@ kubectl --context kind-pytstop get pods -n pytstop-infra
 ### 3. CI/CD no GitHub Actions (2 min)
 
 - Abrir a aba **Actions → workflow CD** e mostrar as execuções verdes na main:
-  - [run 27450493913](https://github.com/jbamaral/postech-sw-arch-p2/actions/runs/27450493913) — primeiro deploy completo;
-  - [run 27451618014](https://github.com/jbamaral/postech-sw-arch-p2/actions/runs/27451618014) — deploy com OTel/Jaeger.
+  - [run 27450493913](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/27450493913) — primeiro deploy completo;
+  - [run 27451618014](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/27451618014) — deploy com OTel/Jaeger.
 - Entrar numa run e explicar os estágios ([cd.yml](../../../.github/workflows/cd.yml)):
   - job `image`: build da imagem e push no GHCR com **tag imutável por SHA do commit**;
   - job `deploy`: cluster kind **efêmero no runner** via Terraform → `kind load` → manifests → rollout → smoke test;

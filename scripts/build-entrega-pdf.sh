@@ -16,7 +16,7 @@ TMP_PNG=/tmp/diagrama-fase-2.png
 OUT="${HOME}/git/fiap/postech-sw-architecture/documento-entrega-fase-2.pdf"
 
 python3 scripts/rewrite-md-links.py "$SRC" "$TMP_MD" \
-  --repo jbamaral/postech-sw-arch-p2 --branch main --base-dir docs/entrega/fase2
+  --repo fiap-postech-sw-architecture/postech-sw-arch-p2 --branch main --base-dir docs/entrega/fase2
 
 python3 - "$TMP_MD" "$TMP_MMD" "$TMP_PNG" <<'EOF'
 import re, sys
