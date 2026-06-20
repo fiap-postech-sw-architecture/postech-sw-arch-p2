@@ -20,6 +20,7 @@ Classificação por tipo:
 | # | Área | Descrição | Resolução |
 |---|---|---|---|
 | TD-001 | Segurança | Sem mecanismo de consentimento explícito LGPD | **Fechado** — Implementado no MVP via RF-019: endpoints `POST/DELETE /clientes/{id}/consentimento` com entidade `ConsentimentoCliente`. |
+| TD-020 | UI | Listagem da `ui/` não mostrava OS encerradas por default pós RF-023 | **Fechado** — PR #28: a `ui/` ganhou o toggle "Mostrar encerradas" (passa `incluir_encerradas`), os badges passam a exibir `situacao` (RF-021) e o dialog de nova OS aceita serviços/peças inline (RF-020). |
 
 ## Itens Abertos
 
@@ -64,7 +65,6 @@ Débitos assumidos durante a fase 2 (infra Kubernetes, CI/CD, observabilidade e 
 | TD-017 | Observabilidade | Traces capturam a query string do acompanhamento (CPF/placa) | Deliberado | Média | Médio | Sim | Estável | A instrumentação FastAPI do OTel registra `url.query` nos spans, e a consulta pública de acompanhamento passa `placa`/`documento` como query params — PII chega ao Jaeger. Aceito porque o OTel é opt-in de demo (default OFF). Se sair da demo, mitigar com `server_request_hook` redigindo a query ([ADR-020](arquitetura/adr/fase2/020-observabilidade-opentelemetry.md)). |
 | TD-018 | Infra | `db-image/` no GHCR ainda com imagens da fase 1 | Deliberado | Baixa | Baixo | Não | Estável | As imagens publicadas do fast-check não contêm RF-020..024 nem Mailpit; o README já rebaixa o atalho a "demo da fase 1" com aviso explícito. Republicar como `-p2` é opcional futuro (pós-banca). |
 | TD-019 | Arquitetura | `aplicacao → infraestrutura` na autenticação fora do contrato forbidden | Deliberado | Baixa | Baixo | Não | Estável | `src/autenticacao/aplicacao/use_cases.py` importa `password_hasher`/`jwt_service` da infraestrutura do próprio contexto, o que impede estender o contrato forbidden do import-linter para proibir `aplicacao → infraestrutura` globalmente (finding do I1). O domínio segue protegido; corrigir exige extrair ports para o hasher e o JWT. |
-| TD-020 | UI | Kanban da `ui/` não mostra OS encerradas por default pós RF-023 | Deliberado | Baixa | Baixo | Não | Estável | A listagem default da API passou a excluir logicamente FINALIZADA/ENTREGUE/CANCELADA (RF-023) e o cliente da `ui/` (dev-only) não passa `incluir_encerradas=true`, então as colunas de encerradas ficam vazias (gap §4). Adaptar a UI é evolução futura. |
 
 ## Considerações de Complexidade Algorítmica
 
