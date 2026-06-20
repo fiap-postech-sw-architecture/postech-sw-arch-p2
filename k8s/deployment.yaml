@@ -27,7 +27,7 @@ spec:
         - name: api
           # O CD troca esta tag pela tag imutavel do SHA do commit
           # (ADR-019). `dev` e a tag do fluxo local: build + `kind load`.
-          image: ghcr.io/jbamaral/postech-sw-arch-p2-app:dev
+          image: ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev
           # A imagem chega aos nos via `kind load`, nao por pull do GHCR
           # privado -- sem imagePullSecret (RFC-002 §4).
           imagePullPolicy: IfNotPresent

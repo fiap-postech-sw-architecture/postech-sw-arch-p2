@@ -83,7 +83,7 @@ A aplicação é um monolito modular: cada contexto delimitado segue as camadas 
 Pré-requisitos para quem já tem o ambiente pronto: Python 3.12+, [uv](https://docs.astral.sh/uv/) ([ADR-014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md)), Docker 24+ com Compose v2 e Git.
 
 ```bash
-git clone https://github.com/jbamaral/postech-sw-arch-p2.git
+git clone https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2.git
 cd postech-sw-arch-p2
 make reset-db                          # postgres + backend + mailpit + UI + seed completo
 open http://localhost:8080/login       # atalhos Admin / Atendente / Mecanico
@@ -173,7 +173,7 @@ Recursos criados, variáveis, fluxo integrado e troubleshooting: [`infra/README.
 | [`cd.yml`](.github/workflows/cd.yml) | push na main + `workflow_dispatch` | build e push da imagem no GHCR (tag por SHA) → cluster kind efêmero no runner via Terraform → `kind load` → manifests de `k8s/` → rollout → smoke test |
 | [`full-test-ci.yml`](.github/workflows/full-test-ci.yml) | nightly | E2E concorrente contra a stack compose completa |
 
-Execuções verdes do CD na main: [27450493913](https://github.com/jbamaral/postech-sw-arch-p2/actions/runs/27450493913) (primeiro deploy) e [27451618014](https://github.com/jbamaral/postech-sw-arch-p2/actions/runs/27451618014) (com OTel/Jaeger). O fluxo local `make cd-local` espelha o workflow passo a passo.
+Execuções verdes do CD na main: [27450493913](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/27450493913) (primeiro deploy) e [27451618014](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/27451618014) (com OTel/Jaeger). O fluxo local `make cd-local` espelha o workflow passo a passo.
 
 ## API
 
