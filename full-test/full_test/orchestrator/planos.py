@@ -80,6 +80,7 @@ def plano_full(n_clientes: int, n_operadores: int, n_admins: int) -> PlanoDeExec
         TODOS_CENARIOS,
         ClienteFluxosAlternativosJourney,
     )
+    from full_test.journeys.fase2_contratos import Fase2ContratosJourney
     from full_test.journeys.mecanico import MecanicoJourney
     from full_test.journeys.metricas_fixture import MetricasFixtureJourney
     from full_test.journeys.rbac_matrix import RbacMatrixJourney
@@ -94,6 +95,9 @@ def plano_full(n_clientes: int, n_operadores: int, n_admins: int) -> PlanoDeExec
         DescritorDeJourney(
             ClienteFluxosAlternativosJourney, len(TODOS_CENARIOS), timeout_s=180.0
         ),
+        # Fase 2 (RF-020..023): 2 instancias no full para exercitar os contratos
+        # novos sob concorrencia leve.
+        DescritorDeJourney(Fase2ContratosJourney, 2, timeout_s=180.0),
         DescritorDeJourney(AtendenteJourney, n_operadores, timeout_s=120.0),
         DescritorDeJourney(MecanicoJourney, n_operadores, timeout_s=120.0),
         DescritorDeJourney(AdminConcurrencyJourney, n_admins, timeout_s=180.0),
@@ -121,6 +125,7 @@ def plano_ci(n_clientes: int, n_operadores: int, n_admins: int) -> PlanoDeExecuc
         TODOS_CENARIOS,
         ClienteFluxosAlternativosJourney,
     )
+    from full_test.journeys.fase2_contratos import Fase2ContratosJourney
     from full_test.journeys.mecanico import MecanicoJourney
     from full_test.journeys.metricas_fixture import MetricasFixtureJourney
     from full_test.journeys.rbac_matrix import RbacMatrixJourney
@@ -132,6 +137,8 @@ def plano_ci(n_clientes: int, n_operadores: int, n_admins: int) -> PlanoDeExecuc
             min(len(TODOS_CENARIOS), 2),
             timeout_s=60.0,
         ),
+        # Fase 2 (RF-020..023): 1 instancia no CI cobrindo os contratos novos.
+        DescritorDeJourney(Fase2ContratosJourney, 1, timeout_s=60.0),
         DescritorDeJourney(AtendenteJourney, min(n_operadores, 1), timeout_s=30.0),
         DescritorDeJourney(MecanicoJourney, min(n_operadores, 1), timeout_s=30.0),
         DescritorDeJourney(AdminConcurrencyJourney, min(n_admins, 1), timeout_s=60.0),

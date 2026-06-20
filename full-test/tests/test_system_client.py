@@ -290,6 +290,217 @@ def test_criar_ordem_parseia_centavos_como_int() -> None:
         assert ordem.itens == []
 
 
+def test_criar_ordem_inclui_servicos_e_pecas_no_body() -> None:
+    cliente_id = uuid.uuid4()
+    veiculo_id = uuid.uuid4()
+    ordem_id = uuid.uuid4()
+    servico_cat_id = uuid.uuid4()
+    item_est_id = uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json as _json
+
+        body = _json.loads(request.content)
+        assert body["cliente_id"] == str(cliente_id)
+        assert body["veiculo_id"] == str(veiculo_id)
+        assert body["servicos"] == [
+            {"servico_catalogo_id": str(servico_cat_id), "quantidade": 2}
+        ]
+        assert body["pecas"] == [
+            {
+                "servico_catalogo_id": str(servico_cat_id),
+                "item_estoque_id": str(item_est_id),
+                "quantidade": 1,
+            }
+        ]
+        return httpx.Response(
+            201,
+            json={
+                "id": str(ordem_id),
+                "cliente_id": str(cliente_id),
+                "veiculo_id": str(veiculo_id),
+                "status": "recebida",
+                "situacao": "Recebida",
+                "itens": [
+                    {
+                        "id": str(uuid.uuid4()),
+                        "servico_catalogo_id": str(servico_cat_id),
+                        "item_estoque_id": str(item_est_id),
+                        "descricao": "Peca",
+                        "quantidade": 1,
+                        "preco_unitario_centavos": 1000,
+                        "subtotal_centavos": 1000,
+                    }
+                ],
+                "orcamento": None,
+                "criado_em": "2026-04-22T10:00:00",
+                "atualizado_em": "2026-04-22T10:00:00",
+            },
+        )
+
+    with _client_com_mock(httpx.MockTransport(handler)) as client:
+        client.set_token("fake")
+        ordem = client.criar_ordem(
+            cliente_id=cliente_id,
+            veiculo_id=veiculo_id,
+            servicos=[{"servico_catalogo_id": servico_cat_id, "quantidade": 2}],
+            pecas=[
+                {
+                    "servico_catalogo_id": servico_cat_id,
+                    "item_estoque_id": item_est_id,
+                    "quantidade": 1,
+                }
+            ],
+        )
+        assert ordem.id == ordem_id
+        assert ordem.situacao == "Recebida"
+        assert len(ordem.itens) == 1
+
+
+def test_criar_ordem_sem_itens_envia_so_cliente_e_veiculo() -> None:
+    cliente_id = uuid.uuid4()
+    veiculo_id = uuid.uuid4()
+    ordem_id = uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json as _json
+
+        body = _json.loads(request.content)
+        # Regressao fase-1: sem itens, o body so carrega os dois ids.
+        assert set(body.keys()) == {"cliente_id", "veiculo_id"}
+        return httpx.Response(
+            201,
+            json={
+                "id": str(ordem_id),
+                "cliente_id": str(cliente_id),
+                "veiculo_id": str(veiculo_id),
+                "status": "recebida",
+                "itens": [],
+                "orcamento": None,
+                "criado_em": "2026-04-22T10:00:00",
+                "atualizado_em": "2026-04-22T10:00:00",
+            },
+        )
+
+    with _client_com_mock(httpx.MockTransport(handler)) as client:
+        client.set_token("fake")
+        ordem = client.criar_ordem(cliente_id=cliente_id, veiculo_id=veiculo_id)
+        assert ordem.id == ordem_id
+        assert ordem.itens == []
+
+
+def test_listar_ordens_envia_incluir_encerradas_quando_true() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.path == "/api/v1/ordens-de-servico/"
+        assert request.url.params["incluir_encerradas"] == "true"
+        return httpx.Response(
+            200,
+            json={"items": [], "total": 0, "offset": 0, "limit": 20},
+        )
+
+    with _client_com_mock(httpx.MockTransport(handler)) as client:
+        client.set_token("fake")
+        resp = client.listar_ordens(incluir_encerradas=True)
+        assert resp.total == 0
+
+
+def test_listar_ordens_default_nao_inclui_encerradas() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        assert request.url.params["incluir_encerradas"] == "false"
+        return httpx.Response(
+            200,
+            json={"items": [], "total": 0, "offset": 0, "limit": 20},
+        )
+
+    with _client_com_mock(httpx.MockTransport(handler)) as client:
+        client.set_token("fake")
+        client.listar_ordens()
+
+
+def test_decidir_orcamento_webhook_envia_header_e_body() -> None:
+    ordem_id = uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        import json as _json
+
+        assert request.url.path == (
+            f"/api/v1/publico/ordens-de-servico/{ordem_id}/decisao-orcamento"
+        )
+        assert request.headers.get("X-Webhook-Token") == "tok-secreto"
+        # Endpoint publico: NAO deve receber Authorization
+        assert "authorization" not in {k.lower() for k in request.headers}
+        body = _json.loads(request.content)
+        assert body == {"decisao": "aprovada"}
+        return httpx.Response(
+            200,
+            json={
+                "status": "em_execucao",
+                "situacao": "Em execução",
+                "criado_em": "2026-04-22T10:00:00",
+                "atualizado_em": "2026-04-22T10:10:00",
+            },
+        )
+
+    with _client_com_mock(httpx.MockTransport(handler)) as client:
+        # Token de admin presente para garantir que NAO vaza no canal publico.
+        client.set_token("admin-token")
+        resp = client.decidir_orcamento_webhook(
+            ordem_id, decisao="aprovada", webhook_token="tok-secreto"
+        )
+        assert resp.status == "em_execucao"
+        assert resp.situacao == "Em execução"
+
+
+def test_situacao_parseada_nos_models() -> None:
+    cliente_id = uuid.uuid4()
+    veiculo_id = uuid.uuid4()
+    ordem_id = uuid.uuid4()
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return httpx.Response(
+            200,
+            json={
+                "id": str(ordem_id),
+                "cliente_id": str(cliente_id),
+                "veiculo_id": str(veiculo_id),
+                "status": "em_diagnostico",
+                "situacao": "Em diagnóstico",
+                "itens": [],
+                "orcamento": None,
+                "criado_em": "2026-04-22T10:00:00",
+                "atualizado_em": "2026-04-22T10:05:00",
+            },
+        )
+
+    with _client_com_mock(httpx.MockTransport(handler)) as client:
+        client.set_token("fake")
+        ordem = client.obter_ordem(ordem_id)
+        assert ordem.situacao == "Em diagnóstico"
+
+
+def test_situacao_default_vazio_quando_payload_nao_tem() -> None:
+    from full_test.client import models
+
+    payload = {
+        "id": str(uuid.uuid4()),
+        "cliente_id": str(uuid.uuid4()),
+        "veiculo_id": str(uuid.uuid4()),
+        "status": "recebida",
+        "criado_em": "2026-04-22T10:00:00",
+    }
+    resumo = models.OrdemResumoResponse._parse(payload)
+    assert resumo.situacao == ""
+
+    acomp = models.AcompanhamentoResponse._parse(
+        {
+            "status": "recebida",
+            "criado_em": "2026-04-22T10:00:00",
+            "atualizado_em": "2026-04-22T10:00:00",
+        }
+    )
+    assert acomp.situacao == ""
+
+
 def test_envia_correlation_id_header_em_todas_requests() -> None:
     correlation_ids: list[str] = []
 

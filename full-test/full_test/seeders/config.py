@@ -6,6 +6,10 @@ import os
 from dataclasses import dataclass
 from pathlib import Path
 
+# Nao e segredo: espelha o default de DEMO do app no docker-compose.yml. O
+# proprio valor declara "nao-usar-em-producao". S105 e falso-positivo aqui.
+_WEBHOOK_TOKEN_DEMO_DEFAULT = "demo-webhook-orcamento-nao-usar-em-producao"  # noqa: S105
+
 
 @dataclass(frozen=True, slots=True)
 class FullTestConfig:
@@ -18,6 +22,10 @@ class FullTestConfig:
     n_admins: int
     http_timeout: float
     seed: int | None
+    # RF-022: token do canal externo de decisao de orcamento. O default espelha
+    # o default de demo do app no docker-compose.yml (chave ORCAMENTO_WEBHOOK_TOKEN),
+    # garantindo paridade harness<->container em runs locais e CI sem env explicito.
+    webhook_token: str
 
 
 def carregar_config() -> FullTestConfig:
@@ -53,4 +61,7 @@ def carregar_config() -> FullTestConfig:
         n_admins=int(os.environ.get("FULL_TEST_N_ADMINS", "1")),
         http_timeout=float(os.environ.get("FULL_TEST_HTTP_TIMEOUT", "30")),
         seed=seed,
+        webhook_token=os.environ.get(
+            "ORCAMENTO_WEBHOOK_TOKEN", _WEBHOOK_TOKEN_DEMO_DEFAULT
+        ),
     )
