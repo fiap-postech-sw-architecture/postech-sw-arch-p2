@@ -1,5 +1,6 @@
 > Documento original transcrito do PDF fornecido pela FIAP em jun/2026.
 > Cópia fiel — apenas quebras de linha da extração do PDF foram normalizadas; nenhum conteúdo foi alterado.
+> PDF original (fonte, versionado neste diretório): [Phase2_Tech_Challenge.pdf](Phase2_Tech_Challenge.pdf).
 
 # Tech Challenge - Fase 2
 
