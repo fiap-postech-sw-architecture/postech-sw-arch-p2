@@ -123,7 +123,7 @@ class SystemClient:
             headers["Authorization"] = f"Bearer {self._token}"
         return headers
 
-    def _request(
+    def _request(  # noqa: PLR0913 - transport interno: cada kwarg mapeia 1:1 a um aspecto da request
         self,
         method: str,
         path: str,
@@ -131,8 +131,13 @@ class SystemClient:
         json: Mapping[str, object] | None = None,
         params: Mapping[str, str | int | float | bool | None] | None = None,
         authenticated: bool = True,
+        extra_headers: Mapping[str, str] | None = None,
     ) -> httpx.Response:
         headers = self._headers(authenticated=authenticated)
+        if extra_headers:
+            # Headers extras (ex.: X-Webhook-Token do RF-022) sobrescrevem os
+            # calculados — o caller e dono do que injeta aqui.
+            headers.update(extra_headers)
         response: httpx.Response | None = None
         for tentativa in range(_MAX_RETRIES_ON_429 + 1):
             response = self._client.request(
@@ -460,12 +465,27 @@ class SystemClient:
         *,
         cliente_id: UUID,
         veiculo_id: UUID,
+        servicos: list[Mapping[str, object]] | None = None,
+        pecas: list[Mapping[str, object]] | None = None,
     ) -> models.OrdemDeServicoResponse:
-        resp = self._request(
-            "POST",
-            "/api/v1/ordens-de-servico/",
-            json={"cliente_id": str(cliente_id), "veiculo_id": str(veiculo_id)},
-        )
+        """Cria uma OS (RF-020).
+
+        ``servicos`` e ``pecas`` sao opcionais: quando omitidos, o body carrega
+        apenas ``cliente_id``/``veiculo_id`` (comportamento de fase-1). Cada
+        entrada de ``servicos`` e ``{"servico_catalogo_id", "quantidade"}`` e de
+        ``pecas`` e ``{"servico_catalogo_id", "item_estoque_id", "quantidade"}``;
+        os UUIDs sao stringificados antes do envio. O servidor usa
+        ``extra="forbid"``, entao chaves ausentes nao podem ir como ``None``.
+        """
+        body: dict[str, object] = {
+            "cliente_id": str(cliente_id),
+            "veiculo_id": str(veiculo_id),
+        }
+        if servicos is not None:
+            body["servicos"] = [_servico_para_json(s) for s in servicos]
+        if pecas is not None:
+            body["pecas"] = [_peca_para_json(p) for p in pecas]
+        resp = self._request("POST", "/api/v1/ordens-de-servico/", json=body)
         return models.OrdemDeServicoResponse._parse(resp.json())
 
     def listar_ordens(
@@ -473,11 +493,22 @@ class SystemClient:
         *,
         offset: int = 0,
         limit: int = 20,
+        incluir_encerradas: bool = False,
     ) -> models.OrdemListaResponse:
+        """Lista OS (RF-023).
+
+        ``incluir_encerradas=False`` (default) omite ordens em estado terminal
+        (entregue/cancelada). A ordenacao e por prioridade de status e, dentro
+        do mesmo status, mais antigas primeiro.
+        """
         resp = self._request(
             "GET",
             "/api/v1/ordens-de-servico/",
-            params={"offset": offset, "limit": limit},
+            params={
+                "offset": offset,
+                "limit": limit,
+                "incluir_encerradas": incluir_encerradas,
+            },
         )
         return models.OrdemListaResponse._parse(resp.json())
 
@@ -612,6 +643,54 @@ class SystemClient:
             authenticated=False,
         )
         return models.AcompanhamentoResponse._parse(resp.json())
+
+    def decidir_orcamento_webhook(
+        self,
+        ordem_id: UUID,
+        *,
+        decisao: str,
+        webhook_token: str,
+    ) -> models.AcompanhamentoResponse:
+        """Decisao de orcamento via canal externo (RF-022 / ADR-021).
+
+        Endpoint publico autenticado por ``X-Webhook-Token`` em vez de Bearer.
+        ``decisao`` e ``"aprovada"`` (-> em_execucao) ou ``"recusada"``
+        (-> cancelada). O servidor responde com um payload em formato de
+        acompanhamento. Erros possiveis: 503 (token nao configurado no
+        servidor), 401 (token diverge), 409 (OS fora de aguardando_aprovacao).
+        """
+        resp = self._request(
+            "POST",
+            f"/api/v1/publico/ordens-de-servico/{ordem_id}/decisao-orcamento",
+            json={"decisao": decisao},
+            authenticated=False,
+            extra_headers={"X-Webhook-Token": webhook_token},
+        )
+        return models.AcompanhamentoResponse._parse(resp.json())
+
+
+def _servico_para_json(servico: Mapping[str, object]) -> dict[str, object]:
+    """Normaliza uma entrada de ``servicos`` do ``criar_ordem`` (RF-020).
+
+    Stringifica ``servico_catalogo_id`` (UUID ou str) e preserva ``quantidade``.
+    """
+    return {
+        "servico_catalogo_id": str(servico["servico_catalogo_id"]),
+        "quantidade": servico["quantidade"],
+    }
+
+
+def _peca_para_json(peca: Mapping[str, object]) -> dict[str, object]:
+    """Normaliza uma entrada de ``pecas`` do ``criar_ordem`` (RF-020).
+
+    Stringifica ``servico_catalogo_id`` e ``item_estoque_id`` e preserva
+    ``quantidade``.
+    """
+    return {
+        "servico_catalogo_id": str(peca["servico_catalogo_id"]),
+        "item_estoque_id": str(peca["item_estoque_id"]),
+        "quantidade": peca["quantidade"],
+    }
 
 
 def _parse_retry_after(value: str | None) -> float | None:

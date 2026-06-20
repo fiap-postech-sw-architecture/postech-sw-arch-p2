@@ -54,6 +54,11 @@ jobs:
           ADMIN_PASSWORD: ChangeMeStrong123!
           RUN_MIGRATIONS_ON_STARTUP: "true"
           RUN_SEED_ON_STARTUP: "true"
+          # RF-022: pino o token do webhook para o container app. O harness
+          # le o MESMO valor via ORCAMENTO_WEBHOOK_TOKEN no step "Run plano CI",
+          # garantindo paridade — sem isso o app cairia no default de demo do
+          # compose e a journey fase2 nao teria como reproduzir o token.
+          ORCAMENTO_WEBHOOK_TOKEN: ci-webhook-orcamento-token
         run: docker compose up -d
 
       - name: Wait for health
@@ -85,6 +90,9 @@ jobs:
           FULL_TEST_N_OPERADORES: "1"
           FULL_TEST_N_ADMINS: "1"
           FULL_TEST_RESET_ANTES_DE_SEED: "0"  # ja veio limpo do step anterior
+          # RF-022: mesmo valor pinado no container (step "Start stack"), para
+          # que a journey fase2 envie o token correto e o webhook responda 200.
+          ORCAMENTO_WEBHOOK_TOKEN: ci-webhook-orcamento-token
         run: PYTHONPATH=full-test uv run pytest full-test/tests/test_parallel_usage.py -m "not slowest" -v
 
       - name: Upload reports

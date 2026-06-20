@@ -52,6 +52,10 @@ def construir_instancias(
     from full_test.journeys.cliente_fluxos_alternativos import (
         RecursosSeed as RSFluxosAlternativos,
     )
+    from full_test.journeys.fase2_contratos import Fase2ContratosJourney
+    from full_test.journeys.fase2_contratos import (
+        RecursosSeed as RSFase2Contratos,
+    )
     from full_test.journeys.mecanico import MecanicoJourney
     from full_test.journeys.metricas_fixture import MetricasFixtureJourney
     from full_test.journeys.rbac_matrix import RbacMatrixJourney
@@ -108,6 +112,19 @@ def construir_instancias(
                     admin_access_token=admin_token,
                 )
                 instancias.append({"journey": journey_alt, "timeout_s": timeout_s})
+
+        elif cls is Fase2ContratosJourney:
+            recursos_f2 = RSFase2Contratos(
+                servico_id=servico_id, item_estoque_id=item_id
+            )
+            for i in range(descritor.n_instancias):
+                journey_f2 = Fase2ContratosJourney(
+                    config=config,
+                    instance_id=f"f2c-{i:03d}",
+                    recursos=recursos_f2,
+                    admin_access_token=admin_token,
+                )
+                instancias.append({"journey": journey_f2, "timeout_s": timeout_s})
 
         elif cls is AtendenteJourney:
             for i in range(descritor.n_instancias):

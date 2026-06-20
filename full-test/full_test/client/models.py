@@ -340,6 +340,9 @@ class OrdemDeServicoResponse:
     orcamento: OrcamentoResponse | None
     criado_em: datetime
     atualizado_em: datetime
+    # RF-021: rotulo legivel computado pela API (challenge labels). Default ""
+    # mantem o parse tolerante a payloads de fase-1 (sem o campo).
+    situacao: str = ""
 
     @classmethod
     def _parse(cls, payload: dict[str, Any]) -> OrdemDeServicoResponse:
@@ -357,6 +360,7 @@ class OrdemDeServicoResponse:
             ),
             criado_em=_as_datetime(payload["criado_em"]),
             atualizado_em=_as_datetime(payload["atualizado_em"]),
+            situacao=str(payload.get("situacao", "")),
         )
 
 
@@ -367,6 +371,8 @@ class OrdemResumoResponse:
     veiculo_id: UUID
     status: str
     criado_em: datetime
+    # RF-021: rotulo legivel computado pela API; default "" tolera fase-1.
+    situacao: str = ""
 
     @classmethod
     def _parse(cls, payload: dict[str, Any]) -> OrdemResumoResponse:
@@ -376,6 +382,7 @@ class OrdemResumoResponse:
             veiculo_id=_as_uuid(payload["veiculo_id"]),
             status=str(payload["status"]),
             criado_em=_as_datetime(payload["criado_em"]),
+            situacao=str(payload.get("situacao", "")),
         )
 
 
@@ -401,6 +408,9 @@ class AcompanhamentoResponse:
     status: str
     criado_em: datetime
     atualizado_em: datetime
+    # RF-021: rotulo legivel exposto tambem na consulta publica; default ""
+    # tolera payloads de fase-1 (sem o campo).
+    situacao: str = ""
 
     @classmethod
     def _parse(cls, payload: dict[str, Any]) -> AcompanhamentoResponse:
@@ -408,6 +418,7 @@ class AcompanhamentoResponse:
             status=str(payload["status"]),
             criado_em=_as_datetime(payload["criado_em"]),
             atualizado_em=_as_datetime(payload["atualizado_em"]),
+            situacao=str(payload.get("situacao", "")),
         )
 
 
