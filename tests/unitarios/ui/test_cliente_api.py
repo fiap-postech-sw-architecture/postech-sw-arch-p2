@@ -482,6 +482,92 @@ def test_helpers_ordens_de_servico(store: StateStore) -> None:
     assert registro[6][2] == {"motivo": "teste cancelar"}
 
 
+def _api_que_registra_query(
+    store: StateStore,
+) -> tuple[ClienteApi, list[dict[str, str]]]:
+    """Cria um ClienteApi que registra os query params crus de cada GET.
+
+    Os params do httpx ja vem como strings (``"true"``/``"false"`` para bool,
+    porque httpx serializa bool em lowercase) — espelha o que o backend recebe
+    na query string.
+    """
+    chamadas: list[dict[str, str]] = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        chamadas.append(dict(request.url.params))
+        return httpx.Response(
+            200, json={"items": [], "total": 0, "offset": 0, "limit": 20}
+        )
+
+    return ClienteApi(
+        base_url="http://x", store=store, transport=_transport(handler)
+    ), chamadas
+
+
+def test_listar_ordens_default_nao_inclui_encerradas(store: StateStore) -> None:
+    """RF-023: por padrao a UI lista igual a fase 1 — ``incluir_encerradas``
+    vai como ``false`` (default do backend exclui FINALIZADA/ENTREGUE/
+    CANCELADA)."""
+    api, chamadas = _api_que_registra_query(store)
+    api.listar_ordens(offset=5, limit=15)
+    assert chamadas == [{"offset": "5", "limit": "15", "incluir_encerradas": "false"}]
+
+
+def test_listar_ordens_incluir_encerradas_envia_true(store: StateStore) -> None:
+    """RF-023: com o toggle ligado a UI pede as OS encerradas (anexadas pela
+    ordenacao do backend)."""
+    api, chamadas = _api_que_registra_query(store)
+    api.listar_ordens(incluir_encerradas=True)
+    assert chamadas == [{"offset": "0", "limit": "20", "incluir_encerradas": "true"}]
+
+
+def test_criar_ordem_sem_itens_envia_so_cliente_e_veiculo(store: StateStore) -> None:
+    """Regressao fase 1 (RF-020): sem servicos/pecas o corpo continua byte-
+    identico ao da fase 1 — apenas cliente_id + veiculo_id. O backend usa
+    ``extra='forbid'``; chaves vazias quebrariam a criacao simples."""
+    api, registro = _api_que_registra(store)
+    api.criar_ordem("c1", "v1")
+    assert registro == [
+        ("POST", "/api/v1/ordens-de-servico", {"cliente_id": "c1", "veiculo_id": "v1"})
+    ]
+
+
+def test_criar_ordem_com_servicos_e_pecas_inclui_no_corpo(store: StateStore) -> None:
+    """RF-020: criacao inline de OS ja com servicos e pecas. Ambas as listas
+    sao enviadas no corpo quando fornecidas."""
+    api, registro = _api_que_registra(store)
+    servicos = [{"servico_catalogo_id": "s1", "quantidade": 2}]
+    pecas = [{"servico_catalogo_id": "s1", "item_estoque_id": "i1", "quantidade": 3}]
+    api.criar_ordem("c1", "v1", servicos=servicos, pecas=pecas)
+    assert registro == [
+        (
+            "POST",
+            "/api/v1/ordens-de-servico",
+            {
+                "cliente_id": "c1",
+                "veiculo_id": "v1",
+                "servicos": servicos,
+                "pecas": pecas,
+            },
+        )
+    ]
+
+
+def test_criar_ordem_so_servicos_omite_pecas(store: StateStore) -> None:
+    """RF-020: ``extra='forbid'`` no backend — so manda a chave que tem valor.
+    Passando apenas ``servicos`` o corpo nao deve conter ``pecas``."""
+    api, registro = _api_que_registra(store)
+    servicos = [{"servico_catalogo_id": "s1", "quantidade": 1}]
+    api.criar_ordem("c1", "v1", servicos=servicos)
+    assert registro == [
+        (
+            "POST",
+            "/api/v1/ordens-de-servico",
+            {"cliente_id": "c1", "veiculo_id": "v1", "servicos": servicos},
+        )
+    ]
+
+
 # ----- Edge cases de _interpretar_resposta / helpers privados -----
 
 
