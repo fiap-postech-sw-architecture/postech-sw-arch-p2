@@ -33,6 +33,38 @@ _log = structlog.get_logger(__name__)
 _ENDPOINT_PADRAO = "http://jaeger:4317"
 _VALORES_VERDADEIROS = frozenset({"true", "1"})
 
+# Marcador que substitui a query string nos spans (TD-017).
+_QUERY_REDIGIDA = "REDACTED"
+
+
+def _redigir_pii_da_span(span: object, scope: object) -> None:
+    """``server_request_hook`` do FastAPIInstrumentor: remove PII da query.
+
+    A consulta publica de acompanhamento recebe ``placa``/``documento`` como
+    query params; a instrumentacao HTTP grava ``url.query``/``http.target`` nos
+    spans, levando PII (CPF/CNPJ/placa) ao Jaeger (TD-017). Este hook roda na
+    criacao do span server — DEPOIS de a instrumentacao setar os atributos
+    padrao — e sobrescreve os que carregam a query: ``url.query`` vira
+    ``REDACTED`` e ``http.target`` fica so com o path.
+
+    Funcao pura (sem import de OpenTelemetry) para ser testavel com o extra
+    ``otel`` ausente: opera apenas sobre o protocolo do ``span`` (set_attribute
+    / is_recording) e o ``scope`` ASGI.
+    """
+    is_recording = getattr(span, "is_recording", None)
+    if not callable(is_recording) or not is_recording():
+        return
+    set_attribute = getattr(span, "set_attribute", None)
+    if not callable(set_attribute):
+        return
+    set_attribute("url.query", _QUERY_REDIGIDA)
+    path = scope.get("path", "") if isinstance(scope, dict) else ""
+    if isinstance(path, str) and path:
+        # http.target (conv. antiga) carregava path + "?" + query; url.path
+        # (conv. nova) e so o path — ambos ficam sem a query.
+        set_attribute("http.target", path)
+        set_attribute("url.path", path)
+
 
 def configurar_otel(app: FastAPI, engine: Engine) -> bool:
     """Liga a auto-instrumentacao FastAPI + SQLAlchemy com export OTLP.
@@ -98,6 +130,8 @@ def configurar_otel(app: FastAPI, engine: Engine) -> bool:
         app,
         tracer_provider=provider,
         excluded_urls="/api/v1/saude",
+        # Redige placa/documento da query string antes de exportar (TD-017).
+        server_request_hook=_redigir_pii_da_span,
     )
     # O instrumentador (0.63b) nao adiciona middleware: ele embrulha
     # `build_middleware_stack`. Como esta funcao roda no lifespan e o proprio
