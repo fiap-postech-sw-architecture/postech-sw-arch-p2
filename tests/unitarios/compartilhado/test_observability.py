@@ -26,7 +26,10 @@ from fastapi import FastAPI
 from structlog.testing import capture_logs
 
 import src.compartilhado.infraestrutura.observability as observability_modulo
-from src.compartilhado.infraestrutura.observability import configurar_otel
+from src.compartilhado.infraestrutura.observability import (
+    _redigir_pii_da_span,
+    configurar_otel,
+)
 
 
 @pytest.fixture(autouse=True)
@@ -208,6 +211,8 @@ class TestFlagLigadaComDependencias:
         kwargs_fastapi = otel_stubs["fastapi_kwargs"]
         assert "saude" in kwargs_fastapi["excluded_urls"]
         assert kwargs_fastapi["tracer_provider"] is otel_stubs["provider"]
+        # Hook de redacao de PII na query string fica registrado (TD-017).
+        assert kwargs_fastapi["server_request_hook"] is _redigir_pii_da_span
         # SQLAlchemy instrumentado no engine certo, mesmo provider.
         kwargs_sqlalchemy = otel_stubs["sqlalchemy_kwargs"]
         assert kwargs_sqlalchemy["engine"] is engine
@@ -291,3 +296,52 @@ class TestFlagLigadaComDependencias:
 
         assert configurar_otel(app, object()) is True
         assert app.middleware_stack is None
+
+
+class _SpanFake:
+    """Span minimo para exercitar o hook sem o SDK do OpenTelemetry."""
+
+    def __init__(self, *, gravando: bool = True) -> None:
+        self._gravando = gravando
+        self.atributos: dict[str, object] = {}
+
+    def is_recording(self) -> bool:
+        return self._gravando
+
+    def set_attribute(self, chave: str, valor: object) -> None:
+        self.atributos[chave] = valor
+
+
+class TestRedacaoDePII:
+    """TD-017: o hook remove placa/documento da query string dos spans."""
+
+    def test_redige_query_e_mantem_apenas_o_path(self) -> None:
+        span = _SpanFake()
+        scope = {
+            "type": "http",
+            "path": "/api/v1/acompanhamento",
+            "query_string": b"placa=ABC1D23&documento=12345678900",
+        }
+
+        _redigir_pii_da_span(span, scope)
+
+        assert span.atributos["url.query"] == "REDACTED"
+        assert span.atributos["http.target"] == "/api/v1/acompanhamento"
+        assert span.atributos["url.path"] == "/api/v1/acompanhamento"
+        # A PII nao pode sobrar em nenhum atributo escrito.
+        assert "12345678900" not in str(span.atributos.values())
+        assert "ABC1D23" not in str(span.atributos.values())
+
+    def test_span_nao_gravando_e_noop(self) -> None:
+        span = _SpanFake(gravando=False)
+        _redigir_pii_da_span(span, {"path": "/x"})
+        assert span.atributos == {}
+
+    def test_scope_sem_path_redige_so_a_query(self) -> None:
+        span = _SpanFake()
+        _redigir_pii_da_span(span, {})
+        assert span.atributos == {"url.query": "REDACTED"}
+
+    def test_span_none_nao_quebra(self) -> None:
+        # Defensivo: o hook nunca pode derrubar o request por causa do trace.
+        _redigir_pii_da_span(None, {"path": "/x"})
