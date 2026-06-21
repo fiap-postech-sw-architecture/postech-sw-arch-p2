@@ -150,3 +150,29 @@ runs:
         additional_permissions: |
           actions: read
         claude_args: ${{ steps.args.outputs.value }}
+
+    # Gate honesto + diagnostico: a claude-code-action NAO propaga `is_error`
+    # para o exit code em modo track_progress — um review que falha na
+    # inferencia (token invalido, modelo inacessivel, deflexao do modelo)
+    # deixava o check VERDE sem ter revisado nada. Este step imprime o
+    # resultado da execucao (para debug) e falha o job quando o run reportou
+    # erro, para o check refletir a realidade.
+    - name: Resultado do Claude (diagnostico + gate)
+      if: always()
+      shell: bash
+      env:
+        OUT: ${{ runner.temp }}/claude-execution-output.json
+      run: |
+        if [ ! -f "$OUT" ]; then
+          echo "::warning::saida do Claude ausente ($OUT) — pulando gate."
+          exit 0
+        fi
+        echo "::group::claude-execution-output.json (final)"
+        tail -c 6000 "$OUT" || true
+        echo ""
+        echo "::endgroup::"
+        if grep -q '"is_error":[[:space:]]*true' "$OUT"; then
+          echo "::error::Claude review terminou com is_error=true — nenhum review real foi postado. Verifique o secret CLAUDE_CODE_OAUTH_TOKEN (ou ANTHROPIC_API_KEY) e o log acima."
+          exit 1
+        fi
+        echo ">> Claude review concluiu sem is_error."
