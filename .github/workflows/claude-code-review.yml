@@ -65,6 +65,7 @@ jobs:
       - name: Run Claude
         uses: ./.github/actions/claude
         with:
+          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ secrets.GITHUB_TOKEN }}
           prompt: ${{ steps.prompt.outputs.value }}

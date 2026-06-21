@@ -11,8 +11,19 @@ description: >-
 
 inputs:
   oauth_token:
-    description: Claude Code OAuth token (Claude Max plan). Passar via secrets.
-    required: true
+    description: >-
+      Claude Code OAuth token (plano Claude Max/Pro, via `claude setup-token`).
+      Passar via secrets. Opcional: use este OU `anthropic_api_key`.
+    required: false
+    default: ''
+  anthropic_api_key:
+    description: >-
+      Anthropic API key (console.anthropic.com, comeca com `sk-ant-api...`).
+      Alternativa ao `oauth_token` — caminho mais simples para configurar pelo
+      navegador/telefone. Passar via secrets. A action usa a key quando ela
+      esta presente; senao cai no OAuth token.
+    required: false
+    default: ''
   github_token:
     description: >-
       GitHub token auto-gerado pelo runner — workaround pro bug
@@ -136,6 +147,8 @@ runs:
         MCP_TIMEOUT: "60000"
         MCP_TOOL_TIMEOUT: "300000"
       with:
+        # A action usa anthropic_api_key quando presente; senao o OAuth token.
+        anthropic_api_key: ${{ inputs.anthropic_api_key }}
         claude_code_oauth_token: ${{ inputs.oauth_token }}
         github_token: ${{ inputs.github_token }}
         prompt: ${{ inputs.prompt }}
