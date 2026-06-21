@@ -41,13 +41,12 @@ inputs:
     default: ''
   model:
     description: >-
-      Modelo do Claude (sonnet | opus). Default sonnet — rapido e
-      barato pra reviews do dia-a-dia (~30-60s pra PR pequeno).
-      claude-on-demand.yml sobrescreve pra opus quando o usuario
-      pede review manual e aceita mais latencia em troca de
-      profundidade.
+      Modelo do Claude. Default `claude-opus-4-8` (melhor Opus, mai/2026)
+      para reviews mais profundos — o uso sai do credito mensal de Agent SDK
+      do plano (regra >= 15/jun/2026), nao do pool do chat. Aceita os aliases
+      `sonnet`/`opus` e o id pinado `claude-opus-4-8`.
     required: false
-    default: 'sonnet'
+    default: 'claude-opus-4-8'
   effort:
     description: >-
       Esforco de raciocinio (low | medium | high | max). Default
@@ -94,8 +93,8 @@ runs:
         # Whitelisting dos inputs (defesa em profundidade — mesmo que
         # hoje os valores venham so dos workflows YAML do repo).
         case "$MODEL_INPUT" in
-          sonnet|opus) ;;
-          *) echo "::error::model invalido: '$MODEL_INPUT' (use 'sonnet' ou 'opus')"; exit 1 ;;
+          sonnet|opus|claude-opus-4-8) ;;
+          *) echo "::error::model invalido: '$MODEL_INPUT' (use sonnet|opus|claude-opus-4-8)"; exit 1 ;;
         esac
         case "$EFFORT_INPUT" in
           low|medium|high|max) ;;
