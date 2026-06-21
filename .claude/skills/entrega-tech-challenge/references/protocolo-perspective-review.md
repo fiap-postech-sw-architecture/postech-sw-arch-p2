@@ -1,6 +1,6 @@
 # Perspective Review Protocol
 
-This protocol is also invoked by the [commit workflow](commit-workflow.md) before every commit.
+This protocol is also invoked by the project commit workflow before every commit.
 
 ## When to Use
 
@@ -8,8 +8,8 @@ Whenever a review is requested, or upon completing a significant artifact (archi
 
 ## Flow
 
-1. Load `../perspectives.md` (one level up, in the `ai/` directory) for the index of 18 perspective files.
-2. Launch perspectives **1 through 16 as parallel sub-agents**. Each sub-agent receives only its own file under `../perspectives/NN-*.md` plus the artifact content and applicable spec/glossary.
+1. Load `perspectives-index.md` (same directory) for the index of 18 perspective files.
+2. Launch perspectives **1 through 16 as parallel sub-agents**. Each sub-agent receives only its own file under `perspectives/NN-*.md` plus the artifact content and applicable spec/glossary.
 3. Collect findings from all 16 sub-agents.
 4. Evaluate each finding against the full context of the plan and existing decisions.
 5. Apply all findings that make sense, regardless of severity.
@@ -37,7 +37,7 @@ After the 18-perspective review is complete and the PR is pushed, GitHub Copilot
 
 1. Map it to the perspective(s) that should have caught it (#1-#18).
 2. Append a `## Copilot Gap Analysis` section to `.review/step-NN-findings.md` with: the exact finding (file:line + description), the mapped perspective(s), why it was missed, and the fix applied.
-3. If **three or more** Copilot findings in a single PR map to the same perspective, update that perspective's checklist in `postech-ai-helper/ai/perspectives/NN-*.md` with a new item that would have caught the pattern. Commit separately on `postech-ai-helper` with a `docs(perspectives): strengthen N checklist after gap analysis` message.
+3. If **three or more** Copilot findings in a single PR map to the same perspective, update that perspective's checklist in `perspectives/NN-*.md` (nesta skill) with a new item que pegaria o padrao — assim a skill evolui por fase.
 
 This feedback loop keeps the checklists sharp against real misses.
 
@@ -45,7 +45,7 @@ This feedback loop keeps the checklists sharp against real misses.
 
 ### For document reviews
 
-Sub-agents receive: perspective file + artifact content + tech challenge doc (e.g., `postech-sw-arch-p1/docs/requisitos/requisitos.md` relative to workspace root) + glossary.
+Sub-agents receive: perspective file + artifact content + tech challenge doc da fase (ex.: `docs/requisitos/faseN/desafio-tech-fase-N.md`) + glossary.
 
 ### For code reviews
 

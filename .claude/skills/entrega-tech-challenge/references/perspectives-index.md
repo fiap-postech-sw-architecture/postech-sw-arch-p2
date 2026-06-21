@@ -47,13 +47,13 @@ After the 18-perspective review and the PR is pushed, Copilot may post its own r
 
 1. Map it to the perspective(s) that should have caught it (#1-#18).
 2. Append a `## Copilot Gap Analysis` section to `.review/step-NN-findings.md` with: the finding, the mapped perspective, why it was missed, and the fix applied.
-3. If three or more Copilot findings in a single PR map to the same perspective, update that perspective's checklist in the corresponding file under `perspectives/` with a bullet that would have caught the pattern, and commit separately on `postech-ai-helper`.
+3. If three or more Copilot findings in a single PR map to the same perspective, update that perspective's checklist in the corresponding file under `perspectives/` (nesta skill) with a bullet that would have caught the pattern — a skill evolui por fase.
 
 This feedback loop keeps the checklists sharp against real misses.
 
 ## Input context per perspective
 
-- **Document reviews**: perspective prompt + artifact content + tech challenge spec (e.g., `postech-sw-arch-p1/reference/tech-challenge-fase-1.md` relative to workspace root) + glossary.
+- **Document reviews**: perspective prompt + artifact content + tech challenge spec da fase (ex.: `docs/requisitos/faseN/desafio-tech-fase-N.md`) + glossary.
 - **Code reviews**: perspective prompt + git diff + full file context + architecture docs (RFC, ADRs, context map).
 
 After the #17 → #18 → #17 sequence for code reviews, re-run tests (`pytest`, `mypy`, `ruff`, `bandit`).
