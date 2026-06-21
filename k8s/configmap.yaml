@@ -19,6 +19,13 @@ data:
   ENVIRONMENT: "development"
   CORS_ORIGINS: "http://localhost:3000"
   JWT_EXPIRATION_MINUTES: "30"
+  # Pool de conexoes por replica (RNF-024). Pior caso do HPA:
+  # (DB_POOL_SIZE + DB_MAX_OVERFLOW) * maxReplicas = (5 + 10) * 5 = 75,
+  # dentro do max_connections=100 do Postgres (postgres:16 default,
+  # infra/postgres.tf). Ajustar junto de maxReplicas (hpa.yaml) e do
+  # max_connections se redimensionar.
+  DB_POOL_SIZE: "5"
+  DB_MAX_OVERFLOW: "10"
   # Migracao no boot via entrypoint.sh (ADR-019; RFC-002 §7). O rollout
   # inicial de replica unica (deployment.yaml) evita corrida entre
   # migracoes concorrentes.

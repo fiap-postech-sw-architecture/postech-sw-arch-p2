@@ -16,6 +16,10 @@ Provisionamento da infraestrutura-base da fase 2 (RNF-021): um único `terraform
 
 Credenciais: as variáveis em [`variables.tf`](variables.tf) têm defaults de demonstração (banco `pytstop`, usuário `pytstop`, senha `pytstop-demo`; a senha é `sensitive`). Para sobrescrever fora do cenário de demo: `export TF_VAR_postgres_password=...` antes do apply.
 
+### Conexões e escala horizontal (RNF-024)
+
+O `postgres:16` usa o `max_connections` default (**100**). O pool de conexões da aplicação é dimensionado para o pior caso do HPA: com `maxReplicas=5` ([`k8s/hpa.yaml`](../k8s/hpa.yaml)) e `DB_POOL_SIZE=5` + `DB_MAX_OVERFLOW=10` ([`k8s/configmap.yaml`](../k8s/configmap.yaml)), o teto é `(5 + 10) × 5 = 75` conexões — dentro das 100, com folga para o `pg_isready` e conexões administrativas. Ao aumentar `maxReplicas` ou o pool, recalcule contra o `max_connections` (e, se necessário, eleve-o no StatefulSet em [`postgres.tf`](postgres.tf)).
+
 ## Pré-requisitos
 
 - [Terraform](https://developer.hashicorp.com/terraform/install) >= 1.7
