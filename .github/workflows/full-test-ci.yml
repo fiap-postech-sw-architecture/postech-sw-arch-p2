@@ -2,8 +2,10 @@ name: full-test (ci)
 
 # Triggers: PR pra main (gate de qualidade antes do merge), push em main
 # (confirmacao pos-merge), manual (workflow_dispatch), e nightly (cron).
-# O modo CI (``pytest -m "not slowest"``) roda em ~1 minuto; o nightly roda
-# o mesmo modo sem custo adicional, mantendo o historico diario.
+# Roda o plano COMPLETO do harness (``pytest -m slowest`` -> test_plano_full,
+# com sleeps reais e todas as journeys) em PR/push/nightly. Ele e superset do
+# plano reduzido (test_plano_ci), entao cobre o subset sem rodar os dois —
+# rodar ambos colidiria documentos (mesmo seed gera os mesmos CPFs).
 on:
   pull_request:
     branches: [main]
@@ -80,7 +82,7 @@ jobs:
           FULL_TEST_N_ADMINS: "1"
         run: PYTHONPATH=full-test uv run python -m full_test seed
 
-      - name: Run plano CI
+      - name: Run plano completo (E2E integrado)
         env:
           FULL_TEST_BASE_URL: http://localhost:8000
           FULL_TEST_DATABASE_URL: postgresql://pytstop:pytstop@localhost:5432/pytstop
@@ -93,7 +95,7 @@ jobs:
           # RF-022: mesmo valor pinado no container (step "Start stack"), para
           # que a journey fase2 envie o token correto e o webhook responda 200.
           ORCAMENTO_WEBHOOK_TOKEN: ci-webhook-orcamento-token
-        run: PYTHONPATH=full-test uv run pytest full-test/tests/test_parallel_usage.py -m "not slowest" -v
+        run: PYTHONPATH=full-test uv run pytest full-test/tests/test_parallel_usage.py -m "slowest" -v
 
       - name: Upload reports
         if: always()

@@ -58,7 +58,12 @@ def _falhar_com_resumo(agregado: ResultadoAgregado) -> None:
 
 @pytest.mark.slowest
 def test_plano_full(config: FullTestConfig, seed_recursos: dict[str, Any]) -> None:
-    """Roda o plano completo incluindo sleeps reais. NAO ENTRA EM CI."""
+    """Roda o plano completo incluindo sleeps reais (E2E integrado completo).
+
+    Passou a rodar em CI (full-test-ci.yml, marker ``slowest``), validando o
+    fluxo completo a cada PR/push/nightly. E superset de ``test_plano_ci``, que
+    fica para execucao local rapida.
+    """
     orquestrador = ParallelOrchestrator(config=config)
     plano = plano_full(
         n_clientes=config.n_clientes,
