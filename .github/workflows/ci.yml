@@ -127,3 +127,29 @@ jobs:
         with:
           name: coverage-report
           path: coverage.xml
+
+  sbom:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      # TD-012 (ADR-012): SBOM CycloneDX automatizado no CI. Gera do lockfile
+      # (so dependencias, sem o proprio projeto) e publica como artefato.
+      - name: Gerar SBOM CycloneDX
+        run: |
+          uv export --frozen --no-dev --no-emit-project --format requirements-txt > sbom-requirements.txt
+          uvx --from cyclonedx-bom cyclonedx-py requirements sbom-requirements.txt \
+            --output-format JSON > sbom.cdx.json
+          grep -q '"bomFormat": "CycloneDX"' sbom.cdx.json
+          echo "SBOM CycloneDX gerado ($(grep -c '"bom-ref"' sbom.cdx.json) refs)."
+      - name: Upload SBOM
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: sbom-cyclonedx
+          path: sbom.cdx.json
+          retention-days: 90

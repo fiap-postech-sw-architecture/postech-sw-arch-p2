@@ -63,3 +63,7 @@ docs/entrega/*.absolute-links.md
 
 # Mac OS
 **/.DS_Store
+
+# SBOM gerado (TD-012): artefato de build, muda a cada lockfile — o CI publica
+sbom.cdx.json
+sbom-requirements.txt

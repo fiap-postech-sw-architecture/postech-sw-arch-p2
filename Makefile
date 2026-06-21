@@ -432,6 +432,16 @@ full-test-teardown: .env.dev
 
 full-test: full-test-up full-test-seed full-test-run full-test-teardown
 
+# ---- SBOM (TD-012; ADR-012) ----
+# Gera o SBOM CycloneDX localmente, igual ao job `sbom` do CI. Artefato
+# gitignorado (muda a cada lockfile); o CI publica como artefato de build.
+.PHONY: sbom
+sbom:
+	uv export --frozen --no-dev --no-emit-project --format requirements-txt > sbom-requirements.txt
+	uvx --from cyclonedx-bom cyclonedx-py requirements sbom-requirements.txt --output-format JSON > sbom.cdx.json
+	@rm -f sbom-requirements.txt
+	@echo ">> SBOM gerado em sbom.cdx.json"
+
 # ---- k8s / CD local (RNF-022; ADR-019) ----
 # Espelho local do workflow de CD (.github/workflows/cd.yml): o pipeline
 # executa o que o desenvolvedor executa (DevOps, Aula 03). Mesmos passos,
