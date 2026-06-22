@@ -25,6 +25,7 @@ Sem --repo, tenta detectar via `gh repo view` e depois `git remote`.
 from __future__ import annotations
 
 import argparse
+import itertools
 import re
 import shutil
 import subprocess
@@ -67,8 +68,8 @@ def detectar_repo(base_dir: Path) -> str | None:
         ).stdout.strip()
     except (subprocess.CalledProcessError, FileNotFoundError):
         return None
-    # git@github.com:owner/repo.git  ou  https://github.com/owner/repo(.git)
-    m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?$", url)
+    # git@github.com:owner/repo.git  ou  https://github.com/owner/repo(.git)(/)
+    m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?/?$", url)
     return m.group(1) if m else None
 
 
@@ -104,12 +105,19 @@ def reescrever_links(texto: str, repo: str, branch: str, base_dir: Path) -> str:
 
 def renderizar_mermaid(texto: str, tmp: Path) -> str:
     """Troca cada bloco ```mermaid``` por um PNG renderizado. Sem blocos, no-op."""
-    blocos = list(MERMAID_RE.finditer(texto))
-    if not blocos:
+    if not MERMAID_RE.search(texto):
         return texto
     if shutil.which("npx") is None:
         _erro("npx ausente — necessario para renderizar mermaid (mermaid-cli).")
-    for i, m in enumerate(blocos):
+
+    # Substituicao por POSICAO (re.sub com contador), nao por conteudo: dois
+    # blocos mermaid identicos geram PNGs distintos e cada ocorrencia e trocada
+    # no lugar certo. `str.replace(bloco, ..., 1)` por conteudo trocaria o
+    # primeiro bloco duas vezes e deixaria o segundo PNG orfao.
+    contador = itertools.count()
+
+    def repl(m: re.Match[str]) -> str:
+        i = next(contador)
         mmd = tmp / f"diagrama-{i}.mmd"
         png = tmp / f"diagrama-{i}.png"
         mmd.write_text(m.group(1), encoding="utf-8")
@@ -129,8 +137,9 @@ def renderizar_mermaid(texto: str, tmp: Path) -> str:
             ],
             check=True,
         )
-        texto = texto.replace(m.group(0), f"![Diagrama de arquitetura]({png})", 1)
-    return texto
+        return f"![Diagrama de arquitetura]({png})"
+
+    return MERMAID_RE.sub(repl, texto)
 
 
 def main() -> int:

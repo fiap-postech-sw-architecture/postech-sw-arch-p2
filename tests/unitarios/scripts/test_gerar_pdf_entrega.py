@@ -102,6 +102,12 @@ class TestReescreverLinks:
         texto = "prosa sem nenhum link aqui"
         assert mod.reescrever_links(texto, "o/r", "main", base) == texto
 
+    def test_imagem_local_tambem_e_reescrita(self, base: Path) -> None:
+        # ![alt](img.png): o "!" fica fora do match e o link interno e reescrito
+        # como qualquer relativo — desejado, imagens locais viram URL absoluta.
+        out = mod.reescrever_links("![arq](diagrama.png)", "o/r", "main", base)
+        assert out == "![arq](https://github.com/o/r/blob/main/docs/diagrama.png)"
+
 
 # --------------------------------------------------------------------------- #
 # detectar_repo
@@ -126,6 +132,14 @@ class TestDetectarRepo:
             run.side_effect = [
                 subprocess.CalledProcessError(1, "gh"),
                 MagicMock(stdout="https://github.com/o/r"),
+            ]
+            assert mod.detectar_repo(tmp_path) == "o/r"
+
+    def test_fallback_git_https_com_trailing_slash(self, tmp_path: Path) -> None:
+        with patch.object(mod.subprocess, "run") as run:
+            run.side_effect = [
+                subprocess.CalledProcessError(1, "gh"),
+                MagicMock(stdout="https://github.com/o/r/\n"),
             ]
             assert mod.detectar_repo(tmp_path) == "o/r"
 
@@ -165,6 +179,19 @@ class TestRenderizarMermaid:
         assert (tmp_path / "diagrama-0.mmd").read_text() == "graph TD\nA-->B\n"
         run.assert_called_once()
         assert "@mermaid-js/mermaid-cli" in run.call_args.args[0]
+
+    def test_blocos_identicos_geram_pngs_distintos(self, tmp_path: Path) -> None:
+        bloco = "```mermaid\ngraph TD\nA-->B\n```"
+        texto = f"{bloco}\n\n{bloco}"
+        with (
+            patch.object(mod.shutil, "which", return_value="/usr/bin/npx"),
+            patch.object(mod.subprocess, "run") as run,
+        ):
+            out = mod.renderizar_mermaid(texto, tmp_path)
+        assert "```mermaid" not in out
+        assert "diagrama-0.png" in out
+        assert "diagrama-1.png" in out  # 2o bloco identico nao vira orfao
+        assert run.call_count == 2
 
     def test_npx_ausente_aborta(self, tmp_path: Path) -> None:
         texto = "```mermaid\ngraph TD\nA-->B\n```"
