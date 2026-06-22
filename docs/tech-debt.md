@@ -21,6 +21,7 @@ Classificação por tipo:
 |---|---|---|---|
 | TD-001 | Segurança | Sem mecanismo de consentimento explícito LGPD | **Fechado** — Implementado no MVP via RF-019: endpoints `POST/DELETE /clientes/{id}/consentimento` com entidade `ConsentimentoCliente`. |
 | TD-020 | UI | Listagem da `ui/` não mostrava OS encerradas por default pós RF-023 | **Fechado** — PR #28: a `ui/` ganhou o toggle "Mostrar encerradas" (passa `incluir_encerradas`), os badges passam a exibir `situacao` (RF-021) e o dialog de nova OS aceita serviços/peças inline (RF-020). |
+| TD-012 | Segurança | Sem SBOM automatizado no CI (geração manual) | **Fechado** — job `sbom` no [ci.yml](../.github/workflows/ci.yml) gera o SBOM CycloneDX a partir do lockfile a cada run e publica como artefato; alvo `make sbom` para geração local ([ADR-012](arquitetura/adr/012-licenciamento-software-sbom.md)). |
 
 ## Itens Abertos
 
@@ -50,7 +51,6 @@ Débitos relacionados a segurança e qualidade de código.
 |---|---|---|---|---|---|---|---|---|
 | TD-010 | Segurança | SonarQube não integrado no MVP (quality gate manual) | Deliberado | Baixa | Baixo | Não | Estável | Quality gate automatizado requer infraestrutura SonarQube. No MVP, análise estática local com ruff + bandit. Evolução para SonarCloud em fases posteriores. [ADR-011](arquitetura/adr/011-pipeline-seguranca-analise-estatica.md). |
 | TD-011 | Segurança | Sem DAST automatizado (OWASP ZAP manual) | Deliberado | Média | Médio | Não | Estável | Teste dinâmico requer aplicação em execução e configuração de pipeline. No MVP, execução manual sob demanda. Automação planejada para CI quando pipeline estiver maduro. |
-| TD-012 | Segurança | Sem SBOM automatizado no CI (geração manual) | Deliberado | Baixa | Baixo | Não | Estável | CycloneDX disponível via CLI, mas integração no CI requer configuração adicional. Geração manual por release no MVP. [ADR-012](arquitetura/adr/012-licenciamento-software-sbom.md). |
 | TD-013 | Testes | Sem testes BDD/Gherkin no MVP (pytest-bdd planejado) | Deliberado | Baixa | Baixo | Não | Estável | Testes E2E com Gherkin em português agregam rastreabilidade para requisitos, mas requerem feature files e steps adicionais. Prioridade para testes unitários e de integração no MVP. [ADR-013](arquitetura/adr/013-testes-bdd-pytest-bdd.md). |
 | TD-014 | Testes | Sem relatórios Allure no MVP (pytest-html como alternativa leve) | Deliberado | Baixa | Baixo | Não | Estável | Allure oferece relatórios visuais superiores, mas requer servidor dedicado. pytest-html atende necessidades do MVP com menor overhead. |
 
