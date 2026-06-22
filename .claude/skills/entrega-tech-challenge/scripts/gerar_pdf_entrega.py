@@ -85,6 +85,11 @@ def reescrever_links(texto: str, repo: str, branch: str, base_dir: Path) -> str:
 
     def repl(m: re.Match[str]) -> str:
         label, href = m.group(1), m.group(2)
+        # Markdown aceita titulo opcional: [txt](url "titulo"). O grupo da URL
+        # captura tudo ate o ")", entao separa a URL real do titulo no 1o espaco
+        # e re-anexa o titulo intacto — sem isso o href sairia malformado.
+        href, sep, titulo = href.partition(" ")
+        titulo = f"{sep}{titulo}" if sep else ""
         if not href or href.startswith(("http://", "https://", "mailto:", "#")):
             return m.group(0)
         anchor = ""
@@ -98,7 +103,16 @@ def reescrever_links(texto: str, repo: str, branch: str, base_dir: Path) -> str:
             rel = alvo.relative_to(repo_root)
         except ValueError:
             return m.group(0)
-        return f"[{label}](https://github.com/{repo}/blob/{branch}/{rel}{anchor})"
+        # Imagem (![alt](...)): o "!" precede o match. URLs blob/ servem HTML,
+        # nao os bytes da imagem — pandoc/weasyprint nao conseguem embutir.
+        # raw.githubusercontent.com entrega os bytes crus, entao a imagem entra
+        # de fato no PDF. Links de texto normais continuam em blob/ (navegaveis).
+        eh_imagem = m.start() > 0 and m.string[m.start() - 1] == "!"
+        if eh_imagem:
+            url = f"https://raw.githubusercontent.com/{repo}/{branch}/{rel}{anchor}"
+        else:
+            url = f"https://github.com/{repo}/blob/{branch}/{rel}{anchor}"
+        return f"[{label}]({url}{titulo})"
 
     return LINK_RE.sub(repl, texto)
 

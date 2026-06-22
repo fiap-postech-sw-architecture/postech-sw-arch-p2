@@ -102,11 +102,26 @@ class TestReescreverLinks:
         texto = "prosa sem nenhum link aqui"
         assert mod.reescrever_links(texto, "o/r", "main", base) == texto
 
-    def test_imagem_local_tambem_e_reescrita(self, base: Path) -> None:
-        # ![alt](img.png): o "!" fica fora do match e o link interno e reescrito
-        # como qualquer relativo — desejado, imagens locais viram URL absoluta.
+    def test_imagem_local_e_reescrita_como_raw(self, base: Path) -> None:
+        # ![alt](img.png): o "!" precede o match -> imagem. blob/ serve HTML,
+        # nao os bytes; raw.githubusercontent.com entrega os bytes p/ o pandoc
+        # embutir a imagem no PDF (blob/ so funcionaria como link clicavel).
         out = mod.reescrever_links("![arq](diagrama.png)", "o/r", "main", base)
-        assert out == "![arq](https://github.com/o/r/blob/main/docs/diagrama.png)"
+        assert (
+            out
+            == "![arq](https://raw.githubusercontent.com/o/r/main/docs/diagrama.png)"
+        )
+
+    def test_link_de_texto_continua_em_blob(self, base: Path) -> None:
+        # Sem o "!" precedente e link navegavel -> blob/ (contraste com a imagem).
+        out = mod.reescrever_links("[doc](alvo.md)", "o/r", "main", base)
+        assert out == "[doc](https://github.com/o/r/blob/main/docs/alvo.md)"
+
+    def test_titulo_markdown_nao_corrompe_a_url(self, base: Path) -> None:
+        # [txt](url "titulo"): a URL e reescrita e o titulo fica intacto, sem
+        # virar parte do href (que geraria uma URL malformada).
+        out = mod.reescrever_links('[a](alvo.md "meu titulo")', "o/r", "main", base)
+        assert out == '[a](https://github.com/o/r/blob/main/docs/alvo.md "meu titulo")'
 
 
 # --------------------------------------------------------------------------- #
