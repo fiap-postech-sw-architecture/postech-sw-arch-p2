@@ -170,8 +170,20 @@ runs:
         tail -c 6000 "$OUT" || true
         echo ""
         echo "::endgroup::"
-        if grep -q '"is_error":[[:space:]]*true' "$OUT"; then
-          echo "::error::Claude review terminou com is_error=true — nenhum review real foi postado. Verifique o secret CLAUDE_CODE_OAUTH_TOKEN (ou ANTHROPIC_API_KEY) e o log acima."
+        # O arquivo e o stream de eventos da action. O sinal honesto e o
+        # is_error do EVENTO FINAL (type=="result") — NAO qualquer is_error
+        # no meio: tool_results benignos (ex.: um Read de arquivo fora do
+        # workdir do runner, como o bootstrap canonico que o CLAUDE.md
+        # aponta) tambem carregam "is_error": true e davam falso-positivo
+        # quando o gate fazia grep no arquivo inteiro. `jq -s | flatten(1)`
+        # normaliza tanto array unico quanto NDJSON antes de pegar o result.
+        RESULT_IS_ERROR=$(jq -rs 'flatten(1) | [ .[] | select(type=="object" and .type=="result") ] | last | if . == null then empty elif (.is_error == true) then "true" else "false" end' "$OUT" 2>/dev/null)
+        if [ "$RESULT_IS_ERROR" = "true" ]; then
+          echo "::error::Claude review terminou com is_error=true no evento final — nenhum review real foi postado. Verifique o secret CLAUDE_CODE_OAUTH_TOKEN (ou ANTHROPIC_API_KEY) e o log acima."
           exit 1
         fi
-        echo ">> Claude review concluiu sem is_error."
+        if [ -z "$RESULT_IS_ERROR" ]; then
+          echo "::warning::nao foi possivel extrair is_error do evento 'result' — pulando gate (ver json acima)."
+          exit 0
+        fi
+        echo ">> Claude review concluiu com is_error=false no evento final."
