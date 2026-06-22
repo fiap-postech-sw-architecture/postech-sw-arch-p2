@@ -10,12 +10,13 @@ Pipeline (mesma receita refinada na fase 2, generalizada para qualquer fase):
      renderiza mermaid sozinho) e troca o bloco pela imagem.
   3. pandoc + weasyprint produzem o PDF.
 
-O markdown de origem NAO e modificado: tudo acontece num intermediario em /tmp.
+O markdown de origem NAO e modificado: tudo acontece num diretorio temporario.
 O PDF sai FORA do repo por padrao (artefato de build, nao versionado).
 
 Uso:
     python gerar_pdf_entrega.py docs/entrega/fase2/entrega-fase-2.md
-    python gerar_pdf_entrega.py <md> --output ~/saida.pdf --repo owner/repo --branch main
+    python gerar_pdf_entrega.py <md> --output ~/saida.pdf
+    python gerar_pdf_entrega.py <md> --repo owner/repo --branch main
 
 Pre-requisitos: python3, pandoc, weasyprint, npx (mermaid-cli baixado on-demand).
 Sem --repo, tenta detectar via `gh repo view` e depois `git remote`.
@@ -28,13 +29,15 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from pathlib import Path
+from typing import NoReturn
 
 LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
 MERMAID_RE = re.compile(r"```mermaid\n(.*?)```", re.S)
 
 
-def _erro(msg: str) -> None:
+def _erro(msg: str) -> NoReturn:
     print(f"erro: {msg}", file=sys.stderr)
     raise SystemExit(1)
 
@@ -111,20 +114,34 @@ def renderizar_mermaid(texto: str, tmp: Path) -> str:
         png = tmp / f"diagrama-{i}.png"
         mmd.write_text(m.group(1), encoding="utf-8")
         subprocess.run(
-            ["npx", "-y", "@mermaid-js/mermaid-cli", "-i", str(mmd),
-             "-o", str(png), "-w", "1400", "-b", "white"],
+            [
+                "npx",
+                "-y",
+                "@mermaid-js/mermaid-cli",
+                "-i",
+                str(mmd),
+                "-o",
+                str(png),
+                "-w",
+                "1400",
+                "-b",
+                "white",
+            ],
             check=True,
         )
-        texto = texto.replace(
-            m.group(0), f"![Diagrama de arquitetura]({png})", 1
-        )
+        texto = texto.replace(m.group(0), f"![Diagrama de arquitetura]({png})", 1)
     return texto
 
 
 def main() -> int:
     p = argparse.ArgumentParser(description="Gera o PDF de entrega da fase.")
-    p.add_argument("markdown", help="markdown de entrega (ex.: docs/entrega/faseN/entrega-fase-N.md)")
-    p.add_argument("--output", help="caminho do PDF (default: ~/<nome>.pdf, fora do repo)")
+    p.add_argument(
+        "markdown",
+        help="markdown de entrega (ex.: docs/entrega/faseN/entrega-fase-N.md)",
+    )
+    p.add_argument(
+        "--output", help="caminho do PDF (default: ~/<nome>.pdf, fora do repo)"
+    )
     p.add_argument("--repo", help="owner/repo (default: auto via gh/git)")
     p.add_argument("--branch", default="main")
     args = p.parse_args()
@@ -149,8 +166,11 @@ def main() -> int:
         else Path.home() / f"{src.stem}.pdf"
     )
 
-    tmp = Path("/tmp") / f"entrega-pdf-{src.stem}"
-    tmp.mkdir(parents=True, exist_ok=True)
+    # Diretorio temporario isolado por run (0700 via mkdtemp): evita colisao
+    # de PNGs entre execucoes e o risco de symlink em caminho previsivel sob
+    # /tmp. Portavel (respeita TMPDIR/Windows). Nao removido aqui de proposito
+    # — artefatos intermediarios ajudam a depurar uma geracao que falhou.
+    tmp = Path(tempfile.mkdtemp(prefix=f"entrega-pdf-{src.stem}-"))
 
     texto = src.read_text(encoding="utf-8")
     texto = reescrever_links(texto, repo, args.branch, base_dir)
@@ -159,9 +179,17 @@ def main() -> int:
     md_abs.write_text(texto, encoding="utf-8")
 
     subprocess.run(
-        ["pandoc", str(md_abs), "-o", str(out),
-         "--pdf-engine=weasyprint", "-V", "lang=pt-BR",
-         "--metadata", f"title={src.stem}"],
+        [
+            "pandoc",
+            str(md_abs),
+            "-o",
+            str(out),
+            "--pdf-engine=weasyprint",
+            "-V",
+            "lang=pt-BR",
+            "--metadata",
+            f"title={src.stem}",
+        ],
         check=True,
     )
     print(f">> PDF gerado em {out}")
