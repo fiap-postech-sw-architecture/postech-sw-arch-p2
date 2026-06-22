@@ -438,8 +438,9 @@ full-test: full-test-up full-test-seed full-test-run full-test-teardown
 .PHONY: sbom
 sbom:
 	uv export --frozen --no-dev --no-emit-project --format requirements-txt > sbom-requirements.txt
-	uvx --from cyclonedx-bom cyclonedx-py requirements sbom-requirements.txt --output-format JSON > sbom.cdx.json
+	uvx --from cyclonedx-bom==7.3.0 cyclonedx-py requirements sbom-requirements.txt --output-format JSON > sbom.cdx.json
 	@rm -f sbom-requirements.txt
+	grep -q '"bomFormat": "CycloneDX"' sbom.cdx.json
 	@echo ">> SBOM gerado em sbom.cdx.json"
 
 # ---- k8s / CD local (RNF-022; ADR-019) ----
