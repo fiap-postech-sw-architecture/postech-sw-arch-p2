@@ -137,18 +137,12 @@ jobs:
           python-version: "3.13"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
-      # TD-012 (ADR-012): SBOM CycloneDX automatizado no CI. Gera do lockfile
-      # (so dependencias, sem o proprio projeto) e publica como artefato.
+      # TD-012 (ADR-012): SBOM CycloneDX automatizado no CI. Reusa `make sbom`
+      # como fonte unica (versao do gerador pinada + comandos + validacao
+      # bomFormat vivem so no Makefile), garantindo paridade exata CI<->local.
       - name: Gerar SBOM CycloneDX
-        run: |
-          uv export --frozen --no-dev --no-emit-project --format requirements-txt > sbom-requirements.txt
-          # cyclonedx-bom pinado: SBOM reproducivel (ADR-012). Sem pin, o gerador
-          # resolve pra ultima versao a cada run e o SBOM muda sem mudar o lockfile.
-          uvx --from cyclonedx-bom==7.3.0 cyclonedx-py requirements sbom-requirements.txt \
-            --output-format JSON > sbom.cdx.json
-          grep -q '"bomFormat": "CycloneDX"' sbom.cdx.json
-          echo "SBOM CycloneDX gerado ($(grep -c '"bom-ref"' sbom.cdx.json) refs)."
-      # Sem `if: always()`: so publica se a geracao + validacao bomFormat passarem,
+        run: make sbom
+      # Sem `if: always()`: so publica se `make sbom` (geracao + validacao) passar,
       # pra nunca subir um SBOM parcial/invalido como artefato.
       - name: Upload SBOM
         uses: actions/upload-artifact@v4

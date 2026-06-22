@@ -433,15 +433,18 @@ full-test-teardown: .env.dev
 full-test: full-test-up full-test-seed full-test-run full-test-teardown
 
 # ---- SBOM (TD-012; ADR-012) ----
-# Gera o SBOM CycloneDX localmente, igual ao job `sbom` do CI. Artefato
-# gitignorado (muda a cada lockfile); o CI publica como artefato de build.
+# Fonte unica do SBOM CycloneDX: o job `sbom` do CI roda este mesmo alvo
+# (`make sbom`), entao versao do gerador + comandos + validacao vivem so aqui
+# (paridade CI<->local por construcao). Artefato gitignorado (muda a cada
+# lockfile); o CI o publica como artefato de build.
+CYCLONEDX_VERSION ?= 7.3.0
 .PHONY: sbom
 sbom:
 	uv export --frozen --no-dev --no-emit-project --format requirements-txt > sbom-requirements.txt
-	uvx --from cyclonedx-bom==7.3.0 cyclonedx-py requirements sbom-requirements.txt --output-format JSON > sbom.cdx.json
+	uvx --from cyclonedx-bom==$(CYCLONEDX_VERSION) cyclonedx-py requirements sbom-requirements.txt --output-format JSON > sbom.cdx.json
+	grep -q '"bomFormat": "CycloneDX"' sbom.cdx.json || { rm -f sbom.cdx.json sbom-requirements.txt; exit 1; }
 	@rm -f sbom-requirements.txt
-	grep -q '"bomFormat": "CycloneDX"' sbom.cdx.json
-	@echo ">> SBOM gerado em sbom.cdx.json"
+	@echo ">> SBOM CycloneDX gerado em sbom.cdx.json ($$(grep -c '"bom-ref"' sbom.cdx.json) refs)."
 
 # ---- k8s / CD local (RNF-022; ADR-019) ----
 # Espelho local do workflow de CD (.github/workflows/cd.yml): o pipeline
