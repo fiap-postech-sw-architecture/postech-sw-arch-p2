@@ -140,6 +140,13 @@ known-first-party = ["src", "ui"]
 "migrations/**" = ["E402"]
 "**/dtos.py" = ["S105"]
 "migrations/env.py" = ["E402"]
+# Script utilitario de build (gera o PDF de entrega). Chama binarios de dev
+# conhecidos (gh/git/npx/pandoc) via subprocess com lista de args fixa, sem
+# shell=True — nao ha superficie de injecao. S603 (subprocess) e S607 (partial
+# path, resolvido via PATH de proposito p/ portabilidade) viram ruido aqui.
+# Obs: este ignore e da ruff (regra "S"); o bandit "real" nao falha nesses
+# porque sao severidade LOW e o gate roda com --severity-level high.
+".claude/skills/entrega-tech-challenge/scripts/*.py" = ["S603", "S607"]
 
 # Contratos de arquitetura (ADR-015 / RNF-017): a regra de dependencia da
 # Clean Architecture e verificada por lint (`make lint-arch` / CI).

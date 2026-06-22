@@ -7,6 +7,10 @@
 
 [run]
 relative_files = True
+# O gate cobre SO codigo de produto (src, ui). Scripts utilitarios de build
+# fora dessas arvores — ex.: .claude/skills/entrega-tech-challenge/scripts/
+# gerar_pdf_entrega.py — tem testes proprios (tests/unitarios/scripts/, pegam
+# regressao) mas ficam de fora deste gate de 95% por nao serem produto.
 source = src, ui
 omit =
     tests/*

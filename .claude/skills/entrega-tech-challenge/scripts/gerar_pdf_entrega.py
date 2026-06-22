@@ -1,0 +1,223 @@
+#!/usr/bin/env python3
+"""Gera o PDF de entrega (FIAP Pos Tech) a partir de um markdown de entrega.
+
+Pipeline (mesma receita refinada na fase 2, generalizada para qualquer fase):
+
+  1. Reescreve links relativos do markdown para URLs absolutas do GitHub
+     (blob/<branch>), para que cliques funcionem no PDF. Links externos
+     (http/https/mailto/#ancora) passam intactos.
+  2. Renderiza CADA bloco ```mermaid``` para PNG via mermaid-cli (pandoc nao
+     renderiza mermaid sozinho) e troca o bloco pela imagem.
+  3. pandoc + weasyprint produzem o PDF.
+
+O markdown de origem NAO e modificado: tudo acontece num diretorio temporario.
+O PDF sai FORA do repo por padrao (artefato de build, nao versionado).
+
+Uso:
+    python gerar_pdf_entrega.py docs/entrega/fase2/entrega-fase-2.md
+    python gerar_pdf_entrega.py <md> --output ~/saida.pdf
+    python gerar_pdf_entrega.py <md> --repo owner/repo --branch main
+
+Pre-requisitos: python3, pandoc, weasyprint, npx (mermaid-cli baixado on-demand).
+Sem --repo, tenta detectar via `gh repo view` e depois `git remote`.
+"""
+
+from __future__ import annotations
+
+import argparse
+import itertools
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
+from pathlib import Path
+from typing import NoReturn
+
+LINK_RE = re.compile(r"\[([^\]]+)\]\(([^)]+)\)")
+MERMAID_RE = re.compile(r"```mermaid\n(.*?)```", re.S)
+
+
+def _erro(msg: str) -> NoReturn:
+    print(f"erro: {msg}", file=sys.stderr)
+    raise SystemExit(1)
+
+
+def detectar_repo(base_dir: Path) -> str | None:
+    """owner/repo via gh; fallback no remote origin do git."""
+    try:
+        out = subprocess.run(
+            ["gh", "repo", "view", "--json", "nameWithOwner", "-q", ".nameWithOwner"],
+            cwd=base_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        )
+        nome = out.stdout.strip()
+        if nome:
+            return nome
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        pass
+    try:
+        url = subprocess.run(
+            ["git", "remote", "get-url", "origin"],
+            cwd=base_dir,
+            capture_output=True,
+            text=True,
+            check=True,
+        ).stdout.strip()
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        return None
+    # git@github.com:owner/repo.git  ou  https://github.com/owner/repo(.git)(/)
+    m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?/?$", url)
+    return m.group(1) if m else None
+
+
+def achar_repo_root(base_dir: Path) -> Path:
+    root = base_dir.resolve()
+    while root.parent != root and not (root / ".git").exists():
+        root = root.parent
+    return root
+
+
+def reescrever_links(texto: str, repo: str, branch: str, base_dir: Path) -> str:
+    repo_root = achar_repo_root(base_dir)
+
+    def repl(m: re.Match[str]) -> str:
+        label, href = m.group(1), m.group(2)
+        # Markdown aceita titulo opcional: [txt](url "titulo"). O grupo da URL
+        # captura tudo ate o ")", entao separa a URL real do titulo no 1o espaco
+        # e re-anexa o titulo intacto — sem isso o href sairia malformado.
+        href, sep, titulo = href.partition(" ")
+        titulo = f"{sep}{titulo}" if sep else ""
+        if not href or href.startswith(("http://", "https://", "mailto:", "#")):
+            return m.group(0)
+        anchor = ""
+        if "#" in href:
+            href, anchor = href.split("#", 1)
+            anchor = f"#{anchor}"
+        if not href:
+            return m.group(0)
+        alvo = (base_dir / href).resolve()
+        try:
+            rel = alvo.relative_to(repo_root)
+        except ValueError:
+            return m.group(0)
+        # Imagem (![alt](...)): o "!" precede o match. URLs blob/ servem HTML,
+        # nao os bytes da imagem — pandoc/weasyprint nao conseguem embutir.
+        # raw.githubusercontent.com entrega os bytes crus, entao a imagem entra
+        # de fato no PDF. Links de texto normais continuam em blob/ (navegaveis).
+        eh_imagem = m.start() > 0 and m.string[m.start() - 1] == "!"
+        if eh_imagem:
+            url = f"https://raw.githubusercontent.com/{repo}/{branch}/{rel}{anchor}"
+        else:
+            url = f"https://github.com/{repo}/blob/{branch}/{rel}{anchor}"
+        return f"[{label}]({url}{titulo})"
+
+    return LINK_RE.sub(repl, texto)
+
+
+def renderizar_mermaid(texto: str, tmp: Path) -> str:
+    """Troca cada bloco ```mermaid``` por um PNG renderizado. Sem blocos, no-op."""
+    if not MERMAID_RE.search(texto):
+        return texto
+    if shutil.which("npx") is None:
+        _erro("npx ausente — necessario para renderizar mermaid (mermaid-cli).")
+
+    # Substituicao por POSICAO (re.sub com contador), nao por conteudo: dois
+    # blocos mermaid identicos geram PNGs distintos e cada ocorrencia e trocada
+    # no lugar certo. `str.replace(bloco, ..., 1)` por conteudo trocaria o
+    # primeiro bloco duas vezes e deixaria o segundo PNG orfao.
+    contador = itertools.count()
+
+    def repl(m: re.Match[str]) -> str:
+        i = next(contador)
+        mmd = tmp / f"diagrama-{i}.mmd"
+        png = tmp / f"diagrama-{i}.png"
+        mmd.write_text(m.group(1), encoding="utf-8")
+        subprocess.run(
+            [
+                "npx",
+                "-y",
+                "@mermaid-js/mermaid-cli",
+                "-i",
+                str(mmd),
+                "-o",
+                str(png),
+                "-w",
+                "1400",
+                "-b",
+                "white",
+            ],
+            check=True,
+        )
+        return f"![Diagrama de arquitetura]({png})"
+
+    return MERMAID_RE.sub(repl, texto)
+
+
+def main() -> int:
+    p = argparse.ArgumentParser(description="Gera o PDF de entrega da fase.")
+    p.add_argument(
+        "markdown",
+        help="markdown de entrega (ex.: docs/entrega/faseN/entrega-fase-N.md)",
+    )
+    p.add_argument(
+        "--output", help="caminho do PDF (default: ~/<nome>.pdf, fora do repo)"
+    )
+    p.add_argument("--repo", help="owner/repo (default: auto via gh/git)")
+    p.add_argument("--branch", default="main")
+    args = p.parse_args()
+
+    for bin_ in ("pandoc", "weasyprint"):
+        if shutil.which(bin_) is None:
+            _erro(f"{bin_} ausente. Instale (ex.: brew install {bin_}).")
+
+    src = Path(args.markdown).resolve()
+    if not src.is_file():
+        _erro(f"markdown nao encontrado: {src}")
+    base_dir = src.parent
+
+    repo = args.repo or detectar_repo(base_dir)
+    if not repo:
+        _erro("nao consegui detectar o repo; passe --repo owner/repo.")
+    print(f">> repo={repo} branch={args.branch} fonte={src.name}")
+
+    out = (
+        Path(args.output).expanduser().resolve()
+        if args.output
+        else Path.home() / f"{src.stem}.pdf"
+    )
+
+    # Diretorio temporario isolado por run (0700 via mkdtemp): evita colisao
+    # de PNGs entre execucoes e o risco de symlink em caminho previsivel sob
+    # /tmp. Portavel (respeita TMPDIR/Windows). Nao removido aqui de proposito
+    # — artefatos intermediarios ajudam a depurar uma geracao que falhou.
+    tmp = Path(tempfile.mkdtemp(prefix=f"entrega-pdf-{src.stem}-"))
+
+    texto = src.read_text(encoding="utf-8")
+    texto = reescrever_links(texto, repo, args.branch, base_dir)
+    texto = renderizar_mermaid(texto, tmp)
+    md_abs = tmp / f"{src.stem}-abs.md"
+    md_abs.write_text(texto, encoding="utf-8")
+
+    subprocess.run(
+        [
+            "pandoc",
+            str(md_abs),
+            "-o",
+            str(out),
+            "--pdf-engine=weasyprint",
+            "-V",
+            "lang=pt-BR",
+            "--metadata",
+            f"title={src.stem}",
+        ],
+        check=True,
+    )
+    print(f">> PDF gerado em {out}")
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())
