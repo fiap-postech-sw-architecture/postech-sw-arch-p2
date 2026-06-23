@@ -90,15 +90,18 @@ typecheck:
 security:
 	$(PY)bandit -r src/ ui/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py -c pyproject.toml --severity-level high
 
+# Args comuns da suite unitaria, compartilhados por `test` e `test-coverage`.
+PYTEST_UNIT_ARGS := tests/unitarios/ -x -q --no-lint --cov=src -m "not lento"
+
 # Usa PY_UI_TEST (extras test+ui): tests/unitarios/ inclui tests/unitarios/ui/,
 # cujos imports puxam nicegui/httpx (optional-dependencies do extra `ui`). Sem os
 # extras, fresh venvs dao ERROR de coleta nesses arquivos. Espelha o CI, que faz
 # `uv sync --extra test --extra ui` antes de rodar a suite.
 test:
-	$(PY_UI_TEST)pytest tests/unitarios/ -x -q --no-lint --cov=src -m "not lento"
+	$(PY_UI_TEST)pytest $(PYTEST_UNIT_ARGS)
 
 test-coverage:
-	$(PY_UI_TEST)pytest tests/unitarios/ -x -q --no-lint --cov=src -m "not lento" --cov-report=term-missing --cov-report=xml:coverage.xml
+	$(PY_UI_TEST)pytest $(PYTEST_UNIT_ARGS) --cov-report=term-missing --cov-report=xml:coverage.xml
 
 test-integ:
 	$(PY)pytest tests/integracao/ -x -q --no-lint --tb=short
