@@ -7,6 +7,7 @@ from src.cliente_veiculo.dominio.documento import Documento
 from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.events import (
     ClienteAtualizadoEvent,
+    ClienteCadastradoEvent,
     ClienteDesativadoEvent,
     VeiculoAdicionadoEvent,
     VeiculoRemovidoEvent,
@@ -26,6 +27,7 @@ __all__ = [
     "CPF",
     "Cliente",
     "ClienteAtualizadoEvent",
+    "ClienteCadastradoEvent",
     "ClienteDesativadoEvent",
     "ClienteNaoEncontradoException",
     "ClienteRepository",

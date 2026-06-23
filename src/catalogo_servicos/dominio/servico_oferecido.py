@@ -3,6 +3,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
+from src.catalogo_servicos.dominio.events import ServicoCadastradoEvent
 from src.compartilhado.dominio.aggregate_root import AggregateRoot
 
 if TYPE_CHECKING:
@@ -46,6 +47,19 @@ class ServicoOferecido(AggregateRoot):
         if self._preco is None:
             msg = "Preco do servico e obrigatorio"
             raise ValueError(msg)
+
+    @classmethod
+    def criar(cls, *, nome: str, descricao: str, preco: Dinheiro) -> ServicoOferecido:
+        """Factory de cadastro: constroi o servico e registra o evento de criacao.
+
+        A emissao do `ServicoCadastradoEvent` vive aqui, e nao no
+        construtor/`__post_init__`. Assim so o cadastro real (via `criar`)
+        emite: construcao crua e a reconstituicao do repository (que passa por
+        `__new__`, sem `__init__`) ficam sem evento.
+        """
+        servico = cls(_nome=nome, _descricao=descricao, _preco=preco)
+        servico._registrar_evento(ServicoCadastradoEvent(agregado_id=servico.id))
+        return servico
 
     @property
     def nome(self) -> str:

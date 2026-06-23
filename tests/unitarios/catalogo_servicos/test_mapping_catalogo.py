@@ -104,6 +104,29 @@ class TestEventosMapeamentoServico:
             ):
                 carregado.id = uuid4()
 
+    def test_instancia_carregada_tem_eventos_pendentes_inicializado(
+        self, engine_sqlite: object
+    ) -> None:
+        # O load via __new__ nao chama __init__/__post_init__, entao o listener
+        # precisa semear _eventos_pendentes; sem isso coletar_eventos() e
+        # _registrar_evento estouram AttributeError em agregados reconstituidos
+        # assim que ServicoOferecido passar a emitir eventos em mutacoes.
+        servico_id = uuid4()
+        with Session(engine_sqlite) as sessao_insert:  # type: ignore[arg-type]
+            servico = ServicoOferecido(
+                id=servico_id,
+                _nome="Troca de oleo",
+                _descricao="Troca completa",
+                _preco=Dinheiro(valor=Decimal("100.00"), moeda="BRL"),
+            )
+            sessao_insert.add(servico)
+            sessao_insert.commit()
+
+        with Session(engine_sqlite) as sessao_load:  # type: ignore[arg-type]
+            carregado = sessao_load.get(ServicoOferecido, servico_id)
+            assert carregado is not None
+            assert carregado.coletar_eventos() == []
+
     def test_update_decompoe_preco(self, engine_sqlite: object) -> None:
         servico_id = uuid4()
         with Session(engine_sqlite) as sessao_insert:  # type: ignore[arg-type]

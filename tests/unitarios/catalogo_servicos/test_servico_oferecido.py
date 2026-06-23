@@ -145,3 +145,34 @@ class TestServicoOferecido:
         s.ativar()
         s.ativar()
         assert s.ativo is True
+
+    def test_criar_emite_servico_cadastrado_event(self) -> None:
+        from src.catalogo_servicos.dominio.events import ServicoCadastradoEvent
+
+        preco = Dinheiro(valor=Decimal("100.00"))
+        s = ServicoOferecido.criar(
+            nome="Troca de oleo", descricao="Troca completa", preco=preco
+        )
+
+        assert s.nome == "Troca de oleo"
+        assert s.descricao == "Troca completa"
+        assert s.preco == preco
+        assert s.ativo is True
+        eventos = s.coletar_eventos()
+        assert [type(e) for e in eventos] == [ServicoCadastradoEvent]
+        assert eventos[0].agregado_id == s.id
+
+    def test_construtor_nao_emite_servico_cadastrado_event(self) -> None:
+        # A emissao vive em `criar`, fora do construtor/__post_init__.
+        # Construcao crua nao deve emitir ServicoCadastrado (a reconstituicao
+        # via __new__ nem passa pelo construtor) — so o cadastro real, pela
+        # factory.
+        from src.catalogo_servicos.dominio.events import ServicoCadastradoEvent
+
+        preco = Dinheiro(valor=Decimal("100.00"))
+        s = ServicoOferecido(
+            _nome="Troca de oleo", _descricao="Troca completa", _preco=preco
+        )
+
+        tipos = [type(e) for e in s.coletar_eventos()]
+        assert ServicoCadastradoEvent not in tipos

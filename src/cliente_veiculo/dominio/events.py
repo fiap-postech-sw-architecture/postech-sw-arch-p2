@@ -40,3 +40,14 @@ class ClienteAtualizadoEvent(DomainEvent):
 @dataclass(frozen=True, slots=True)
 class ClienteDesativadoEvent(DomainEvent):
     """Evento emitido quando um Cliente e desativado (soft delete)."""
+
+
+@dataclass(frozen=True, slots=True)
+class ClienteCadastradoEvent(DomainEvent):
+    """Evento emitido quando um Cliente e cadastrado (criado).
+
+    Payload intencionalmente vazio (alem de `agregado_id`/`ocorrido_em`
+    herdados): nao propaga PII (nome, documento, contato). Consumidores que
+    precisarem dos dados buscam o agregado pelo id. Emitido apenas pela factory
+    `Cliente.criar`, nunca na reconstituicao via repository.
+    """

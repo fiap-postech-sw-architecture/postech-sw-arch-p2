@@ -196,3 +196,46 @@ class TestCliente:
         representacao = repr(cliente)
         assert "Joao" not in representacao
         assert "11999999999" not in representacao
+
+    def test_criar_emite_cliente_cadastrado_event(self) -> None:
+        from src.cliente_veiculo.dominio.events import ClienteCadastradoEvent
+
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente.criar(nome="Joao", documento=cpf, contato="11999999999")
+
+        assert cliente.nome == "Joao"
+        assert cliente.documento == cpf
+        assert cliente.contato == "11999999999"
+        assert cliente.ativo is True
+        eventos = cliente.coletar_eventos()
+        assert [type(e) for e in eventos] == [ClienteCadastradoEvent]
+        assert eventos[0].agregado_id == cliente.id
+
+    def test_construtor_nao_emite_cliente_cadastrado_event(self) -> None:
+        # A emissao vive em `criar`, fora do construtor/__post_init__.
+        # Construcao crua nao deve emitir ClienteCadastrado (nem a
+        # reconstituicao via __new__ do SQLAlchemy, que nem passa pelo
+        # construtor) — so o cadastro real, pela factory.
+        from src.cliente_veiculo.dominio.events import ClienteCadastradoEvent
+
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999999999")
+
+        tipos = [type(e) for e in cliente.coletar_eventos()]
+        assert ClienteCadastradoEvent not in tipos
+
+    def test_cliente_cadastrado_event_nao_carrega_pii(self) -> None:
+        from src.cliente_veiculo.dominio.events import ClienteCadastradoEvent
+
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente.criar(nome="Joao", documento=cpf, contato="11999999999")
+
+        evento = next(
+            e
+            for e in cliente.coletar_eventos()
+            if isinstance(e, ClienteCadastradoEvent)
+        )
+        # Evento de criacao carrega so agregado_id/ocorrido_em (herdados),
+        # nunca PII como nome ou contato.
+        assert not hasattr(evento, "nome")
+        assert not hasattr(evento, "contato")
