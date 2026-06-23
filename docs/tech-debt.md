@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../README.md)
 
-> **Versão**: 1.2 — Reconciliado com o código em 2026-06-22: TD-003 e TD-017 fechados (já implementados); TD-002/004/005/008/009/016 corrigidos para refletir o estado real do código.
+> **Versão**: 1.3 — TD-019 fechado (PR #50: ports de hasher/JWT na autenticação). Versão 1.2 (2026-06-22): reconciliação com o código — TD-003/TD-017 fechados, TD-002/004/005/008/009/016 corrigidos.
 
 Simplificações deliberadas cujo custo de correção é aceito para o escopo do MVP.
 
@@ -24,6 +24,7 @@ Classificação por tipo:
 | TD-012 | Segurança | Sem SBOM automatizado no CI (geração manual) | **Fechado** — job `sbom` no [ci.yml](../.github/workflows/ci.yml) gera o SBOM CycloneDX a partir do lockfile a cada run e publica como artefato; alvo `make sbom` para geração local ([ADR-012](arquitetura/adr/012-licenciamento-software-sbom.md)). |
 | TD-003 | Infra | Sem CSP headers (Content-Security-Policy) | **Fechado** — `SecurityHeadersMiddleware` aplica `Content-Security-Policy: default-src 'none'` em toda resposta (exceto as rotas de docs do Swagger/ReDoc, que precisam de inline scripts), além de `X-Frame-Options: DENY`, HSTS, `X-Content-Type-Options: nosniff` e `Cache-Control: no-store` ([middleware.py](../src/compartilhado/interfaces/middleware.py)); coberto por `tests/unitarios/test_security.py` e `tests/unitarios/compartilhado/test_middleware.py`. |
 | TD-017 | Observabilidade | Traces capturavam a query string (CPF/placa) — PII no OTel | **Fechado** (#34) — `_redigir_pii_da_span` (server_request_hook do `FastAPIInstrumentor`) redige `url.query` e remove a query de `http.target`/`url.path` antes do export dos spans ([observability.py](../src/compartilhado/infraestrutura/observability.py)). |
+| TD-019 | Arquitetura | `aplicacao → infraestrutura` na autenticação fora do contrato forbidden | **Fechado** (#50) — `PasswordHasherPort` + `JWTServicePort` em [aplicacao/ports.py](../src/autenticacao/aplicacao/ports.py) (Protocol); a infra implementa e o composition root injeta por DI. O contrato `forbidden` do import-linter passou a proibir `aplicacao → infraestrutura` em todos os contextos, verificado por `make lint-arch`/CI (RNF-017). |
 
 | # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
 |---|---|---|---|---|---|---|---|---|
@@ -62,7 +63,6 @@ Débitos assumidos durante a fase 2 (infra Kubernetes, CI/CD, observabilidade e 
 | TD-015 | Infra | Corrida de migração com múltiplas réplicas (alembic no entrypoint) | Deliberado | Média | Médio | Sim | Estável | O `entrypoint.sh` roda `alembic upgrade head` no boot; duas réplicas subindo juntas poderiam disputar a migração. Mitigação atual: rollout inicial com réplica única (`replicas: 1` explícito no Deployment) antes de o HPA escalar. Evolução: Job dedicado de migração no deploy ([ADR-019](arquitetura/adr/fase2/019-pipeline-cicd-deploy.md)). Rastreado em #33. |
 | TD-016 | Infra | Rate limiter slowapi in-memory por pod | Deliberado | Média | Médio | Sim | Crescente | A metade do RNF-024 relativa ao **pool de conexões** já foi entregue (`DB_POOL_SIZE`/`DB_MAX_OVERFLOW` em [database.py](../src/compartilhado/infraestrutura/database.py), #32 fechada). Resta o **rate limiter**: o contador do slowapi vive na memória de cada pod ([middleware.py](../src/compartilhado/interfaces/middleware.py)), então sob HPA o limite efetivo é multiplicado pelo número de réplicas. Aceitável no cluster de demo; evolução é backend compartilhado (Redis via `storage_uri`) com mais de uma réplica estável. Rastreado em #31. |
 | TD-018 | Infra | `db-image/` no GHCR ainda com imagens da fase 1 | Deliberado | Baixa | Baixo | Não | Estável | As imagens publicadas do fast-check não contêm RF-020..024 nem Mailpit; o README já rebaixa o atalho a "demo da fase 1" com aviso explícito. Republicar como `-p2` é opcional futuro (pós-banca). |
-| TD-019 | Arquitetura | `aplicacao → infraestrutura` na autenticação fora do contrato forbidden | Deliberado | Baixa | Baixo | Não | Estável | `src/autenticacao/aplicacao/use_cases.py` importa `password_hasher`/`jwt_service` da infraestrutura do próprio contexto, o que impede estender o contrato forbidden do import-linter para proibir `aplicacao → infraestrutura` globalmente (finding do I1). O domínio segue protegido; corrigir exige extrair ports para o hasher e o JWT. Rastreado em #35. |
 
 ## Considerações de Complexidade Algorítmica
 
