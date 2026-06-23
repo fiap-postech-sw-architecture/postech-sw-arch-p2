@@ -63,9 +63,10 @@ class Cliente(AggregateRoot):
     def criar(cls, *, nome: str, documento: Documento, contato: str) -> Cliente:
         """Factory de cadastro: constroi o Cliente e registra o evento de criacao.
 
-        Diferente do construtor (usado tambem na reconstituicao pelo
-        repository), `criar` emite `ClienteCadastradoEvent` — assim o cadastro
-        real dispara o evento e o load do banco nao.
+        A emissao do `ClienteCadastradoEvent` vive aqui, e nao no
+        construtor/`__post_init__`. Assim so o cadastro real (via `criar`)
+        emite: construcao crua e a reconstituicao do repository (que passa por
+        `__new__`, sem `__init__`) ficam sem evento.
         """
         cliente = cls(_nome=nome, _documento=documento, _contato=contato)
         cliente._registrar_evento(ClienteCadastradoEvent(agregado_id=cliente.id))

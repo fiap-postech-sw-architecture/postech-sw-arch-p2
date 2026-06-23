@@ -212,9 +212,10 @@ class TestCliente:
         assert eventos[0].agregado_id == cliente.id
 
     def test_construtor_nao_emite_cliente_cadastrado_event(self) -> None:
-        # A reconstituicao pelo repository usa o construtor cru; ele NAO pode
-        # emitir ClienteCadastrado, senao todo load do banco re-emitiria o
-        # evento de criacao. Apenas a factory `criar` emite.
+        # A emissao vive em `criar`, fora do construtor/__post_init__.
+        # Construcao crua nao deve emitir ClienteCadastrado (nem a
+        # reconstituicao via __new__ do SQLAlchemy, que nem passa pelo
+        # construtor) — so o cadastro real, pela factory.
         from src.cliente_veiculo.dominio.events import ClienteCadastradoEvent
 
         cpf = CPF(numero=CPF_VALIDO)

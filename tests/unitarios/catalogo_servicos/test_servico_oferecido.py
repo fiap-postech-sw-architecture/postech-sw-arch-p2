@@ -163,8 +163,10 @@ class TestServicoOferecido:
         assert eventos[0].agregado_id == s.id
 
     def test_construtor_nao_emite_servico_cadastrado_event(self) -> None:
-        # Reconstituicao via repository usa o construtor cru -> sem evento,
-        # senao todo load do banco re-emitiria o evento de criacao.
+        # A emissao vive em `criar`, fora do construtor/__post_init__.
+        # Construcao crua nao deve emitir ServicoCadastrado (a reconstituicao
+        # via __new__ nem passa pelo construtor) — so o cadastro real, pela
+        # factory.
         from src.catalogo_servicos.dominio.events import ServicoCadastradoEvent
 
         preco = Dinheiro(valor=Decimal("100.00"))
