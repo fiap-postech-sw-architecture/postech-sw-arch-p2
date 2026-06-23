@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../README.md)
 
-> **Versão**: 1.1 — Fase 1 MVP + débitos assumidos no fechamento da fase 2.
+> **Versão**: 1.2 — Reconciliado com o código em 2026-06-22: TD-003 e TD-017 fechados (já implementados); TD-002/004/005/008/009/016 corrigidos para refletir o estado real do código.
 
 Simplificações deliberadas cujo custo de correção é aceito para o escopo do MVP.
 
@@ -22,15 +22,14 @@ Classificação por tipo:
 | TD-001 | Segurança | Sem mecanismo de consentimento explícito LGPD | **Fechado** — Implementado no MVP via RF-019: endpoints `POST/DELETE /clientes/{id}/consentimento` com entidade `ConsentimentoCliente`. |
 | TD-020 | UI | Listagem da `ui/` não mostrava OS encerradas por default pós RF-023 | **Fechado** — PR #28: a `ui/` ganhou o toggle "Mostrar encerradas" (passa `incluir_encerradas`), os badges passam a exibir `situacao` (RF-021) e o dialog de nova OS aceita serviços/peças inline (RF-020). |
 | TD-012 | Segurança | Sem SBOM automatizado no CI (geração manual) | **Fechado** — job `sbom` no [ci.yml](../.github/workflows/ci.yml) gera o SBOM CycloneDX a partir do lockfile a cada run e publica como artefato; alvo `make sbom` para geração local ([ADR-012](arquitetura/adr/012-licenciamento-software-sbom.md)). |
-
-## Itens Abertos
+| TD-003 | Infra | Sem CSP headers (Content-Security-Policy) | **Fechado** — `SecurityHeadersMiddleware` aplica `Content-Security-Policy: default-src 'none'` em toda resposta (exceto as rotas de docs do Swagger/ReDoc, que precisam de inline scripts), além de `X-Frame-Options: DENY`, HSTS, `X-Content-Type-Options: nosniff` e `Cache-Control: no-store` ([middleware.py](../src/compartilhado/interfaces/middleware.py)); coberto por `tests/unitarios/test_security.py` e `tests/unitarios/compartilhado/test_middleware.py`. |
+| TD-017 | Observabilidade | Traces capturavam a query string (CPF/placa) — PII no OTel | **Fechado** (#34) — `_redigir_pii_da_span` (server_request_hook do `FastAPIInstrumentor`) redige `url.query` e remove a query de `http.target`/`url.path` antes do export dos spans ([observability.py](../src/compartilhado/infraestrutura/observability.py)). |
 
 | # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
 |---|---|---|---|---|---|---|---|---|
-| TD-002 | Domínio | Sem histórico de orçamentos (substituição total do JSONB) | Deliberado | Baixa | Baixo | Não | Estável | Orçamento existe como Value Object imutável, mas sem versionamento em array JSONB com timestamp. Funcionalidade parcial aceita. RF-017 (Could Have). |
-| TD-003 | Infra | Sem CSP headers (Content-Security-Policy) | Deliberado | Baixa | Baixo | Não | Estável | Boa prática de segurança, mas sem front-end servido pela API o impacto é mínimo. Headers básicos (X-Content-Type-Options, HSTS) estão presentes (RNF-004). |
-| TD-004 | API | Notificações via stub (LogNotificacaoAdapter) | Deliberado | Baixa | Baixo | Não | Estável | Decisão consciente: o sistema funciona sem notificações reais (push, email, SMS). O adapter de log permite evolução futura sem mudança no domínio. [ADR-003](arquitetura/adr/003-arquitetura-ddd-onion.md): inversão de dependência viabiliza a troca sem impacto no domínio. |
-| TD-005 | Domínio | Orçamento JSONB sem índices GIN | Planejado | Baixa | Médio | Não | Crescente | Performance aceitável no MVP com volume baixo de dados. Índices GIN seriam otimização prematura sem métricas de produção. A ser reavaliado com dados reais. |
+| TD-002 | Domínio | Sem histórico de orçamentos (snapshot único substitui o anterior) | Deliberado | Baixa | Baixo | Não | Estável | Orçamento é um Value Object imutável persistido como snapshot único na coluna `orcamento_json` — cada novo orçamento substitui o anterior, sem versionamento nem timestamp. Funcionalidade parcial aceita. RF-017 (Could Have). |
+| TD-004 | API | Sem notificações push/SMS (e-mail já implementado) | Deliberado | Baixa | Baixo | Não | Estável | RF-024 entregou notificação real por **e-mail** (`EmailPort` + `SmtpEmailAdapter`; Mailpit no compose). Push e SMS seguem fora do escopo do MVP; a inversão de dependência ([ADR-003](arquitetura/adr/003-arquitetura-ddd-onion.md)) permite adicioná-los sem tocar no domínio. |
+| TD-005 | Domínio | Orçamento em coluna Text, sem consulta estruturada nem índice | Planejado | Baixa | Médio | Não | Crescente | O snapshot do orçamento é persistido como **Text** (`orcamento_json`), não `jsonb` — logo não há query estruturada nem índice GIN. Aceitável no MVP (o orçamento é lido junto da OS, nunca filtrado). Evolução só se surgir necessidade real: migrar a coluna para `jsonb` e então indexar com GIN. |
 | TD-006 | Testes | Mutation testing como meta, não requisito hard | Deliberado | Baixa | Baixo | Não | Estável | Cobertura de linha (90%+) e branch (85%+) nos domínios principais já garante qualidade. Mutmut é bônus para validação adicional. [ADR-005](arquitetura/adr/005-estrategia-testes.md) documenta a estratégia. |
 
 ## DDD Tactical Compliance
@@ -40,8 +39,8 @@ Débitos aceitáveis no MVP relacionados à conformidade tática do DDD:
 | # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
 |---|---|---|---|---|---|---|---|---|
 | TD-007 | Domínio | Value Objects com validação mínima | Deliberado | Baixa | Baixo | Não | Estável | `not-null` e tipo correto são obrigatórios. Validação completa de formato (ex: dígito verificador do CPF) é deferida para brutils ([ADR-010](arquitetura/adr/010-validacao-documentos-brutils.md)). |
-| TD-008 | Domínio | Dispatch síncrono de domain events | Planejado | Média | Médio | Sim | Crescente | O mecanismo de dispatch é deferido (RF-018 Transactional Outbox, Could Have); o payload dos eventos não é — cada evento deve carregar `agregado_id`, `ocorrido_em` e campos alterados conforme `DomainEvent` base. |
-| TD-009 | Domínio | Eventos mapeados no event storming sem emissão no código | Planejado | Baixa | Baixo | Não | Crescente | Eventos identificados mas ainda sem emissão: `ClienteCadastrado`, `VeiculoAdicionado`, `EstoqueReservado`, `EstoqueLiberado`, `ServicoCadastrado`. A serem implementados com o mecanismo de dispatch (TD-008). |
+| TD-008 | Domínio | Dispatch de domain events síncrono e in-process (sem outbox) | Planejado | Média | Médio | Sim | Estável | O `EventDispatcher` ([aplicacao/dispatcher.py](../src/ordem_servico/aplicacao/dispatcher.py)) já despacha os eventos de domínio de forma síncrona e in-process, pós-commit. O que segue deferido é o **Transactional Outbox** (RF-018, Could Have) para entrega assíncrona e durável; sob falha de handler a entrega não é re-tentada. O payload já segue o `DomainEvent` base (`agregado_id`, `ocorrido_em`). |
+| TD-009 | Domínio | Dois eventos de criação do event storming sem classe nem emissão | Planejado | Baixa | Baixo | Não | Estável | A maioria dos eventos já é emitida via `_registrar_evento` e despachada (TD-008): `VeiculoAdicionadoEvent`, `EstoqueReservadoEvent`, `EstoqueLiberadoEvent` (além de `ClienteDesativadoEvent`/`ClienteAtualizadoEvent`). Faltam apenas os eventos de criação `ClienteCadastrado` e `ServicoCadastrado`, que nunca chegaram a ser implementados como classes. |
 
 ## Segurança e Qualidade
 
@@ -61,8 +60,7 @@ Débitos assumidos durante a fase 2 (infra Kubernetes, CI/CD, observabilidade e 
 | # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
 |---|---|---|---|---|---|---|---|---|
 | TD-015 | Infra | Corrida de migração com múltiplas réplicas (alembic no entrypoint) | Deliberado | Média | Médio | Sim | Estável | O `entrypoint.sh` roda `alembic upgrade head` no boot; duas réplicas subindo juntas poderiam disputar a migração. Mitigação atual: rollout inicial com réplica única (`replicas: 1` explícito no Deployment) antes de o HPA escalar. Evolução: Job dedicado de migração no deploy ([ADR-019](arquitetura/adr/fase2/019-pipeline-cicd-deploy.md)). Rastreado em #33. |
-| TD-016 | Infra | Rate limiter slowapi in-memory por pod | Deliberado | Média | Médio | Sim | Crescente | RNF-024 atendido parcialmente: o contador do slowapi vive na memória de cada pod, então sob HPA o limite efetivo é multiplicado pelo número de réplicas. Aceitável no cluster de demo; evolução é backend compartilhado (Redis) quando houver mais de uma réplica estável. Rastreado em #31 (rate limiter) e #32 (pool de conexões) — ambos compõem o RNF-024 parcial. |
-| TD-017 | Observabilidade | Traces capturam a query string do acompanhamento (CPF/placa) | Deliberado | Média | Médio | Sim | Estável | A instrumentação FastAPI do OTel registra `url.query` nos spans, e a consulta pública de acompanhamento passa `placa`/`documento` como query params — PII chega ao Jaeger. Aceito porque o OTel é opt-in de demo (default OFF). Se sair da demo, mitigar com `server_request_hook` redigindo a query ([ADR-020](arquitetura/adr/fase2/020-observabilidade-opentelemetry.md)). Rastreado em #34. |
+| TD-016 | Infra | Rate limiter slowapi in-memory por pod | Deliberado | Média | Médio | Sim | Crescente | A metade do RNF-024 relativa ao **pool de conexões** já foi entregue (`DB_POOL_SIZE`/`DB_MAX_OVERFLOW` em [database.py](../src/compartilhado/infraestrutura/database.py), #32 fechada). Resta o **rate limiter**: o contador do slowapi vive na memória de cada pod ([middleware.py](../src/compartilhado/interfaces/middleware.py)), então sob HPA o limite efetivo é multiplicado pelo número de réplicas. Aceitável no cluster de demo; evolução é backend compartilhado (Redis via `storage_uri`) com mais de uma réplica estável. Rastreado em #31. |
 | TD-018 | Infra | `db-image/` no GHCR ainda com imagens da fase 1 | Deliberado | Baixa | Baixo | Não | Estável | As imagens publicadas do fast-check não contêm RF-020..024 nem Mailpit; o README já rebaixa o atalho a "demo da fase 1" com aviso explícito. Republicar como `-p2` é opcional futuro (pós-banca). |
 | TD-019 | Arquitetura | `aplicacao → infraestrutura` na autenticação fora do contrato forbidden | Deliberado | Baixa | Baixo | Não | Estável | `src/autenticacao/aplicacao/use_cases.py` importa `password_hasher`/`jwt_service` da infraestrutura do próprio contexto, o que impede estender o contrato forbidden do import-linter para proibir `aplicacao → infraestrutura` globalmente (finding do I1). O domínio segue protegido; corrigir exige extrair ports para o hasher e o JWT. Rastreado em #35. |
 
@@ -78,7 +76,7 @@ Complexidade das operações principais do sistema.
 | Cálculo de média de execução | O(n) | Agregação SQL | `AVG()` sobre OS finalizadas. Aceitável com índice em `status` + `finalizado_em`. |
 | Validação de CPF/CNPJ | O(1) | Cálculo aritmético | Dígitos verificadores calculados em tempo constante (brutils). |
 
-Otimizações (índices GIN para JSONB -- TD-005, particionamento) a avaliar com dados reais de produção.
+Otimizações (migrar `orcamento_json` de Text para `jsonb` + índice GIN -- TD-005, particionamento) a avaliar com dados reais de produção.
 
 ## Estratégia de Pagamento
 
