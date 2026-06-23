@@ -79,6 +79,25 @@ class FakePasswordHasher:
         return senha_hash == f"hashed::{senha_plana}"
 
 
+class FakeJWTService:
+    """Spy de `JWTServicePort` para provar que o use case usa o port injetado."""
+
+    def __init__(self) -> None:
+        self.access_calls = 0
+        self.refresh_calls = 0
+
+    def gerar_access_token(self, usuario_id: UUID, email: str, papel: str) -> str:
+        self.access_calls += 1
+        return "fake-access"
+
+    def gerar_refresh_token(self, usuario_id: UUID) -> str:
+        self.refresh_calls += 1
+        return "fake-refresh"
+
+    def validar_token(self, token: str) -> dict[str, object]:
+        return {}
+
+
 class TestRegistrar:
     def test_sucesso(self) -> None:
         repo = FakeUsuarioRepository()
@@ -159,6 +178,23 @@ class TestLogin:
         uc = Login(repo=repo, jwt_service=jwt_svc, password_hasher=PasswordHasher())
         with pytest.raises(CredenciaisInvalidasException):
             uc.executar(LoginDTO(email="test@test.com", senha="erradaerrada1"))
+
+    def test_usa_os_ports_injetados(self) -> None:
+        # Prova a inversao (TD-019): o Login delega a verificacao ao
+        # PasswordHasherPort e a emissao de tokens ao JWTServicePort injetados,
+        # sem acoplar a infraestrutura. Com hasher real o senha_hash "hashed::.."
+        # nem validaria; com JWT real os tokens nao seriam "fake-*".
+        repo = FakeUsuarioRepository()
+        usuario = Usuario.criar(email="a@b.com", senha_hash="hashed::senhaforte1234")
+        repo.salvar(usuario)
+        hasher = FakePasswordHasher()
+        jwt = FakeJWTService()
+        uc = Login(repo=repo, jwt_service=jwt, password_hasher=hasher)
+        result = uc.executar(LoginDTO(email="a@b.com", senha="senhaforte1234"))
+        assert result.access_token == "fake-access"
+        assert result.refresh_token == "fake-refresh"
+        assert jwt.access_calls == 1
+        assert jwt.refresh_calls == 1
 
 
 class TestLogout:
