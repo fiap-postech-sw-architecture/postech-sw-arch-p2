@@ -123,7 +123,7 @@ class CriarCliente:
         if self._repo.obter_por_documento(documento) is not None:
             raise DocumentoDuplicadoException()
 
-        cliente = Cliente(_nome=dto.nome, _documento=documento, _contato=dto.contato)
+        cliente = Cliente.criar(nome=dto.nome, documento=documento, contato=dto.contato)
         self._salvar_com_commit(cliente)
         return _cliente_dto(cliente)
 

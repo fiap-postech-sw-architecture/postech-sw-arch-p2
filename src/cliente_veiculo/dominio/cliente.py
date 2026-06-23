@@ -5,6 +5,7 @@ from typing import TYPE_CHECKING
 
 from src.cliente_veiculo.dominio.events import (
     ClienteAtualizadoEvent,
+    ClienteCadastradoEvent,
     ClienteDesativadoEvent,
     VeiculoAdicionadoEvent,
     VeiculoRemovidoEvent,
@@ -57,6 +58,18 @@ class Cliente(AggregateRoot):
         if self._documento is None:
             msg = "Documento do cliente e obrigatorio"
             raise ValueError(msg)
+
+    @classmethod
+    def criar(cls, *, nome: str, documento: Documento, contato: str) -> Cliente:
+        """Factory de cadastro: constroi o Cliente e registra o evento de criacao.
+
+        Diferente do construtor (usado tambem na reconstituicao pelo
+        repository), `criar` emite `ClienteCadastradoEvent` — assim o cadastro
+        real dispara o evento e o load do banco nao.
+        """
+        cliente = cls(_nome=nome, _documento=documento, _contato=contato)
+        cliente._registrar_evento(ClienteCadastradoEvent(agregado_id=cliente.id))
+        return cliente
 
     @property
     def nome(self) -> str:

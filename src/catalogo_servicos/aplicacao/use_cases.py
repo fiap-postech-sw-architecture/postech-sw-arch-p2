@@ -43,8 +43,8 @@ class CriarServico:
         )
 
         preco = Dinheiro(valor=dto.preco)
-        servico = ServicoOferecido(
-            _nome=dto.nome, _descricao=dto.descricao, _preco=preco
+        servico = ServicoOferecido.criar(
+            nome=dto.nome, descricao=dto.descricao, preco=preco
         )
         with self._uow:
             self._repo.salvar(servico)
