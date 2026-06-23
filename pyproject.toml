@@ -152,10 +152,10 @@ known-first-party = ["src", "ui"]
 # Clean Architecture e verificada por lint (`make lint-arch` / CI).
 # `infraestrutura` (Frameworks & Drivers) fica fora do contrato de camadas
 # porque importa `aplicacao`/`dominio` legitimamente — adapters implementam
-# ports definidos pelas camadas internas; o sentido proibido (dominio ->
-# infraestrutura) e coberto pelo contrato forbidden. `compartilhado` e shared
-# kernel, nao contexto delimitado: fica fora dos containers de camadas, mas o
-# seu `dominio` entra no forbidden pelo mesmo motivo dos demais.
+# ports definidos pelas camadas internas; o sentido proibido (dominio e
+# aplicacao -> infraestrutura) e coberto pelo contrato forbidden. `compartilhado`
+# e shared kernel, nao contexto delimitado: fica fora dos containers de camadas,
+# mas seu `dominio` e sua `aplicacao` entram no forbidden pelos mesmos motivos.
 [tool.importlinter]
 root_packages = ["src"]
 
@@ -172,7 +172,7 @@ containers = [
 ]
 
 [[tool.importlinter.contracts]]
-name = "Dominio nao importa infraestrutura de nenhum contexto"
+name = "Dominio e aplicacao nao importam infraestrutura de nenhum contexto"
 type = "forbidden"
 source_modules = [
     "src.cliente_veiculo.dominio",
@@ -181,6 +181,12 @@ source_modules = [
     "src.ordem_servico.dominio",
     "src.autenticacao.dominio",
     "src.compartilhado.dominio",
+    "src.cliente_veiculo.aplicacao",
+    "src.catalogo_servicos.aplicacao",
+    "src.estoque.aplicacao",
+    "src.ordem_servico.aplicacao",
+    "src.autenticacao.aplicacao",
+    "src.compartilhado.aplicacao",
 ]
 forbidden_modules = [
     "src.cliente_veiculo.infraestrutura",
