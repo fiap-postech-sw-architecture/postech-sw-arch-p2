@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../README.md)
 
-> **Versão**: 1.3 — TD-019 fechado (PR #50: ports de hasher/JWT na autenticação). Versão 1.2 (2026-06-22): reconciliação com o código — TD-003/TD-017 fechados, TD-002/004/005/008/009/016 corrigidos.
+> **Versão**: 1.4 — dep `mutmut` removido (3.x quebrado); TD-006 sem tooling. Versão 1.3: TD-019 fechado (PR #50). Versão 1.2 (2026-06-22): reconciliação com o código (TD-003/TD-017 fechados, TD-002/004/005/008/009/016 corrigidos).
 
 Simplificações deliberadas cujo custo de correção é aceito para o escopo do MVP.
 
@@ -31,7 +31,7 @@ Classificação por tipo:
 | TD-002 | Domínio | Sem histórico de orçamentos (snapshot único substitui o anterior) | Deliberado | Baixa | Baixo | Não | Estável | Orçamento é um Value Object imutável persistido como snapshot único na coluna `orcamento_json` — cada novo orçamento substitui o anterior, sem versionamento nem timestamp. Funcionalidade parcial aceita. RF-017 (Could Have). |
 | TD-004 | API | Sem notificações push/SMS (e-mail já implementado) | Deliberado | Baixa | Baixo | Não | Estável | RF-024 entregou notificação real por **e-mail** (`EmailPort` + `SmtpEmailAdapter`; Mailpit no compose). Push e SMS seguem fora do escopo do MVP; a inversão de dependência ([ADR-003](arquitetura/adr/003-arquitetura-ddd-onion.md)) permite adicioná-los sem tocar no domínio. |
 | TD-005 | Domínio | Orçamento em coluna Text, sem consulta estruturada nem índice | Planejado | Baixa | Médio | Não | Crescente | O snapshot do orçamento é persistido como **Text** (`orcamento_json`), não `jsonb` — logo não há query estruturada nem índice GIN. Aceitável no MVP (o orçamento é lido junto da OS, nunca filtrado). Evolução só se surgir necessidade real: migrar a coluna para `jsonb` e então indexar com GIN. |
-| TD-006 | Testes | Mutation testing como meta, não requisito hard | Deliberado | Baixa | Baixo | Não | Estável | Cobertura de linha (90%+) e branch (85%+) nos domínios principais já garante qualidade. Mutmut é bônus para validação adicional. [ADR-005](arquitetura/adr/005-estrategia-testes.md) documenta a estratégia. |
+| TD-006 | Testes | Mutation testing como meta, não requisito hard (sem tooling no momento) | Deliberado | Baixa | Baixo | Não | Estável | Cobertura de linha (90%+) e branch (85%+) nos domínios principais já garante qualidade. O dep `mutmut` foi **removido**: a série 3.x quebra na inicialização (`copy_src_dir` varre a raiz do filesystem). Mutation testing fica sem ferramenta até pinar uma versão funcional, quando virar prioridade. [ADR-005](arquitetura/adr/005-estrategia-testes.md) documenta a estratégia. |
 
 ## DDD Tactical Compliance
 

@@ -26,7 +26,6 @@ test = [
     "testcontainers[postgres]>=4.0",
     "polyfactory>=2.0",
     "httpx>=0.27",
-    "mutmut>=3.0",
     "ruff>=0.8",
     "mypy>=1.13",
     "bandit>=1.7",
