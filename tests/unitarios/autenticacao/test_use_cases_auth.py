@@ -14,7 +14,7 @@ from src.autenticacao.dominio.exceptions import (
 )
 from src.autenticacao.dominio.usuario import Usuario
 from src.autenticacao.infraestrutura.jwt_service import JWTService
-from src.autenticacao.infraestrutura.password_hasher import hash_senha
+from src.autenticacao.infraestrutura.password_hasher import PasswordHasher, hash_senha
 
 
 class FakeUnitOfWork:
@@ -65,11 +65,25 @@ class FakeTokenRevogadoRepository:
         return jti in self._revogados
 
 
+class FakePasswordHasher:
+    """Spy de `PasswordHasherPort` para provar que o use case usa o port injetado."""
+
+    def __init__(self) -> None:
+        self.hashed: list[str] = []
+
+    def hash_senha(self, senha: str) -> str:
+        self.hashed.append(senha)
+        return f"hashed::{senha}"
+
+    def verificar_senha(self, senha_plana: str, senha_hash: str) -> bool:
+        return senha_hash == f"hashed::{senha_plana}"
+
+
 class TestRegistrar:
     def test_sucesso(self) -> None:
         repo = FakeUsuarioRepository()
         uow = FakeUnitOfWork()
-        uc = Registrar(repo=repo, uow=uow)
+        uc = Registrar(repo=repo, uow=uow, password_hasher=PasswordHasher())
         dto = RegistrarDTO(email="test@test.com", senha="senhaforte1234")
         result = uc.executar(dto)
         assert result.email == "test@test.com"
@@ -78,11 +92,24 @@ class TestRegistrar:
     def test_email_duplicado(self) -> None:
         repo = FakeUsuarioRepository()
         uow = FakeUnitOfWork()
-        uc = Registrar(repo=repo, uow=uow)
+        uc = Registrar(repo=repo, uow=uow, password_hasher=PasswordHasher())
         dto = RegistrarDTO(email="test@test.com", senha="senhaforte1234")
         uc.executar(dto)
         with pytest.raises(EmailDuplicadoException):
             uc.executar(dto)
+
+    def test_usa_o_password_hasher_injetado(self) -> None:
+        # Prova a inversao de dependencia (TD-019): o use case delega ao port
+        # injetado, sem importar a infraestrutura de hashing.
+        repo = FakeUsuarioRepository()
+        uow = FakeUnitOfWork()
+        hasher = FakePasswordHasher()
+        uc = Registrar(repo=repo, uow=uow, password_hasher=hasher)
+        uc.executar(RegistrarDTO(email="a@b.com", senha="senhaforte1234"))
+        assert hasher.hashed == ["senhaforte1234"]
+        usuario = repo.obter_por_email("a@b.com")
+        assert usuario is not None
+        assert usuario.senha_hash == "hashed::senhaforte1234"
 
 
 class TestLogin:
@@ -93,7 +120,7 @@ class TestLogin:
         )
         repo.salvar(usuario)
         jwt_svc = JWTService(chave_secreta="test-secret")
-        uc = Login(repo=repo, jwt_service=jwt_svc)
+        uc = Login(repo=repo, jwt_service=jwt_svc, password_hasher=PasswordHasher())
         dto = LoginDTO(email="test@test.com", senha="senhaforte1234")
         result = uc.executar(dto)
         assert result.access_token
@@ -107,7 +134,7 @@ class TestLogin:
         )
         repo.salvar(usuario)
         jwt_svc = JWTService(chave_secreta="test-secret")
-        uc = Login(repo=repo, jwt_service=jwt_svc)
+        uc = Login(repo=repo, jwt_service=jwt_svc, password_hasher=PasswordHasher())
         dto = LoginDTO(email="test@test.com", senha="senhaforte1234")
         result = uc.executar(dto)
         access_payload = jwt_svc.validar_token(result.access_token)
@@ -118,7 +145,7 @@ class TestLogin:
     def test_email_nao_encontrado(self) -> None:
         repo = FakeUsuarioRepository()
         jwt_svc = JWTService(chave_secreta="test-secret")
-        uc = Login(repo=repo, jwt_service=jwt_svc)
+        uc = Login(repo=repo, jwt_service=jwt_svc, password_hasher=PasswordHasher())
         with pytest.raises(CredenciaisInvalidasException):
             uc.executar(LoginDTO(email="x@x.com", senha="senhaerrada12"))
 
@@ -129,7 +156,7 @@ class TestLogin:
         )
         repo.salvar(usuario)
         jwt_svc = JWTService(chave_secreta="test-secret")
-        uc = Login(repo=repo, jwt_service=jwt_svc)
+        uc = Login(repo=repo, jwt_service=jwt_svc, password_hasher=PasswordHasher())
         with pytest.raises(CredenciaisInvalidasException):
             uc.executar(LoginDTO(email="test@test.com", senha="erradaerrada1"))
 

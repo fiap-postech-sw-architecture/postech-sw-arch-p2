@@ -20,3 +20,18 @@ def hash_senha(senha: str) -> str:
 
 def verificar_senha(senha_plana: str, senha_hash: str) -> bool:
     return _hasher.verify(senha_plana, senha_hash)
+
+
+class PasswordHasher:
+    """Adapter de `PasswordHasherPort` sobre pwdlib (bcrypt).
+
+    Delega para as funcoes de modulo `hash_senha`/`verificar_senha`, expondo-as
+    como uma instancia injetavel na camada de aplicacao (que depende do port,
+    nunca deste modulo).
+    """
+
+    def hash_senha(self, senha: str) -> str:
+        return hash_senha(senha)
+
+    def verificar_senha(self, senha_plana: str, senha_hash: str) -> bool:
+        return verificar_senha(senha_plana, senha_hash)

@@ -4,6 +4,7 @@ import os
 from typing import TYPE_CHECKING
 
 from src.autenticacao.infraestrutura.jwt_service import JWTService
+from src.autenticacao.infraestrutura.password_hasher import PasswordHasher
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -35,6 +36,7 @@ def obter_registrar(session: Session) -> Registrar:
     return Registrar(
         repo=UsuarioSQLAlchemyRepository(session=session),
         uow=SQLAlchemyUnitOfWork(session_factory=lambda: session),
+        password_hasher=PasswordHasher(),
     )
 
 
@@ -47,6 +49,7 @@ def obter_login(session: Session) -> Login:
     return Login(
         repo=UsuarioSQLAlchemyRepository(session=session),
         jwt_service=obter_jwt_service(),
+        password_hasher=PasswordHasher(),
     )
 
 

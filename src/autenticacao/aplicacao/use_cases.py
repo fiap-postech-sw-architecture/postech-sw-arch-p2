@@ -11,30 +11,32 @@ from src.autenticacao.dominio.exceptions import (
     TokenRevogadoException,
 )
 from src.autenticacao.dominio.usuario import Usuario
-from src.autenticacao.infraestrutura.password_hasher import (
-    hash_senha,
-    verificar_senha,
-)
 
 if TYPE_CHECKING:
     from src.autenticacao.aplicacao.dtos import LoginDTO, RegistrarDTO
+    from src.autenticacao.aplicacao.ports import JWTServicePort, PasswordHasherPort
     from src.autenticacao.dominio.repository import (
         TokenRevogadoRepository,
         UsuarioRepository,
     )
-    from src.autenticacao.infraestrutura.jwt_service import JWTService
     from src.compartilhado.aplicacao.unit_of_work import UnitOfWork
 
 
 class Registrar:
-    def __init__(self, repo: UsuarioRepository, uow: UnitOfWork) -> None:
+    def __init__(
+        self,
+        repo: UsuarioRepository,
+        uow: UnitOfWork,
+        password_hasher: PasswordHasherPort,
+    ) -> None:
         self._repo = repo
         self._uow = uow
+        self._password_hasher = password_hasher
 
     def executar(self, dto: RegistrarDTO) -> UsuarioDTO:
         if self._repo.email_existe(dto.email):
             raise EmailDuplicadoException()
-        senha_hash = hash_senha(dto.senha)
+        senha_hash = self._password_hasher.hash_senha(dto.senha)
         usuario = Usuario.criar(email=dto.email, senha_hash=senha_hash)
         with self._uow:
             self._repo.salvar(usuario)
@@ -43,15 +45,21 @@ class Registrar:
 
 
 class Login:
-    def __init__(self, repo: UsuarioRepository, jwt_service: JWTService) -> None:
+    def __init__(
+        self,
+        repo: UsuarioRepository,
+        jwt_service: JWTServicePort,
+        password_hasher: PasswordHasherPort,
+    ) -> None:
         self._repo = repo
         self._jwt_service = jwt_service
+        self._password_hasher = password_hasher
 
     def executar(self, dto: LoginDTO) -> TokenDTO:
         usuario = self._repo.obter_por_email(dto.email)
         if usuario is None:
             raise CredenciaisInvalidasException()
-        if not verificar_senha(dto.senha, usuario.senha_hash):
+        if not self._password_hasher.verificar_senha(dto.senha, usuario.senha_hash):
             raise CredenciaisInvalidasException()
         access = self._jwt_service.gerar_access_token(
             usuario_id=usuario.id,
@@ -67,7 +75,7 @@ class Login:
 class Logout:
     def __init__(
         self,
-        jwt_service: JWTService,
+        jwt_service: JWTServicePort,
         token_repo: TokenRevogadoRepository,
         uow: UnitOfWork,
     ) -> None:
@@ -87,7 +95,7 @@ class Logout:
 class RefreshToken:
     def __init__(
         self,
-        jwt_service: JWTService,
+        jwt_service: JWTServicePort,
         token_repo: TokenRevogadoRepository,
         usuario_repo: UsuarioRepository,
         uow: UnitOfWork,
