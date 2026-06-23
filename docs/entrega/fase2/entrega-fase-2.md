@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2) · [↑ Entrega Fase 2](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/docs/entrega/fase2)
 
-> **Versão**: 1.0 — Junho/2026.
+> **Versão**: 1.1 — Junho/2026.
 
 Documento de entrega da Fase 2 do Tech Challenge da Pós-Graduação em Arquitetura de Software (FIAP). O conteúdo cobre os itens exigidos pelo enunciado da fase: identificação do grupo, link do repositório (compartilhado com o avaliador), desenho da arquitetura, instruções de execução e deploy, link da collection das APIs e link do vídeo de demonstração.
 
@@ -129,6 +129,17 @@ Cada requisito da fase 2 ([gap analysis](https://github.com/fiap-postech-sw-arch
 | RN-020 | Status extras: complementar ordena com Aguardando aprovação; `CANCELADA` excluída como encerrada | [#13](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/13) (ratificada no [ADR-021](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/021-aprovacao-externa-orcamento.md)) | Teste-guarda de totalidade dos 8 estados em `tests/unitarios/ordem_servico/test_repository_os.py` | Bloco 4 — implícito na listagem |
 
 **Além dos requisitos**: observabilidade mínima com OpenTelemetry + Jaeger — traces de FastAPI e SQLAlchemy no cluster de demo ([ADR-020](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md), [PR #22](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/22)); demonstrada no bloco 6 do vídeo.
+
+### Qualidade além do escopo — dívida técnica endereçada
+
+O backlog de dívida técnica é mantido como um ledger versionado em [`docs/tech-debt.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/tech-debt.md), com itens classificados e rastreados desde a fase 1. Fora do escopo exigido pela fase 2, o grupo amortizou parte desse backlog — incluindo um débito tático de DDD herdado da fase 1 — e manteve o ledger fiel ao código:
+
+| Item | O que foi feito | PR |
+|---|---|---|
+| TD-009 (DDD tático — fase 1) | Emissão dos eventos de criação que faltavam no event storming, `ClienteCadastrado` e `ServicoCadastrado`, via factory `criar()` nos agregados, com payload sem PII e teste de regressão | [#48](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/48) |
+| Reconciliação do ledger | Auditoria item a item de `tech-debt.md` contra o código: TD-003 (CSP) e TD-017 (PII no OpenTelemetry) marcados como resolvidos (já implementados) e TD-002/004/005/008/016 corrigidos para refletir o estado real | [#47](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/47) |
+
+Isso concretiza a Boy Scout Rule registrada na estratégia de pagamento do [ledger de dívida técnica](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/tech-debt.md): cada evolução deixa o código e a documentação melhores do que os encontrou. Nenhum desses itens era exigido pela fase 2 — são iniciativa de qualidade do grupo.
 
 ## 6. Desenho da arquitetura
 
