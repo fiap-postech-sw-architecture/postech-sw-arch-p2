@@ -7,8 +7,8 @@ FROM python:3.13-slim AS base
 ARG GIT_SHA=unknown
 ARG GIT_DATE=unknown
 
-LABEL org.opencontainers.image.title="postech-sw-arch-p1 ui" \
-      org.opencontainers.image.source="https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1" \
+LABEL org.opencontainers.image.title="postech-sw-arch-p2 ui" \
+      org.opencontainers.image.source="https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2" \
       org.opencontainers.image.description="NiceGUI sandbox/UI dev-only." \
       org.opencontainers.image.revision="${GIT_SHA}" \
       org.opencontainers.image.created="${GIT_DATE}"
