@@ -125,13 +125,6 @@ Na tela `/login`, os atalhos `ADMIN` / `ATENDENTE` / `MECANICO` logam
 automaticamente. Pares **(placa, CPF/CNPJ)** das OS do seed (úteis na tela
 pública `/acompanhamento`): [`ui/seed-users.md`](ui/seed-users.md).
 
-> **Fast check da fase 1**: o atalho [`db-image/QUICKSTART.md`](db-image/QUICKSTART.md)
-> (stack pré-buildada do GHCR, sem build local) continua funcional, mas as
-> imagens publicadas são as do MVP da fase 1 — não contêm os recursos novos
-> da fase 2 (itens na criação de OS, decisão externa, e-mail, situação).
-> Para avaliar a fase 2, use a execução local acima ou o deploy Kubernetes
-> abaixo.
-
 ## Deploy em Kubernetes (kind)
 
 Caminho recomendado — ciclo completo local, o mesmo que o CD executa ([ADR-019](docs/arquitetura/adr/fase2/019-pipeline-cicd-deploy.md)):
@@ -207,7 +200,6 @@ Roteiro de gravação (deploy, CI/CD, APIs, HPA, traces): [`docs/entrega/fase2/r
 | Terraform (recursos, variáveis, troubleshooting) | [`infra/README.md`](infra/README.md) |
 | UI NiceGUI (sandbox dev-only) | [`ui/README.md`](ui/README.md) |
 | Worktrees paralelos (rodar 2+ branches sem conflito de portas) | [`docs/setup/worktrees-paralelos.md`](docs/setup/worktrees-paralelos.md) |
-| Publicar imagens db+app+ui no GHCR (fast-check da fase 1) | [`db-image/README.md`](db-image/README.md) |
 
 ## UI de Simulação
 

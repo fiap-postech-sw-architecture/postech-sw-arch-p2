@@ -9,7 +9,7 @@
 
 O Tech Challenge da fase 2 exige scripts Terraform para o provisionamento do cluster Kubernetes **e do banco de dados**, com documentação dos recursos criados e de como aplicar — ver a seção de IaC do [desafio-tech-fase-2.md](../../../requisitos/fase2/desafio-tech-fase-2.md). O RNF-021 do [gap analysis](../../../requisitos/fase2/gap-analysis-fase-2.md) fixa o aceite: `terraform apply` provisiona cluster + banco, com README de `/infra` documentando recursos e ordem de aplicação. O pipeline (RNF-022) lista "deploy do banco de dados" como etapa própria, separada da aplicação dos manifests da aplicação.
 
-Estado atual: o banco roda apenas via docker-compose (`postgres:16` com volume nomeado — `docker-compose.yml`) e via imagem seedada `db-image/` para o fast-check da banca (gap analysis, §4); o diretório `/infra` não existe. O [ADR-002](../002-banco-postgresql.md) fixou o PostgreSQL 16 como SGBD — este ADR não reabre a escolha do banco, decide apenas onde ele vive na fase 2 e como o Terraform o provisiona. O [ADR-016](016-plataforma-kubernetes.md) fixou o kind como plataforma (cluster local em dev/vídeo, efêmero no CI); a decisão do banco precisa ser coerente com esse alvo.
+Estado atual: o banco roda apenas via docker-compose (`postgres:16` com volume nomeado — `docker-compose.yml`); o diretório `/infra` não existe. O [ADR-002](../002-banco-postgresql.md) fixou o PostgreSQL 16 como SGBD — este ADR não reabre a escolha do banco, decide apenas onde ele vive na fase 2 e como o Terraform o provisiona. O [ADR-016](016-plataforma-kubernetes.md) fixou o kind como plataforma (cluster local em dev/vídeo, efêmero no CI); a decisão do banco precisa ser coerente com esse alvo.
 
 Critérios: persistência suficiente para a demo — o fichamento aponta a demonstração de dados sobrevivendo à reinicialização do Pod como o caso de uso canônico de volumes e provável item de avaliação (Kubernetes, Aula 06); simplicidade do Terraform exigido pelo challenge; paridade com o docker-compose local (RNF-019); e custo.
 
@@ -75,7 +75,7 @@ PostgreSQL como container Docker fora do cluster, criado por `terraform apply` (
 ### Neutras
 
 * Dimensionamento do volume, resources do Pod do banco, política de seed (migrations no pipeline vs imagem seedada) e valores de Secret ficam deferidos ao plano de execução da infraestrutura (fase de implementação), fora deste ADR
-* `db-image/` permanece com escopo reduzido, para o fast-check local da banca (gap analysis, §4) — o caminho oficial de deploy do banco passa a ser o Terraform
+* o fast-check `db-image/` (herdado da fase 1) foi posteriormente removido ([TD-018](../../../tech-debt.md)); o caminho oficial de deploy do banco é o Terraform
 
 ## Decisões Relacionadas
 

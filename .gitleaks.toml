@@ -19,11 +19,6 @@ paths = [
   # Fixtures de senha de teste em test_seed_admin.py validam regras de
   # validacao de senha do seeder; nao sao credenciais reais.
   '''^tests/unitarios/scripts/test_seed_admin\.py$''',
-  # ENCRYPTION_KEY de demo da fase 1, committada DELIBERADAMENTE para
-  # decifrar o dump seedado publicado no GHCR (7 clientes sinteticos).
-  # O proprio arquivo carrega o aviso de seguranca ("NUNCA reutilizar
-  # este valor em ambiente nao-demo"). Artefato congelado da fase 1.
-  '''^db-image/docker-compose\.yml$''',
   # Relatorio de scan do trivy: os matches de generic-api-key sao
   # digests/hashes de pacotes da imagem auditada, nao segredos.
   '''^docs/seguranca/trivy-image-report\.json$''',
