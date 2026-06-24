@@ -19,10 +19,10 @@ Exit 0 se todos passarem; exit 1 e lista de violações em stderr caso contrári
 Reescreve links relativos em markdown para URLs absolutas no GitHub (branch alvo). Usado para gerar o PDF da entrega autocontido (links resolvem mesmo fora do repo). Externos (`https://`, `mailto:`, anchors) passam direto.
 
 ```bash
-python scripts/rewrite-md-links.py docs/entrega/entrega-fase-1.md /tmp/absolute.md \
-  --repo fiap-postech-sw-architecture/postech-sw-arch-p1 \
+python scripts/rewrite-md-links.py docs/entrega/fase2/entrega-fase-2.md /tmp/absolute.md \
+  --repo fiap-postech-sw-architecture/postech-sw-arch-p2 \
   --branch main \
-  --base-dir docs/entrega
+  --base-dir docs/entrega/fase2
 ```
 
 Stdlib-only. Útil para qualquer doc com links relativos que precise virar um artefato autocontido. O documento de entrega já carrega URLs absolutas para `main` e dispensa este passo.

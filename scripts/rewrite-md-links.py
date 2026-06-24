@@ -2,7 +2,7 @@
 
 Usage:
     python scripts/rewrite-md-links.py INPUT.md OUTPUT.md \
-        --repo fiap-postech-sw-architecture/postech-sw-arch-p1 \
+        --repo fiap-postech-sw-architecture/postech-sw-arch-p2 \
         --branch main \
         --base-dir docs/entrega
 
