@@ -63,7 +63,7 @@ gitleaks detect --source . --log-opts="--all" --config .gitleaks.toml --no-banne
 
 | Finding | Tratamento |
 |---|---|
-| `db-image/docker-compose.yml` — `ENCRYPTION_KEY` Fernet | Key de demo da fase 1, committada deliberadamente para decifrar o dump seedado publicado no GHCR (dados 100% sintéticos). O próprio arquivo carrega o aviso "NUNCA reutilizar este valor em ambiente não-demo". Allowlist por path. |
+| `db-image/docker-compose.yml` — `ENCRYPTION_KEY` Fernet | **N/A** — o `db-image/` (fast-check da fase 1) foi removido do repo ([TD-018](../tech-debt.md)); o arquivo não existe mais e a entrada da allowlist foi retirada do `.gitleaks.toml`. |
 | `docs/seguranca/trivy-image-report.json` (2×) | Digests/hashes de pacotes no relatório do trivy detectados como `generic-api-key`; não são segredos. Allowlist por path. |
 | `infra/terraform.tfstate.backup` (2× private-key) | Estado local do Terraform com credenciais do cluster kind descartável de dev. Gitignored (`infra/.gitignore`) — nunca chega ao repo; aparece só no scan `--no-git`. Allowlist por path (idem para o kubeconfig `infra/pytstop-config` que o provider kind grava no apply). |
 | `docs/entrega/fase2/roteiro-video.md` — header `X-Webhook-Token` | Token de demo do webhook de decisão de orçamento (RF-022), valor auto-documentado (`demo-webhook-orcamento-nao-usar-em-producao`), o mesmo default de dev do compose/k8s. Allowlist por regex do valor literal. |

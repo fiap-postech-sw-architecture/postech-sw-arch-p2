@@ -128,8 +128,8 @@ services:
     depends_on:
       app:
         # Promovido de service_started para service_healthy (RNF-019): a ui
-        # so e criada com o backend de fato atendendo, alinhado ao compose
-        # de demo (db-image/) e habilitando `docker compose up -d --wait`.
+        # so e criada com o backend de fato atendendo, habilitando
+        # `docker compose up -d --wait`.
         # Custo medido no boot frio: ~3-5s (engine 25+ proba a cada 5s
         # durante o start_period via start_interval default; so em engines
         # pre-25 o primeiro probe cairia no interval de 30s). O fluxo do

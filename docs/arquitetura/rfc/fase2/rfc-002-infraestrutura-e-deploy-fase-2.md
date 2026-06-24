@@ -65,7 +65,7 @@ O PostgreSQL 16 ([ADR-002](../../adr/002-banco-postgresql.md)) vive dentro do cl
 - **Mailpit** ([ADR-018](../../adr/fase2/018-notificacao-email.md)): servidor SMTP de demo como Deployment + Service ClusterIP; a UI web é acessada por port-forward (ou NodePort) na gravação do vídeo. No docker-compose, entra como serviço `mailpit` (SMTP interno na 1025, UI na 8025).
 - **Jaeger all-in-one** ([ADR-020](../../adr/fase2/020-observabilidade-opentelemetry.md)): backend de traces com receiver OTLP, no mesmo padrão Deployment + Service + port-forward — **onda final condicional**, executada somente com os obrigatórios verdes. A exportação é OTLP direta do SDK para o Jaeger, sem Collector — divergência da recomendação de produção aceita e registrada no ADR; sem o endpoint OTLP configurado, a instrumentação fica inerte e nada disso entra no caminho crítico.
 
-Fora do cluster: o `docker-compose.yml` continua sendo o caminho de desenvolvimento local rápido (RNF-019), com paridade de imagem e variáveis; `ui/` permanece sandbox dev-only sem manifest; `db-image/` segue com escopo reduzido para o fast-check local da banca ([gap analysis §4](../../../requisitos/fase2/gap-analysis-fase-2.md)).
+Fora do cluster: o `docker-compose.yml` continua sendo o caminho de desenvolvimento local rápido (RNF-019), com paridade de imagem e variáveis; `ui/` permanece sandbox dev-only sem manifest.
 
 ### Fronteira `/infra` × `/k8s`
 
