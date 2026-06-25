@@ -127,6 +127,11 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         yield
     finally:
         engine.dispose()
+        from src.compartilhado.interfaces.router_admin import (
+            encerrar_engine_admin,
+        )
+
+        encerrar_engine_admin()
 
 
 def criar_app() -> FastAPI:
@@ -147,6 +152,10 @@ def criar_app() -> FastAPI:
     )
 
     application.include_router(router_publico)
+
+    from src.compartilhado.interfaces.router_admin import router as router_admin
+
+    application.include_router(router_admin)
 
     # Importacoes dos routers sao locais (dentro de criar_app) para
     # manter o ciclo de vida do app limpo em tempo de import e evitar
