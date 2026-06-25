@@ -4,6 +4,11 @@ Consumido pelo CLI (``scripts/outbox_dlq.py``) e pelo endpoint admin
 (``router_admin``). ``reenfileirar`` zera ``tentativas`` e volta
 ``status='pendente'`` com ``proxima_tentativa_em=now()`` para reentrega
 imediata no proximo ciclo do relay.
+
+Queries de infraestrutura (SQL bruto sobre a tabela ``outbox``): vivem em
+``src`` infra, nao no sidecar operacional ``relay/``. Manter aqui evita que
+o app ``src`` dependa do pacote ``relay`` (que importa de volta ``src``),
+fechando um ciclo de dependencia a nivel de pacote.
 """
 
 from __future__ import annotations

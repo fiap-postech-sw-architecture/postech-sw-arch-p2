@@ -156,7 +156,7 @@ known-first-party = ["src", "ui", "relay"]
 # e shared kernel, nao contexto delimitado: fica fora dos containers de camadas,
 # mas seu `dominio` e sua `aplicacao` entram no forbidden pelos mesmos motivos.
 [tool.importlinter]
-root_packages = ["src"]
+root_packages = ["src", "relay"]
 
 [[tool.importlinter.contracts]]
 name = "Camadas Clean por contexto (interfaces -> aplicacao -> dominio)"
@@ -195,6 +195,19 @@ forbidden_modules = [
     "src.autenticacao.infraestrutura",
     "src.compartilhado.infraestrutura",
 ]
+
+# `src` (a aplicacao) NUNCA importa o sidecar operacional `relay/`: o sentido
+# legitimo e `relay -> src` (o relay consome dominio/infra de src). O sentido
+# inverso (`src -> relay`) fecharia um ciclo de pacote `src -> relay -> src`,
+# invisivel ao linter enquanto `relay` ficava fora de `root_packages`. Com
+# `relay` agora graficado, este contrato torna o ciclo regressao-proof. As
+# queries de DLQ que antes moravam em `relay/dlq.py` migraram para
+# `src.compartilhado.infraestrutura.outbox_dlq`.
+[[tool.importlinter.contracts]]
+name = "src nao importa relay (relay e sidecar; so relay -> src e permitido)"
+type = "forbidden"
+source_modules = ["src"]
+forbidden_modules = ["relay"]
 
 [tool.mypy]
 strict = true

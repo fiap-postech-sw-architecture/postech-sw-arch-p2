@@ -6,7 +6,7 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 
-from relay.dlq import listar_dead, reenfileirar
+from src.compartilhado.infraestrutura.outbox_dlq import listar_dead, reenfileirar
 
 pytestmark = pytest.mark.integracao
 

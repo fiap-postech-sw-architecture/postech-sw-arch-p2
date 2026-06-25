@@ -16,8 +16,8 @@ import sys
 
 from sqlalchemy import Engine
 
-from relay.dlq import listar_dead, reenfileirar
 from src.compartilhado.infraestrutura.database import criar_engine
+from src.compartilhado.infraestrutura.outbox_dlq import listar_dead, reenfileirar
 
 
 def _engine() -> Engine:

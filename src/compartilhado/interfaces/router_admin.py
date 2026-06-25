@@ -19,9 +19,9 @@ from typing import TYPE_CHECKING, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
 
-from relay.dlq import listar_dead, reenfileirar
 from src.autenticacao.interfaces.middleware import exigir_papel
 from src.compartilhado.infraestrutura.database import criar_engine
+from src.compartilhado.infraestrutura.outbox_dlq import listar_dead, reenfileirar
 
 if TYPE_CHECKING:
     from sqlalchemy import Engine
