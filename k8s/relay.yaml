@@ -1,0 +1,63 @@
+# Deployment do relay da Transactional Outbox (RF-018 / TD-008). Mesma
+# imagem da API; sobrescreve o command para `python -m relay` (sem
+# uvicorn, sem migrations -- a API pod ja roda `alembic upgrade head` no
+# boot). replicas:1 por desenho: o relay processa a outbox ORDER BY id;
+# `FOR UPDATE SKIP LOCKED` deixa N replicas seguras no futuro sem
+# reprocessar. SEM Service (nao atende trafego HTTP).
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pytstop-relay
+  namespace: pytstop
+  labels:
+    app: pytstop-relay
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pytstop-relay
+  template:
+    metadata:
+      labels:
+        app: pytstop-relay
+    spec:
+      containers:
+        - name: relay
+          # O CD troca esta tag pela tag imutavel do SHA do commit
+          # (ADR-019). `dev` e a tag do fluxo local: build + `kind load`.
+          image: ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev
+          imagePullPolicy: IfNotPresent
+          command: ["python", "-m", "relay"]
+          # Reaproveita o mesmo ConfigMap (DB_POOL_*, SMTP_*, OUTBOX_*,
+          # RELAY_HEARTBEAT) e o mesmo Secret (DATABASE_URL) da API --
+          # paridade de configuracao.
+          envFrom:
+            - configMapRef:
+                name: pytstop-config
+            - secretRef:
+                name: pytstop-secrets
+          # Caminho do heartbeat explicito no container (alinhado ao default
+          # do ConfigMap): a probe abaixo le este mesmo arquivo.
+          env:
+            - name: RELAY_HEARTBEAT
+              value: /tmp/relay-heartbeat
+          # Liveness por HEARTBEAT (F6), nao por `kill -0 1`: um SMTP travado
+          # ou loop preso mantem o PID 1 vivo, mas para de atualizar o
+          # heartbeat. A probe falha se o arquivo nao existir ou estiver mais
+          # velho que 60s (>= 2 ciclos de poll de 5s + margem) -> o kubelet
+          # reinicia o pod. So um relay vivo E progredindo passa.
+          livenessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import os,sys,time; p=os.getenv('RELAY_HEARTBEAT','/tmp/relay-heartbeat'); sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p) < 60 else 1)"
+            initialDelaySeconds: 15
+            periodSeconds: 20
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
