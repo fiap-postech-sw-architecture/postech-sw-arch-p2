@@ -3,6 +3,8 @@ from __future__ import annotations
 from unittest.mock import MagicMock
 from uuid import uuid4
 
+import pytest
+
 from src.compartilhado.dominio.aggregate_root import AggregateRoot
 from src.compartilhado.dominio.events import DomainEvent
 from src.compartilhado.dominio.integration_event import IntegrationEvent
@@ -111,6 +113,49 @@ def test_commit_sem_eventos_nao_executa_nada() -> None:
 
     session.execute.assert_not_called()
     session.commit.assert_called_once()
+
+
+def test_commit_que_levanta_preserva_integration_event_para_retry() -> None:
+    # Contrato de atomicidade: se session.commit() levanta, a UoW NAO pode
+    # remover o IntegrationEvent do agregado — ele precisa continuar em
+    # coletar_eventos() para o re-enfileiramento numa proxima tentativa. A
+    # remocao (remover_eventos) so roda APOS o commit retornar; uma excecao
+    # aborta o for de remocao e propaga, sem vazar estado parcial.
+    integ = IntegrationEvent(agregado_id=uuid4())
+    agg = _agregado_com(integ)
+
+    session = _session_mock(novos={agg}, identity=[])
+    session.commit.side_effect = RuntimeError("commit explodiu")
+
+    uow = SQLAlchemyUnitOfWork(session_factory=lambda: session)
+    with pytest.raises(RuntimeError, match="commit explodiu"), uow:
+        uow.commit()
+
+    # commit foi tentado exatamente uma vez (e levantou).
+    session.commit.assert_called_once()
+    # O integration event PERMANECE no agregado (remover_eventos NAO aplicado).
+    eventos = agg.coletar_eventos()
+    assert eventos == [integ]
+    assert eventos[0] is integ
+
+
+def test_commit_que_levanta_nao_remove_eventos_do_agregado() -> None:
+    # Reforco do contrato pelo lado da colaboracao: remover_eventos do
+    # agregado nunca e invocado quando o commit falha (a remocao vem DEPOIS
+    # do commit no fluxo da UoW).
+    integ = IntegrationEvent(agregado_id=uuid4())
+    puro = DomainEvent(agregado_id=uuid4())
+    agg = _agregado_com(puro, integ)
+    agg.remover_eventos = MagicMock()  # type: ignore[method-assign]
+
+    session = _session_mock(novos={agg}, identity=[])
+    session.commit.side_effect = RuntimeError("falha de I/O no commit")
+
+    uow = SQLAlchemyUnitOfWork(session_factory=lambda: session)
+    with pytest.raises(RuntimeError), uow:
+        uow.commit()
+
+    agg.remover_eventos.assert_not_called()
 
 
 def test_commit_deduplica_agregado_em_new_e_identity_map() -> None:

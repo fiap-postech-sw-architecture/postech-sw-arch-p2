@@ -115,25 +115,55 @@ def test_fluxo_feliz_entrega_uma_vez_e_marca_entregue(engine: Engine) -> None:
     assert n == 1
 
 
-def test_processa_em_ordem_de_id(engine: Engine) -> None:
-    # F7: NAO derivar o esperado de `ORDER BY id` E comparar com a ordem
-    # observada (que tambem seria id-ordered por construcao) — isso passaria
-    # ate com FIFO por coincidencia. Aqui o `marcador` de cada linha e
-    # atribuido FORA da ordem de id (embaralhado), e correlacionamos
-    # marcador -> id real lido do banco. O handler deve observar os
-    # marcadores na ordem dos IDS, nao na ordem de insercao do marcador.
-    marcadores = ["m0", "m1", "m2", "m3", "m4"]
-    ordem_insercao = ["m3", "m0", "m4", "m1", "m2"]  # marcador por insercao
-    marcador_por_id: dict[int, str] = {}
-    for marcador in ordem_insercao:
-        novo_id = _inserir_pendente(engine, marcador=marcador)
-        marcador_por_id[novo_id] = marcador
+def _inserir_pendente_com_id(
+    engine: Engine,
+    outbox_id: int,
+    *,
+    tipo: str = "DiagnosticoIniciadoEvent",
+    marcador: str,
+) -> None:
+    """Insere uma linha ``pendente`` com ``id`` EXPLICITO (bigserial aceita).
 
-    esperado = [marcador_por_id[i] for i in sorted(marcador_por_id)]
-    # IDs sao sequenciais em Postgres, portanto `esperado` (por id) coincide
-    # com a ordem de insercao — o teste permanece valido: verifica que o relay
-    # usa ORDER BY id (nao heap order). Sanidade: todos os marcadores presentes.
-    assert sorted(esperado) == sorted(marcadores)
+    Permite atribuir ids fora da ordem de insercao para discriminar
+    ``ORDER BY id`` de FIFO/heap (F7). O ``marcador`` (= o proprio id como
+    string) vai no payload para correlacionar a ordem observada ao id.
+    """
+    payload = json.dumps({"agregado_id": str(uuid4()), "marcador": marcador})
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO outbox "
+                "(id, agregado_id, tipo, payload, status, tentativas, "
+                " proxima_tentativa_em, criado_em) "
+                "VALUES (:id, :aid, :tipo, CAST(:payload AS JSONB), 'pendente', 0, "
+                " :agora, :agora)"
+            ),
+            {
+                "id": outbox_id,
+                "aid": uuid4(),
+                "tipo": tipo,
+                "payload": payload,
+                "agora": _agora(),
+            },
+        )
+
+
+def test_processa_em_ordem_de_id(engine: Engine) -> None:
+    # F7 (discriminante): atribui ids EXPLICITOS, NAO-monotonicos com a ordem
+    # de insercao — insere na ordem [50, 10, 40, 20, 30], cada linha carregando
+    # como marcador o proprio id. O relay deve entregar em ordem de ID
+    # ([10, 20, 30, 40, 50]), que DIFERE da ordem de insercao. Um relay
+    # heap/FIFO (sem ORDER BY id) entregaria na ordem de insercao
+    # ([50, 10, 40, 20, 30]) e o assert falharia. Verificado manualmente:
+    # remover `ORDER BY o.id` de reivindicar_lote faz este teste quebrar.
+    ordem_insercao = [50, 10, 40, 20, 30]
+    for outbox_id in ordem_insercao:
+        _inserir_pendente_com_id(engine, outbox_id, marcador=str(outbox_id))
+
+    esperado = [str(i) for i in sorted(ordem_insercao)]  # ['10','20','30','40','50']
+    assert esperado != [str(i) for i in ordem_insercao], (
+        "ordem por id deve diferir da ordem de insercao para discriminar FIFO"
+    )
 
     ordem_vista: list[str] = []
 
@@ -150,7 +180,7 @@ def test_processa_em_ordem_de_id(engine: Engine) -> None:
     )
 
     assert ordem_vista == esperado
-    assert all(_status(engine, i) == ("entregue", 0) for i in marcador_por_id)
+    assert all(_status(engine, i) == ("entregue", 0) for i in ordem_insercao)
 
 
 def test_skip_locked_nao_duplica_em_concorrencia(engine: Engine) -> None:
@@ -332,12 +362,17 @@ def test_head_of_line_por_agregado_bloqueia_sucessor_em_backoff(engine: Engine) 
 
 
 def test_notify_acorda_o_relay_e_entrega_rapido(
-    engine: Engine, monkeypatch: pytest.MonkeyPatch
+    engine_dedicado: Engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
     import time
 
     from relay.listener import executar_relay
 
+    # Engine function-scoped (pool isolado): o relay abre uma conexao raw de
+    # LISTEN em autocommit; com o engine compartilhado da sessao essa conexao,
+    # ao ser reciclada, contaminaria fixtures de SAVEPOINT subsequentes. Mesma
+    # URL/banco do engine da sessao — so o pool e dedicado.
+    engine = engine_dedicado
     entregues: list[str] = []
     lock = threading.Lock()
     parar = threading.Event()
@@ -391,6 +426,15 @@ def test_notify_acorda_o_relay_e_entrega_rapido(
         time.sleep(0.1)
 
     parar.set()
+    # Encerra o relay de forma DETERMINISTICA antes do teardown: o thread pode
+    # estar parado em select(poll=30s); um NOTIFY o acorda, ele reavalia
+    # `parar()` (agora True), restaura autocommit=False e fecha a conexao raw.
+    # Sem o join, `engine_dedicado.dispose()` poderia fechar a conexao com o
+    # thread ainda em poll() (OperationalError espuria no teardown).
+    with engine.begin() as conn:
+        conn.execute(text("SELECT pg_notify('outbox_novo', '')"))
+    relay_thread.join(timeout=5)
+    assert not relay_thread.is_alive(), "relay nao encerrou apos parar.set() + NOTIFY"
     with lock:
         assert len(entregues) == 1, "NOTIFY nao acordou o relay dentro do prazo"
 

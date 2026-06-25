@@ -22,9 +22,15 @@ if TYPE_CHECKING:
 pytestmark = pytest.mark.integracao
 
 
-def test_driver_connection_expoe_notifies_e_poll(engine: Engine) -> None:
-    """Confirma que raw.driver_connection e o psycopg2 connection real."""
-    raw = engine.raw_connection()
+def test_driver_connection_expoe_notifies_e_poll(engine_dedicado: Engine) -> None:
+    """Confirma que raw.driver_connection e o psycopg2 connection real.
+
+    Usa ``engine_dedicado`` (pool function-scoped): este teste liga
+    ``autocommit`` na conexao raw e NAO o restaura, entao a conexao nao pode
+    voltar ao pool compartilhado do ``engine`` da sessao (contaminaria
+    fixtures de SAVEPOINT posteriores).
+    """
+    raw = engine_dedicado.raw_connection()
     try:
         raw.driver_connection.autocommit = True
         dbapi_conn = raw.driver_connection
@@ -44,10 +50,16 @@ def test_driver_connection_expoe_notifies_e_poll(engine: Engine) -> None:
         raw.close()
 
 
-def test_executar_relay_drena_linha_pendente(engine: Engine) -> None:
-    """Smoke test end-to-end: insere linha, chama executar_relay, confirma entregue."""
+def test_executar_relay_drena_linha_pendente(engine_dedicado: Engine) -> None:
+    """Smoke test end-to-end: insere linha, chama executar_relay, confirma entregue.
+
+    Tambem em ``engine_dedicado``: ``executar_relay`` abre uma conexao raw de
+    LISTEN em autocommit no proprio engine; isolar o pool evita qualquer
+    chance de vazamento de estado para o ``engine`` compartilhado.
+    """
     from relay.listener import executar_relay
 
+    engine = engine_dedicado
     agregado_id = uuid.uuid4()
     payload = {"agregado_id": str(agregado_id), "tipo_evento": "smoke"}
 

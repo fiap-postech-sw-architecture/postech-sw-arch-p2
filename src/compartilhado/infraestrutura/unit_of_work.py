@@ -70,7 +70,7 @@ class SQLAlchemyUnitOfWork:
             pg_notify_outbox(self.session)
         self.session.commit()
         for agregado, enfileirados in por_agregado.items():
-            self._remover_eventos(agregado, enfileirados)
+            agregado.remover_eventos(enfileirados)
 
     def rollback(self) -> None:
         self.session.rollback()
@@ -91,23 +91,6 @@ class SQLAlchemyUnitOfWork:
             if isinstance(obj, AggregateRoot):
                 vistos.setdefault(id(obj), obj)
         return list(vistos.values())
-
-    @staticmethod
-    def _remover_eventos(
-        agregado: AggregateRoot, eventos: list[IntegrationEvent]
-    ) -> None:
-        """Remove de ``_eventos_pendentes`` apenas os eventos dados (por id()).
-
-        Preserva os demais (domain events puros) para o dispatch sincrono.
-        Acesso direto a ``_eventos_pendentes`` e aceitavel: a UoW e parceira
-        do agregado no fechamento da transacao e nao ha API publica de
-        remocao seletiva (``limpar_eventos`` apagaria tudo).
-        """
-        if not eventos:
-            return
-        alvo = {id(ev) for ev in eventos}
-        restantes = [ev for ev in agregado._eventos_pendentes if id(ev) not in alvo]
-        agregado._eventos_pendentes[:] = restantes
 
     def _fechar_sessao(self) -> None:
         if self._session is not None:
