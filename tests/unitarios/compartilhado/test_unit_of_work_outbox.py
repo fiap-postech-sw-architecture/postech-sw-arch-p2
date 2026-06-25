@@ -30,7 +30,7 @@ def _session_mock(*, novos: set, identity: list) -> MagicMock:
     session = MagicMock()
     session.new = novos
     session.identity_map.values.return_value = identity
-    session.bind.dialect.name = "postgresql"
+    session.get_bind.return_value.dialect.name = "postgresql"
     return session
 
 

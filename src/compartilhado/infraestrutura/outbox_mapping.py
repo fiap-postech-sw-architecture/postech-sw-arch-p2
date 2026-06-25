@@ -132,6 +132,7 @@ def pg_notify_outbox(session: Session) -> None:
     NOTIFY e transacional: a mensagem so e entregue aos ``LISTEN``ers
     quando esta transacao comita. No-op em backend nao-Postgres.
     """
-    if session.bind is None or session.bind.dialect.name != "postgresql":
+    bind = session.get_bind()
+    if bind.dialect.name != "postgresql":
         return
     session.execute(text("SELECT pg_notify(:canal, '')"), {"canal": CANAL_NOTIFY})
