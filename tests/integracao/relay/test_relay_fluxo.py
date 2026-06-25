@@ -331,6 +331,70 @@ def test_head_of_line_por_agregado_bloqueia_sucessor_em_backoff(engine: Engine) 
     assert _status(engine, id_n1)[0] == "entregue"
 
 
+def test_notify_acorda_o_relay_e_entrega_rapido(
+    engine: Engine, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    import time
+
+    from relay.listener import executar_relay
+
+    entregues: list[str] = []
+    lock = threading.Lock()
+    parar = threading.Event()
+
+    def handler(payload: dict[str, Any]) -> None:
+        with lock:
+            entregues.append(payload["agregado_id"])
+
+    # poll longo (30s) prova que a entrega rapida veio do NOTIFY, nao do poll.
+    monkeypatch.setenv("OUTBOX_POLL_SEGUNDOS", "30")
+    monkeypatch.setenv("OUTBOX_LOTE", "50")
+
+    relay_thread = threading.Thread(
+        target=executar_relay,
+        args=(engine,),
+        kwargs={
+            "handlers": {"DiagnosticoIniciadoEvent": handler},
+            "nome_handler": "email",
+            "relogio": _agora,
+            "parar": parar.is_set,
+        },
+        daemon=True,
+    )
+    relay_thread.start()
+    time.sleep(0.5)  # deixa o LISTEN ser registrado
+
+    # Insere DEPOIS do relay estar ouvindo: so o NOTIFY (da UoW) acordaria.
+    # Aqui emitimos o NOTIFY manualmente na mesma tx do INSERT (espelha a UoW).
+    with engine.begin() as conn:
+        conn.execute(
+            text(
+                "INSERT INTO outbox (agregado_id, tipo, payload, status, "
+                "tentativas, proxima_tentativa_em, criado_em) VALUES "
+                "(:aid, 'DiagnosticoIniciadoEvent', CAST(:p AS JSONB), "
+                "'pendente', 0, :agora, :agora)"
+            ),
+            {
+                "aid": uuid4(),
+                "p": f'{{"agregado_id": "{uuid4()}"}}',
+                "agora": _agora(),
+            },
+        )
+        conn.execute(text("SELECT pg_notify('outbox_novo', '')"))
+
+    # Espera curta: NOTIFY deve entregar bem antes do poll de 30s.
+    prazo = time.time() + 8
+    while time.time() < prazo:
+        with lock:
+            if entregues:
+                break
+        time.sleep(0.1)
+
+    parar.set()
+    with lock:
+        assert len(entregues) == 1, "NOTIFY nao acordou o relay dentro do prazo"
+
+
 def test_dead_com_sucessor_pendente_loga_error(engine: Engine) -> None:
     # F4: ao promover uma linha a `dead`, se houver sucessor `pendente` do
     # mesmo agregado, loga `outbox_dead_com_sucessores_pendentes`.

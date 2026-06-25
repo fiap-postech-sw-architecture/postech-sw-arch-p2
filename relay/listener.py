@@ -106,7 +106,9 @@ def executar_relay(
     poll, lote, lease = _config_do_ambiente()
     raw = engine.raw_connection()
     try:
-        raw.autocommit = True  # type: ignore[attr-defined]  # NOTIFY/LISTEN exige fora de transacao
+        driver_conn = raw.driver_connection
+        assert driver_conn is not None  # psycopg2: nunca None apos conexao bem-sucedida
+        driver_conn.autocommit = True  # psycopg2 real conn; _ConnectionFairy nao propaga
         cursor = raw.cursor()
         cursor.execute(f"LISTEN {CANAL_NOTIFY}")
         _log.info(
@@ -147,4 +149,13 @@ def executar_relay(
                 relogio=relogio,
             )
     finally:
+        # Restaura autocommit=False antes de devolver ao pool; sem isso a
+        # conexao retornaria "contaminada" (autocommit ligado) e quebraria
+        # testes/codigo que usam SAVEPOINTs na mesma conexao reaproveitada.
+        try:
+            dc = raw.driver_connection
+            if dc is not None:
+                dc.autocommit = False
+        except Exception:  # noqa: BLE001  # conexao ja fechada/invalida — ignora
+            pass
         raw.close()

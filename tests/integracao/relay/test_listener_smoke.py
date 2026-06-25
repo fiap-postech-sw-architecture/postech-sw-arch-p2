@@ -26,7 +26,7 @@ def test_driver_connection_expoe_notifies_e_poll(engine: Engine) -> None:
     """Confirma que raw.driver_connection e o psycopg2 connection real."""
     raw = engine.raw_connection()
     try:
-        raw.autocommit = True  # type: ignore[attr-defined]
+        raw.driver_connection.autocommit = True
         dbapi_conn = raw.driver_connection
         assert dbapi_conn is not None, (
             "raw.driver_connection retornou None — "
