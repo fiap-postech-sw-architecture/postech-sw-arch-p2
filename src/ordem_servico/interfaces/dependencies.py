@@ -25,9 +25,6 @@ from typing import TYPE_CHECKING
 
 from src.compartilhado.infraestrutura.unit_of_work import SQLAlchemyUnitOfWork
 from src.ordem_servico.aplicacao.dispatcher import EventDispatcher
-from src.ordem_servico.aplicacao.notificacoes import (
-    NotificarMudancaDeStatus,  # noqa: F401  # removido na Task 11
-)
 from src.ordem_servico.infraestrutura.adapters import (
     CatalogoSQLAlchemyAdapter,
     ClienteSQLAlchemyAdapter,
