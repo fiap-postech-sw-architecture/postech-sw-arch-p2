@@ -94,6 +94,27 @@ def scrub_pii(
     return event_dict
 
 
+_MAX_ERRO_LEN = 200
+
+
+def redigir_pii_erro(erro: str) -> str:
+    """Remove PII (CPF, CNPJ, e-mail) de strings de erro antes de persistir.
+
+    Complementa o scrubber de log (``scrub_pii``): aquele actua no pipeline
+    de structlog em memoria; esta funcao actua em strings que serao gravadas
+    no banco (``outbox.ultimo_erro``) e devolvidas por endpoints admin /
+    CLI — necessario para conformidade LGPD porque o scrubber de log nao
+    alcanca o banco.
+
+    Trunca o resultado em ``_MAX_ERRO_LEN`` caracteres para evitar que
+    mensagens de excepcao excessivamente longas ocupem espaco excessivo.
+    """
+    redacted = _mask_string(erro)
+    if len(redacted) > _MAX_ERRO_LEN:
+        redacted = redacted[:_MAX_ERRO_LEN] + "…"
+    return redacted
+
+
 def configurar_logging() -> None:
     """Configura structlog: JSON output, timestamps ISO e scrub automatico de PII."""
     structlog.configure(

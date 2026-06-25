@@ -36,6 +36,7 @@ import structlog
 from sqlalchemy import text
 
 from relay.backoff import calcular_proxima_tentativa, deve_ir_para_dlq
+from src.compartilhado.infraestrutura.logging import redigir_pii_erro
 
 if TYPE_CHECKING:
     from collections.abc import Callable, Mapping
@@ -75,7 +76,6 @@ def processar_linha(
     *,
     handlers: Mapping[str, Callable[[dict[str, Any]], None]],
     nome_handler: str,
-    agora: datetime,
 ) -> None:
     """Processa uma linha: idempotencia -> handler -> entregue/retry/dead.
 
@@ -114,7 +114,7 @@ def processar_linha(
         handler(linha.payload)
     except Exception as exc:  # noqa: BLE001 — falha de handler vira retry/DLQ, nunca derruba o relay
         tentativas = linha.tentativas + 1
-        erro = f"{type(exc).__name__}: {exc}"
+        erro = redigir_pii_erro(f"{type(exc).__name__}: {exc}")
         if deve_ir_para_dlq(tentativas):
             conn.marcar_dead(linha.id, tentativas, erro)
             _log.error(
@@ -360,7 +360,6 @@ def processar_ciclo(
                 linha,
                 handlers=handlers,
                 nome_handler=nome_handler,
-                agora=agora,
             )
     if linhas:
         _log.info("outbox: ciclo processado", linhas=len(linhas))
