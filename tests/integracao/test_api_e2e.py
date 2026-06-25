@@ -1043,33 +1043,26 @@ class TestDecisaoExternaOrcamento:
 
 
 class TestNotificacaoEmailViaApi:
-    """RF-024 (e2e leve): transicao via API dispara e-mail pelo wiring real.
+    """RF-024 (e2e leve): transicao via API enfileira notificacao duravel na outbox.
 
-    O adapter SMTP e substituido por um fake no seam de composicao
-    (``dependencies.obter_email_port``) — as factories de use case do
-    contexto OS nao sao FastAPI ``Depends``, entao o override de
-    dependencia acontece no composition root, nao em
-    ``app.dependency_overrides``. Todo o resto (dispatcher, handler,
-    ``ClientePort.obter_contato``) e o wiring de producao.
+    Valida que a chamada POST /diagnostico persiste exatamente um registro
+    na outbox com tipo 'DiagnosticoIniciadoEvent' e status 'pendente' para
+    o agregado. A entrega efetiva ao destinatario de email (campo ``contato``
+    do cliente) e verificada ao nivel do relay/handler em
+    tests/integracao/relay/, nao aqui.
     """
 
-    def test_transicao_via_api_envia_email_para_contato_do_cliente(
+    def test_transicao_via_api_enfileira_notificacao_na_outbox(
         self,
         api_client: TestClient,
         admin_user: Usuario,
-        monkeypatch: pytest.MonkeyPatch,
+        engine: Engine,
     ) -> None:
-        from src.ordem_servico.interfaces import dependencies as dependencias_os
+        from uuid import UUID
 
-        enviados: list[tuple[str, str, str]] = []
+        from sqlalchemy import select
 
-        class FakeEmailPort:
-            def enviar(self, destinatario: str, assunto: str, corpo: str) -> None:
-                enviados.append((destinatario, assunto, corpo))
-
-        monkeypatch.setattr(
-            dependencias_os, "obter_email_port", lambda: FakeEmailPort()
-        )
+        from src.compartilhado.infraestrutura.outbox_mapping import outbox_table
 
         headers = _headers_admin(api_client, admin_user)
         resposta_cliente = api_client.post(
@@ -1094,16 +1087,21 @@ class TestNotificacaoEmailViaApi:
         )
         assert resposta_criar.status_code == 201
         ordem_id = resposta_criar.json()["id"]
-        # Criacao nao notifica: RF-024 cobre atualizacoes de status.
-        assert enviados == []
 
         resposta_diagnostico = api_client.post(
             f"/api/v1/ordens-de-servico/{ordem_id}/diagnostico", headers=headers
         )
 
         assert resposta_diagnostico.status_code == 200
-        assert len(enviados) == 1
-        destinatario, assunto, _corpo = enviados[0]
-        assert destinatario == "maria@cliente.com"
-        assert "Em diagnóstico" in assunto
-        assert ordem_id[:8] in assunto
+
+        # A API faz commit real — a outbox deve ter exatamente um registro
+        # pendente para este agregado (prova de enfileiramento durable RF-024).
+        # A verificacao do destinatario de email correto (campo contato do
+        # cliente) e responsabilidade do relay/handler (tests/integracao/relay/).
+        with engine.connect() as conn:
+            linhas = conn.execute(
+                select(outbox_table).where(outbox_table.c.agregado_id == UUID(ordem_id))
+            ).all()
+        assert len(linhas) == 1
+        assert linhas[0].tipo == "DiagnosticoIniciadoEvent"
+        assert linhas[0].status == "pendente"
