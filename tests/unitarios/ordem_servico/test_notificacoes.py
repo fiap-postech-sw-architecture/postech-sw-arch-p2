@@ -19,10 +19,6 @@ import structlog
 from structlog.testing import capture_logs
 
 import src.ordem_servico.aplicacao.notificacoes as notificacoes_modulo
-from src.ordem_servico.aplicacao.notificacoes import (
-    _STATUS_POR_EVENTO,
-    NotificarMudancaDeStatus,
-)
 from src.ordem_servico.aplicacao.ports import ClienteContatoDTO
 from src.ordem_servico.dominio.events import (
     DiagnosticoIniciadoEvent,
@@ -82,10 +78,10 @@ def _cenario(
     *,
     contato: str = "maria@cliente.com",
     erro_envio: Exception | None = None,
-) -> tuple[OrdemDeServico, NotificarMudancaDeStatus, FakeEmailPort]:
+) -> tuple[OrdemDeServico, notificacoes_modulo.NotificarMudancaDeStatus, FakeEmailPort]:
     ordem = OrdemDeServico.criar(cliente_id=uuid4(), veiculo_id=uuid4())
     email_port = FakeEmailPort(erro=erro_envio)
-    handler = NotificarMudancaDeStatus(
+    handler = notificacoes_modulo.NotificarMudancaDeStatus(
         repo=StubRepo(ordem),
         cliente_port=StubClienteContatoPort(
             ClienteContatoDTO(id=ordem.cliente_id, nome="Maria Silva", contato=contato)
