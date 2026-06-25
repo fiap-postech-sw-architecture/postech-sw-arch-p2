@@ -25,3 +25,38 @@ def test_integration_event_e_imutavel() -> None:
     evento = IntegrationEvent(agregado_id=uuid4())
     with pytest.raises(FrozenInstanceError):
         evento.agregado_id = uuid4()  # type: ignore[misc]
+
+
+def test_eventos_de_transicao_da_os_sao_integration_events() -> None:
+    from src.ordem_servico.dominio.events import (
+        DiagnosticoIniciadoEvent,
+        EntregaRegistradaEvent,
+        OrcamentoAprovadoEvent,
+        OrcamentoComplementarAprovadoEvent,
+        OrcamentoComplementarGeradoEvent,
+        OrcamentoComplementarRejeitadoEvent,
+        OrcamentoGeradoEvent,
+        OrdemCanceladaEvent,
+        ServicoFinalizadoEvent,
+    )
+
+    transicao = (
+        DiagnosticoIniciadoEvent,
+        OrcamentoGeradoEvent,
+        OrcamentoAprovadoEvent,
+        ServicoFinalizadoEvent,
+        EntregaRegistradaEvent,
+        OrdemCanceladaEvent,
+        OrcamentoComplementarGeradoEvent,
+        OrcamentoComplementarAprovadoEvent,
+        OrcamentoComplementarRejeitadoEvent,
+    )
+    for evento_cls in transicao:
+        assert issubclass(evento_cls, IntegrationEvent), evento_cls.__name__
+
+
+def test_ordem_criada_event_nao_e_integration_event() -> None:
+    from src.ordem_servico.dominio.events import OrdemCriadaEvent
+
+    assert not issubclass(OrdemCriadaEvent, IntegrationEvent)
+    assert issubclass(OrdemCriadaEvent, DomainEvent)

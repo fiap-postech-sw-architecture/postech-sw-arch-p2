@@ -11,6 +11,7 @@ from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 from src.compartilhado.dominio.events import DomainEvent
+from src.compartilhado.dominio.integration_event import IntegrationEvent
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -37,32 +38,32 @@ class OrdemCriadaEvent(DomainEvent):
 
 
 @dataclass(frozen=True)
-class DiagnosticoIniciadoEvent(DomainEvent):
+class DiagnosticoIniciadoEvent(IntegrationEvent):
     """Emitido na transicao ``RECEBIDA -> EM_DIAGNOSTICO``."""
 
 
 @dataclass(frozen=True)
-class OrcamentoGeradoEvent(DomainEvent):
+class OrcamentoGeradoEvent(IntegrationEvent):
     """Emitido na transicao ``EM_DIAGNOSTICO -> AGUARDANDO_APROVACAO``."""
 
 
 @dataclass(frozen=True)
-class OrcamentoAprovadoEvent(DomainEvent):
+class OrcamentoAprovadoEvent(IntegrationEvent):
     """Emitido na transicao ``AGUARDANDO_APROVACAO -> EM_EXECUCAO``."""
 
 
 @dataclass(frozen=True)
-class ServicoFinalizadoEvent(DomainEvent):
+class ServicoFinalizadoEvent(IntegrationEvent):
     """Emitido na transicao ``EM_EXECUCAO -> FINALIZADA``."""
 
 
 @dataclass(frozen=True)
-class EntregaRegistradaEvent(DomainEvent):
+class EntregaRegistradaEvent(IntegrationEvent):
     """Emitido na transicao ``FINALIZADA -> ENTREGUE``."""
 
 
 @dataclass(frozen=True)
-class OrdemCanceladaEvent(DomainEvent):
+class OrdemCanceladaEvent(IntegrationEvent):
     """Emitido em qualquer transicao para ``CANCELADA``.
 
     Carrega o ``motivo`` informado pelo caller; o agregado garante que
@@ -73,15 +74,15 @@ class OrdemCanceladaEvent(DomainEvent):
 
 
 @dataclass(frozen=True)
-class OrcamentoComplementarGeradoEvent(DomainEvent):
+class OrcamentoComplementarGeradoEvent(IntegrationEvent):
     """Emitido na transicao ``EM_EXECUCAO -> AGUARDANDO_APROVACAO_COMPLEMENTAR``."""
 
 
 @dataclass(frozen=True)
-class OrcamentoComplementarAprovadoEvent(DomainEvent):
+class OrcamentoComplementarAprovadoEvent(IntegrationEvent):
     """Emitido quando o orcamento complementar e aprovado (volta para EM_EXECUCAO)."""
 
 
 @dataclass(frozen=True)
-class OrcamentoComplementarRejeitadoEvent(DomainEvent):
+class OrcamentoComplementarRejeitadoEvent(IntegrationEvent):
     """Emitido quando o orcamento complementar e rejeitado (volta para EM_EXECUCAO)."""

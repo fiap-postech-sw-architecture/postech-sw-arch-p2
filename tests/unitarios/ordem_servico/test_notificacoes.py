@@ -205,6 +205,7 @@ class TestMapaDeEventosDeTransicao:
         import inspect
 
         from src.compartilhado.dominio.events import DomainEvent
+        from src.compartilhado.dominio.integration_event import IntegrationEvent
         from src.ordem_servico.dominio import events as eventos_modulo
 
         eventos_de_transicao = {
@@ -212,6 +213,7 @@ class TestMapaDeEventosDeTransicao:
             for _, obj in inspect.getmembers(eventos_modulo, inspect.isclass)
             if issubclass(obj, DomainEvent)
             and obj is not DomainEvent
+            and obj is not IntegrationEvent
             and obj is not OrdemCriadaEvent
         }
 
