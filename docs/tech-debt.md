@@ -84,7 +84,7 @@ Otimizações (migrar `orcamento_json` de Text para `jsonb` + índice GIN -- TD-
 
 1. **Boy Scout Rule**: cada alteração deixa o código melhor do que encontrou
 2. **Refatorações incrementais**: melhorias técnicas nos sprints regulares, como parte do backlog
-3. **Sprint técnico**: negociar com o PO para débitos de maior impacto (TD-011, TD-021)
+3. **Sprint técnico**: negociar com o PO para débitos de maior impacto (TD-011, TD-015, TD-016)
 4. **ADRs como prevenção**: decisões registradas em ADR ([ADR-001](arquitetura/adr/001-framework-fastapi.md) a [ADR-013](arquitetura/adr/013-testes-bdd-pytest-bdd.md)) evitam débitos invisíveis
 5. **Métricas de fluxo**: lead time, cycle time e taxa de falhas para detectar crescimento do débito
 
