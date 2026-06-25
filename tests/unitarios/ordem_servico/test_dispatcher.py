@@ -16,7 +16,6 @@ from structlog.testing import capture_logs
 
 import src.ordem_servico.aplicacao.dispatcher as dispatcher_modulo
 from src.compartilhado.dominio.events import DomainEvent
-from src.ordem_servico.dominio.events import (
     DiagnosticoIniciadoEvent,
     ServicoFinalizadoEvent,
 )
@@ -40,7 +39,9 @@ class TestEventDispatcher:
             ServicoFinalizadoEvent(agregado_id=uuid4()),
         ]
         dispatcher = dispatcher_modulo.EventDispatcher(
+        dispatcher = dispatcher_modulo.EventDispatcher(
             handlers=(recebidos_a.append, recebidos_b.append)
+        )
         )
 
         dispatcher.despachar(eventos)
@@ -56,7 +57,9 @@ class TestEventDispatcher:
         def handler_quebrado(_evento: DomainEvent) -> None:
             raise RuntimeError("falha proposital do handler")
 
-        evento = DiagnosticoIniciadoEvent(agregado_id=uuid4())
+        dispatcher = dispatcher_modulo.EventDispatcher(
+            handlers=(handler_quebrado, recebidos.append)
+        )
         dispatcher = dispatcher_modulo.EventDispatcher(
             handlers=(handler_quebrado, recebidos.append)
         )
@@ -67,14 +70,14 @@ class TestEventDispatcher:
         # O handler seguinte ainda recebeu o evento e nada propagou.
         assert recebidos == [evento]
         assert any("handler" in str(log.get("event", "")).lower() for log in logs)
-
+        dispatcher = dispatcher_modulo.EventDispatcher(handlers=(recebidos.append,))
     def test_sem_eventos_nao_chama_handler(self) -> None:
         recebidos: list[DomainEvent] = []
         dispatcher = dispatcher_modulo.EventDispatcher(handlers=(recebidos.append,))
 
         dispatcher.despachar([])
 
-        assert recebidos == []
+        dispatcher = dispatcher_modulo.EventDispatcher(handlers=())
 
     def test_sem_handlers_nao_falha(self) -> None:
         dispatcher = dispatcher_modulo.EventDispatcher(handlers=())
