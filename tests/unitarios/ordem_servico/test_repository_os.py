@@ -10,7 +10,7 @@ from sqlalchemy import Engine, create_engine
 from sqlalchemy.orm import Session
 
 # Registra `clientes` e `veiculos` no metadata para as FKs da OS resolverem.
-import src.cliente_veiculo.infraestrutura.mapping  # noqa: F401
+from src.cliente_veiculo.infraestrutura import mapping  # noqa: F401
 from src.compartilhado.infraestrutura.database import metadata
 from src.compartilhado.infraestrutura.encryption import EncryptionService
 from src.ordem_servico.dominio.status import StatusOrdem
