@@ -26,10 +26,6 @@ from fastapi import FastAPI
 from structlog.testing import capture_logs
 
 import src.compartilhado.infraestrutura.observability as observability_modulo
-from src.compartilhado.infraestrutura.observability import (
-    _redigir_pii_da_span,
-    configurar_otel,
-)
 
 
 @pytest.fixture(autouse=True)
