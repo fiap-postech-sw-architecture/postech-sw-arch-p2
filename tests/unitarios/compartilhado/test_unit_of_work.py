@@ -11,6 +11,8 @@ from src.compartilhado.infraestrutura.unit_of_work import SQLAlchemyUnitOfWork
 class TestSQLAlchemyUnitOfWork:
     def _criar_uow(self) -> tuple[SQLAlchemyUnitOfWork, MagicMock]:
         session_mock = MagicMock()
+        session_mock.new = set()
+        session_mock.identity_map.values.return_value = []
         factory_mock = MagicMock(return_value=session_mock)
         uow = SQLAlchemyUnitOfWork(session_factory=factory_mock)
         return uow, session_mock

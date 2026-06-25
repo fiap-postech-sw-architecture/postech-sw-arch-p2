@@ -19,6 +19,7 @@ from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
 from sqlalchemy import (
+    JSON,
     BigInteger,
     Column,
     DateTime,
@@ -50,9 +51,9 @@ outbox_table = Table(
     Column("id", BigInteger, primary_key=True, autoincrement=True),
     Column("agregado_id", Uuid, nullable=False),
     Column("tipo", String(255), nullable=False),
-    # JSONB no Postgres; os testes que tocam a outbox rodam em
-    # testcontainers postgres:16 (nao ha caminho SQLite para esta tabela).
-    Column("payload", JSONB, nullable=False),
+    # Prod/Postgres usa JSONB; a variante sqlite so existe para que
+    # unit-test create_all(sqlite) nao trave (a tabela outbox nunca e usada em sqlite).
+    Column("payload", JSONB().with_variant(JSON(), "sqlite"), nullable=False),
     Column("status", String(20), nullable=False, default="pendente"),
     Column("tentativas", Integer, nullable=False, default=0),
     Column(
