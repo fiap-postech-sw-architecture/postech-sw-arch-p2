@@ -13,11 +13,13 @@ from __future__ import annotations
 import json
 import os
 import sys
-
-from sqlalchemy import Engine
+from typing import TYPE_CHECKING
 
 from src.compartilhado.infraestrutura.database import criar_engine
 from src.compartilhado.infraestrutura.outbox_dlq import listar_dead, reenfileirar
+
+if TYPE_CHECKING:
+    from sqlalchemy import Engine
 
 
 def _engine() -> Engine:

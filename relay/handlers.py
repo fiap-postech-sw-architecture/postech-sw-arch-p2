@@ -54,9 +54,7 @@ _EVENTOS: tuple[type[IntegrationEvent], ...] = (
     OrcamentoComplementarAprovadoEvent,
     OrcamentoComplementarRejeitadoEvent,
 )
-_POR_NOME: dict[str, type[IntegrationEvent]] = {
-    cls.__name__: cls for cls in _EVENTOS
-}
+_POR_NOME: dict[str, type[IntegrationEvent]] = {cls.__name__: cls for cls in _EVENTOS}
 
 
 def _desserializar_valor(tipo_campo: Any, valor: Any) -> Any:  # noqa: ANN401
@@ -68,8 +66,10 @@ def _desserializar_valor(tipo_campo: Any, valor: Any) -> Any:  # noqa: ANN401
     """
     if valor is None:
         return None
-    nome_tipo = tipo_campo if isinstance(tipo_campo, str) else getattr(
-        tipo_campo, "__name__", ""
+    nome_tipo = (
+        tipo_campo
+        if isinstance(tipo_campo, str)
+        else getattr(tipo_campo, "__name__", "")
     )
     if nome_tipo.endswith("UUID"):
         return UUID(valor)

@@ -171,8 +171,7 @@ class ConexaoOutboxSQL:
     def ja_processado(self, outbox_id: int, handler: str) -> bool:
         linha = self._conn.execute(
             text(
-                "SELECT 1 FROM processed_events "
-                "WHERE outbox_id = :id AND handler = :h"
+                "SELECT 1 FROM processed_events WHERE outbox_id = :id AND handler = :h"
             ),
             {"id": outbox_id, "h": handler},
         ).first()
@@ -181,8 +180,7 @@ class ConexaoOutboxSQL:
     def marcar_entregue(self, outbox_id: int) -> None:
         self._conn.execute(
             text(
-                "UPDATE outbox SET status='entregue', entregue_em=:agora "
-                "WHERE id = :id"
+                "UPDATE outbox SET status='entregue', entregue_em=:agora WHERE id = :id"
             ),
             {"id": outbox_id, "agora": self._agora},
         )
@@ -275,24 +273,52 @@ def reivindicar_lote(
     ).all()
     reivindicadas = [
         LinhaOutbox(
-            id=l.id,
-            agregado_id=l.agregado_id,
-            tipo=l.tipo,
-            payload=l.payload,
-            tentativas=l.tentativas,
+            id=row.id,
+            agregado_id=row.agregado_id,
+            tipo=row.tipo,
+            payload=row.payload,
+            tentativas=row.tentativas,
         )
-        for l in linhas
+        for row in linhas
     ]
     if reivindicadas:
         # Estende o lease (visibility timeout) das linhas reivindicadas (F3).
         conn.execute(
-            text(
-                "UPDATE outbox SET proxima_tentativa_em = :ate "
-                "WHERE id = ANY(:ids)"
-            ),
-            {"ate": agora + lease, "ids": [l.id for l in reivindicadas]},
+            text("UPDATE outbox SET proxima_tentativa_em = :ate WHERE id = ANY(:ids)"),
+            {"ate": agora + lease, "ids": [linha.id for linha in reivindicadas]},
         )
     return reivindicadas
+
+
+def emitir_profundidade(engine: Engine) -> None:
+    """Loga um gauge ``info`` da profundidade da outbox (design §7).
+
+    Uma unica query por chamada (barata; os indices de ``status`` ja existem):
+    quantos eventos ``pendente``, ha quanto tempo o mais antigo espera
+    (segundos) e quantos estao em ``dead`` (DLQ). Emitido uma vez por ciclo de
+    drain (em ``_drenar``), nao por entrega — observabilidade de fila sem
+    inflar o volume de logs por evento.
+
+    ``idade_mais_antigo_s`` e ``None`` quando nao ha pendentes (o
+    ``min(... ) FILTER`` retorna NULL); o caller registra como tal.
+    """
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                "SELECT count(*) FILTER (WHERE status = 'pendente') AS pendentes, "
+                "EXTRACT(EPOCH FROM (now() - min(criado_em) "
+                "  FILTER (WHERE status = 'pendente'))) AS idade_mais_antigo_s, "
+                "count(*) FILTER (WHERE status = 'dead') AS dead "
+                "FROM outbox"
+            )
+        ).one()
+    idade = row.idade_mais_antigo_s
+    _log.info(
+        "outbox_profundidade",
+        pendentes=int(row.pendentes),
+        idade_mais_antigo_s=float(idade) if idade is not None else None,
+        dead=int(row.dead),
+    )
 
 
 def processar_ciclo(
@@ -312,6 +338,16 @@ def processar_ciclo(
        uma na PROPRIA tx curta (``engine.begin()`` por linha). Erro de DB
        numa linha nao reverte o ``entregue`` das anteriores; crash duplica no
        maximo a linha em voo (F3).
+
+    INVARIANTE DO LEASE (HA / N replicas): o lease (visibility timeout
+    aplicado em ``reivindicar_lote``) precisa exceder a latencia de pior caso
+    de UMA chamada de handler — limitada pelo timeout do SMTP do adapter. O
+    drain e SEQUENCIAL e em ``replicas:1`` so existe um worker, entao a linha
+    em voo nunca volta a ser elegivel durante a entrega: seguro. Escalar para
+    ``replicas>1`` exige que essa invariante se mantenha (ou uma checagem de
+    fencing no momento da entrega); se o lease vencer no meio de uma entrega
+    lenta, uma segunda replica re-reivindica a MESMA linha e o e-mail
+    duplica. A configuracao shipada e ``replicas:1`` deliberadamente.
     """
     agora = relogio()
     with engine.begin() as conn:

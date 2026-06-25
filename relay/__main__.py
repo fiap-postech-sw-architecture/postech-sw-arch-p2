@@ -39,10 +39,10 @@ def _bootstrap_mappings() -> None:
 
 
 def main() -> None:
-    from src.compartilhado.infraestrutura.database import criar_engine
-    from src.compartilhado.infraestrutura.logging import configurar_logging
     from relay.handlers import NOME_HANDLER_EMAIL, construir_mapa_handlers
     from relay.listener import executar_relay
+    from src.compartilhado.infraestrutura.database import criar_engine
+    from src.compartilhado.infraestrutura.logging import configurar_logging
 
     configurar_logging()
     git_sha = os.environ.get("PYTSTOP_GIT_SHA", "unknown")[:12]

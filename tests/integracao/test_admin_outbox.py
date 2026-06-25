@@ -21,9 +21,12 @@ from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import pytest
+import structlog
+import structlog.testing
 from fastapi.testclient import TestClient
 from sqlalchemy import text
 
+import src.compartilhado.interfaces.router_admin as router_admin_modulo
 from src.autenticacao.dominio.papel import Papel
 from src.autenticacao.dominio.usuario import Usuario
 from src.autenticacao.infraestrutura.password_hasher import hash_senha
@@ -36,6 +39,18 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session, sessionmaker
 
 pytestmark = pytest.mark.integracao
+
+
+@pytest.fixture(autouse=True)
+def _logger_fresco(monkeypatch: pytest.MonkeyPatch) -> None:
+    # capture_logs nao intercepta o `_log` module-level ja cacheado quando
+    # outro teste bootou o app antes (configurar_logging usa
+    # cache_logger_on_first_use=True). Um proxy novo por teste torna o capture
+    # do audit de reenfileiramento deterministico em qualquer ordem da suite.
+    monkeypatch.setattr(
+        router_admin_modulo, "_log", structlog.get_logger("test_admin_outbox")
+    )
+
 
 _SENHA = "senhaforte1234"
 _EMAIL_ADMIN = "admin-dlq@test.com"
@@ -252,6 +267,44 @@ class TestReenfileirarContrato:
         assert resposta.status_code == 200
         assert resposta.json() == {"reenfileirado": True, "id": outbox_id}
         assert _status(engine, outbox_id) == ("pendente", 0)
+
+    def test_reenfileira_emite_audit_com_ator_e_outbox_id(
+        self, api_client: TestClient, admin_user: Usuario, engine: Engine
+    ) -> None:
+        # Acao que muta estado (ressuscita um dead) deve deixar trilha de
+        # auditoria: QUEM (o admin autenticado, via `sub`=id do JWT) e QUAL
+        # `outbox_id`. Captura o log estruturado em volta do POST.
+        outbox_id = _inserir_dead(engine, tentativas=5)
+        headers = _headers(api_client, admin_user)
+
+        with structlog.testing.capture_logs() as logs:
+            resposta = api_client.post(
+                f"/api/v1/admin/outbox/dead/{outbox_id}/reenfileirar", headers=headers
+            )
+
+        assert resposta.status_code == 200
+        auditorias = [
+            log for log in logs if log.get("event") == "outbox_reenfileirado_via_admin"
+        ]
+        assert len(auditorias) == 1, logs
+        evento = auditorias[0]
+        assert evento["outbox_id"] == outbox_id
+        # O ator e o `sub` do JWT = id do usuario admin que se autenticou.
+        assert evento["ator"] == str(admin_user.id)
+
+    def test_reenfileira_id_inexistente_nao_emite_audit(
+        self, api_client: TestClient, admin_user: Usuario
+    ) -> None:
+        # 404 (linha nao-dead/inexistente): nada mutou, nenhum audit emitido.
+        headers = _headers(api_client, admin_user)
+        with structlog.testing.capture_logs() as logs:
+            resposta = api_client.post(
+                "/api/v1/admin/outbox/dead/99999999/reenfileirar", headers=headers
+            )
+        assert resposta.status_code == 404
+        assert not any(
+            log.get("event") == "outbox_reenfileirado_via_admin" for log in logs
+        )
 
     def test_reenfileira_id_inexistente_retorna_404(
         self, api_client: TestClient, admin_user: Usuario

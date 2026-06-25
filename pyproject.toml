@@ -131,6 +131,12 @@ known-first-party = ["src", "ui", "relay"]
     "ANN", "PLR2004", "PLR0913", "PLR0915", "PLR0912",
     "C901", "FBT001", "BLE001", "LOG014", "PLW0603", "PYI034",
 ]
+# Daemon do relay: `_drenar`/`processar_ciclo` expoem 6 parametros de
+# proposito — engine + costuras injetaveis (handlers, nome_handler, lote,
+# lease, relogio) que permitem teste unitario sem Postgres e sem relogio real.
+# Quebrar em um objeto de config so para satisfazer o limite de 5 argumentos
+# obscureceria as costuras; PLR0913 e ruido aqui.
+"relay/**" = ["PLR0913"]
 "**/exceptions.py" = ["N818"]
 "**/interfaces/schemas.py" = ["S105", "TCH003"]
 "**/interfaces/router*.py" = ["B008"]
@@ -259,4 +265,6 @@ testpaths = ["tests"]
 # evita duplicacao divergente.
 
 [tool.bandit]
-targets = ["src", "ui"]
+# Inclui o daemon do relay e os scripts operacionais (CLI da DLQ, seeds): o
+# gate de seguranca cobre TODO o codigo Python executavel, nao so a API.
+targets = ["src", "ui", "relay", "scripts"]

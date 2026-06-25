@@ -19,7 +19,7 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import text
 
-from relay.processador import processar_ciclo
+from relay.processador import emitir_profundidade, processar_ciclo
 
 if TYPE_CHECKING:
     from sqlalchemy import Engine
@@ -478,3 +478,60 @@ def test_dead_com_sucessor_pendente_loga_error(engine: Engine) -> None:
     assert any(
         log.get("event") == "outbox_dead_com_sucessores_pendentes" for log in logs
     )
+
+
+def _inserir_dead(engine: Engine) -> int:
+    """Insere uma linha ``dead`` e retorna o ``id`` (gauge de DLQ, §7)."""
+    with engine.begin() as conn:
+        row = conn.execute(
+            text(
+                "INSERT INTO outbox (agregado_id, tipo, payload, status, "
+                "tentativas, proxima_tentativa_em, criado_em, ultimo_erro) "
+                "VALUES (:aid, 'DiagnosticoIniciadoEvent', CAST(:p AS JSONB), "
+                "'dead', 5, :agora, :agora, 'boom') RETURNING id"
+            ),
+            {"aid": uuid4(), "p": '{"agregado_id": "x"}', "agora": _agora()},
+        ).first()
+    return int(row.id)
+
+
+def test_gauge_profundidade_loga_contagens(engine: Engine) -> None:
+    # §7: o gauge emite `outbox_profundidade` com pendentes, idade do mais
+    # antigo (segundos) e tamanho da DLQ. Semeia 2 pendentes (um antigo, um
+    # recente) + 1 dead e afere as contagens no log estruturado.
+    import structlog.testing
+
+    # Pendente "antigo": criado_em empurrado 120s para o passado -> idade > 0.
+    antigo = _inserir_pendente(engine)
+    with engine.begin() as conn:
+        conn.execute(
+            text("UPDATE outbox SET criado_em = :p WHERE id = :id"),
+            {"id": antigo, "p": _agora() - timedelta(seconds=120)},
+        )
+    _inserir_pendente(engine)  # segundo pendente (recente)
+    _inserir_dead(engine)  # uma linha na DLQ
+
+    with structlog.testing.capture_logs() as logs:
+        emitir_profundidade(engine)
+
+    eventos = [log for log in logs if log.get("event") == "outbox_profundidade"]
+    assert len(eventos) == 1, logs
+    gauge = eventos[0]
+    assert gauge["pendentes"] == 2
+    assert gauge["dead"] == 1
+    # idade do mais antigo: ao menos ~120s (o pendente que empurramos).
+    assert gauge["idade_mais_antigo_s"] is not None
+    assert gauge["idade_mais_antigo_s"] >= 100.0
+
+
+def test_gauge_profundidade_outbox_vazia_idade_none(engine: Engine) -> None:
+    # Sem pendentes: contagens 0 e idade None (min(...) FILTER -> NULL).
+    import structlog.testing
+
+    with structlog.testing.capture_logs() as logs:
+        emitir_profundidade(engine)
+
+    gauge = next(log for log in logs if log.get("event") == "outbox_profundidade")
+    assert gauge["pendentes"] == 0
+    assert gauge["dead"] == 0
+    assert gauge["idade_mais_antigo_s"] is None
