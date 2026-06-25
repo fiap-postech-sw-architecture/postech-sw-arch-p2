@@ -303,6 +303,8 @@ k8s-up:
 	$(KUBECTL) apply -f k8s/
 	$(KUBECTL) -n $(K8S_NS) set image deployment/pytstop-api api=$(K8S_TAG)
 	$(KUBECTL) -n $(K8S_NS) rollout status deployment/pytstop-api --timeout=300s
+	$(KUBECTL) -n $(K8S_NS) set image deployment/pytstop-relay relay=$(K8S_TAG)
+	$(KUBECTL) -n $(K8S_NS) rollout status deployment/pytstop-relay --timeout=300s
 	@echo ">> deploy concluido: $(K8S_TAG) no cluster kind-$(K8S_CLUSTER)."
 
 # Porta local 18000 (nao 8000) para nao colidir com a stack compose, que

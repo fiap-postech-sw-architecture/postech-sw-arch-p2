@@ -106,6 +106,8 @@ jobs:
           kubectl apply -f k8s/
           kubectl -n pytstop set image deployment/pytstop-api api="${{ needs.image.outputs.tag }}"
           kubectl -n pytstop rollout status deployment/pytstop-api --timeout=300s
+          kubectl -n pytstop set image deployment/pytstop-relay relay="${{ needs.image.outputs.tag }}"
+          kubectl -n pytstop rollout status deployment/pytstop-relay --timeout=300s
       # Porta local 18000 para casar com o `make k8s-smoke` (que evita
       # colisao com a stack compose em 8000 na maquina do dev).
       - name: Smoke test
