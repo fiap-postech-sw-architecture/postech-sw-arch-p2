@@ -111,7 +111,7 @@ select = [
 fixable = ["ALL"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["src", "ui"]
+known-first-party = ["src", "ui", "relay"]
 
 [tool.ruff.lint.per-file-ignores]
 "tests/**" = [
@@ -131,6 +131,12 @@ known-first-party = ["src", "ui"]
     "ANN", "PLR2004", "PLR0913", "PLR0915", "PLR0912",
     "C901", "FBT001", "BLE001", "LOG014", "PLW0603", "PYI034",
 ]
+# Daemon do relay: `_drenar`/`processar_ciclo` expoem 6 parametros de
+# proposito — engine + costuras injetaveis (handlers, nome_handler, lote,
+# lease, relogio) que permitem teste unitario sem Postgres e sem relogio real.
+# Quebrar em um objeto de config so para satisfazer o limite de 5 argumentos
+# obscureceria as costuras; PLR0913 e ruido aqui.
+"relay/**" = ["PLR0913"]
 "**/exceptions.py" = ["N818"]
 "**/interfaces/schemas.py" = ["S105", "TCH003"]
 "**/interfaces/router*.py" = ["B008"]
@@ -156,7 +162,7 @@ known-first-party = ["src", "ui"]
 # e shared kernel, nao contexto delimitado: fica fora dos containers de camadas,
 # mas seu `dominio` e sua `aplicacao` entram no forbidden pelos mesmos motivos.
 [tool.importlinter]
-root_packages = ["src"]
+root_packages = ["src", "relay"]
 
 [[tool.importlinter.contracts]]
 name = "Camadas Clean por contexto (interfaces -> aplicacao -> dominio)"
@@ -195,6 +201,19 @@ forbidden_modules = [
     "src.autenticacao.infraestrutura",
     "src.compartilhado.infraestrutura",
 ]
+
+# `src` (a aplicacao) NUNCA importa o sidecar operacional `relay/`: o sentido
+# legitimo e `relay -> src` (o relay consome dominio/infra de src). O sentido
+# inverso (`src -> relay`) fecharia um ciclo de pacote `src -> relay -> src`,
+# invisivel ao linter enquanto `relay` ficava fora de `root_packages`. Com
+# `relay` agora graficado, este contrato torna o ciclo regressao-proof. As
+# queries de DLQ que antes moravam em `relay/dlq.py` migraram para
+# `src.compartilhado.infraestrutura.outbox_dlq`.
+[[tool.importlinter.contracts]]
+name = "src nao importa relay (relay e sidecar; so relay -> src e permitido)"
+type = "forbidden"
+source_modules = ["src"]
+forbidden_modules = ["relay"]
 
 [tool.mypy]
 strict = true
@@ -246,4 +265,6 @@ testpaths = ["tests"]
 # evita duplicacao divergente.
 
 [tool.bandit]
-targets = ["src", "ui"]
+# Inclui o daemon do relay e os scripts operacionais (CLI da DLQ, seeds): o
+# gate de seguranca cobre TODO o codigo Python executavel, nao so a API.
+targets = ["src", "ui", "relay", "scripts"]

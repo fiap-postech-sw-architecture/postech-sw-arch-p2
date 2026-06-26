@@ -24,6 +24,11 @@ from src.cliente_veiculo.infraestrutura.mapping import (
     iniciar_mapeamentos as iniciar_cliente,
 )
 from src.compartilhado.infraestrutura.database import metadata
+
+# Registra as tabelas Core da outbox no metadata (sem agregado mapeado,
+# nao entram via iniciar_mapeamentos de nenhum contexto).
+import src.compartilhado.infraestrutura.outbox_mapping  # noqa: F401,E402
+
 from src.estoque.infraestrutura.mapping import (
     iniciar_mapeamentos as iniciar_estoque,
 )

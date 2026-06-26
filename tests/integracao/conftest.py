@@ -19,6 +19,7 @@ def _registrar_todos_mapeamentos() -> None:
         return
     _mapeamentos_registrados = True
 
+    import src.compartilhado.infraestrutura.outbox_mapping  # noqa: F401
     from src.autenticacao.infraestrutura.mapping import (
         iniciar_mapeamentos as iniciar_autenticacao,
     )

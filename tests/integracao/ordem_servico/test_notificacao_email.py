@@ -1,10 +1,10 @@
-"""Integracao do dispatch pos-commit de eventos de transicao (RF-024).
+"""Integracao da persistencia duravel de eventos de transicao via outbox (RF-024).
 
 Exercita ``IniciarDiagnostico`` real (repositorio SQLAlchemy + UnitOfWork
-real) com handlers fake registrados no ``EventDispatcher``:
+real) e prova que:
 
-- o handler recebe o evento DEPOIS do commit — provado lendo o status da
-  OS direto da tabela no momento da chamada do handler;
+- a transicao de status e o registro na outbox sao commitados juntos na
+  MESMA transacao (garantia de ordering: estado + evento atomicos);
 - falha do handler nao afeta a transicao ja persistida (aceite RF-024);
 - ``ClienteSQLAlchemyAdapter.obter_contato`` resolve nome + contato do
   cliente real (cross-context via port, sem tocar o dominio vizinho).
@@ -27,10 +27,10 @@ from sqlalchemy import text
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.placa import Placa
+from src.compartilhado.infraestrutura.outbox_mapping import outbox_table
 from src.compartilhado.infraestrutura.unit_of_work import SQLAlchemyUnitOfWork
 from src.ordem_servico.aplicacao.dispatcher import EventDispatcher
 from src.ordem_servico.aplicacao.use_cases import IniciarDiagnostico
-from src.ordem_servico.dominio.events import DiagnosticoIniciadoEvent
 from src.ordem_servico.dominio.ordem_de_servico import OrdemDeServico
 from src.ordem_servico.infraestrutura.adapters import ClienteSQLAlchemyAdapter
 from src.ordem_servico.infraestrutura.repository import (
@@ -105,25 +105,36 @@ def _status_no_banco(sessao: Session, ordem_id: UUID) -> str | None:
 
 
 class TestDispatchPosCommitComBancoReal:
-    def test_handler_recebe_evento_apos_commit_e_ve_ordem_persistida(
+    def test_transicao_enfileira_evento_na_outbox_no_mesmo_commit(
         self, sessao: Session
     ) -> None:
-        ordem = _seed_ordem_recebida(sessao)
-        visto: list[tuple[type, str | None]] = []
+        """Prova que status 'em_diagnostico' e o registro na outbox sao atomicos.
 
-        def handler(evento: object) -> None:
-            # Prova de ordem: no momento da notificacao, a linha da OS ja
-            # esta com o status novo persistido (commit aconteceu antes).
-            visto.append((type(evento), _status_no_banco(sessao, ordem.id)))
+        O status da OS e o registro na outbox compartilham o mesmo COMMIT
+        (garantia de ordering do fluxo outbox). A consulta e feita na MESMA
+        session/connection que o UoW usou — fora dela os dados nao seriam
+        visiveis, pois a fixture sessao usa savepoint+rollback.
+        """
+        ordem = _seed_ordem_recebida(sessao)
 
         uc = IniciarDiagnostico(
             repo=OrdemDeServicoSQLAlchemyRepository(session=sessao),
             uow=SQLAlchemyUnitOfWork(session_factory=lambda: sessao),
-            dispatcher=EventDispatcher(handlers=(handler,)),
+            dispatcher=EventDispatcher(handlers=()),
         )
         uc.executar(ordem.id)
 
-        assert visto == [(DiagnosticoIniciadoEvent, "em_diagnostico")]
+        # 1. O status da OS ja esta persistido (estado commitado).
+        assert _status_no_banco(sessao, ordem.id) == "em_diagnostico"
+
+        # 2. O mesmo commit gravou exatamente um registro na outbox para
+        #    esse agregado, com tipo e status corretos (durabilidade RF-024).
+        linhas = sessao.execute(
+            outbox_table.select().where(outbox_table.c.agregado_id == ordem.id)
+        ).all()
+        assert len(linhas) == 1
+        assert linhas[0].tipo == "DiagnosticoIniciadoEvent"
+        assert linhas[0].status == "pendente"
 
     def test_falha_do_handler_nao_desfaz_a_transicao_persistida(
         self, sessao: Session

@@ -37,6 +37,15 @@ data:
   SMTP_HOST: "mailpit"
   SMTP_PORT: "1025"
   SMTP_FROM: "oficina@pytstop.local"
+  # Relay da Transactional Outbox (RF-018): intervalo do poll de seguranca
+  # (NOTIFY acorda antes; o poll cobre eventos perdidos, backoff e lease
+  # vencido), tamanho do lote reivindicado por ciclo (pequeno: limita a
+  # janela de duplicacao em crash), lease/visibility-timeout (> timeout do
+  # SMTP) e caminho do arquivo de heartbeat (liveness do relay).
+  OUTBOX_POLL_SEGUNDOS: "5"
+  OUTBOX_LOTE: "10"
+  OUTBOX_LEASE_SEGUNDOS: "60"
+  RELAY_HEARTBEAT: "/tmp/relay-heartbeat"
   # Traces OTLP (ADR-020): o cluster de demo liga a instrumentacao —
   # FastAPI + SQLAlchemy exportam para o Jaeger (jaeger.yaml, Service
   # `jaeger` neste namespace, porta OTLP/gRPC). Default do codigo e off;

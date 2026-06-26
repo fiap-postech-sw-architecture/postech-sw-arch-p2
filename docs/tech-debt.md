@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../README.md)
 
-> **Versão**: 1.5 — TD-018 fechado por remoção do `db-image/` (fast-check da fase 1) do repo da fase 2. Versão 1.4: dep `mutmut` removido (3.x quebrado); TD-006 sem tooling. Versão 1.3: TD-019 fechado (PR #50). Versão 1.2 (2026-06-22): reconciliação com o código (TD-003/TD-017 fechados, TD-002/004/005/008/009/016 corrigidos).
+> **Versão**: 1.6 — TD-008 resolvido (Transactional Outbox/RF-018, PR #56); adicionados TD-021 (relay HA/fencing) e TD-022 (observabilidade do relay). Versão 1.5: TD-018 fechado por remoção do `db-image/` (fast-check da fase 1) do repo da fase 2. Versão 1.4: dep `mutmut` removido (3.x quebrado); TD-006 sem tooling. Versão 1.3: TD-019 fechado (PR #50). Versão 1.2 (2026-06-22): reconciliação com o código (TD-003/TD-017 fechados, TD-002/004/005/008/009/016 corrigidos).
 
 Simplificações deliberadas cujo custo de correção é aceito para o escopo do MVP.
 
@@ -26,6 +26,7 @@ Classificação por tipo:
 | TD-017 | Observabilidade | Traces capturavam a query string (CPF/placa) — PII no OTel | **Fechado** (#34) — `_redigir_pii_da_span` (server_request_hook do `FastAPIInstrumentor`) redige `url.query` e remove a query de `http.target`/`url.path` antes do export dos spans ([observability.py](../src/compartilhado/infraestrutura/observability.py)). |
 | TD-019 | Arquitetura | `aplicacao → infraestrutura` na autenticação fora do contrato forbidden | **Fechado** (#50) — `PasswordHasherPort` + `JWTServicePort` em [aplicacao/ports.py](../src/autenticacao/aplicacao/ports.py) (Protocol); a infra implementa e o composition root injeta por DI. O contrato `forbidden` do import-linter passou a proibir `aplicacao → infraestrutura` em todos os contextos, verificado por `make lint-arch`/CI (RNF-017). |
 | TD-018 | Infra | `db-image/` no GHCR ainda com imagens da fase 1 | **Fechado** — `db-image/` (fast-check da fase 1) removido do repo da fase 2: confundia (imagens `-p1` sem RF-020..024/Mailpit) e não agregava (nada usa; compose e testes usam `postgres:16` vanilla, app builda do fonte e o CD publica `-p2-app` por SHA). Caminhos oficiais: `make up`, k8s/CD. |
+| TD-008 | Domínio | Dispatch de domain events síncrono e in-process (sem outbox) | **Fechado** (2026-06-25, PR #56) — Resolvido via RF-018 (Transactional Outbox): a UoW grava `IntegrationEvents` na tabela `outbox` na mesma transação da OS; o relay (`python -m relay`) implementa claim-then-deliver com head-of-line, backoff/DLQ e idempotência via `processed_events`. Notificação proativa via `LISTEN/NOTIFY` (PostgreSQL). Detalhes em [ADR-020](arquitetura/adr/fase2/020-transactional-outbox-relay.md). |
 
 | # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
 |---|---|---|---|---|---|---|---|---|
@@ -41,8 +42,7 @@ Débitos aceitáveis no MVP relacionados à conformidade tática do DDD:
 | # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
 |---|---|---|---|---|---|---|---|---|
 | TD-007 | Domínio | Value Objects com validação mínima | Deliberado | Baixa | Baixo | Não | Estável | `not-null` e tipo correto são obrigatórios. Validação completa de formato (ex: dígito verificador do CPF) é deferida para brutils ([ADR-010](arquitetura/adr/010-validacao-documentos-brutils.md)). |
-| TD-008 | Domínio | Dispatch de domain events síncrono e in-process (sem outbox) | Planejado | Média | Médio | Sim | Estável | O `EventDispatcher` ([aplicacao/dispatcher.py](../src/ordem_servico/aplicacao/dispatcher.py)) já despacha os eventos de domínio de forma síncrona e in-process, pós-commit. O que segue deferido é o **Transactional Outbox** (RF-018, Could Have) para entrega assíncrona e durável; sob falha de handler a entrega não é re-tentada. O payload já segue o `DomainEvent` base (`agregado_id`, `ocorrido_em`). |
-| TD-009 | Domínio | Dois eventos de criação do event storming sem classe nem emissão | Planejado | Baixa | Baixo | Não | Estável | A maioria dos eventos já é emitida via `_registrar_evento` e despachada (TD-008): `VeiculoAdicionadoEvent`, `EstoqueReservadoEvent`, `EstoqueLiberadoEvent` (além de `ClienteDesativadoEvent`/`ClienteAtualizadoEvent`). Faltam apenas os eventos de criação `ClienteCadastrado` e `ServicoCadastrado`, que nunca chegaram a ser implementados como classes. |
+| TD-009 | Domínio | Dois eventos de criação do event storming sem classe nem emissão | Planejado | Baixa | Baixo | Não | Estável | A maioria dos eventos já é emitida via `_registrar_evento` e despachada: `VeiculoAdicionadoEvent`, `EstoqueReservadoEvent`, `EstoqueLiberadoEvent` (além de `ClienteDesativadoEvent`/`ClienteAtualizadoEvent`). Faltam apenas os eventos de criação `ClienteCadastrado` e `ServicoCadastrado`, que nunca chegaram a ser implementados como classes. |
 
 ## Segurança e Qualidade
 
@@ -63,6 +63,8 @@ Débitos assumidos durante a fase 2 (infra Kubernetes, CI/CD, observabilidade e 
 |---|---|---|---|---|---|---|---|---|
 | TD-015 | Infra | Corrida de migração com múltiplas réplicas (alembic no entrypoint) | Deliberado | Média | Médio | Sim | Estável | O `entrypoint.sh` roda `alembic upgrade head` no boot; duas réplicas subindo juntas poderiam disputar a migração. Mitigação atual: rollout inicial com réplica única (`replicas: 1` explícito no Deployment) antes de o HPA escalar. Evolução: Job dedicado de migração no deploy ([ADR-019](arquitetura/adr/fase2/019-pipeline-cicd-deploy.md)). Rastreado em #33. |
 | TD-016 | Infra | Rate limiter slowapi in-memory por pod | Deliberado | Média | Médio | Sim | Crescente | A metade do RNF-024 relativa ao **pool de conexões** já foi entregue (`DB_POOL_SIZE`/`DB_MAX_OVERFLOW` em [database.py](../src/compartilhado/infraestrutura/database.py), #32 fechada). Resta o **rate limiter**: o contador do slowapi vive na memória de cada pod ([middleware.py](../src/compartilhado/interfaces/middleware.py)), então sob HPA o limite efetivo é multiplicado pelo número de réplicas. Aceitável no cluster de demo; evolução é backend compartilhado (Redis via `storage_uri`) com mais de uma réplica estável. Rastreado em #31. |
+| TD-021 | Infra | Relay sem fencing de lease para `replicas>1` | Planejado | Média | Médio | Sim | Latente | O relay roda com `replicas:1`; o drain sequencial torna o lease (visibility timeout, 60 s) seguro nessa topologia. Escalar para `replicas>1` (caminho "HA-ready" via `FOR UPDATE SKIP LOCKED`) exige que o lease sempre exceda a latência de um handler isolado (limitada pelo timeout SMTP de 5 s) **ou** um fencing na entrega (re-checar lease/owner dentro da tx por-linha e pular se o lease foi roubado). Sem isso, um lease vencendo no meio de uma entrega lenta permite que uma segunda réplica re-reivindique a linha → e-mail duplicado. Contexto em [relay/processador.py](../relay/processador.py) e [relay/listener.py](../relay/listener.py). |
+| TD-022 | Observabilidade | Relay sem métricas OTel nem alerting | Planejado | Baixa-Média | Médio | Não | Crescente | O design (RF-018 §7) prevê métricas proativas: contagem `pendente`, idade do mais antigo pendente, tamanho da DLQ, contagem de retries. Implementado um gauge structlog por ciclo (`outbox_profundidade` em [relay/processador.py](../relay/processador.py)) como cobertura proporcional ao MVP; falta instrumentação OTel no processo do relay (a API já tem OTel via ADR-020; o relay apenas emite structlog) e alerting sobre `outbox_dead_com_sucessores_pendentes` e backlog elevado. Evolução: exportar métricas do relay via OTel/Prometheus e configurar alertas. |
 
 ## Considerações de Complexidade Algorítmica
 
@@ -82,7 +84,7 @@ Otimizações (migrar `orcamento_json` de Text para `jsonb` + índice GIN -- TD-
 
 1. **Boy Scout Rule**: cada alteração deixa o código melhor do que encontrou
 2. **Refatorações incrementais**: melhorias técnicas nos sprints regulares, como parte do backlog
-3. **Sprint técnico**: negociar com o PO para débitos de maior impacto (TD-008, TD-011)
+3. **Sprint técnico**: negociar com o PO para débitos de maior impacto (TD-011, TD-015, TD-016)
 4. **ADRs como prevenção**: decisões registradas em ADR ([ADR-001](arquitetura/adr/001-framework-fastapi.md) a [ADR-013](arquitetura/adr/013-testes-bdd-pytest-bdd.md)) evitam débitos invisíveis
 5. **Métricas de fluxo**: lead time, cycle time e taxa de falhas para detectar crescimento do débito
 

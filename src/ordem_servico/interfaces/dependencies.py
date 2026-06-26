@@ -25,7 +25,6 @@ from typing import TYPE_CHECKING
 
 from src.compartilhado.infraestrutura.unit_of_work import SQLAlchemyUnitOfWork
 from src.ordem_servico.aplicacao.dispatcher import EventDispatcher
-from src.ordem_servico.aplicacao.notificacoes import NotificarMudancaDeStatus
 from src.ordem_servico.infraestrutura.adapters import (
     CatalogoSQLAlchemyAdapter,
     ClienteSQLAlchemyAdapter,
@@ -92,22 +91,20 @@ def obter_email_port() -> EmailPort:
 
 
 def _dispatcher(session: Session) -> EventDispatcher:
-    """Monta o dispatcher com os handlers de evento do contexto OS.
+    """Monta o dispatcher sincrono dos DOMAIN EVENTS PUROS do contexto OS.
 
-    Hoje ha um unico handler (notificacao de status por e-mail, RF-024);
-    novos consumidores de eventos entram aqui sem tocar os use cases.
-    Sempre ligado — a tolerancia a falha mora no handler/dispatcher, nao
-    em flag de ambiente.
+    O handler de e-mail (RF-024) migrou para a Transactional Outbox
+    (RF-018 / TD-008): a ``UnitOfWork`` enfileira os ``IntegrationEvent``
+    na ``outbox`` no commit e o relay (``python -m relay``) os entrega de
+    forma duravel. Manter o e-mail tambem aqui causaria entrega dupla.
+
+    Hoje nenhum domain event puro tem consumidor sincrono, entao o
+    dispatcher fica sem handlers; permanece no fluxo (e o
+    ``_despachar_pos_commit`` dos use cases continua entregando os domain
+    events puros preservados pela UoW) para que novos consumidores
+    sincronos entrem aqui sem tocar os use cases.
     """
-    return EventDispatcher(
-        handlers=(
-            NotificarMudancaDeStatus(
-                repo=_repo(session),
-                cliente_port=ClienteSQLAlchemyAdapter(session=session),
-                email_port=obter_email_port(),
-            ),
-        )
-    )
+    return EventDispatcher(handlers=())
 
 
 def obter_criar_ordem(session: Session) -> CriarOrdem:

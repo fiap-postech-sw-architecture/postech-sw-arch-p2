@@ -71,8 +71,8 @@ seed:
 	@bash -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.dev ] && . ./.env.dev; set +a; python scripts/seed_admin.py'
 
 lint:
-	$(PY)ruff check src/ ui/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
-	$(PY)ruff format --check src/ ui/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+	$(PY)ruff check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+	$(PY)ruff format --check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
 
 # Contratos de arquitetura (ADR-015 / RNF-017): camadas Clean por contexto +
 # proibicao dominio -> infraestrutura. Config em [tool.importlinter] no
@@ -81,14 +81,14 @@ lint-arch:
 	$(PY)lint-imports
 
 format:
-	$(PY)ruff format src/ ui/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
-	$(PY)ruff check src/ ui/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py --fix
+	$(PY)ruff format src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+	$(PY)ruff check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py --fix
 
 typecheck:
-	$(PY)mypy src/ ui/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+	$(PY)mypy src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
 
 security:
-	$(PY)bandit -r src/ ui/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py -c pyproject.toml --severity-level high
+	$(PY)bandit -r src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py -c pyproject.toml --severity-level high
 
 # Args comuns da suite unitaria, compartilhados por `test` e `test-coverage`.
 PYTEST_UNIT_ARGS := tests/unitarios/ -x -q --no-lint --cov=src -m "not lento"
@@ -303,6 +303,8 @@ k8s-up:
 	$(KUBECTL) apply -f k8s/
 	$(KUBECTL) -n $(K8S_NS) set image deployment/pytstop-api api=$(K8S_TAG)
 	$(KUBECTL) -n $(K8S_NS) rollout status deployment/pytstop-api --timeout=300s
+	$(KUBECTL) -n $(K8S_NS) set image deployment/pytstop-relay relay=$(K8S_TAG)
+	$(KUBECTL) -n $(K8S_NS) rollout status deployment/pytstop-relay --timeout=300s
 	@echo ">> deploy concluido: $(K8S_TAG) no cluster kind-$(K8S_CLUSTER)."
 
 # Porta local 18000 (nao 8000) para nao colidir com a stack compose, que

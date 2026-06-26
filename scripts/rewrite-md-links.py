@@ -9,7 +9,9 @@ Usage:
 INPUT.md is the source markdown. --base-dir is the directory of the source file
 (used to resolve relative paths). External (https://) links pass through unchanged.
 """
+
 from __future__ import annotations
+
 import argparse
 import re
 import sys
