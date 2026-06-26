@@ -45,7 +45,7 @@ GIT_SHA  := $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 GIT_DATE := $(shell git show -s --format=%cI HEAD 2>/dev/null || echo unknown)
 DOCKER_COMPOSE := GIT_SHA=$(GIT_SHA) GIT_DATE=$(GIT_DATE) docker compose --env-file .env.dev
 
-.PHONY: lint lint-arch format typecheck security test test-coverage test-integ test-all check all up down seed ui seed-users seed-users-docker seed-demo up-backend env-dev rebuild reset-db
+.PHONY: lint lint-arch format typecheck security codeql-quality test test-coverage test-integ test-all check all up down seed ui seed-users seed-users-docker seed-demo up-backend env-dev rebuild reset-db
 
 # Bootstrap do .env.dev a partir do example. `.env.dev` e gitignored
 # porque pode conter secrets reais; o `.env.dev.example` tem defaults
@@ -89,6 +89,12 @@ typecheck:
 
 security:
 	$(PY)bandit -r src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py -c pyproject.toml --severity-level high
+
+# Roda o CodeQL "Code Quality" suite localmente (mesmas queries do GitHub Code
+# Quality). On-demand: a 1a execucao baixa o bundle do CodeQL (~1GB); nao entra
+# em `check`/CI por ser pesado. Detalhes em scripts/codeql_quality.sh.
+codeql-quality:
+	@bash scripts/codeql_quality.sh
 
 # Args comuns da suite unitaria, compartilhados por `test` e `test-coverage`.
 PYTEST_UNIT_ARGS := tests/unitarios/ -x -q --no-lint --cov=src -m "not lento"
