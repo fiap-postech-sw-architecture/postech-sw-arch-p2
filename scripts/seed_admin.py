@@ -26,6 +26,8 @@ import sys
 from pathlib import Path
 from typing import TYPE_CHECKING
 
+from pydantic import EmailStr, TypeAdapter, ValidationError
+
 # Garante que ``src.*`` seja importavel ao rodar ``python scripts/seed_admin.py``
 # sem ``pip install -e .``. Idempotente: no-op se o projeto ja estiver no path.
 _PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
@@ -78,6 +80,11 @@ def ler_config(env: dict[str, str] | None = None) -> tuple[str, str, str]:
     if not admin_email:
         msg = "variavel ADMIN_EMAIL nao definida."
         raise _ConfigError(msg)
+    try:
+        TypeAdapter(EmailStr).validate_python(admin_email)
+    except ValidationError as exc:
+        msg = f"ADMIN_EMAIL invalido (seria rejeitado pelo login): {admin_email!r}"
+        raise _ConfigError(msg) from exc
 
     admin_password = (source.get("ADMIN_PASSWORD") or "").strip()
     if not admin_password:
