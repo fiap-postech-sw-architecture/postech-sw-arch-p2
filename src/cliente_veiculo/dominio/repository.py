@@ -12,30 +12,45 @@ if TYPE_CHECKING:
 
 
 class ClienteRepository(Protocol):
-    def obter_por_id(self, cliente_id: UUID) -> Cliente | None: ...
+    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
+    # `...` como statement sem efeito; `pass` e o stub equivalente
+    # (no-op, zero custo) e nao dispara o alerta.
+    def obter_por_id(self, cliente_id: UUID) -> Cliente | None:
+        pass
 
-    def bloquear_veiculo_para_remocao(self, veiculo_id: UUID) -> bool: ...
+    def bloquear_veiculo_para_remocao(self, veiculo_id: UUID) -> bool:
+        pass
 
-    def salvar(self, cliente: Cliente) -> None: ...
+    def salvar(self, cliente: Cliente) -> None:
+        pass
 
-    def listar(self, offset: int = 0, limit: int = 20) -> list[Cliente]: ...
+    def listar(self, offset: int = 0, limit: int = 20) -> list[Cliente]:
+        pass
 
-    def contar(self) -> int: ...
+    def contar(self) -> int:
+        pass
 
-    def obter_por_documento(self, documento: Documento) -> Cliente | None: ...
+    def obter_por_documento(self, documento: Documento) -> Cliente | None:
+        pass
 
     def placa_existe(
         self, placa: Placa, excluir_cliente_id: UUID | None = None
-    ) -> bool: ...
+    ) -> bool:
+        pass
 
-    def obter_dados_pessoais(self, cliente_id: UUID) -> Cliente | None: ...
+    def obter_dados_pessoais(self, cliente_id: UUID) -> Cliente | None:
+        pass
 
-    def anonimizar_dados(self, cliente_id: UUID) -> None: ...
+    def anonimizar_dados(self, cliente_id: UUID) -> None:
+        pass
 
-    def salvar_consentimento(self, consentimento: ConsentimentoCliente) -> None: ...
+    def salvar_consentimento(self, consentimento: ConsentimentoCliente) -> None:
+        pass
 
     def obter_consentimento(
         self, cliente_id: UUID, tipo: str
-    ) -> ConsentimentoCliente | None: ...
+    ) -> ConsentimentoCliente | None:
+        pass
 
-    def revogar_consentimento(self, cliente_id: UUID, tipo: str) -> None: ...
+    def revogar_consentimento(self, cliente_id: UUID, tipo: str) -> None:
+        pass

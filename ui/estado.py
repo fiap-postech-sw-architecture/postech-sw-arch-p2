@@ -25,9 +25,17 @@ class Sessao:
 
 
 class _StorageProtocol(Protocol):
-    def get(self, key: str, default: object = None) -> object: ...
-    def __setitem__(self, key: str, value: object) -> None: ...
-    def clear(self) -> None: ...
+    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
+    # `...` como statement sem efeito; `pass` e o stub equivalente
+    # (no-op, zero custo) e nao dispara o alerta.
+    def get(self, key: str, default: object = None) -> object:
+        pass
+
+    def __setitem__(self, key: str, value: object) -> None:
+        pass
+
+    def clear(self) -> None:
+        pass
 
 
 class _DictStorage:

@@ -14,4 +14,8 @@ class OrdemDeServicoPort(Protocol):
     ``src/estoque/infraestrutura/``.
     """
 
-    def existe_os_ativa_com_item_estoque(self, item_estoque_id: UUID) -> bool: ...
+    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
+    # `...` como statement sem efeito; `pass` e o stub equivalente
+    # (no-op, zero custo) e nao dispara o alerta.
+    def existe_os_ativa_com_item_estoque(self, item_estoque_id: UUID) -> bool:
+        pass

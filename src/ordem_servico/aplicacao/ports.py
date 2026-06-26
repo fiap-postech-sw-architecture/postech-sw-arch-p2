@@ -77,6 +77,9 @@ class VeiculoResumoDTO:
 class EstoquePort(Protocol):
     """Porta para reserva, liberacao e consulta de itens no contexto Estoque."""
 
+    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
+    # `...` como statement sem efeito; `pass` e o stub equivalente
+    # (no-op, zero custo) e nao dispara o alerta.
     def reservar(self, item_estoque_id: UUID, quantidade: int) -> None:
         """Reserva ``quantidade`` unidades do item.
 
@@ -84,7 +87,7 @@ class EstoquePort(Protocol):
         equivalente) se a quantidade disponivel for menor que a solicitada.
         Nao e idempotente: chamadas repetidas reservam quantidades adicionais.
         """
-        ...
+        pass
 
     def liberar(self, item_estoque_id: UUID, quantidade: int) -> None:
         """Libera ``quantidade`` unidades previamente reservadas.
@@ -92,7 +95,7 @@ class EstoquePort(Protocol):
         Implementacoes devem rejeitar liberacoes que excedam a reserva
         ativa para o item.
         """
-        ...
+        pass
 
     def obter_item(self, item_estoque_id: UUID) -> ItemEstoqueDTO | None:
         """Retorna o DTO do item de estoque, ou ``None`` se nao existir.
@@ -101,7 +104,7 @@ class EstoquePort(Protocol):
         consumida (item_estoque_id presente): o ``preco_unitario`` da
         ItemDaOrdem precisa vir do estoque, nao do servico.
         """
-        ...
+        pass
 
     def obter_itens_em_lote(
         self, item_estoque_ids: set[UUID]
@@ -114,15 +117,18 @@ class EstoquePort(Protocol):
         ``EnriquecerOrdemDeServico`` para evitar N+1 quando uma OS tem
         varios itens.
         """
-        ...
+        pass
 
 
 class CatalogoPort(Protocol):
     """Porta para consulta de servicos oferecidos no contexto Catalogo de Servicos."""
 
+    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
+    # `...` como statement sem efeito; `pass` e o stub equivalente
+    # (no-op, zero custo) e nao dispara o alerta.
     def obter_servico(self, servico_id: UUID) -> ServicoOferecidoDTO | None:
         """Retorna o DTO do servico pelo id, ou ``None`` se nao existir."""
-        ...
+        pass
 
     def obter_servicos_em_lote(
         self, servico_ids: set[UUID]
@@ -135,19 +141,22 @@ class CatalogoPort(Protocol):
         ``EnriquecerOrdemDeServico`` para evitar N+1 quando uma OS tem
         varios itens.
         """
-        ...
+        pass
 
 
 class ClientePort(Protocol):
     """Porta para validar cliente e seus veiculos no contexto Cliente+Veiculo."""
 
+    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
+    # `...` como statement sem efeito; `pass` e o stub equivalente
+    # (no-op, zero custo) e nao dispara o alerta.
     def cliente_existe(self, cliente_id: UUID) -> bool:
         """Indica se o cliente existe e esta ativo no contexto Cliente+Veiculo."""
-        ...
+        pass
 
     def veiculo_pertence_ao_cliente(self, cliente_id: UUID, veiculo_id: UUID) -> bool:
         """Indica se o veiculo existe e pertence ao cliente informado."""
-        ...
+        pass
 
     def obter_clientes_em_lote(
         self, cliente_ids: set[UUID]
@@ -160,7 +169,7 @@ class ClientePort(Protocol):
         query ``EnriquecerOrdemDeServico`` para evitar N+1 quando uma
         listagem hidrata varias ordens de uma vez.
         """
-        ...
+        pass
 
     def obter_veiculos_em_lote(
         self, veiculo_ids: set[UUID]
@@ -170,7 +179,7 @@ class ClientePort(Protocol):
         Mesmo contrato batch de ``obter_clientes_em_lote``: ``set`` vazio
         retorna dict vazio; ids inexistentes ficam de fora.
         """
-        ...
+        pass
 
     def obter_contato(self, cliente_id: UUID) -> ClienteContatoDTO | None:
         """Retorna nome + contato do cliente, ou ``None`` se nao existir.
@@ -179,7 +188,7 @@ class ClientePort(Protocol):
         o destinatario do e-mail sem que este contexto importe o agregado
         ``Cliente`` do vizinho.
         """
-        ...
+        pass
 
 
 class EmailPort(Protocol):
@@ -191,6 +200,9 @@ class EmailPort(Protocol):
     (logar e seguir) e politica do handler de notificacao, nao da porta.
     """
 
+    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
+    # `...` como statement sem efeito; `pass` e o stub equivalente
+    # (no-op, zero custo) e nao dispara o alerta.
     def enviar(self, destinatario: str, assunto: str, corpo: str) -> None:
         """Envia um e-mail texto-plano para ``destinatario``."""
-        ...
+        pass

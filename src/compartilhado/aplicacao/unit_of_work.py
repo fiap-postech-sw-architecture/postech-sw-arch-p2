@@ -8,12 +8,22 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class UnitOfWork(Protocol):
-    def __enter__(self) -> Self: ...
+    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
+    # `...` como statement sem efeito; `pass` e o stub equivalente
+    # (no-op, zero custo) e nao dispara o alerta.
+    def __enter__(self) -> Self:
+        pass
+
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> None: ...
-    def commit(self) -> None: ...
-    def rollback(self) -> None: ...
+    ) -> None:
+        pass
+
+    def commit(self) -> None:
+        pass
+
+    def rollback(self) -> None:
+        pass
