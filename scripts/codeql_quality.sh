@@ -12,14 +12,20 @@
 #   make codeql-quality                              # alvo do Makefile
 #   bash scripts/codeql_quality.sh                   # direto
 #   CODEQL_DIR=~/codeql-tools bash scripts/...        # reusa um CLI ja baixado
+#   CODEQL_BUNDLE_TAG=codeql-bundle-v2.18.4 make codeql-quality   # pina a versao
 #
 # Saida: breakdown por regra no stdout + SARIF completo em $CODEQL_SARIF.
 set -euo pipefail
 
 CODEQL_DIR="${CODEQL_DIR:-$HOME/.codeql}"
 CODEQL="$CODEQL_DIR/codeql/codeql"
-DB="${CODEQL_DB:-${TMPDIR:-/tmp}/pytstop-codeql-db}"
-SARIF="${CODEQL_SARIF:-${TMPDIR:-/tmp}/pytstop-codeql-quality.sarif}"
+# Versao do bundle. Default `latest`; pine para reproduzir o MESMO conjunto de
+# regras ao longo do tempo (a suite vem dentro do bundle), ex.:
+# CODEQL_BUNDLE_TAG=codeql-bundle-v2.18.4.
+CODEQL_BUNDLE_TAG="${CODEQL_BUNDLE_TAG:-latest}"
+_tmp="${TMPDIR:-/tmp}"; _tmp="${_tmp%/}"  # macOS: $TMPDIR termina em '/' -> evita '//'
+DB="${CODEQL_DB:-$_tmp/pytstop-codeql-db}"
+SARIF="${CODEQL_SARIF:-$_tmp/pytstop-codeql-quality.sarif}"
 SUITE="codeql/python-queries:codeql-suites/python-code-quality.qls"
 REPO_ROOT="$(git rev-parse --show-toplevel)"
 
@@ -30,10 +36,17 @@ if [ ! -x "$CODEQL" ]; then
     Linux) plat=linux64 ;;
     *) echo "!! plataforma '$(uname -s)' sem bundle CodeQL pronto." >&2; exit 1 ;;
   esac
-  echo ">> baixando CodeQL bundle (uma vez, ~1GB) em $CODEQL_DIR ..."
+  echo ">> baixando CodeQL bundle ($CODEQL_BUNDLE_TAG, uma vez, ~1GB) em $CODEQL_DIR ..."
   mkdir -p "$CODEQL_DIR"
-  curl -fSL --retry 3 -o "$CODEQL_DIR/bundle.tar.gz" \
-    "https://github.com/github/codeql-action/releases/latest/download/codeql-bundle-$plat.tar.gz"
+  base="https://github.com/github/codeql-action/releases"
+  if [ "$CODEQL_BUNDLE_TAG" = "latest" ]; then
+    bundle_url="$base/latest/download/codeql-bundle-$plat.tar.gz"
+  else
+    bundle_url="$base/download/$CODEQL_BUNDLE_TAG/codeql-bundle-$plat.tar.gz"
+  fi
+  curl -fSL --retry 3 -o "$CODEQL_DIR/bundle.tar.gz" "$bundle_url"
+  # `tar xzf` falha em download truncado/corrompido -- mitiga a ausencia de
+  # checksum dedicado (a fonte ja e HTTPS do GitHub).
   tar xzf "$CODEQL_DIR/bundle.tar.gz" -C "$CODEQL_DIR"
   rm -f "$CODEQL_DIR/bundle.tar.gz"
 fi

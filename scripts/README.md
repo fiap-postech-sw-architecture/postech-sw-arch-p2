@@ -72,4 +72,6 @@ make codeql-quality            # ou: bash scripts/codeql_quality.sh
 
 Primeira execução baixa o bundle do CodeQL (CLI + query packs, ~1GB) em `$CODEQL_DIR` (default `~/.codeql`). Reexecuções só recriam a database Python e rodam a suite (~1-2 min). Saída: breakdown por regra no stdout + SARIF completo em `$CODEQL_SARIF` (default `$TMPDIR/pytstop-codeql-quality.sarif`). On-demand — não entra em `make check`/CI por ser pesado.
 
+Para reproduzir o mesmo conjunto de regras ao longo do tempo (a suite vem dentro do bundle), pine a versão: `CODEQL_BUNDLE_TAG=codeql-bundle-v2.18.4 make codeql-quality` (default `latest`).
+
 > [↑ Raiz do projeto](../README.md)
