@@ -18,9 +18,7 @@ class OrdemDeServicoRepository(Protocol):
     por views/read-models em PRs futuros sem alterar o contrato.
     """
 
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def obter_por_id(self, ordem_id: UUID) -> OrdemDeServico | None:
         """Retorna a ordem pelo id, ou ``None`` se nao existir."""
         pass

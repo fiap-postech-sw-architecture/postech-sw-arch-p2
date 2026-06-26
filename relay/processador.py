@@ -62,9 +62,7 @@ class LinhaOutbox:
 class ConexaoOutbox(Protocol):
     """Fachada dos efeitos sobre a outbox (permite fake em teste)."""
 
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def ja_processado(self, outbox_id: int, handler: str) -> bool:
         pass
 

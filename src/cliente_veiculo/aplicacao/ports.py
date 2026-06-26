@@ -14,9 +14,7 @@ class OrdemDeServicoPort(Protocol):
     de aplicacao/infraestrutura e traduz perguntas sobre vinculos com OS.
     """
 
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def existe_os_ativa_para_cliente(self, cliente_id: UUID) -> bool:
         """Indica se o cliente possui ordens de servico ainda nao finalizadas."""
         pass

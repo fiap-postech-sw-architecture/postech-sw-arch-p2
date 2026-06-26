@@ -13,9 +13,7 @@ class PasswordHasherPort(Protocol):
     use cases dependem deste Protocol, nunca do modulo de infraestrutura.
     """
 
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def hash_senha(self, senha: str) -> str:
         """Gera o hash da senha em texto plano (valida tamanho minimo/maximo)."""
         pass
@@ -28,9 +26,7 @@ class PasswordHasherPort(Protocol):
 class JWTServicePort(Protocol):
     """Porta de emissao/validacao de tokens JWT; implementacao na infraestrutura."""
 
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def gerar_access_token(self, usuario_id: UUID, email: str, papel: str) -> str:
         """Emite um access token assinado para o usuario."""
         pass

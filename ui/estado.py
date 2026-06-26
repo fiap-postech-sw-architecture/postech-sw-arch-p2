@@ -25,9 +25,7 @@ class Sessao:
 
 
 class _StorageProtocol(Protocol):
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def get(self, key: str, default: object = None) -> object:
         pass
 

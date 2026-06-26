@@ -11,9 +11,7 @@ class Documento(Protocol):
     expor `numero` (read-only), `formatado()` e `mascarado()`.
     """
 
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     @property
     def numero(self) -> str:
         """Numero puro do documento (sem mascara), usado para busca por hash."""

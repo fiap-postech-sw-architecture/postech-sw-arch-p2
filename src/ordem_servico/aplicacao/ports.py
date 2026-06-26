@@ -77,9 +77,7 @@ class VeiculoResumoDTO:
 class EstoquePort(Protocol):
     """Porta para reserva, liberacao e consulta de itens no contexto Estoque."""
 
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def reservar(self, item_estoque_id: UUID, quantidade: int) -> None:
         """Reserva ``quantidade`` unidades do item.
 
@@ -123,9 +121,7 @@ class EstoquePort(Protocol):
 class CatalogoPort(Protocol):
     """Porta para consulta de servicos oferecidos no contexto Catalogo de Servicos."""
 
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def obter_servico(self, servico_id: UUID) -> ServicoOferecidoDTO | None:
         """Retorna o DTO do servico pelo id, ou ``None`` se nao existir."""
         pass
@@ -147,9 +143,7 @@ class CatalogoPort(Protocol):
 class ClientePort(Protocol):
     """Porta para validar cliente e seus veiculos no contexto Cliente+Veiculo."""
 
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def cliente_existe(self, cliente_id: UUID) -> bool:
         """Indica se o cliente existe e esta ativo no contexto Cliente+Veiculo."""
         pass
@@ -200,9 +194,7 @@ class EmailPort(Protocol):
     (logar e seguir) e politica do handler de notificacao, nao da porta.
     """
 
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def enviar(self, destinatario: str, assunto: str, corpo: str) -> None:
         """Envia um e-mail texto-plano para ``destinatario``."""
         pass

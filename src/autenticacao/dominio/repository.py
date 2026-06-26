@@ -9,9 +9,7 @@ if TYPE_CHECKING:
 
 
 class UsuarioRepository(Protocol):
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def obter_por_id(self, usuario_id: UUID) -> Usuario | None:
         pass
 
@@ -26,9 +24,7 @@ class UsuarioRepository(Protocol):
 
 
 class TokenRevogadoRepository(Protocol):
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def revogar(self, jti: str) -> None:
         pass
 

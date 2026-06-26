@@ -8,9 +8,7 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class UnitOfWork(Protocol):
-    # Corpos `pass` (nao `...`): o CodeQL (py/ineffectual-statement) marca
-    # `...` como statement sem efeito; `pass` e o stub equivalente
-    # (no-op, zero custo) e nao dispara o alerta.
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def __enter__(self) -> Self:
         pass
 
