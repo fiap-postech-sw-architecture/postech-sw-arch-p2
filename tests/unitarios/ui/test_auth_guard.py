@@ -53,7 +53,7 @@ def test_exige_autenticacao_redireciona_e_retorna_none_quando_nao_autenticado(
 def test_exige_autenticacao_preserva_docstring_e_nome(
     monkeypatch: pytest.MonkeyPatch,
 ) -> None:
-    monkeypatch.setattr("ui.auth_guard.obter_store", lambda: MagicMock())
+    monkeypatch.setattr("ui.auth_guard.obter_store", MagicMock)
 
     @exige_autenticacao
     def pagina_teste() -> None:

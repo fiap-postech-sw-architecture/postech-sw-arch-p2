@@ -214,13 +214,9 @@ _ITENS: list[dict[str, Any]] = [
 ]
 
 
-# Contagens esperadas em dataset "zerado" (sem dados pre-existentes).
-# Expostas como constantes pra que os testes nao fiquem presos a literais
+# Contagem esperada de OS em dataset "zerado" (sem dados pre-existentes).
+# Exposta como constante pra que os testes nao fiquem presos a literais
 # repetidos toda vez que o seed for expandido.
-_QTD_CLIENTES = len(_CLIENTES)
-_QTD_VEICULOS = len(_VEICULOS)
-_QTD_SERVICOS = len(_SERVICOS)
-_QTD_ITENS = len(_ITENS)
 _QTD_ORDENS = 8  # 7 estados + 1 repetido (RECEBIDA)
 
 

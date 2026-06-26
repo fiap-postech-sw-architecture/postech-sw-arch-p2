@@ -526,13 +526,10 @@ def test_sem_autenticacao_retorna_cliente_sem_token() -> None:
 
     with _client_com_mock(httpx.MockTransport(handler)) as client:
         client.set_token("admin-token")
-        anon = client.sem_autenticacao()
-        try:
+        with client.sem_autenticacao() as anon:
             assert anon.token is None
             # Sanity: a nova instancia e independente
             assert client.token == "admin-token"
-        finally:
-            anon.close()
 
 
 def _contar_metodos_publicos() -> int:

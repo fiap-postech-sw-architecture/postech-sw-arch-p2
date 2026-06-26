@@ -8,5 +8,5 @@ def test_uso_invalido_retorna_2(capsys) -> None:
 
 
 def test_requeue_sem_id_retorna_2(monkeypatch) -> None:
-    monkeypatch.setattr(cli, "_engine", lambda: object())
+    monkeypatch.setattr(cli, "_engine", object)
     assert cli.main(["outbox_dlq.py", "requeue"]) == 2
