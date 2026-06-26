@@ -64,4 +64,4 @@ class OutboxPort(Protocol):
 
     def enfileirar(self, eventos: Sequence[IntegrationEvent]) -> None:
         """Insere os eventos na ``outbox`` usando a transacao em andamento."""
-        ...
+        ...  # lgtm[py/ineffectual-statement]
