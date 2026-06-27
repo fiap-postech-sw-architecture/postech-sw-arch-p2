@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../README.md)
 
-> **Versão**: 1.6 — TD-008 resolvido (Transactional Outbox/RF-018, PR #56); adicionados TD-021 (relay HA/fencing) e TD-022 (observabilidade do relay). Versão 1.5: TD-018 fechado por remoção do `db-image/` (fast-check da fase 1) do repo da fase 2. Versão 1.4: dep `mutmut` removido (3.x quebrado); TD-006 sem tooling. Versão 1.3: TD-019 fechado (PR #50). Versão 1.2 (2026-06-22): reconciliação com o código (TD-003/TD-017 fechados, TD-002/004/005/008/009/016 corrigidos).
+> **Versão**: 1.7 (2026-06-27) — reconciliação com o código: TD-009 fechado (eventos `ClienteCadastrado`/`ServicoCadastrado` implementados e emitidos via `_registrar_evento`); TD-007 reescrito (validação de dígito/formato via brutils já entregue — remanescente é só telefone/e-mail sem VO próprio); TD-010 nota o gate CodeQL local. Versão 1.6 — TD-008 resolvido (Transactional Outbox/RF-018, PR #56); adicionados TD-021 (relay HA/fencing) e TD-022 (observabilidade do relay). Versão 1.5: TD-018 fechado por remoção do `db-image/` (fast-check da fase 1) do repo da fase 2. Versão 1.4: dep `mutmut` removido (3.x quebrado); TD-006 sem tooling. Versão 1.3: TD-019 fechado (PR #50). Versão 1.2 (2026-06-22): reconciliação com o código (TD-003/TD-017 fechados, TD-002/004/005/008/009/016 corrigidos).
 
 Simplificações deliberadas cujo custo de correção é aceito para o escopo do MVP.
 
@@ -27,6 +27,7 @@ Classificação por tipo:
 | TD-019 | Arquitetura | `aplicacao → infraestrutura` na autenticação fora do contrato forbidden | **Fechado** (#50) — `PasswordHasherPort` + `JWTServicePort` em [aplicacao/ports.py](../src/autenticacao/aplicacao/ports.py) (Protocol); a infra implementa e o composition root injeta por DI. O contrato `forbidden` do import-linter passou a proibir `aplicacao → infraestrutura` em todos os contextos, verificado por `make lint-arch`/CI (RNF-017). |
 | TD-018 | Infra | `db-image/` no GHCR ainda com imagens da fase 1 | **Fechado** — `db-image/` (fast-check da fase 1) removido do repo da fase 2: confundia (imagens `-p1` sem RF-020..024/Mailpit) e não agregava (nada usa; compose e testes usam `postgres:16` vanilla, app builda do fonte e o CD publica `-p2-app` por SHA). Caminhos oficiais: `make up`, k8s/CD. |
 | TD-008 | Domínio | Dispatch de domain events síncrono e in-process (sem outbox) | **Fechado** (2026-06-25, PR #56) — Resolvido via RF-018 (Transactional Outbox): a UoW grava `IntegrationEvents` na tabela `outbox` na mesma transação da OS; o relay (`python -m relay`) implementa claim-then-deliver com head-of-line, backoff/DLQ e idempotência via `processed_events`. Notificação proativa via `LISTEN/NOTIFY` (PostgreSQL). Detalhes em [ADR-020](arquitetura/adr/fase2/020-transactional-outbox-relay.md). |
+| TD-009 | Domínio | Dois eventos de criação do event storming sem classe nem emissão | **Fechado** (2026-06-27) — `ClienteCadastradoEvent` ([events.py](../src/cliente_veiculo/dominio/events.py)) e `ServicoCadastradoEvent` ([events.py](../src/catalogo_servicos/dominio/events.py)) implementados e emitidos via `_registrar_evento` nas factories `Cliente.criar`/`ServicoOferecido.criar`; cobertos por testes unitários (`test_cliente.py`, `test_servico_oferecido.py`). |
 
 | # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
 |---|---|---|---|---|---|---|---|---|
@@ -41,8 +42,7 @@ Débitos aceitáveis no MVP relacionados à conformidade tática do DDD:
 
 | # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
 |---|---|---|---|---|---|---|---|---|
-| TD-007 | Domínio | Value Objects com validação mínima | Deliberado | Baixa | Baixo | Não | Estável | `not-null` e tipo correto são obrigatórios. Validação completa de formato (ex: dígito verificador do CPF) é deferida para brutils ([ADR-010](arquitetura/adr/010-validacao-documentos-brutils.md)). |
-| TD-009 | Domínio | Dois eventos de criação do event storming sem classe nem emissão | Planejado | Baixa | Baixo | Não | Estável | A maioria dos eventos já é emitida via `_registrar_evento` e despachada: `VeiculoAdicionadoEvent`, `EstoqueReservadoEvent`, `EstoqueLiberadoEvent` (além de `ClienteDesativadoEvent`/`ClienteAtualizadoEvent`). Faltam apenas os eventos de criação `ClienteCadastrado` e `ServicoCadastrado`, que nunca chegaram a ser implementados como classes. |
+| TD-007 | Domínio | Telefone/e-mail como primitivos, sem Value Object dedicado | Deliberado | Baixa | Baixo | Não | Estável | Formato e dígito verificador já são validados: CPF/CNPJ via `brutils.is_valid` ([ADR-010](arquitetura/adr/010-validacao-documentos-brutils.md)) e placa via regex antigo/Mercosul. Remanescente: telefone e e-mail persistem como primitivos (sem VO próprio) e não há regras de negócio cross-field. Débito menor, sem impacto funcional. |
 
 ## Segurança e Qualidade
 
@@ -50,7 +50,7 @@ Débitos relacionados a segurança e qualidade de código.
 
 | # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
 |---|---|---|---|---|---|---|---|---|
-| TD-010 | Segurança | SonarQube não integrado no MVP (quality gate manual) | Deliberado | Baixa | Baixo | Não | Estável | Quality gate automatizado requer infraestrutura SonarQube. No MVP, análise estática local com ruff + bandit. Evolução para SonarCloud em fases posteriores. [ADR-011](arquitetura/adr/011-pipeline-seguranca-analise-estatica.md). |
+| TD-010 | Segurança | SonarQube não integrado no MVP (quality gate manual) | Deliberado | Baixa | Baixo | Não | Estável | Quality gate automatizado requer infraestrutura SonarQube. No MVP, análise estática local com ruff + bandit, mais o gate CodeQL Code Quality (`make codeql-quality`, [codeql-config.yml](../.github/codeql/codeql-config.yml)) — cobertura parcial. SonarQube/SonarCloud em si fica para fases posteriores. [ADR-011](arquitetura/adr/011-pipeline-seguranca-analise-estatica.md). |
 | TD-011 | Segurança | Sem DAST automatizado (OWASP ZAP manual) | Deliberado | Média | Médio | Não | Estável | Teste dinâmico requer aplicação em execução e configuração de pipeline. No MVP, execução manual sob demanda. Automação planejada para CI quando pipeline estiver maduro. |
 | TD-013 | Testes | Sem testes BDD/Gherkin no MVP (pytest-bdd planejado) | Deliberado | Baixa | Baixo | Não | Estável | Testes E2E com Gherkin em português agregam rastreabilidade para requisitos, mas requerem feature files e steps adicionais. Prioridade para testes unitários e de integração no MVP. [ADR-013](arquitetura/adr/013-testes-bdd-pytest-bdd.md). |
 | TD-014 | Testes | Sem relatórios Allure no MVP (pytest-html como alternativa leve) | Deliberado | Baixa | Baixo | Não | Estável | Allure oferece relatórios visuais superiores, mas requer servidor dedicado. pytest-html atende necessidades do MVP com menor overhead. |
