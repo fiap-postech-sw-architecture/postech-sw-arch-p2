@@ -233,6 +233,7 @@ module = [
     "testcontainers.*",
     "polyfactory.*",
     "cryptography.*",
+    "yaml.*",
 ]
 ignore_missing_imports = true
 

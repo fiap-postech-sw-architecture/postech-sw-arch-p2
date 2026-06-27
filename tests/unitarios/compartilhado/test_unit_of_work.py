@@ -49,6 +49,7 @@ class TestSQLAlchemyUnitOfWork:
         uow, session_mock = self._criar_uow()
         with pytest.raises(ValueError, match="erro"), uow:
             raise ValueError("erro")
+        # codeql[py/unreachable-statement] -- executa dentro de pytest.raises
         session_mock.rollback.assert_called_once()
         session_mock.close.assert_called_once()
 

@@ -14,7 +14,9 @@
 #   CODEQL_DIR=~/codeql-tools bash scripts/...        # reusa um CLI ja baixado
 #   CODEQL_BUNDLE_TAG=codeql-bundle-v2.18.4 make codeql-quality   # pina a versao
 #
-# Saida: breakdown por regra no stdout + SARIF completo em $CODEQL_SARIF.
+# Saida: aplica a politica do projeto (scripts/codeql_quality.py) e atua como
+# GATE -- sai != 0 se sobrar QUALQUER finding nao tratado; SARIF completo em
+# $CODEQL_SARIF.
 set -euo pipefail
 
 CODEQL_DIR="${CODEQL_DIR:-$HOME/.codeql}"
@@ -61,17 +63,6 @@ echo ">> analisando com $SUITE ..."
 "$CODEQL" database analyze "$DB" "$SUITE" \
   --format=sarif-latest --output="$SARIF" --threads=0
 
-# 4. Breakdown por regra (stdout).
-python3 - "$SARIF" <<'PY'
-import json
-import sys
-from collections import Counter
-
-data = json.load(open(sys.argv[1]))
-results = data["runs"][0].get("results", [])
-counts = Counter(r.get("ruleId", "?") for r in results)
-print(f"\n=== CodeQL Code Quality: {sum(counts.values())} findings ===")
-for rule, n in counts.most_common():
-    print(f"  {n:>4}  {rule}")
-print(f"\nSARIF completo: {sys.argv[1]}")
-PY
+# 4. Politica do projeto + gate (sai != 0 se sobrar finding nao tratado).
+PY_RUN="python3"; command -v uv >/dev/null 2>&1 && PY_RUN="uv run python"
+$PY_RUN "$REPO_ROOT/scripts/codeql_quality.py" "$SARIF" "$REPO_ROOT/.github/codeql/codeql-config.yml" "$REPO_ROOT"

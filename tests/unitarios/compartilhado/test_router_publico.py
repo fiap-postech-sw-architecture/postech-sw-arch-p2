@@ -19,6 +19,7 @@ def _criar_app() -> FastAPI:
     app.state.limiter = limiter
     app.include_router(router)
     # Stub da session para os testes — nao e usada no mock do use case.
+    # codeql[py/unnecessary-lambda] -- FastAPI dependency_overrides exige o lambda
     app.dependency_overrides[obter_session] = lambda: MagicMock()
     return app
 

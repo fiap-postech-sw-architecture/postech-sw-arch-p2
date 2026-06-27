@@ -17,6 +17,7 @@ def _registrar_todos_mapeamentos() -> None:
     global _mapeamentos_registrados
     if _mapeamentos_registrados:
         return
+    # codeql[py/unused-global-variable] -- flag guard init-once
     _mapeamentos_registrados = True
 
     import src.compartilhado.infraestrutura.outbox_mapping  # noqa: F401

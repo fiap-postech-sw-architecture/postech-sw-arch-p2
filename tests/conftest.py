@@ -11,6 +11,7 @@ import pytest
 # drivers. Para rodar testes marcados `lento` que usam `screen`, use
 # `make test-lento` ou `uv run --extra test --extra ui pytest -m lento`.
 if find_spec("selenium") is not None and find_spec("pytest_selenium") is not None:
+    # codeql[py/unused-global-variable] -- pytest_plugins lido por reflexao
     pytest_plugins = ["nicegui.testing.plugin"]
 
 

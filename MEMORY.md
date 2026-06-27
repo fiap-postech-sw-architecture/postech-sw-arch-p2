@@ -71,3 +71,6 @@ Updated by AI agents at task end per `postech-ai-helper/ai/canonical/task-end-re
 
 - 2026-06-12 - MEDIUM - [PR #22] Traces do FastAPI capturam a query string completa: GET /api/v1/acompanhamento?placa=..&documento=.. poe CPF/placa em claro nos atributos http do span. Risco aceito no escopo I11 (Jaeger da demo e in-memory/efemero, flag default off, ADR-020 escopo minimo). Follow-up se OTel passar da demo: server_request_hook sobrescrevendo url.query/http.target, ou tirar documento da query string do canal publico
 - 2026-04-26 - LOW - HTTP probes during initial render of a NiceGUI page should be deferred to a `client.on_connect` handler (or equivalent) so they execute with a client context instead of as side effects of import/render
+
+## Code Quality (CodeQL) — gate pre-PR
+Antes de abrir um PR que ALTERA codigo Python, rode `make codeql-quality` e garanta **0 findings ativos** (o script sai != 0 se sobrar). Para cada finding novo: (1) corrija se for bug real; (2) suprima na linha com `# codeql[<regra>]` + razao se for FP pontual; (3) desabilite a regra em `.github/codeql/codeql-config.yml` (`query-filters`) ou ignore o path (`paths-ignore`) se a regra nao fizer sentido pro projeto. Nao abra PR com o gate vermelho. Detalhes: `scripts/codeql_quality.py`, `scripts/README.md`.

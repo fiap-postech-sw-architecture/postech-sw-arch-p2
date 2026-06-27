@@ -143,6 +143,7 @@ class TestDinheiro:
     def test_multiplicacao_reversa_por_negativo_invalido(self) -> None:
         d = Dinheiro(valor=Decimal("10.00"))
         with pytest.raises(ValueError, match="negativo"):
+            # codeql[py/ineffectual-statement] -- exercita __rmul__ sob pytest.raises
             -1 * d
 
     def test_valor_infinito_invalido(self) -> None:

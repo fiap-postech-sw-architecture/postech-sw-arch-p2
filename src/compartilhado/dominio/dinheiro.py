@@ -49,6 +49,7 @@ class Dinheiro(ValueObject):
         self._validar_mesma_moeda(outro)
         return Dinheiro(valor=self.valor + outro.valor, moeda=self.moeda)
 
+    # codeql[py/unexpected-raise-in-special-method] -- invariante: nao fica negativo
     def __sub__(self, outro: Dinheiro) -> Dinheiro:
         self._validar_mesma_moeda(outro)
         resultado = self.valor - outro.valor

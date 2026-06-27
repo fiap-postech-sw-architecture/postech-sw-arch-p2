@@ -1,0 +1,35 @@
+name: "PytStop Code Quality"
+
+# Config do scan de Code Quality (CodeQL). Usada pelo `make codeql-quality`
+# (scan local; ver scripts/codeql_quality.sh) e pronta para o code scanning do
+# GitHub caso migre para advanced setup.
+#
+# Objetivo: scan limpo (0 findings) tratando os falso-positivos deste codebase
+# na fonte certa. Regras desligadas aqui sao FP estruturais ou redundantes; os
+# FP pontuais ficam suprimidos no codigo com `# codeql[<regra>]` + razao.
+
+paths-ignore:
+  # Migrations Alembic: `revision`/`down_revision`/`branch_labels`/`depends_on`
+  # sao lidos por reflexao pelo framework (parecem "unused"); o import de
+  # side-effect em env.py registra metadata. Arquivos de framework, nao logica.
+  - migrations
+  # Harness E2E concorrente, suite paralela ao codigo principal (fora do
+  # escopo do `ruff check`/mypy do projeto). Ver full-test/README.md.
+  - full-test
+
+query-filters:
+  # Importar um modulo como alias (`import x as x_mod`, para
+  # `monkeypatch.setattr(x_mod, ...)`) E `from x import Simbolo` (sob teste) e
+  # o idioma de teste do projeto -- os dois imports tem propositos distintos.
+  - exclude:
+      id: py/import-and-import-from
+  # Imports nao usados ja sao cobertos pelo ruff (F401), que o time gerencia
+  # com `# noqa: F401` nos imports de side-effect (registro de paginas da UI,
+  # tabelas no metadata, re-export). CodeQL re-flaga os ja-suprimidos -> ruido.
+  - exclude:
+      id: py/unused-import
+  # "Classe adiciona atributos mas nao sobrescreve __eq__": FP estrutural neste
+  # codebase DDD -- as entidades herdam igualdade por id de `Entity` (ADR-003),
+  # entao NAO sobrescrever __eq__ e o correto. Toda entidade dispararia a regra.
+  - exclude:
+      id: py/missing-equals
