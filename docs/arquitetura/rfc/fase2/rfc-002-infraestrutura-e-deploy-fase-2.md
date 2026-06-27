@@ -64,6 +64,8 @@ O PostgreSQL 16 ([ADR-002](../../adr/002-banco-postgresql.md)) vive dentro do cl
 - **PytStop API**: Deployment do monolito modular da fase 1, agora nas camadas da Clean Architecture ([ADR-015](../../adr/fase2/015-arquitetura-alvo-fase-2.md) — Entidades, Casos de Uso, Adaptadores de Interface, Frameworks & Drivers); Service na frente dos pods; ConfigMap e Secret com a configuração (seção 6); HPA por CPU e memória (seção 5).
 - **Mailpit** ([ADR-018](../../adr/fase2/018-notificacao-email.md)): servidor SMTP de demo como Deployment + Service ClusterIP; a UI web é acessada por port-forward (ou NodePort) na gravação do vídeo. No docker-compose, entra como serviço `mailpit` (SMTP interno na 1025, UI na 8025).
 - **Jaeger all-in-one** ([ADR-020](../../adr/fase2/020-observabilidade-opentelemetry.md)): backend de traces com receiver OTLP, no mesmo padrão Deployment + Service + port-forward — **onda final condicional**, executada somente com os obrigatórios verdes. A exportação é OTLP direta do SDK para o Jaeger, sem Collector — divergência da recomendação de produção aceita e registrada no ADR; sem o endpoint OTLP configurado, a instrumentação fica inerte e nada disso entra no caminho crítico.
+- **Relay de eventos** ([ADR-022](../../adr/fase2/022-transactional-outbox-relay.md)): Deployment próprio (`python -m relay`, `replicas: 1`) que consome a tabela `outbox` no PostgreSQL via LISTEN/NOTIFY + claim-then-deliver e entrega a notificação por e-mail via SMTP ao Mailpit. A `UnitOfWork` grava o `IntegrationEvent` na mesma transação da mudança de OS, eliminando o dual-write (RF-024/RF-018); o dispatcher síncrono foi congelado vazio.
+- **Redis** ([ADR-023](../../adr/fase2/023-rate-limiter-storage-compartilhado.md)): Deployment + Service ClusterIP, store compartilhado do rate limiter slowapi via `RATE_LIMIT_STORAGE_URI`/`storage_uri` — limite por IP correto e global sob HPA, sem persistência nem senha (serviço de demo). Ausente a env, o storage cai para `memory://`; queda do Redis em runtime degrada graciosamente para per-réplica.
 
 Fora do cluster: o `docker-compose.yml` continua sendo o caminho de desenvolvimento local rápido (RNF-019), com paridade de imagem e variáveis; `ui/` permanece sandbox dev-only sem manifest.
 
@@ -73,7 +75,7 @@ A divisão espelha o próprio challenge, que separa "deploy do banco de dados" d
 
 | | `/infra` (Terraform) | `/k8s` (manifests YAML) |
 |---|---|---|
-| Conteúdo | cluster kind, metrics-server, PostgreSQL (StatefulSet, Service, PVC, Secret de credenciais) | aplicação (Deployment, Service, ConfigMap, Secret, HPA), Mailpit, Jaeger condicional |
+| Conteúdo | cluster kind, metrics-server, PostgreSQL (StatefulSet, Service, PVC, Secret de credenciais) | aplicação (Deployment, Service, ConfigMap, Secret, HPA), Mailpit, Jaeger condicional, Relay de eventos, Redis |
 | Quem aplica | `terraform apply` | `kubectl apply -f k8s/` — pelo pipeline e pelos alvos make locais |
 | Natureza | infraestrutura-base, muda raramente | artefatos de implantação, mudam com a aplicação |
 | Requisito | RNF-021 | RNF-020, RNF-022 |
@@ -111,6 +113,8 @@ flowchart TB
             hpa["HPA — CPU e memória"]
             mailpit["Mailpit (ADR-018)<br/>Deployment + Service ClusterIP"]
             jaeger["Jaeger all-in-one (ADR-020)<br/>onda final condicional"]
+            relay["Relay de eventos (ADR-022)<br/>Deployment — outbox→SMTP"]
+            redis["Redis (ADR-023)<br/>Deployment + Service — rate limit"]
         end
     end
 
@@ -119,7 +123,10 @@ flowchart TB
     hpa -->|"escala réplicas"| app
     ms -.->|"métricas de CPU e memória"| hpa
     app -->|"SQL via DATABASE_URL"| pg
-    app -->|"SMTP"| mailpit
+    app -->|"grava outbox + NOTIFY"| pg
+    relay -->|"LISTEN/NOTIFY + claim outbox"| pg
+    relay -->|"SMTP"| mailpit
+    app -.->|"rate limit"| redis
     app -.->|"traces OTLP"| jaeger
 ```
 
