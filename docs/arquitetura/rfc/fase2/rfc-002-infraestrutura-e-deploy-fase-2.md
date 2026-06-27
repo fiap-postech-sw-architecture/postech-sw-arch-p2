@@ -183,7 +183,7 @@ Parâmetros do HPA — **proposta baseline, a calibrar no plano da fase de imple
 
 - JWT já é stateless, com denylist de revogação compartilhada no PostgreSQL — nada a fazer;
 - `ENCRYPTION_KEY` precisa vir de Secret única e estável (seção 6): chave efêmera gerada por pod quebraria a leitura cruzada de PII entre réplicas;
-- o rate limiter slowapi tem storage in-memory por processo — limites divergem entre réplicas; a escolha entre storage compartilhado e limitação documentada fica para o plano, mas o impacto na demo está mitigado na seção 9;
+- o rate limiter slowapi passou a usar **storage compartilhado (Redis)** — a escolha entre storage compartilhado e limitação documentada foi **resolvida via [ADR-023](../../adr/fase2/023-rate-limiter-storage-compartilhado.md)** (storage compartilhado, com fallback gracioso para `memory://` se o Redis cair): o limite por IP fica correto e global sob HPA, em vez de divergir entre réplicas;
 - o pool de conexões do SQLAlchemy deve ser dimensionado contra o `max_connections` do PostgreSQL no pior caso do HPA (máximo de réplicas × conexões por pod) — valores no plano.
 
 ## 6. Configuração e secrets

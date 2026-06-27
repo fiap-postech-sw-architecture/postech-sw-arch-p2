@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md)
 
-> **Versão**: 1.8 (2026-06-27) — TD-016 fechado (PR #62): rate limiter slowapi com backend compartilhado via Redis (`storage_uri`, env `RATE_LIMIT_STORAGE_URI`, fallback in-memory) → limite correto sob HPA, fechando a metade do rate limiter da RNF-024 ([ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md)); contagens passam a *Itens Resolvidos* (10) / *Itens Abertos* (12). Versão 1.7 (2026-06-27) — reconciliação com o código: TD-009 fechado (eventos `ClienteCadastrado`/`ServicoCadastrado` implementados e emitidos via `_registrar_evento`); TD-007 reescrito (validação de dígito/formato via brutils já entregue — remanescente é só telefone/e-mail sem VO próprio); TD-010 nota o gate CodeQL local; estrutura agora separa explicitamente *Itens Resolvidos* (9) de *Itens Abertos* (13, em 4 grupos). Versão 1.6 — TD-008 resolvido (Transactional Outbox/RF-018, PR #56); adicionados TD-021 (relay HA/fencing) e TD-022 (observabilidade do relay). Versão 1.5: TD-018 fechado por remoção do `db-image/` (fast-check da fase 1) do repo da fase 2. Versão 1.4: dep `mutmut` removido (3.x quebrado); TD-006 sem tooling. Versão 1.3: TD-019 fechado (PR #50). Versão 1.2 (2026-06-22): reconciliação com o código (TD-003/TD-017 fechados, TD-002/004/005/008/009/016 corrigidos).
+> **Versão**: 1.9 (2026-06-27) — TD-023 aberto: rate-limit keyed pelo IP do *peer* imediato (`get_remote_address`/`request.client.host`); sem `X-Forwarded-For` confiável (+ uvicorn `--proxy-headers`), atrás de ingress todo o tráfego externo colapsa num único bucket ([ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md)); contagens passam a *Itens Resolvidos* (10) / *Itens Abertos* (13). Versão 1.8 (2026-06-27) — TD-016 fechado (PR #62): rate limiter slowapi com backend compartilhado via Redis (`storage_uri`, env `RATE_LIMIT_STORAGE_URI`, fallback in-memory) → limite correto sob HPA, fechando a metade do rate limiter da RNF-024 ([ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md)); contagens passaram a *Itens Resolvidos* (10) / *Itens Abertos* (12). Versão 1.7 (2026-06-27) — reconciliação com o código: TD-009 fechado (eventos `ClienteCadastrado`/`ServicoCadastrado` implementados e emitidos via `_registrar_evento`); TD-007 reescrito (validação de dígito/formato via brutils já entregue — remanescente é só telefone/e-mail sem VO próprio); TD-010 nota o gate CodeQL local; estrutura agora separa explicitamente *Itens Resolvidos* (9) de *Itens Abertos* (13, em 4 grupos). Versão 1.6 — TD-008 resolvido (Transactional Outbox/RF-018, PR #56); adicionados TD-021 (relay HA/fencing) e TD-022 (observabilidade do relay). Versão 1.5: TD-018 fechado por remoção do `db-image/` (fast-check da fase 1) do repo da fase 2. Versão 1.4: dep `mutmut` removido (3.x quebrado); TD-006 sem tooling. Versão 1.3: TD-019 fechado (PR #50). Versão 1.2 (2026-06-22): reconciliação com o código (TD-003/TD-017 fechados, TD-002/004/005/008/009/016 corrigidos).
 
 Simplificações deliberadas cujo custo de correção é aceito para o escopo do MVP.
 
@@ -15,7 +15,7 @@ Classificação por tipo:
 - **Planejado**: equipe sabe que a solução não é ideal, documenta e planeja pagar depois
 - **Negligenciado**: débito ignorado por muito tempo, mesmo após identificação
 
-> 📋 **Plano de ataque** dos 12 abertos — priorização, como resolver cada um e checklist de progresso: **[plano-ataque.md](plano-ataque.md)**. Regra: cada TD vira **um PR próprio** que atualiza **todos os docs afetados no mesmo PR**.
+> 📋 **Plano de ataque** dos 13 abertos — priorização, como resolver cada um e checklist de progresso: **[plano-ataque.md](plano-ataque.md)**. Regra: cada TD vira **um PR próprio** que atualiza **todos os docs afetados no mesmo PR**.
 
 ## Itens Resolvidos (10)
 
@@ -32,7 +32,7 @@ Classificação por tipo:
 | TD-009 | Domínio | Dois eventos de criação do event storming sem classe nem emissão | **Fechado** (PR #48) — `ClienteCadastradoEvent` ([events.py](../../src/cliente_veiculo/dominio/events.py)) e `ServicoCadastradoEvent` ([events.py](../../src/catalogo_servicos/dominio/events.py)) implementados e emitidos via `_registrar_evento` nas factories `Cliente.criar`/`ServicoOferecido.criar`; cobertos por testes unitários (`test_cliente.py`, `test_servico_oferecido.py`). |
 | TD-016 | Infra | Rate limiter slowapi in-memory por pod | **Fechado** (PR #62) — backend compartilhado via Redis (`storage_uri`): Deployment+Service no [k8s](../../k8s/redis.yaml), env `RATE_LIMIT_STORAGE_URI`, fallback in-memory; limite correto sob HPA (RNF-024). [ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md). |
 
-## Itens Abertos (12)
+## Itens Abertos (13)
 
 Débitos ativos, agrupados por área. Simplificações deliberadas cujo custo de correção é aceito no escopo do MVP.
 
@@ -63,6 +63,7 @@ Débitos relacionados a segurança e qualidade de código.
 | TD-011 | Segurança | Sem DAST automatizado (OWASP ZAP manual) | Deliberado | Média | Médio | Não | Estável | Teste dinâmico requer aplicação em execução e configuração de pipeline. No MVP, execução manual sob demanda. Automação planejada para CI quando pipeline estiver maduro. |
 | TD-013 | Testes | Sem testes BDD/Gherkin no MVP (pytest-bdd planejado) | Deliberado | Baixa | Baixo | Não | Estável | Testes E2E com Gherkin em português agregam rastreabilidade para requisitos, mas requerem feature files e steps adicionais. Prioridade para testes unitários e de integração no MVP. [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md). |
 | TD-014 | Testes | Sem relatórios Allure no MVP (pytest-html como alternativa leve) | Deliberado | Baixa | Baixo | Não | Estável | Allure oferece relatórios visuais superiores, mas requer servidor dedicado. pytest-html atende necessidades do MVP com menor overhead. |
+| TD-023 | Segurança | Rate-limit keyed pelo IP do peer imediato (sem X-Forwarded-For confiável) | Planejado | Média | Médio | Sim | Estável | `get_remote_address` usa `request.client.host` (o IP da conexão imediata). Sem `ProxyHeadersMiddleware`/uvicorn `--proxy-headers` + um `X-Forwarded-For` confiável, atrás de um ingress todos os clientes externos compartilham um único bucket de rate limit (o IP do proxy) → o limite global vira um só para todo o tráfego externo. No demo (ClusterIP/port-forward) não se manifesta. Evolução: ingress que injeta XFF + uvicorn `--proxy-headers --forwarded-allow-ips=<trusted>`. Relacionado a [ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md). |
 
 ### Fase 2
 

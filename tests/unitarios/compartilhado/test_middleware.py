@@ -3,6 +3,12 @@ from __future__ import annotations
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from slowapi import (
+    Limiter,
+    _rate_limit_exceeded_handler,
+)
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
 
 from src.compartilhado.interfaces.middleware import (
     SecurityHeadersMiddleware,
@@ -10,6 +16,25 @@ from src.compartilhado.interfaces.middleware import (
     configurar_cors,
     configurar_rate_limiting,
 )
+
+
+def _montar_app_com_limiter(limiter: Limiter) -> FastAPI:
+    """Anexa ``limiter`` a um app FastAPI minimo exatamente como
+    ``configurar_rate_limiting`` (state.limiter + SlowAPIMiddleware +
+    handler do ``RateLimitExceeded``), com uma rota ``GET /x`` -> 200."""
+    app = FastAPI()
+    app.state.limiter = limiter
+    app.add_middleware(SlowAPIMiddleware)
+    app.add_exception_handler(
+        RateLimitExceeded,
+        _rate_limit_exceeded_handler,  # type: ignore[arg-type]
+    )
+
+    @app.get("/x")
+    def x() -> dict[str, str]:
+        return {"status": "ok"}
+
+    return app
 
 
 def _criar_app_com_saude() -> FastAPI:
@@ -169,3 +194,57 @@ class TestConfigurarRateLimiting:
         client = TestClient(app)
         resp = client.get("/saude")
         assert resp.status_code == 200
+
+
+class TestGracefulDegradationRedisIndisponivel:
+    """Prova do C1 (TD-016): com Redis morto, as requests NAO viram 500.
+
+    O ``Limiter`` aponta para ``redis://127.0.0.1:6390`` — porta sem nada
+    escutando, entao a conexao falha imediatamente com ECONNREFUSED (rapido,
+    sem Docker). Com ``in_memory_fallback_enabled=True`` o SlowAPI degrada
+    para um limiter in-memory por-processo em vez de re-raisar o
+    ``ConnectionError`` como 500, e o limite SEGUE sendo enforcado.
+    """
+
+    def test_redis_morto_nao_vira_500_e_ainda_rate_limita(self) -> None:
+        limiter = Limiter(
+            key_func=lambda: "k",
+            default_limits=["2/minute"],
+            storage_uri="redis://127.0.0.1:6390",
+            in_memory_fallback_enabled=True,
+        )
+        app = _montar_app_com_limiter(limiter)
+        client = TestClient(app)
+
+        # 1a e 2a requisicoes: backend Redis morto, mas o fallback in-memory
+        # responde 200. A asserciao-chave do C1: NENHUM 500 (sem outage).
+        resp1 = client.get("/x")
+        resp2 = client.get("/x")
+        assert resp1.status_code == 200
+        assert resp2.status_code == 200
+
+        # 3a requisicao dentro da janela: o fallback in-memory reaproveita os
+        # ``default_limits`` ("2/minute") e enforca -> 429 (nao 500).
+        resp3 = client.get("/x")
+        assert resp3.status_code == 429
+
+
+class TestMemoryStorageEnforce:
+    """Prova (pedido do reviewer de CI) de que o caminho ``memory://`` — o
+    backend usado quando ``RATE_LIMIT_STORAGE_URI`` NAO esta definido —
+    realmente enforca o limite por-processo."""
+
+    def test_memory_storage_default_trip_no_terceiro_request(self) -> None:
+        # Sem ``storage_uri`` o SlowAPI usa ``memory://`` (mesmo backend do
+        # ambiente sem RATE_LIMIT_STORAGE_URI).
+        limiter = Limiter(
+            key_func=lambda: "k",
+            default_limits=["2/minute"],
+        )
+        app = _montar_app_com_limiter(limiter)
+        client = TestClient(app)
+
+        assert client.get("/x").status_code == 200
+        assert client.get("/x").status_code == 200
+        # 3a requisicao excede "2/minute".
+        assert client.get("/x").status_code == 429

@@ -99,6 +99,17 @@ limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[_default_limit],
     storage_uri=_resolver_storage_uri(),
+    # GRACEFUL DEGRADATION (TD-016): sem isto, se o Redis configurado em
+    # ``storage_uri`` ficar inalcancavel em runtime o SlowAPI re-raisa o
+    # ``ConnectionError`` e TODA request rate-limitada vira 500 — o Redis
+    # vira SPOF no hot path. Com a flag, na primeira falha de storage o
+    # SlowAPI marca ``_storage_dead`` e cai para um limiter in-memory
+    # por-processo que reaproveita os MESMOS ``default_limits`` (o limite
+    # SEGUE sendo enforcado, so deixa de ser agregado entre replicas), e
+    # auto-recupera quando o backend volta (``slowapi/extension.py``
+    # ``_storage_dead``/``_fallback_limiter``). Disponibilidade > contagem
+    # exata durante um blip de Redis.
+    in_memory_fallback_enabled=True,
 )
 
 

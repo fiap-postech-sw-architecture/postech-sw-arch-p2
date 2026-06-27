@@ -43,7 +43,7 @@ A construção do `Limiter` com o `storage_uri` derivado da env vive na borda (i
 * Bom, porque é **opt-in e sem custo** para dev/CI: ausente a env, cai para `memory://` e nada muda no fluxo local, no compose ou na *fixture* de reset dos testes
 * Bom, porque reusa um **padrão de workload já conhecido** na fase (Deployment+Service de demo, como Mailpit e Jaeger) — nenhuma operação nova a aprender
 * Ruim, porque adiciona **um componente** (Redis) a subir e operar no cluster
-* Ruim, porque introduz um **ponto único de coordenação** do limite: se o Redis cair, o rate limiting é afetado (mitigável degradando para `memory://` — ver Notas)
+* Ruim, porque introduz um **ponto único de coordenação** do limite: o Redis passa a ser dependência do rate limiting. Mitigado: o `Limiter` é construído com `in_memory_fallback_enabled=True`, então uma queda do Redis em runtime **degrada graciosamente para `memory://` (por-réplica) e volta ao compartilhado quando o Redis retorna** — sem 500 (ver Consequências/Notas)
 
 ### Aceitar o limite por-réplica e apenas documentá-lo
 
@@ -71,12 +71,13 @@ A construção do `Limiter` com o `storage_uri` derivado da env vive na borda (i
 * **Opt-in sem custo** para dev/local/CI: ausente `RATE_LIMIT_STORAGE_URI`, o storage é `memory://` — o fluxo de um processo só, o `docker compose` e a *fixture* de reset dos testes seguem idênticos
 * Reusa um **padrão de workload já estabelecido** na fase (Deployment+Service de demo); a equipe já opera Mailpit e Jaeger pelo mesmo molde
 * A segunda metade da RNF-024 fica **fechada** — somada ao pool de conexões já entregue, a *statelessness* da aplicação sob N réplicas está completa
+* **Degradação graciosa implementada** contra a queda do Redis: o `Limiter` é construído com `in_memory_fallback_enabled=True`, então se o Redis fica indisponível em runtime o rate limiting **degrada para per-processo (por-réplica) e volta ao compartilhado assim que o Redis retorna** — a API **não cai (sem 500)**. O *trade-off* é conhecido e transparente: durante a queda, o limite regride ao comportamento por-réplica pré-TD-016 (teto ~N×), recuperando o limite global automaticamente no retorno do Redis — sem intervenção
 
 ### Negativas
 
 * **Um componente novo** (Redis) a empacotar, subir e operar no cluster — superfície operacional e de falha a mais
-* O Redis vira o **ponto único de coordenação** do limite: indisponibilidade dele afeta o rate limiting. Mitigação possível: degradar para `memory://` (limite volta a ser por-réplica, mas o serviço não cai) — a registrar como comportamento de fallback se/quando implementado
 * O Redis da fase é **de demonstração — sem HA e sem persistência**: não há réplica nem failover, e os contadores não sobrevivem a restart (aceitável para janelas curtas de rate limit; inadequado se o Redis assumir usos que exijam durabilidade)
+* **Chave de rate limit = IP do *peer* imediato**: a chave usa `get_remote_address` (`request.client.host`), o endereço da conexão imediata — não o cliente real. Atrás de um ingress/proxy sem `X-Forwarded-For` confiável (+ uvicorn `--proxy-headers`), todos os clientes externos colapsam num **único bucket** de rate limit (o IP do proxy). No cluster de demo o acesso é ClusterIP/port-forward, então não se manifesta; em produção com ingress, exige XFF confiável. Rastreado como **TD-023** ([dívida técnica](../../../tech-debt/README.md))
 
 ### Neutras
 
@@ -96,6 +97,8 @@ A construção do `Limiter` com o `storage_uri` derivado da env vive na borda (i
 * Requisito: [RNF-024](../../../requisitos/fase2/gap-analysis-fase-2.md) (statelessness/escala horizontal) — esta é a metade do rate limiter; a do pool de conexões já estava entregue
 * Resolve **TD-016** ([dívida técnica](../../../tech-debt/README.md)): rate limiter slowapi in-memory por pod
 * Implementação: PR #62
-* Gatilho de revisão: se o Redis virar dependência crítica (HA, persistência, ou usos sensíveis como cache de dados), avaliar habilitar persistência/replicação e autenticação, ou tornar explícito o fallback para `memory://` quando o Redis estiver indisponível
+* Fallback gracioso: o `Limiter` é construído com `in_memory_fallback_enabled=True` — Redis indisponível em runtime degrada o rate limiting para `memory://` (por-réplica) e retoma o storage compartilhado quando o Redis volta, sem 500 na API
+* Chave de rate limit pelo IP do *peer* imediato (`get_remote_address`): correta **entre réplicas**, mas atrás de ingress/proxy sem `X-Forwarded-For` confiável colapsa o tráfego externo num único bucket — **TD-023** ([dívida técnica](../../../tech-debt/README.md))
+* Gatilho de revisão: se o Redis virar dependência crítica (HA, persistência, ou usos sensíveis como cache de dados), avaliar habilitar persistência/replicação e autenticação
 
 > [↑ Raiz do projeto](../../../../README.md) · [↑ Arquitetura](../../README.md)
