@@ -278,6 +278,6 @@ Todas as metas de cobertura atingidas. Testes de integração usam testcontainer
 - [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md): Pipeline de segurança e análise estática — bandit, pip-audit, gitleaks, trivy
 - [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md): Testes BDD com pytest-bdd e Gherkin
 - [Requisitos](../requisitos/requisitos.md): RNF-009 (cobertura de testes), RNF-010 (scanning de seguranca)
-- [Tech Debt](../tech-debt.md): TD-006 (mutation testing), TD-014 (Allure reports)
+- [Tech Debt](../tech-debt/README.md): TD-006 (mutation testing), TD-014 (Allure reports)
 
 > [↑ Raiz do projeto](../../README.md)
