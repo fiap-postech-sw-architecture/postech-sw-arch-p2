@@ -8,12 +8,20 @@ if TYPE_CHECKING:
 
 @runtime_checkable
 class UnitOfWork(Protocol):
-    def __enter__(self) -> Self: ...
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
+    def __enter__(self) -> Self:
+        pass
+
     def __exit__(
         self,
         exc_type: type[BaseException] | None,
         exc_val: BaseException | None,
         exc_tb: TracebackType | None,
-    ) -> None: ...
-    def commit(self) -> None: ...
-    def rollback(self) -> None: ...
+    ) -> None:
+        pass
+
+    def commit(self) -> None:
+        pass
+
+    def rollback(self) -> None:
+        pass

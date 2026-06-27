@@ -14,10 +14,11 @@ class OrdemDeServicoPort(Protocol):
     de aplicacao/infraestrutura e traduz perguntas sobre vinculos com OS.
     """
 
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def existe_os_ativa_para_cliente(self, cliente_id: UUID) -> bool:
         """Indica se o cliente possui ordens de servico ainda nao finalizadas."""
-        ...
+        pass
 
     def existe_os_para_veiculo(self, veiculo_id: UUID) -> bool:
         """Indica se o veiculo possui qualquer ordem de servico (ativa ou encerrada)."""
-        ...
+        pass

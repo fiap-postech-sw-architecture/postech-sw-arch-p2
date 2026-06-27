@@ -66,8 +66,6 @@ _CONSENTIMENTO = ConsentimentoDTO(
     ativo=True,
 )
 
-_USUARIO = {"sub": str(uuid4()), "papel": "admin"}
-
 
 def _criar_app() -> FastAPI:
     app = FastAPI()

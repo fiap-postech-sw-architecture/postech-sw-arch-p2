@@ -62,6 +62,7 @@ def serializar_integration_event(evento: IntegrationEvent) -> OutboxRegistro:
 class OutboxPort(Protocol):
     """Enfileira ``IntegrationEvent`` na outbox dentro da transacao corrente."""
 
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def enfileirar(self, eventos: Sequence[IntegrationEvent]) -> None:
         """Insere os eventos na ``outbox`` usando a transacao em andamento."""
-        ...
+        pass

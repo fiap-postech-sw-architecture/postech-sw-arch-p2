@@ -11,15 +11,16 @@ class Documento(Protocol):
     expor `numero` (read-only), `formatado()` e `mascarado()`.
     """
 
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     @property
     def numero(self) -> str:
         """Numero puro do documento (sem mascara), usado para busca por hash."""
-        ...
+        pass
 
     def formatado(self) -> str:
         """Retorna o documento formatado por extenso para exibicao ao usuario."""
-        ...
+        pass
 
     def mascarado(self) -> str:
         """Retorna o documento com os digitos centrais ocultos (seguro para logs)."""
-        ...
+        pass

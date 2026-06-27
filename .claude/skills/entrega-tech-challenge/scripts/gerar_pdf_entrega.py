@@ -57,6 +57,7 @@ def detectar_repo(base_dir: Path) -> str | None:
         if nome:
             return nome
     except (subprocess.CalledProcessError, FileNotFoundError):
+        # gh ausente ou falhou: cai no fallback do remote origin do git abaixo.
         pass
     try:
         url = subprocess.run(

@@ -62,12 +62,24 @@ class LinhaOutbox:
 class ConexaoOutbox(Protocol):
     """Fachada dos efeitos sobre a outbox (permite fake em teste)."""
 
-    def ja_processado(self, outbox_id: int, handler: str) -> bool: ...
-    def marcar_entregue(self, outbox_id: int) -> None: ...
-    def registrar_processed(self, outbox_id: int, handler: str) -> None: ...
-    def agendar_retry(self, outbox_id: int, tentativas: int, erro: str) -> None: ...
-    def marcar_dead(self, outbox_id: int, tentativas: int, erro: str) -> None: ...
-    def tem_sucessor_pendente(self, agregado_id: UUID, outbox_id: int) -> bool: ...
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
+    def ja_processado(self, outbox_id: int, handler: str) -> bool:
+        pass
+
+    def marcar_entregue(self, outbox_id: int) -> None:
+        pass
+
+    def registrar_processed(self, outbox_id: int, handler: str) -> None:
+        pass
+
+    def agendar_retry(self, outbox_id: int, tentativas: int, erro: str) -> None:
+        pass
+
+    def marcar_dead(self, outbox_id: int, tentativas: int, erro: str) -> None:
+        pass
+
+    def tem_sucessor_pendente(self, agregado_id: UUID, outbox_id: int) -> bool:
+        pass
 
 
 def processar_linha(

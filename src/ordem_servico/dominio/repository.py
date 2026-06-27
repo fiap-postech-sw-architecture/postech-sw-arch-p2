@@ -18,13 +18,14 @@ class OrdemDeServicoRepository(Protocol):
     por views/read-models em PRs futuros sem alterar o contrato.
     """
 
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def obter_por_id(self, ordem_id: UUID) -> OrdemDeServico | None:
         """Retorna a ordem pelo id, ou ``None`` se nao existir."""
-        ...
+        pass
 
     def salvar(self, ordem: OrdemDeServico) -> None:
         """Persiste a ordem (insert ou update conforme a identidade)."""
-        ...
+        pass
 
     def listar(
         self,
@@ -42,7 +43,7 @@ class OrdemDeServicoRepository(Protocol):
         RN-019/RN-020); ``incluir_encerradas=True`` devolve a visao completa
         com encerradas ao final da ordenacao.
         """
-        ...
+        pass
 
     def contar(self, *, incluir_encerradas: bool = True) -> int:
         """Total de ordens persistidas.
@@ -52,23 +53,23 @@ class OrdemDeServicoRepository(Protocol):
         paginacao consistente com ``listar``. O default ``True`` preserva a
         semantica historica de "total persistido" (ex.: metricas).
         """
-        ...
+        pass
 
     def contar_por_status(self) -> dict[str, int]:
         """Mapa ``status.value -> contagem`` para todas as ordens."""
-        ...
+        pass
 
     def existe_ativa_para_cliente(self, cliente_id: UUID) -> bool:
         """Indica se o cliente possui alguma ordem em estado nao terminal."""
-        ...
+        pass
 
     def existe_ativa_para_veiculo(self, veiculo_id: UUID) -> bool:
         """Indica se o veiculo possui alguma ordem em estado nao terminal."""
-        ...
+        pass
 
     def existe_ativa_com_item_estoque(self, item_estoque_id: UUID) -> bool:
         """Indica se algum item de estoque referenciado esta em uso por ordem ativa."""
-        ...
+        pass
 
     def obter_por_placa_e_documento(
         self, placa: str, documento: str
@@ -77,11 +78,11 @@ class OrdemDeServicoRepository(Protocol):
 
         ``documento`` pode ser CPF ou CNPJ.
         """
-        ...
+        pass
 
     def calcular_tempo_medio_execucao(self) -> float | None:
         """Tempo medio (segundos) entre ``aprovar_orcamento`` e ``finalizar_servico``.
 
         Retorna ``None`` se nao houver ordens finalizadas.
         """
-        ...
+        pass

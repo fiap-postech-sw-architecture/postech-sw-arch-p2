@@ -95,6 +95,7 @@ class _ServerFake:
                 if "nome" in parsed:
                     self.nome_atual = str(parsed["nome"])
             except (ValueError, UnicodeDecodeError):
+                # Body ausente/invalido: mantem o nome default do mock (best-effort).
                 pass
             return httpx.Response(200, json=self._cli())
 

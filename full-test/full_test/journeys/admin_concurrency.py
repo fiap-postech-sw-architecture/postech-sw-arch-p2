@@ -125,20 +125,19 @@ class AdminConcurrencyJourney(UserJourney):
 
         def _worker(worker_idx: int) -> None:
             del worker_idx  # reservado para futuros logs; suprime lint W0613
-            c = SystemClient(self._config.base_url, timeout=self._config.http_timeout)
-            # Reusa token compartilhado (evita 429 com N workers x login).
-            if admin_token is not None:
-                c.set_token(admin_token)
-            else:
-                c.login(email=admin_email, senha=admin_senha)
-            try:
+            # `with` fecha o cliente no fim (nao faz logout: token e compartilhado).
+            with SystemClient(
+                self._config.base_url, timeout=self._config.http_timeout
+            ) as c:
+                # Reusa token compartilhado (evita 429 com N workers x login).
+                if admin_token is not None:
+                    c.set_token(admin_token)
+                else:
+                    c.login(email=admin_email, senha=admin_senha)
                 for _ in range(p.ops_por_worker):
                     item = c.obter_item_estoque(item_id)
                     nova = item.quantidade + p.delta_por_op
                     c.ajustar_quantidade_estoque(item_id, nova_quantidade=nova)
-            finally:
-                # Nao faz logout quando token e compartilhado.
-                c.close()
 
         with (
             self.log.passo(f"executar/{p.n_workers}-workers-x-{p.ops_por_worker}-ops"),

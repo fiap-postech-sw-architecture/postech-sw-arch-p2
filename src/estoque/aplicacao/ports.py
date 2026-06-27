@@ -14,4 +14,6 @@ class OrdemDeServicoPort(Protocol):
     ``src/estoque/infraestrutura/``.
     """
 
-    def existe_os_ativa_com_item_estoque(self, item_estoque_id: UUID) -> bool: ...
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
+    def existe_os_ativa_com_item_estoque(self, item_estoque_id: UUID) -> bool:
+        pass

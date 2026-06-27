@@ -25,9 +25,15 @@ class Sessao:
 
 
 class _StorageProtocol(Protocol):
-    def get(self, key: str, default: object = None) -> object: ...
-    def __setitem__(self, key: str, value: object) -> None: ...
-    def clear(self) -> None: ...
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
+    def get(self, key: str, default: object = None) -> object:
+        pass
+
+    def __setitem__(self, key: str, value: object) -> None:
+        pass
+
+    def clear(self) -> None:
+        pass
 
 
 class _DictStorage:

@@ -9,10 +9,15 @@ if TYPE_CHECKING:
 
 
 class ServicoOferecidoRepository(Protocol):
-    def obter_por_id(self, servico_id: UUID) -> ServicoOferecido | None: ...
+    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
+    def obter_por_id(self, servico_id: UUID) -> ServicoOferecido | None:
+        pass
 
-    def salvar(self, servico: ServicoOferecido) -> None: ...
+    def salvar(self, servico: ServicoOferecido) -> None:
+        pass
 
-    def listar(self, offset: int = 0, limit: int = 20) -> list[ServicoOferecido]: ...
+    def listar(self, offset: int = 0, limit: int = 20) -> list[ServicoOferecido]:
+        pass
 
-    def contar(self) -> int: ...
+    def contar(self) -> int:
+        pass

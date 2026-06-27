@@ -521,15 +521,14 @@ class RbacMatrixJourney(UserJourney):
         for papel, (email, senha) in self._creds.items():
             if papel in self._tokens:
                 continue
-            with self.log.passo(f"setup/login-{papel.value}"):
-                cli = SystemClient(
+            with (
+                self.log.passo(f"setup/login-{papel.value}"),
+                SystemClient(
                     self._config.base_url, timeout=self._config.http_timeout
-                )
-                try:
-                    tokens = cli.login(email=email, senha=senha)
-                    self._tokens[papel] = tokens.access_token
-                finally:
-                    cli.close()
+                ) as cli,
+            ):
+                tokens = cli.login(email=email, senha=senha)
+                self._tokens[papel] = tokens.access_token
 
     def executar(self) -> None:
         """Percorre ``RBAC_ESPERADO`` e avalia cada celula.
@@ -565,18 +564,19 @@ class RbacMatrixJourney(UserJourney):
                 raise AssertionError(self._relatorio_falhas(total))
 
         # Bonus: verificacao do shape constante do 404 publico (req #1).
-        with self.log.passo("acompanhamento/404-placa-inexistente"):
-            cli = SystemClient(self._config.base_url, timeout=self._config.http_timeout)
-            try:
-                from full_test.support.consistency import ConsistencyChecker
+        with (
+            self.log.passo("acompanhamento/404-placa-inexistente"),
+            SystemClient(
+                self._config.base_url, timeout=self._config.http_timeout
+            ) as cli,
+        ):
+            from full_test.support.consistency import ConsistencyChecker
 
-                checker = ConsistencyChecker(cli)
-                checker.assert_acompanhamento_404(
-                    placa="ZZZ9999",
-                    documento="00000000000",
-                )
-            finally:
-                cli.close()
+            checker = ConsistencyChecker(cli)
+            checker.assert_acompanhamento_404(
+                placa="ZZZ9999",
+                documento="00000000000",
+            )
 
     def teardown(self) -> None:
         """Nao ha recurso persistente para liberar.
@@ -676,12 +676,11 @@ class RbacMatrixJourney(UserJourney):
         onde realmente queremos revogar — i.e., a celula de /logout da matriz.
         """
         email, senha = self._creds[papel]
-        cli = SystemClient(self._config.base_url, timeout=self._config.http_timeout)
-        try:
+        with SystemClient(
+            self._config.base_url, timeout=self._config.http_timeout
+        ) as cli:
             tokens = cli.login(email=email, senha=senha)
             return tokens.access_token
-        finally:
-            cli.close()
 
     @staticmethod
     def _materializar_path(path_template: str) -> str:

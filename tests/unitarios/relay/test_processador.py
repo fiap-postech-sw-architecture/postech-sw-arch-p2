@@ -150,7 +150,6 @@ def test_sem_handler_vai_para_dlq_preservando_tentativas() -> None:
 # ---------------------------------------------------------------------------
 
 _EMAIL_RAW = "cliente@example.com"
-_MARCADOR_REDACAO = "@"  # parte do dominio permanece; so o local e redacted
 
 
 def test_pii_email_redacted_em_agendar_retry() -> None:
