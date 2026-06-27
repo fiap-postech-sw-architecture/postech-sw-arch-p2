@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md)
 
-> **Versão**: 1.7 (2026-06-27) — reconciliação com o código: TD-009 fechado (eventos `ClienteCadastrado`/`ServicoCadastrado` implementados e emitidos via `_registrar_evento`); TD-007 reescrito (validação de dígito/formato via brutils já entregue — remanescente é só telefone/e-mail sem VO próprio); TD-010 nota o gate CodeQL local; estrutura agora separa explicitamente *Itens Resolvidos* (9) de *Itens Abertos* (13, em 4 grupos). Versão 1.6 — TD-008 resolvido (Transactional Outbox/RF-018, PR #56); adicionados TD-021 (relay HA/fencing) e TD-022 (observabilidade do relay). Versão 1.5: TD-018 fechado por remoção do `db-image/` (fast-check da fase 1) do repo da fase 2. Versão 1.4: dep `mutmut` removido (3.x quebrado); TD-006 sem tooling. Versão 1.3: TD-019 fechado (PR #50). Versão 1.2 (2026-06-22): reconciliação com o código (TD-003/TD-017 fechados, TD-002/004/005/008/009/016 corrigidos).
+> **Versão**: 1.8 (2026-06-27) — TD-016 fechado (PR #62): rate limiter slowapi com backend compartilhado via Redis (`storage_uri`, env `RATE_LIMIT_STORAGE_URI`, fallback in-memory) → limite correto sob HPA, fechando a metade do rate limiter da RNF-024 ([ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md)); contagens passam a *Itens Resolvidos* (10) / *Itens Abertos* (12). Versão 1.7 (2026-06-27) — reconciliação com o código: TD-009 fechado (eventos `ClienteCadastrado`/`ServicoCadastrado` implementados e emitidos via `_registrar_evento`); TD-007 reescrito (validação de dígito/formato via brutils já entregue — remanescente é só telefone/e-mail sem VO próprio); TD-010 nota o gate CodeQL local; estrutura agora separa explicitamente *Itens Resolvidos* (9) de *Itens Abertos* (13, em 4 grupos). Versão 1.6 — TD-008 resolvido (Transactional Outbox/RF-018, PR #56); adicionados TD-021 (relay HA/fencing) e TD-022 (observabilidade do relay). Versão 1.5: TD-018 fechado por remoção do `db-image/` (fast-check da fase 1) do repo da fase 2. Versão 1.4: dep `mutmut` removido (3.x quebrado); TD-006 sem tooling. Versão 1.3: TD-019 fechado (PR #50). Versão 1.2 (2026-06-22): reconciliação com o código (TD-003/TD-017 fechados, TD-002/004/005/008/009/016 corrigidos).
 
 Simplificações deliberadas cujo custo de correção é aceito para o escopo do MVP.
 
@@ -15,9 +15,9 @@ Classificação por tipo:
 - **Planejado**: equipe sabe que a solução não é ideal, documenta e planeja pagar depois
 - **Negligenciado**: débito ignorado por muito tempo, mesmo após identificação
 
-> 📋 **Plano de ataque** dos 13 abertos — priorização, como resolver cada um e checklist de progresso: **[plano-ataque.md](plano-ataque.md)**. Regra: cada TD vira **um PR próprio** que atualiza **todos os docs afetados no mesmo PR**.
+> 📋 **Plano de ataque** dos 12 abertos — priorização, como resolver cada um e checklist de progresso: **[plano-ataque.md](plano-ataque.md)**. Regra: cada TD vira **um PR próprio** que atualiza **todos os docs afetados no mesmo PR**.
 
-## Itens Resolvidos (9)
+## Itens Resolvidos (10)
 
 | # | Área | Descrição | Resolução |
 |---|---|---|---|
@@ -30,8 +30,9 @@ Classificação por tipo:
 | TD-018 | Infra | `db-image/` no GHCR ainda com imagens da fase 1 | **Fechado** — `db-image/` (fast-check da fase 1) removido do repo da fase 2: confundia (imagens `-p1` sem RF-020..024/Mailpit) e não agregava (nada usa; compose e testes usam `postgres:16` vanilla, app builda do fonte e o CD publica `-p2-app` por SHA). Caminhos oficiais: `make up`, k8s/CD. |
 | TD-008 | Domínio | Dispatch de domain events síncrono e in-process (sem outbox) | **Fechado** (2026-06-25, PR #56) — Resolvido via RF-018 (Transactional Outbox): a UoW grava `IntegrationEvents` na tabela `outbox` na mesma transação da OS; o relay (`python -m relay`) implementa claim-then-deliver com head-of-line, backoff/DLQ e idempotência via `processed_events`. Notificação proativa via `LISTEN/NOTIFY` (PostgreSQL). Detalhes em [ADR-022](../arquitetura/adr/fase2/022-transactional-outbox-relay.md). |
 | TD-009 | Domínio | Dois eventos de criação do event storming sem classe nem emissão | **Fechado** (PR #48) — `ClienteCadastradoEvent` ([events.py](../../src/cliente_veiculo/dominio/events.py)) e `ServicoCadastradoEvent` ([events.py](../../src/catalogo_servicos/dominio/events.py)) implementados e emitidos via `_registrar_evento` nas factories `Cliente.criar`/`ServicoOferecido.criar`; cobertos por testes unitários (`test_cliente.py`, `test_servico_oferecido.py`). |
+| TD-016 | Infra | Rate limiter slowapi in-memory por pod | **Fechado** (PR #62) — backend compartilhado via Redis (`storage_uri`): Deployment+Service no [k8s](../../k8s/redis.yaml), env `RATE_LIMIT_STORAGE_URI`, fallback in-memory; limite correto sob HPA (RNF-024). [ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md). |
 
-## Itens Abertos (13)
+## Itens Abertos (12)
 
 Débitos ativos, agrupados por área. Simplificações deliberadas cujo custo de correção é aceito no escopo do MVP.
 
@@ -70,7 +71,6 @@ Débitos assumidos durante a fase 2 (infra Kubernetes, CI/CD, observabilidade e 
 | # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
 |---|---|---|---|---|---|---|---|---|
 | TD-015 | Infra | Corrida de migração com múltiplas réplicas (alembic no entrypoint) | Deliberado | Média | Médio | Sim | Estável | O `entrypoint.sh` roda `alembic upgrade head` no boot; duas réplicas subindo juntas poderiam disputar a migração. Mitigação atual: rollout inicial com réplica única (`replicas: 1` explícito no Deployment) antes de o HPA escalar. Evolução: Job dedicado de migração no deploy ([ADR-019](../arquitetura/adr/fase2/019-pipeline-cicd-deploy.md)). Rastreado em #33. |
-| TD-016 | Infra | Rate limiter slowapi in-memory por pod | Deliberado | Média | Médio | Sim | Crescente | A metade do RNF-024 relativa ao **pool de conexões** já foi entregue (`DB_POOL_SIZE`/`DB_MAX_OVERFLOW` em [database.py](../../src/compartilhado/infraestrutura/database.py), #32 fechada). Resta o **rate limiter**: o contador do slowapi vive na memória de cada pod ([middleware.py](../../src/compartilhado/interfaces/middleware.py)), então sob HPA o limite efetivo é multiplicado pelo número de réplicas. Aceitável no cluster de demo; evolução é backend compartilhado (Redis via `storage_uri`) com mais de uma réplica estável. Rastreado em #31. |
 | TD-021 | Infra | Relay sem fencing de lease para `replicas>1` | Planejado | Média | Médio | Sim | Latente | O relay roda com `replicas:1`; o drain sequencial torna o lease (visibility timeout, 60 s) seguro nessa topologia. Escalar para `replicas>1` (caminho "HA-ready" via `FOR UPDATE SKIP LOCKED`) exige que o lease sempre exceda a latência de um handler isolado (limitada pelo timeout SMTP de 5 s) **ou** um fencing na entrega (re-checar lease/owner dentro da tx por-linha e pular se o lease foi roubado). Sem isso, um lease vencendo no meio de uma entrega lenta permite que uma segunda réplica re-reivindique a linha → e-mail duplicado. Contexto em [relay/processador.py](../../relay/processador.py) e [relay/listener.py](../../relay/listener.py). |
 | TD-022 | Observabilidade | Relay sem métricas OTel nem alerting | Planejado | Baixa-Média | Médio | Não | Crescente | O design (RF-018 §7) prevê métricas proativas: contagem `pendente`, idade do mais antigo pendente, tamanho da DLQ, contagem de retries. Implementado um gauge structlog por ciclo (`outbox_profundidade` em [relay/processador.py](../../relay/processador.py)) como cobertura proporcional ao MVP; falta instrumentação OTel no processo do relay (a API já tem OTel via ADR-020; o relay apenas emite structlog) e alerting sobre `outbox_dead_com_sucessores_pendentes` e backlog elevado. Evolução: exportar métricas do relay via OTel/Prometheus e configurar alertas. |
 
@@ -92,7 +92,7 @@ Otimizações (migrar `orcamento_json` de Text para `jsonb` + índice GIN -- TD-
 
 1. **Boy Scout Rule**: cada alteração deixa o código melhor do que encontrou
 2. **Refatorações incrementais**: melhorias técnicas nos sprints regulares, como parte do backlog
-3. **Sprint técnico**: negociar com o PO para débitos de maior impacto (TD-011, TD-015, TD-016)
+3. **Sprint técnico**: negociar com o PO para débitos de maior impacto (TD-011, TD-015)
 4. **ADRs como prevenção**: decisões registradas em ADR ([ADR-001](../arquitetura/adr/001-framework-fastapi.md) a [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md)) evitam débitos invisíveis
 5. **Métricas de fluxo**: lead time, cycle time e taxa de falhas para detectar crescimento do débito
 

@@ -6,6 +6,7 @@ from fastapi.testclient import TestClient
 
 from src.compartilhado.interfaces.middleware import (
     SecurityHeadersMiddleware,
+    _resolver_storage_uri,
     configurar_cors,
     configurar_rate_limiting,
 )
@@ -133,6 +134,24 @@ class TestConfigurarCors:
         app = _criar_app_com_saude()
         with pytest.raises(ValueError, match="CORS_ORIGINS='\\*'"):
             configurar_cors(app)
+
+
+class TestResolverStorageUri:
+    def test_retorna_valor_do_env_quando_definido(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("RATE_LIMIT_STORAGE_URI", "redis://localhost:6379")
+        assert _resolver_storage_uri() == "redis://localhost:6379"
+
+    def test_retorna_none_quando_ausente(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        monkeypatch.delenv("RATE_LIMIT_STORAGE_URI", raising=False)
+        assert _resolver_storage_uri() is None
+
+    def test_retorna_none_quando_string_vazia(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("RATE_LIMIT_STORAGE_URI", "")
+        assert _resolver_storage_uri() is None
 
 
 class TestConfigurarRateLimiting:

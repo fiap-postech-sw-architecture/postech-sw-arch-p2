@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
 
-> **Para a próxima IA/dev:** plano priorizado para atacar os 13 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
+> **Para a próxima IA/dev:** plano priorizado para atacar os 12 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
 
 ## Regras de execução (obrigatórias)
 
@@ -14,10 +14,10 @@
 
 ## Status
 
-- ✅ **Resolvidos: 9** — TD-001, TD-003, TD-008, TD-009, TD-012, TD-017, TD-018, TD-019, TD-020.
-- ⬜ **Abertos: 13** — abaixo, por ordem de ataque.
+- ✅ **Resolvidos: 10** — TD-001, TD-003, TD-008, TD-009, TD-012, TD-016, TD-017, TD-018, TD-019, TD-020.
+- ⬜ **Abertos: 12** — abaixo, por ordem de ataque.
 
-> Nenhum dos 13 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
+> Nenhum dos 12 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
 
 ## Ordem de ataque
 
@@ -25,13 +25,13 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
 
 ### Tier 1 — atacar primeiro (risco-prod = Sim; alinha HPA/CD)
 
-- [ ] **TD-016 — Rate limiter compartilhado (Redis)**
+- [x] **TD-016 — Rate limiter compartilhado (Redis)** — ✅ Fechado (PR #62)
   - **Por quê:** o slowapi conta in-memory por pod → sob HPA o limite efetivo é multiplicado pelo nº de réplicas (RNF-024). Risco de produção real; tema HPA direto.
   - **Como:** subir um Redis pequeno no `k8s/` (Deployment + Service) e no compose; configurar o `Limiter` do slowapi com `storage_uri` (env `RATE_LIMIT_STORAGE_URI`), com fallback in-memory se ausente. **Teste:** limite consistente entre réplicas (carga no kind, como no TD-008).
-  - **Docs no PR:** README; [gap-analysis (RNF-024)](../requisitos/fase2/gap-analysis-fase-2.md); ADR novo (ou nota no [ADR-016](../arquitetura/adr/fase2/016-plataforma-kubernetes.md)) sobre o Redis de rate limit.
+  - **Docs no PR:** README; [gap-analysis (RNF-024)](../requisitos/fase2/gap-analysis-fase-2.md); [ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md) (Redis de rate limit).
   - **Esforço:** médio · **Valor:** alto · **Rastreado em:** #31.
 
-- [ ] **TD-015 — Migração em Job dedicado**
+- [ ] **TD-015 — Migração em Job dedicado** *(cabeça do Tier 1 com o TD-016 fechado)*
   - **Por quê:** o `entrypoint.sh` roda `alembic upgrade head` no boot; N réplicas subindo juntas disputam a migração. Risco-prod; tema CD.
   - **Como:** tirar a migração do entrypoint; criar um k8s `Job` (ou initContainer único) que roda `alembic upgrade head` uma vez antes do rollout; o Deployment passa a depender dele. `RUN_MIGRATIONS_ON_STARTUP=false` no cluster.
   - **Docs no PR:** README; [ADR-019](../arquitetura/adr/fase2/019-pipeline-cicd-deploy.md) (estratégia de migração); [RFC-002](../arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md).
@@ -84,8 +84,8 @@ Da tabela *Considerações de Complexidade Algorítmica* do [README.md](README.m
 
 ## O que entra na entrega (must vs nice)
 
-- **Must (já feito):** os 9 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 13 abertos.
-- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 (TD-016 → TD-015) primeiro — risco-prod + temas HPA/CD; depois Tier 2 (TD-011, TD-022, TD-021).
+- **Must (já feito):** os 10 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 12 abertos.
+- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 — agora só **TD-015** (TD-016 fechado, PR #62) — risco-prod + temas HPA/CD; depois Tier 2 (TD-011, TD-022, TD-021).
 - **Provavelmente fora:** Tier 3 (limpeza de baixo retorno) e Tier 4 (deliberados de baixo valor para a banca).
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)

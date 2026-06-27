@@ -6,8 +6,10 @@
 # POSTGRES_* (Secret do StatefulSet em /infra -- ADR-017),
 # PYTSTOP_GIT_SHA/PYTSTOP_GIT_DATE (gravadas na imagem como build args),
 # APP_PORT/DB_PORT/UI_PORT/BACKEND_URL (mapeamentos do compose e ui/
-# dev-only), RATE_LIMIT e JWT_REFRESH_EXPIRATION_MINUTES (defaults
-# internos do codigo, adequados a demo).
+# dev-only), JWT_REFRESH_EXPIRATION_MINUTES (default interno do codigo,
+# adequado a demo). O armazenamento do rate limiter (TD-016) deixou de
+# ser default interno: sob o HPA ele aponta para o Redis compartilhado
+# via RATE_LIMIT_STORAGE_URI abaixo (redis.yaml).
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -52,3 +54,9 @@ data:
   # compose e CI nao pagam custo algum.
   OTEL_ENABLED: "true"
   OTEL_EXPORTER_OTLP_ENDPOINT: "http://jaeger:4317"
+  # Store do rate limiter (TD-016): sob o HPA (hpa.yaml) cada replica
+  # contaria sozinha num store em memoria, furando o limite global. Aponta
+  # para o Service `redis` deste namespace (redis.yaml) -- contador unico e
+  # compartilhado. Default do codigo e in-memory (basta no compose/CI de
+  # uma instancia); aqui o limite vale para a frota toda.
+  RATE_LIMIT_STORAGE_URI: "redis://redis:6379"

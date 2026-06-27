@@ -13,6 +13,11 @@ services:
     depends_on:
       postgres:
         condition: service_healthy
+      # Store do rate limiter (TD-016): sobe antes do app. service_started
+      # basta -- o redis:7-alpine atende quase de imediato e o limitador
+      # conecta sob demanda (sem healthcheck dedicado, como o mailpit).
+      redis:
+        condition: service_started
     env_file:
       - .env.dev
     environment:
@@ -37,6 +42,10 @@ services:
       # enquanto o backend nao atende.
       - OTEL_ENABLED=${OTEL_ENABLED:-false}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTEL_EXPORTER_OTLP_ENDPOINT:-http://jaeger:4317}
+      # Store do rate limiter (TD-016): default aponta para o servico redis
+      # abaixo, exercitando o limitador compartilhado no `make up`. Espelha
+      # o RATE_LIMIT_STORAGE_URI do cluster (configmap.yaml).
+      - RATE_LIMIT_STORAGE_URI=${RATE_LIMIT_STORAGE_URI:-redis://redis:6379}
     entrypoint: ["./entrypoint.sh"]
     # Healthcheck do app (RNF-019): probe em /api/v1/saude via Python+urllib
     # porque a imagem slim nao tem curl/wget. Espelha o HEALTHCHECK do
@@ -97,6 +106,18 @@ services:
     container_name: pytstop-mailpit
     ports:
       - "${MAILPIT_UI_PORT:-8025}:8025"
+
+  # Contador compartilhado do rate limiter (TD-016): a API usa este Redis
+  # como store unico para o limite por janela (RATE_LIMIT_STORAGE_URI no
+  # environment do app). Espelha o redis.yaml do cluster (paridade dev x
+  # cluster). Sem persistencia: os contadores sao efemeros e expiram com a
+  # janela. Porta publicada no host so para inspecionar (redis-cli); a
+  # comunicacao app<->redis fica na rede interna do compose.
+  redis:
+    image: redis:7-alpine
+    container_name: pytstop-redis
+    ports:
+      - "${REDIS_PORT:-6379}:6379"
 
   # Backend de traces de dev/demo (diferencial ADR-020): so sobe com
   # `--profile otel` — o fluxo normal (make up, CI, full-test) nao paga o
