@@ -14,6 +14,9 @@ Manifests da aplicação PytStop para o cluster kind da fase 2 (RNF-020): Deploy
 | `hpa.yaml` | HPA por CPU e memória, 1–5 réplicas |
 | `mailpit.yaml` | Mailpit — SMTP de demo + UI web |
 | `jaeger.yaml` | Jaeger all-in-one — traces OTLP da demo (ADR-020) |
+| `jobs/migration-job.yaml` | `pytstop-migrate` — Job de migração do schema (TD-015), **aplicado à parte** (ver abaixo) |
+
+> O `jobs/migration-job.yaml` fica num **subdir** de propósito: `kubectl apply -f k8s/` não é recursivo, então o Job **não** entra no apply do diretório. Ele é aplicado separadamente, com a tag do SHA substituída, **antes do rollout** (seção [Aplicar](#aplicar)) — resolve a corrida de migração com N réplicas (TD-015; [ADR-019](../docs/arquitetura/adr/fase2/019-pipeline-cicd-deploy.md)).
 
 A infraestrutura-base (cluster kind e PostgreSQL no namespace `pytstop-infra`) é provisionada pelo Terraform de `/infra` (RNF-021); o **metrics-server** (pré-requisito do HPA) é instalado pelo fluxo integrado abaixo — fronteira descrita na RFC-002 §2.
 
@@ -52,15 +55,29 @@ kubectl apply -f k8s/
 
 Com o namespace já existente, reaplicações funcionam direto com `kubectl apply -f k8s/`.
 
+### Migração (Job dedicado, antes do rollout)
+
+O `kubectl apply -f k8s/` **não** aplica o `jobs/migration-job.yaml` (subdir, apply não-recursivo). Depois dos manifests e **antes** do `set image`/rollout, aplique o Job de migração com a tag imutável do SHA substituída no lugar do placeholder `:dev` e aguarde a conclusão — é o gate que garante o schema em head antes de qualquer réplica subir (TD-015):
+
+```bash
+kubectl -n pytstop delete job pytstop-migrate --ignore-not-found
+sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|<imagem:tag-do-SHA>|" k8s/jobs/migration-job.yaml \
+  | kubectl -n pytstop apply -f -
+kubectl -n pytstop wait --for=condition=complete --timeout=180s job/pytstop-migrate
+```
+
+O fluxo integrado (`make cd-local` / CD na main) já executa esses passos na ordem certa — esta seção documenta o caminho manual. O Job roda `alembic upgrade head` (migração obrigatória — falha reprova o Job e aborta o deploy) seguido do seed do admin best-effort.
+
 ## Conferir
 
 ```bash
 kubectl get pods -n pytstop                  # pytstop-api, mailpit e jaeger 1/1 Running
 kubectl get hpa -n pytstop                   # percentuais de cpu/memoria (exige metrics-server)
-kubectl logs -n pytstop deploy/pytstop-api   # migracao + seed + uvicorn no boot
+kubectl logs -n pytstop deploy/pytstop-api   # so uvicorn no boot (migracao roda no Job)
+kubectl logs -n pytstop job/pytstop-migrate  # alembic upgrade head + seed do admin
 ```
 
-O primeiro boot roda `alembic upgrade head` e o seed do admin (best-effort) antes de o uvicorn atender — a readiness só passa com o schema migrado (RFC-002 §7).
+No cluster a migração **não** roda no boot do pod: o Job `pytstop-migrate` roda `alembic upgrade head` e o seed do admin (best-effort) **antes do rollout** (`RUN_MIGRATIONS_ON_STARTUP=false`/`RUN_SEED_ON_STARTUP=false` no ConfigMap). Os pods da API sobem sobre o schema já migrado — a readiness cobre só a subida do uvicorn (TD-015; RFC-002 §7).
 
 ## Port-forward
 

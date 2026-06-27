@@ -1,0 +1,66 @@
+# Job de migração do schema (TD-015; ADR-019; RFC-002 §7). Roda uma vez
+# antes do rollout: `alembic upgrade head` num único pod, resolvendo a
+# corrida de migrações concorrentes que existia quando N réplicas da API
+# subiam juntas com o `alembic` no entrypoint. Com a migração no Job, o
+# entrypoint do pod no cluster fica com `RUN_MIGRATIONS_ON_STARTUP=false`
+# (configmap.yaml) e o boot da API não toca o schema.
+#
+# Aplicado SEPARADAMENTE do `kubectl apply -f k8s/` (este manifest vive no
+# subdir `k8s/jobs/`, que o apply do diretório — não-recursivo — ignora de
+# proposito): o CD/`make k8s-up` o aplica com a tag imutavel do SHA do
+# commit (`sed` sobre o placeholder abaixo) e aguarda `--for=condition=
+# complete` antes do `set image`/rollout. Um Job nao aceita `kubectl set
+# image`, dai a substituicao da tag por `sed` em vez do padrao do Deployment.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: pytstop-migrate
+  namespace: pytstop
+  labels:
+    app: pytstop-migrate
+spec:
+  # Retenta a migração algumas vezes (banco ainda subindo, lock transitório);
+  # esgotado o limite, o Job falha e o `kubectl wait` do deploy aborta antes
+  # de qualquer rollout — schema quebrado nunca chega aos pods.
+  backoffLimit: 4
+  # Auto-coleta o Job concluído após 10 min (não polui `kubectl get jobs`
+  # entre deploys; o delete --ignore-not-found do CD cobre o resto).
+  ttlSecondsAfterFinished: 600
+  template:
+    metadata:
+      labels:
+        app: pytstop-migrate
+    spec:
+      # Job de tarefa única: sem reinício do container no mesmo pod — uma
+      # falha conta para o backoffLimit e cria um pod novo.
+      restartPolicy: Never
+      containers:
+        - name: migrate
+          # Placeholder `dev`: o CD/`make k8s-up` substitui pela tag imutavel
+          # do SHA via `sed` antes do apply (Job nao aceita `kubectl set
+          # image`). Mesma imagem da API — traz alembic, migrations/ e scripts/.
+          image: ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev
+          imagePullPolicy: IfNotPresent
+          # Mesmos ConfigMap (sem efeito sobre a migração, mas mantém paridade)
+          # e Secret (DATABASE_URL — destino do alembic, migrations/env.py) da
+          # API: o Job migra exatamente o banco que a API vai usar.
+          envFrom:
+            - configMapRef:
+                name: pytstop-config
+            - secretRef:
+                name: pytstop-secrets
+          # Migração obrigatória: se `alembic upgrade head` falhar, o container
+          # sai != 0 e o Job falha (gate do deploy). O seed do admin é
+          # best-effort — `|| echo` engole a falha para nao reprovar o Job
+          # (credencial ausente/placeholder não deve bloquear o rollout).
+          command:
+            - bash
+            - -c
+            - "alembic upgrade head && (python scripts/seed_admin.py || echo 'seed best-effort: skip')"
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

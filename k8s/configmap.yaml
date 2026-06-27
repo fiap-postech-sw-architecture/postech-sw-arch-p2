@@ -28,13 +28,15 @@ data:
   # max_connections se redimensionar.
   DB_POOL_SIZE: "5"
   DB_MAX_OVERFLOW: "10"
-  # Migracao no boot via entrypoint.sh (ADR-019; RFC-002 §7). O rollout
-  # inicial de replica unica (deployment.yaml) evita corrida entre
-  # migracoes concorrentes.
-  RUN_MIGRATIONS_ON_STARTUP: "true"
-  # Admin inicial da demo, best-effort (credenciais em secret.yaml);
-  # falha de seed nao bloqueia o boot (entrypoint.sh).
-  RUN_SEED_ON_STARTUP: "true"
+  # No cluster a migracao NAO roda no boot do pod (TD-015): o Job dedicado
+  # `pytstop-migrate` (k8s/jobs/migration-job.yaml) roda `alembic upgrade
+  # head` uma vez antes do rollout, resolvendo a corrida entre N replicas
+  # (ADR-019; RFC-002 §7). Por isso ambas ficam "false" aqui -- o Job e' o
+  # dono de migrate+seed no cluster; o entrypoint nao toca o schema.
+  RUN_MIGRATIONS_ON_STARTUP: "false"
+  # Admin inicial da demo: criado pelo Job de migracao (best-effort), nao
+  # pelo boot dos pods da API. Ver migration-job.yaml e secret.yaml.
+  RUN_SEED_ON_STARTUP: "false"
   # SMTP do Mailpit (ADR-018): Service `mailpit` neste namespace.
   SMTP_HOST: "mailpit"
   SMTP_PORT: "1025"

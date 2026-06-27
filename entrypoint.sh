@@ -3,6 +3,10 @@ set -e
 
 echo ">>> pytstop app | commit ${PYTSTOP_GIT_SHA:0:12} | ${PYTSTOP_GIT_DATE:-unknown}"
 
+# Migrate+seed gated por env, ligados no compose/`make up` (container unico,
+# sem corrida). No cluster k8s a migracao roda no Job dedicado pytstop-migrate
+# antes do rollout (TD-015), entao o configmap fixa RUN_MIGRATIONS_ON_STARTUP=
+# false e estes blocos viram no-op no pod.
 if [ "${RUN_MIGRATIONS_ON_STARTUP:-false}" = "true" ]; then
   echo "Running database migrations..."
   alembic upgrade head

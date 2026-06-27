@@ -9,11 +9,13 @@ metadata:
   labels:
     app: pytstop-api
 spec:
-  # Replica unica no boot: o entrypoint roda `alembic upgrade head` e o
-  # rollout inicial com 1 replica evita corrida de migracoes concorrentes
-  # (ADR-019; RFC-002 §7). Depois do boot o HPA assume a contagem
-  # (hpa.yaml, min 1 / max 5); reaplicar este manifest com o HPA ativo
-  # reduz momentaneamente para 1 -- aceito no cluster de demo.
+  # A migracao roda no Job `pytstop-migrate` ANTES do rollout (TD-015;
+  # ADR-019; RFC-002 §7), entao a corrida de migracoes concorrentes nao
+  # existe mais -- N replicas podem subir juntas com seguranca sobre o
+  # schema ja em head. `replicas: 1` aqui e' so o piso do HPA (hpa.yaml,
+  # min 1 / max 5): depois do boot o HPA assume a contagem; reaplicar este
+  # manifest com o HPA ativo reduz momentaneamente para 1 -- aceito no
+  # cluster de demo.
   replicas: 1
   selector:
     matchLabels:
@@ -41,8 +43,10 @@ spec:
                 name: pytstop-secrets
           # Probes na rota de saude real, fora do middleware de
           # autenticacao -- o kubelet nao envia token (RNF-023; RFC-002
-          # §5). O initialDelay da readiness cobre migracao + seed que o
-          # entrypoint executa antes de o uvicorn atender.
+          # §5). Migracao e seed rodam antes do rollout no Job
+          # `pytstop-migrate` (TD-015), nao no boot do pod: o initialDelay
+          # da readiness cobre apenas a subida do uvicorn sobre o schema ja
+          # migrado.
           readinessProbe:
             httpGet:
               path: /api/v1/saude
