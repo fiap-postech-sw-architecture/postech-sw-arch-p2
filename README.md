@@ -4,6 +4,16 @@
 
 # PytStop -- Tech Challenge Fase 2
 
+<p align="center">
+  <a href="https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/workflows/ci.yml"><img src="https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
+  <a href="https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/workflows/cd.yml"><img src="https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/workflows/cd.yml/badge.svg" alt="CD"></a>
+  <img src="https://img.shields.io/badge/coverage-%E2%89%A595%25-brightgreen" alt="coverage >= 95%">
+  <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
+  <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
+  <img src="https://img.shields.io/badge/mypy-checked-2a6db2" alt="mypy checked">
+  <img src="https://img.shields.io/badge/architecture-Clean%20%C2%B7%20import--linter-success" alt="Clean Architecture (import-linter)">
+</p>
+
 Sistema de gestão de ordens de serviço de uma oficina mecânica de médio porte (clientes, veículos, OS, estoque, orçamentos), construído com Domain-Driven Design na fase 1 e evoluído na fase 2 para qualidade, resiliência e escalabilidade.
 
 **Objetivos da fase 2** ([enunciado](docs/requisitos/fase2/desafio-tech-fase-2.md) · [gap analysis](docs/requisitos/fase2/gap-analysis-fase-2.md)):
