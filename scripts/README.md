@@ -62,4 +62,16 @@ Gera um `.svg` (ou `.png` em fallback) por `.egn` no diretório de saída, com o
 
 Se Puppeteer não estiver disponível, abrir cada `.egn` em https://egon.io, File → Export → SVG, salvar em `docs/entrega/assets/`.
 
+## codeql_quality.sh
+
+Roda o **CodeQL "Code Quality" suite** localmente — as mesmas queries que o GitHub Code Quality (preview) usa. Útil para reproduzir e triar os findings sem a UI do GitHub: o report de Code Quality não tem API pública, e o endpoint de code scanning exige GitHub Advanced Security (indisponível no repo privado). O CodeQL CLI é gratuito para analisar o próprio código.
+
+```bash
+make codeql-quality            # ou: bash scripts/codeql_quality.sh
+```
+
+Primeira execução baixa o bundle do CodeQL (CLI + query packs, ~1GB) em `$CODEQL_DIR` (default `~/.codeql`). Reexecuções só recriam a database Python e rodam a suite (~1-2 min). Saída: breakdown por regra no stdout + SARIF completo em `$CODEQL_SARIF` (default `$TMPDIR/pytstop-codeql-quality.sarif`). On-demand — não entra em `make check`/CI por ser pesado.
+
+Para reproduzir o mesmo conjunto de regras ao longo do tempo (a suite vem dentro do bundle), pine a versão: `CODEQL_BUNDLE_TAG=codeql-bundle-v2.18.4 make codeql-quality` (default `latest`).
+
 > [↑ Raiz do projeto](../README.md)
