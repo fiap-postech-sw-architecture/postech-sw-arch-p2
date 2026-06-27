@@ -1,6 +1,6 @@
 # Plano de Ataque — Dívida Técnica
 
-> [↑ Raiz do projeto](../../README.md) · [Registro de dívida (README)](README.md)
+> [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
 
 > **Para a próxima IA/dev:** plano priorizado para atacar os 13 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
 
@@ -87,3 +87,5 @@ Da tabela *Considerações de Complexidade Algorítmica* do [README.md](README.m
 - **Must (já feito):** os 9 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 13 abertos.
 - **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 (TD-016 → TD-015) primeiro — risco-prod + temas HPA/CD; depois Tier 2 (TD-011, TD-022, TD-021).
 - **Provavelmente fora:** Tier 3 (limpeza de baixo retorno) e Tier 4 (deliberados de baixo valor para a banca).
+
+> [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
