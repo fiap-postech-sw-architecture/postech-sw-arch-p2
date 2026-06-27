@@ -23,9 +23,13 @@ query-filters:
   # o idioma de teste do projeto -- os dois imports tem propositos distintos.
   - exclude:
       id: py/import-and-import-from
-  # Imports nao usados ja sao cobertos pelo ruff (F401), que o time gerencia
-  # com `# noqa: F401` nos imports de side-effect (registro de paginas da UI,
-  # tabelas no metadata, re-export). CodeQL re-flaga os ja-suprimidos -> ruido.
+  # Os unused-import deste codebase sao todos intencionais, de dois tipos:
+  # (1) imports de side-effect, que carregam `# noqa: F401` (registro de
+  # paginas da UI em ui/app.py, tabelas FK no metadata nos testes); e
+  # (2) re-exports explicitos `from x import Y as Y` (ex.: presenters.py),
+  # que o ruff/pyflakes tratam como intencionais e NAO flagam (sem `# noqa`
+  # ali, por design). Desligar a regra do CodeQL deixa o ruff F401 ser dono
+  # do unused-import no escopo lintado, sem re-flagar estes casos intencionais.
   - exclude:
       id: py/unused-import
   # "Classe adiciona atributos mas nao sobrescreve __eq__": FP estrutural neste

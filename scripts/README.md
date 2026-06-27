@@ -84,4 +84,6 @@ Depois de rodar a suite, o script aplica a política do projeto via `codeql_qual
 
 O `codeql database analyze` do CLI não aplica supressão inline (só o code scanning do GitHub o faz), então o gate lê os comentários `# codeql[...]` localmente para reproduzir o mesmo comportamento. Use a supressão por comentário para FP pontuais e a config para regras desligadas wholesale.
 
+**Limites da supressão** (de propósito): ela é **escopada por regra + linha** — uma regressão da mesma regra que cair exatamente na linha já suprimida não re-aciona o gate (a supressão é pontual, não global). E a varredura é **textual**: mantenha o `# codeql[<regra>]` como comentário no fim da linha; um marcador dentro de um literal de string na linha de um finding também o suprimiria.
+
 > [↑ Raiz do projeto](../README.md)

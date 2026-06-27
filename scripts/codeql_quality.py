@@ -11,6 +11,13 @@ GitHub o faz). Para ter o mesmo "suprime via comentario" localmente, o gate le
 os `# codeql[...]` aqui. As regras desligadas wholesale ficam em
 `query-filters` da config; os FP pontuais, no comentario + razao no codigo.
 
+Limites da supressao (de proposito):
+- Escopo regra + linha: uma regressao da MESMA regra que cair exatamente na
+  linha ja suprimida nao re-aciona o gate. A supressao e pontual, nao global.
+- Varredura textual: mantenha o `# codeql[<regra>]` como comentario no fim da
+  linha. Um marcador dentro de um literal de string na linha de um finding
+  tambem o suprimiria (o scan nao distingue codigo de string).
+
 Uso: python scripts/codeql_quality.py <sarif> <config.yml> <repo-root>
 """
 
@@ -51,26 +58,48 @@ def suprimido_por_comentario(repo_root: str, path: str, line: int, rule: str) ->
         if 1 <= numero <= len(linhas):
             for marca in _SUPPRESS_RE.finditer(linhas[numero - 1]):
                 regras = [r.strip() for r in marca.group(1).split(",") if r.strip()]
-                if not regras or rule in regras:  # `# codeql[]` cru suprime tudo
+                # `# codeql[]` cru (sem regra nomeada) e ignorado: nao suprime
+                # nada -- exige ao menos uma regra explicita (evita footgun de
+                # silenciar TODO finding da linha). Marcador vazio -> ativo.
+                if regras and rule in regras:
                     return True
     return False
 
 
-def main() -> int:
-    if len(sys.argv) != _ARGV_ESPERADO:
-        sys.stderr.write(__doc__ or "")
-        return 2
-    sarif_path, config_path, repo_root = sys.argv[1], sys.argv[2], sys.argv[3]
-    paths_ignore, regras_off = carregar_politica(config_path)
-    data = json.loads(Path(sarif_path).read_text(encoding="utf-8"))
-    resultados = data["runs"][0].get("results", [])
+def carregar_resultados(sarif_path: str) -> list[dict[str, object]]:
+    """Le os `results` do SARIF; ValueError com motivo se mal-formado.
 
+    Falha segura: JSON invalido / arquivo ilegivel / `runs[0]` ausente viram
+    um unico `ValueError` que o `main` traduz em `return 2` -- nunca um pass
+    silencioso nem um traceback cru. Espera-se que o chamador trate o erro.
+    """
+    try:
+        data = json.loads(Path(sarif_path).read_text(encoding="utf-8"))
+        resultados: list[dict[str, object]] = data["runs"][0].get("results", [])
+    except (OSError, ValueError, KeyError, IndexError, TypeError) as erro:
+        raise ValueError(str(erro)) from erro
+    return resultados
+
+
+def triar_resultados(
+    resultados: list[dict[str, object]],
+    paths_ignore: list[str],
+    regras_off: set[str],
+    repo_root: str,
+) -> tuple[list[tuple[str, str, int]], Counter[str]]:
+    """Classifica cada finding em ativo (nao tratado) ou um bucket de tratado."""
     ativos: list[tuple[str, str, int]] = []
     tratados: Counter[str] = Counter()
     for resultado in resultados:
-        rule = resultado.get("ruleId", "?")
-        loc = resultado["locations"][0]["physicalLocation"]
-        path = loc["artifactLocation"]["uri"]
+        rule = str(resultado.get("ruleId", "?"))
+        # Um result sem `locations` nao crasha o gate: contabiliza em
+        # `sem-localizacao` e segue (nunca consome a excecao em silencio total).
+        loc_list = resultado.get("locations") or []
+        if not isinstance(loc_list, list) or not loc_list:
+            tratados["sem-localizacao"] += 1
+            continue
+        loc = loc_list[0].get("physicalLocation", {})
+        path = loc.get("artifactLocation", {}).get("uri", "")
         line = loc.get("region", {}).get("startLine", 0)
         if any(path.startswith(prefixo) for prefixo in paths_ignore):
             tratados["paths-ignore"] += 1
@@ -80,12 +109,31 @@ def main() -> int:
             tratados["comentario"] += 1
         else:
             ativos.append((rule, path, line))
+    return ativos, tratados
+
+
+def main() -> int:
+    if len(sys.argv) != _ARGV_ESPERADO:
+        sys.stderr.write(__doc__ or "")
+        return 2
+    sarif_path, config_path, repo_root = sys.argv[1], sys.argv[2], sys.argv[3]
+    paths_ignore, regras_off = carregar_politica(config_path)
+
+    # SARIF mal-formado -> falha segura (return 2, nunca pass silencioso).
+    try:
+        resultados = carregar_resultados(sarif_path)
+    except ValueError as erro:
+        sys.stderr.write(f"!! SARIF invalido: {erro}\n")
+        return 2
+
+    ativos, tratados = triar_resultados(resultados, paths_ignore, regras_off, repo_root)
 
     print("=== CodeQL Code Quality ===")
     print(
         f"  brutos: {len(resultados)} | tratados: "
         f"paths-ignore={tratados['paths-ignore']} "
-        f"regra-off={tratados['regra-off']} comentario={tratados['comentario']}"
+        f"regra-off={tratados['regra-off']} comentario={tratados['comentario']} "
+        f"sem-localizacao={tratados['sem-localizacao']}"
     )
     print(f"  ATIVOS (nao tratados): {len(ativos)}")
     for rule, n in Counter(r for r, _, _ in ativos).most_common():

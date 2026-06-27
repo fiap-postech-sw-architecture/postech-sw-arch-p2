@@ -30,6 +30,11 @@ test = [
     "mypy>=1.13",
     "bandit>=1.7",
     "import-linter>=2.0",
+    # Lido por scripts/codeql_quality.py (gate de Code Quality) para parsear o
+    # codeql-config.yml. Declarado explicitamente aqui (dev-tooling, junto de
+    # ruff/mypy/bandit): hoje so funciona porque bandit o puxa transitivamente,
+    # fragil em fresh venvs. Nao e dependencia de runtime.
+    "pyyaml>=6",
 ]
 ui = [
     "nicegui>=2.0,<3",

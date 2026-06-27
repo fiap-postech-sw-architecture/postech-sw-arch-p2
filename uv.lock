@@ -2218,6 +2218,7 @@ test = [
     { name = "pytest" },
     { name = "pytest-cov" },
     { name = "pytest-xdist" },
+    { name = "pyyaml" },
     { name = "ruff" },
     { name = "testcontainers" },
 ]
@@ -2257,6 +2258,7 @@ requires-dist = [
     { name = "pytest-xdist", marker = "extra == 'full-test'", specifier = ">=3.5" },
     { name = "pytest-xdist", marker = "extra == 'test'", specifier = ">=3.0" },
     { name = "python-dotenv", marker = "extra == 'full-test'", specifier = ">=1.0" },
+    { name = "pyyaml", marker = "extra == 'test'", specifier = ">=6" },
     { name = "ruff", marker = "extra == 'test'", specifier = ">=0.8" },
     { name = "selenium", marker = "extra == 'ui'", specifier = ">=4.0" },
     { name = "slowapi", specifier = ">=0.1" },
