@@ -70,8 +70,20 @@ Roda o **CodeQL "Code Quality" suite** localmente — as mesmas queries que o Gi
 make codeql-quality            # ou: bash scripts/codeql_quality.sh
 ```
 
-Primeira execução baixa o bundle do CodeQL (CLI + query packs, ~1GB) em `$CODEQL_DIR` (default `~/.codeql`). Reexecuções só recriam a database Python e rodam a suite (~1-2 min). Saída: breakdown por regra no stdout + SARIF completo em `$CODEQL_SARIF` (default `$TMPDIR/pytstop-codeql-quality.sarif`). On-demand — não entra em `make check`/CI por ser pesado.
+Primeira execução baixa o bundle do CodeQL (CLI + query packs, ~1GB) em `$CODEQL_DIR` (default `~/.codeql`). Reexecuções só recriam a database Python e rodam a suite (~1-2 min). Saída: o breakdown da política do projeto no stdout + SARIF completo em `$CODEQL_SARIF` (default `$TMPDIR/pytstop-codeql-quality.sarif`). On-demand — não entra em `make check`/CI por ser pesado.
 
 Para reproduzir o mesmo conjunto de regras ao longo do tempo (a suite vem dentro do bundle), pine a versão: `CODEQL_BUNDLE_TAG=codeql-bundle-v2.18.4 make codeql-quality` (default `latest`).
+
+### Gate de qualidade
+
+Depois de rodar a suite, o script aplica a política do projeto via `codeql_quality.py` e **atua como gate**: sai com código `!= 0` se sobrar qualquer finding não tratado (ver a seção "Code Quality (CodeQL)" no `MEMORY.md` da raiz). Um finding é considerado tratado quando:
+
+- o path está em `paths-ignore` de `.github/codeql/codeql-config.yml`, ou
+- a regra está desligada em `query-filters` da mesma config, ou
+- a linha do finding (ou a imediatamente acima) tem um comentário de supressão `# codeql[<regra>]` — opcionalmente com uma razão após ` -- `.
+
+O `codeql database analyze` do CLI não aplica supressão inline (só o code scanning do GitHub o faz), então o gate lê os comentários `# codeql[...]` localmente para reproduzir o mesmo comportamento. Use a supressão por comentário para FP pontuais e a config para regras desligadas wholesale.
+
+**Limites da supressão** (de propósito): ela é **escopada por regra + linha** — uma regressão da mesma regra que cair exatamente na linha já suprimida não re-aciona o gate (a supressão é pontual, não global). E a varredura é **textual**: mantenha o `# codeql[<regra>]` como comentário no fim da linha; um marcador dentro de um literal de string na linha de um finding também o suprimiria.
 
 > [↑ Raiz do projeto](../README.md)

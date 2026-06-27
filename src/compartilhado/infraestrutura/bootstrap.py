@@ -50,4 +50,5 @@ def iniciar_todos_mapeamentos() -> None:
     iniciar_os()
     iniciar_auth()
 
+    # codeql[py/unused-global-variable] -- flag guard init-once
     _mapeamentos_registrados = True

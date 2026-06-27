@@ -34,7 +34,7 @@ def iniciar_mapeamentos() -> None:
     global _mapeamento_iniciado  # noqa: PLW0603  # init-once flag
     if _mapeamento_iniciado:
         return
-    _mapeamento_iniciado = True
+    _mapeamento_iniciado = True  # codeql[py/unused-global-variable] -- lida na guarda
 
     mapper_registry = registry()
 
