@@ -75,7 +75,7 @@ PostgreSQL como container Docker fora do cluster, criado por `terraform apply` (
 ### Neutras
 
 * Dimensionamento do volume, resources do Pod do banco, política de seed (migrations no pipeline vs imagem seedada) e valores de Secret ficam deferidos ao plano de execução da infraestrutura (fase de implementação), fora deste ADR
-* o fast-check `db-image/` (herdado da fase 1) foi posteriormente removido ([TD-018](../../../tech-debt.md)); o caminho oficial de deploy do banco é o Terraform
+* o fast-check `db-image/` (herdado da fase 1) foi posteriormente removido ([TD-018](../../../tech-debt/README.md)); o caminho oficial de deploy do banco é o Terraform
 
 ## Decisões Relacionadas
 

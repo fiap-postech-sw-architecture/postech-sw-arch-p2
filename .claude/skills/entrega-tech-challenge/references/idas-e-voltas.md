@@ -84,7 +84,7 @@ retrabalho. Formato: **sintoma → causa → o que fazer de cara**.
     o plano E2E completo. Mudança em docs/CI não toca src → não afeta cobertura.
 26. **Rodar os dois planos do full-test juntos colide documentos** (mesmo seed →
     CPF duplicado, 409). `plano_full` é superset → rode só `-m slowest`.
-27. **tech-debt.md estala:** ao resolver um débito, mova-o pra "Itens Resolvidos"
+27. **tech-debt/README.md estala:** ao resolver um débito, mova-o pra "Itens Resolvidos"
     e cruze com a issue. Itens já feitos (ex.: CSP, PII em traces) podem estar
     listados como abertos — confira antes de "implementar de novo".
 

@@ -7,7 +7,7 @@
 
 ## Contexto e Problema
 
-A [RF-018](../../../requisitos/requisitos.md) exige entrega real de eventos de integração — na fase 2, a notificação por e-mail ao cliente quando o estado da Ordem de Serviço muda ([ADR-018](018-notificacao-email.md)). Até então (registrado como TD-008 na [dívida técnica](../../../tech-debt.md)), os domain events eram despachados **sincronamente, in-process, dentro da transação da requisição**: o caso de uso alterava a OS e, no mesmo fluxo, chamava o dispatcher que entregava a notificação.
+A [RF-018](../../../requisitos/requisitos.md) exige entrega real de eventos de integração — na fase 2, a notificação por e-mail ao cliente quando o estado da Ordem de Serviço muda ([ADR-018](018-notificacao-email.md)). Até então (registrado como TD-008 na [dívida técnica](../../../tech-debt/README.md)), os domain events eram despachados **sincronamente, in-process, dentro da transação da requisição**: o caso de uso alterava a OS e, no mesmo fluxo, chamava o dispatcher que entregava a notificação.
 
 Esse arranjo sofre do problema clássico de **dual-write**: persistir o estado de negócio e entregar a notificação são dois efeitos colaterais distintos, e não há transação que os torne atômicos.
 
@@ -101,7 +101,7 @@ Detalhes de implementação em [relay/processador.py](../../../../relay/processa
 
 ## Notas
 
-* Requisito: [RF-018](../../../requisitos/requisitos.md). Resolve **TD-008**; deixa em aberto **TD-021** (fencing de lease para `replicas>1`) e **TD-022** (métricas OTel + alerting no relay) — ver [tech-debt.md](../../../tech-debt.md)
+* Requisito: [RF-018](../../../requisitos/requisitos.md). Resolve **TD-008**; deixa em aberto **TD-021** (fencing de lease para `replicas>1`) e **TD-022** (métricas OTel + alerting no relay) — ver [tech-debt.md](../../../tech-debt/README.md)
 * Implementação: PR #56
 * Gatilhos de revisão: necessidade de escalar o relay para `replicas>1` (exige o fencing do TD-021); volume ou requisito de integração que justifique promover o broker dedicado, passando a outbox a alimentá-lo em vez do SMTP direto
 

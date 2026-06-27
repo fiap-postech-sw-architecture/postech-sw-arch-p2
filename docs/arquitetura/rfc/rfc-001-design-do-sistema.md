@@ -21,7 +21,7 @@ Esta RFC foi estruturada por tópico técnico (Arquitetura, Mapa de Contextos, M
 | **Proposta Técnica** | Seções 1 (Arquitetura), 2 (Mapa de Contextos), 3 (Modelo de Dados), 4 (Máquina de Estados), 5 (Orçamento), 6 (Autenticação), 7 (Erros), 8 (Testes), 9 (Orçamento Complementar), 10 (Outbox). |
 | **Impacto Esperado** | Digitalização completa do ciclo de OS; 90%+ cobertura de testes nos domínios principais; isolamento do domínio via Onion. Ver [PRD §Objetivos](../../requisitos/prd.md). |
 | **Alternativas Consideradas** | Seção 1 (Arquitetura em camadas simples rejeitada). Detalhamento completo em [ADR-003](../adr/003-arquitetura-ddd-onion.md). |
-| **Pontos em Aberto** | Nenhum no escopo do MVP. Evoluções futuras documentadas nos débitos técnicos ([tech-debt.md](../../tech-debt.md)) e na priorização MoSCoW Could/Won't do [PRD](../../requisitos/prd.md). |
+| **Pontos em Aberto** | Nenhum no escopo do MVP. Evoluções futuras documentadas nos débitos técnicos ([tech-debt.md](../../tech-debt/README.md)) e na priorização MoSCoW Could/Won't do [PRD](../../requisitos/prd.md). |
 
 ---
 

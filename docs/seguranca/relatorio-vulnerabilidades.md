@@ -293,7 +293,7 @@ Relatórios: `docs/seguranca/trivy-fs-report.json` e `docs/seguranca/trivy-image
 
 ## Referências
 
-- [Tech Debt](../tech-debt.md) — Dívida técnica
+- [Tech Debt](../tech-debt/README.md) — Dívida técnica
 - [ADR-004](../arquitetura/adr/004-autenticacao-jwt.md) — Autenticação JWT
 - [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md) — Pipeline de Segurança e Análise Estática
 - [ADR-012](../arquitetura/adr/012-licenciamento-software-sbom.md) — Licenciamento de Software e SBOM

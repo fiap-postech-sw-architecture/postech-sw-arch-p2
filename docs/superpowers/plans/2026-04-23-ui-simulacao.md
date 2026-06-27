@@ -5486,7 +5486,7 @@ O skill roda sobre os arquivos modificados e produz uma lista priorizada de issu
 
 Para cada finding do `/code-review`:
 - **CRITICO/ALTO**: corrigir agora (commit adicional na mesma branch)
-- **MEDIO**: julgar caso a caso — corrigir se for rapido; registrar em `docs/tech-debt.md` se nao
+- **MEDIO**: julgar caso a caso — corrigir se for rapido; registrar em `docs/tech-debt/README.md` se nao
 - **BAIXO/informativo**: anotar no corpo do PR como follow-up explicito
 
 - [ ] **Step 4: Corrigir findings CRITICO/ALTO**
