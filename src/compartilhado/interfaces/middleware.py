@@ -73,10 +73,12 @@ def _resolver_storage_uri() -> str | None:
 
     Retorna o valor de ``RATE_LIMIT_STORAGE_URI`` quando definido (ex.:
     ``redis://host:6379``), habilitando um contador COMPARTILHADO entre
-    replicas. Retorna ``None`` quando ausente ou vazio — o SlowAPI faz
-    fallback para ``memory://`` (contador por-processo).
+    replicas. Retorna ``None`` quando ausente, vazio ou só com espaços — o
+    SlowAPI faz fallback para ``memory://`` (contador por-processo). O
+    ``strip()`` evita que um valor em branco chegue a
+    ``limits.storage_from_string`` e dispare ``ConfigurationError`` no import.
     """
-    return os.environ.get("RATE_LIMIT_STORAGE_URI") or None
+    return (os.environ.get("RATE_LIMIT_STORAGE_URI") or "").strip() or None
 
 
 # Singleton compartilhado entre todos os routers que queiram aplicar

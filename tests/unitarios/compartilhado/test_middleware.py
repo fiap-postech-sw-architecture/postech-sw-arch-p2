@@ -178,6 +178,15 @@ class TestResolverStorageUri:
         monkeypatch.setenv("RATE_LIMIT_STORAGE_URI", "")
         assert _resolver_storage_uri() is None
 
+    def test_retorna_none_quando_somente_espacos(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Um valor só com espaços passaria pelo ``or None`` e faria
+        # ``limits.storage_from_string`` disparar ``ConfigurationError`` no
+        # import do modulo. O ``strip()`` trata branco como ausente.
+        monkeypatch.setenv("RATE_LIMIT_STORAGE_URI", "   ")
+        assert _resolver_storage_uri() is None
+
 
 class TestConfigurarRateLimiting:
     def test_limiter_instalado_no_app(self) -> None:

@@ -77,6 +77,7 @@ A construção do `Limiter` com o `storage_uri` derivado da env vive na borda (i
 
 * **Um componente novo** (Redis) a empacotar, subir e operar no cluster — superfície operacional e de falha a mais
 * O Redis da fase é **de demonstração — sem HA e sem persistência**: não há réplica nem failover, e os contadores não sobrevivem a restart (aceitável para janelas curtas de rate limit; inadequado se o Redis assumir usos que exijam durabilidade)
+* O Redis de demo também **não tem probe de readiness/liveness nem NetworkPolicy**, então um pod comprometido no namespace conseguiria `FLUSHALL` e zerar os contadores — blast radius limitado pela degradação graciosa, que reverte para o limite por-réplica até o Redis se recompor. Endurecimento (senha, NetworkPolicy, probes, HA) fica **fora do escopo do demo** (gatilho de revisão nas Notas)
 * **Chave de rate limit = IP do *peer* imediato**: a chave usa `get_remote_address` (`request.client.host`), o endereço da conexão imediata — não o cliente real. Atrás de um ingress/proxy sem `X-Forwarded-For` confiável (+ uvicorn `--proxy-headers`), todos os clientes externos colapsam num **único bucket** de rate limit (o IP do proxy). No cluster de demo o acesso é ClusterIP/port-forward, então não se manifesta; em produção com ingress, exige XFF confiável. Rastreado como **TD-023** ([dívida técnica](../../../tech-debt/README.md))
 
 ### Neutras
