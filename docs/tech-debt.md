@@ -26,8 +26,8 @@ Classificação por tipo:
 | TD-017 | Observabilidade | Traces capturavam a query string (CPF/placa) — PII no OTel | **Fechado** (#34) — `_redigir_pii_da_span` (server_request_hook do `FastAPIInstrumentor`) redige `url.query` e remove a query de `http.target`/`url.path` antes do export dos spans ([observability.py](../src/compartilhado/infraestrutura/observability.py)). |
 | TD-019 | Arquitetura | `aplicacao → infraestrutura` na autenticação fora do contrato forbidden | **Fechado** (#50) — `PasswordHasherPort` + `JWTServicePort` em [aplicacao/ports.py](../src/autenticacao/aplicacao/ports.py) (Protocol); a infra implementa e o composition root injeta por DI. O contrato `forbidden` do import-linter passou a proibir `aplicacao → infraestrutura` em todos os contextos, verificado por `make lint-arch`/CI (RNF-017). |
 | TD-018 | Infra | `db-image/` no GHCR ainda com imagens da fase 1 | **Fechado** — `db-image/` (fast-check da fase 1) removido do repo da fase 2: confundia (imagens `-p1` sem RF-020..024/Mailpit) e não agregava (nada usa; compose e testes usam `postgres:16` vanilla, app builda do fonte e o CD publica `-p2-app` por SHA). Caminhos oficiais: `make up`, k8s/CD. |
-| TD-008 | Domínio | Dispatch de domain events síncrono e in-process (sem outbox) | **Fechado** (2026-06-25, PR #56) — Resolvido via RF-018 (Transactional Outbox): a UoW grava `IntegrationEvents` na tabela `outbox` na mesma transação da OS; o relay (`python -m relay`) implementa claim-then-deliver com head-of-line, backoff/DLQ e idempotência via `processed_events`. Notificação proativa via `LISTEN/NOTIFY` (PostgreSQL). Detalhes em [ADR-020](arquitetura/adr/fase2/020-transactional-outbox-relay.md). |
-| TD-009 | Domínio | Dois eventos de criação do event storming sem classe nem emissão | **Fechado** (2026-06-27) — `ClienteCadastradoEvent` ([events.py](../src/cliente_veiculo/dominio/events.py)) e `ServicoCadastradoEvent` ([events.py](../src/catalogo_servicos/dominio/events.py)) implementados e emitidos via `_registrar_evento` nas factories `Cliente.criar`/`ServicoOferecido.criar`; cobertos por testes unitários (`test_cliente.py`, `test_servico_oferecido.py`). |
+| TD-008 | Domínio | Dispatch de domain events síncrono e in-process (sem outbox) | **Fechado** (2026-06-25, PR #56) — Resolvido via RF-018 (Transactional Outbox): a UoW grava `IntegrationEvents` na tabela `outbox` na mesma transação da OS; o relay (`python -m relay`) implementa claim-then-deliver com head-of-line, backoff/DLQ e idempotência via `processed_events`. Notificação proativa via `LISTEN/NOTIFY` (PostgreSQL). Detalhes em [ADR-022](arquitetura/adr/fase2/022-transactional-outbox-relay.md). |
+| TD-009 | Domínio | Dois eventos de criação do event storming sem classe nem emissão | **Fechado** (PR #48) — `ClienteCadastradoEvent` ([events.py](../src/cliente_veiculo/dominio/events.py)) e `ServicoCadastradoEvent` ([events.py](../src/catalogo_servicos/dominio/events.py)) implementados e emitidos via `_registrar_evento` nas factories `Cliente.criar`/`ServicoOferecido.criar`; cobertos por testes unitários (`test_cliente.py`, `test_servico_oferecido.py`). |
 
 ## Itens Abertos (13)
 
@@ -48,7 +48,7 @@ Débitos aceitáveis no MVP relacionados à conformidade tática do DDD:
 
 | # | Área | Descrição | Tipo | Severidade | Impacto no Negócio | Risco de Produção | Tendência de Crescimento | Justificativa |
 |---|---|---|---|---|---|---|---|---|
-| TD-007 | Domínio | Telefone/e-mail como primitivos, sem Value Object dedicado | Deliberado | Baixa | Baixo | Não | Estável | Formato e dígito verificador já são validados: CPF/CNPJ via `brutils.is_valid` ([ADR-010](arquitetura/adr/010-validacao-documentos-brutils.md)) e placa via regex antigo/Mercosul. Remanescente: telefone e e-mail persistem como primitivos (sem VO próprio) e não há regras de negócio cross-field. Débito menor, sem impacto funcional. |
+| TD-007 | Domínio | Contato do cliente como primitivo, sem Value Object dedicado | Deliberado | Baixa | Baixo | Não | Estável | Formato e dígito verificador já são validados: CPF/CNPJ via `brutils.is_valid` ([ADR-010](arquitetura/adr/010-validacao-documentos-brutils.md)) e placa via regex antigo/Mercosul. Remanescente: o contato do cliente persiste como primitivo único (`contato: str`), sem VO dedicado (Telefone/Email) nem regras de negócio cross-field. Débito menor, sem impacto funcional. |
 
 ### Segurança e Qualidade
 
@@ -80,8 +80,8 @@ Complexidade das operações principais do sistema.
 |---|---|---|---|
 | Bloqueio pessimista de estoque | O(n log n) ordenação + O(n) reserva | Array de `item_id` ordenado | Ordenação previne deadlocks ([ADR-008](arquitetura/adr/008-bloqueio-pessimista-estoque.md)). Custo aceitável para n < 100 itens por OS. |
 | Transição de status da OS | O(1) por transição | Lookup direto (dict/enum) | `MaquinaDeStatus` valida transição em tempo constante. |
-| Busca de OS por placa | O(log n) | Índice B-tree PostgreSQL | Índice na coluna `placa` garante busca logarítmica mesmo com volume alto. |
-| Cálculo de média de execução | O(n) | Agregação SQL | `AVG()` sobre OS finalizadas. Aceitável com índice em `status` + `finalizado_em`. |
+| Busca de OS por placa | O(log n) | Índice B-tree PostgreSQL | Índice B-tree (unique) em `veiculos.placa`; a busca de OS resolve a placa pelo veículo (JOIN veículo→OS), logarítmica nessa resolução. |
+| Cálculo de média de execução | O(n) | Agregação SQL | `AVG()` de `atualizado_em − criado_em` sobre OS em status final; full scan da tabela (o filtro de `status` não tem índice de suporte — os índices existentes são compostos `(cliente_id, status)`/`(veiculo_id, status)`, com `status` não-líder). Aceitável no volume do MVP. |
 | Validação de CPF/CNPJ | O(1) | Cálculo aritmético | Dígitos verificadores calculados em tempo constante (brutils). |
 
 Otimizações (migrar `orcamento_json` de Text para `jsonb` + índice GIN -- TD-005, particionamento) a avaliar com dados reais de produção.
