@@ -95,7 +95,7 @@ Seguindo os 10 tópicos da metodologia de refinamento técnico:
 | **Implantação** | Dockerfile multi-stage + `docker-compose.yml`. Alembic auto-migrate no startup. README com instruções |
 | **Critérios de aceite** | RF-001 a RF-010 implementados e testados, cobertura ≥ 90% core, Docker funcional, Swagger acessível, consulta pública operacional |
 
-Ver [requisitos.md](requisitos.md) para a especificação completa (19 RFs, 13 RNFs, 17 RNs).
+Ver [requisitos.md](requisitos.md) para a especificação completa (19 RFs, 17 RNFs, 17 RNs).
 
 ---
 

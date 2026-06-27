@@ -19,7 +19,7 @@ Adotar **uv** como gerenciador oficial de dependências e ambientes virtuais do 
 
 Esta seção foi consolidada em 2026-04-29 após uso na prática: o Quick Start, os [guias de setup por plataforma](../../setup/), o [`docs/desenvolvimento.md`](../../desenvolvimento.md), o `Makefile` e o `Dockerfile` já consomem `uv sync` e `uv run`. As alternativas listadas abaixo permanecem documentadas como histórico das opções consideradas; o fallback `python -m venv` + `pip install` continua suportado apenas como contingência para ambientes onde `uv` não está disponível.
 
-Critérios sugeridos para a discussão:
+Critérios que orientaram a decisão:
 
 * **Reprodutibilidade**: lockfile com hashes de pacotes (SHA-256), compatível com `--frozen`/`--check` em CI.
 * **Onboarding**: facilidade de instalação da própria ferramenta (curl, brew, pipx, apt) e comandos de uso rotineiro (instalar, atualizar, rodar).
@@ -112,16 +112,16 @@ Ferramenta oficial do PyPA, com foco em ambientes de teste/matriz e build.
 
 ## Consequências
 
-A decisão final terá consequências diferentes para cada alternativa. Esta seção antecipa as consequências se o time escolher **uv**, já que essa é a alternativa pilotada pela PR #75. Se a escolha for outra, esta seção deve ser revisada.
+Com **uv** adotado (`uv.lock` commitado, `astral-sh/setup-uv` no CI e imagem base uv no `Dockerfile`), esta seção registra as consequências efetivas da decisão.
 
-### Positivas (caso uv seja aprovado)
+### Positivas
 
 * `uv.lock` com hashes estabelece reprodutibilidade bit-a-bit entre dev, CI e produção
 * Tempo de CI reduzido (resolução + instalação mais rápidas)
 * `uv run <cmd>` elimina o passo de ativação do venv, reduzindo fricção em scripts e documentação
 * Atualização de dependências vira uma operação determinística (`uv lock --upgrade`) com diff revisável
 
-### Negativas (caso uv seja aprovado)
+### Negativas
 
 * Contribuintes precisam instalar `uv` antes do primeiro `make check` — onboarding adicional
 * Ambientes de rede restrita exigem fallback documentado (pip + venv)
@@ -131,11 +131,11 @@ A decisão final terá consequências diferentes para cada alternativa. Esta se�
 ### Neutras
 
 * `pyproject.toml` continua como fonte única de dependências declaradas, independente da ferramenta escolhida
-* Fallback `python -m venv .venv && pip install -e ".[test]"` permanece funcional enquanto a ADR estiver em discussão
+* Fallback `python -m venv .venv && pip install -e ".[test]"` permanece suportado como contingência para ambientes onde `uv` não está disponível
 
-## Política de Atualização de Dependências (caso uv seja aprovado)
+## Política de Atualização de Dependências
 
-Esta seção documenta a operação diária esperada do lockfile, para evitar os dois antipadrões mais comuns: (a) nunca atualizar (acumular dívida de segurança) e (b) atualizar sem revisão (quebrar produto silenciosamente). O [README](../../../README.md#atualizando-dependencias) contém a tabela-referência de comandos; esta seção define **quando** e **quem** executa cada um.
+Esta seção documenta a operação diária esperada do lockfile, para evitar os dois antipadrões mais comuns: (a) nunca atualizar (acumular dívida de segurança) e (b) atualizar sem revisão (quebrar produto silenciosamente). O [`docs/desenvolvimento.md`](../../desenvolvimento.md#atualizando-dependencias) contém a tabela-referência de comandos; esta seção define **quando** e **quem** executa cada um.
 
 ### Cadência proposta
 
@@ -179,7 +179,7 @@ Renovate ou Dependabot podem automatizar a PR do lock refresh mensal. Recomenda�
 ## Notas
 
 * PR de referência: [#75](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p1/pull/75)
-* Se o time aprovar `uv`, uma PR de follow-up deve cobrir: (a) migração de `.github/workflows/ci.yml` para `astral-sh/setup-uv@v4` + `uv sync --frozen`; (b) migração do `Dockerfile` para imagem base uv ou `pip install --require-hashes` a partir de export do `uv.lock`; (c) prefixo `uv run` nos alvos do `Makefile`; (d) política de atualização do lockfile (cadência, PR automatizada).
+* A migração foi concluída: `.github/workflows/ci.yml` usa `astral-sh/setup-uv` + `uv sync --frozen`; o `Dockerfile` parte da imagem base uv; os alvos do `Makefile` rodam via `uv run`; e a política de atualização do lockfile está documentada na seção "Política de Atualização de Dependências" acima.
 * Documentação de referência: https://docs.astral.sh/uv/, https://peps.python.org/pep-0621/, https://github.com/astral-sh/setup-uv.
 
 > [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)

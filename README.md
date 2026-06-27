@@ -357,10 +357,10 @@ gh workflow run claude-on-demand.yml \
 | [007](docs/arquitetura/adr/007-organizacao-contextos-delimitados.md) | Organização dos contextos delimitados | Aceito |
 | [008](docs/arquitetura/adr/008-bloqueio-pessimista-estoque.md) | Bloqueio pessimista de estoque | Aceito |
 | [009](docs/arquitetura/adr/009-decisao-de-idioma.md) | Modelo híbrido de idioma | Aceito |
-| [010](docs/arquitetura/adr/010-validacao-documentos-brutils.md) | Validação CPF/CNPJ/Placa com brutils | Proposta |
+| [010](docs/arquitetura/adr/010-validacao-documentos-brutils.md) | Validação CPF/CNPJ (brutils) e Placa (regex) | Aceita |
 | [011](docs/arquitetura/adr/011-pipeline-seguranca-analise-estatica.md) | Pipeline de segurança e análise estática | Aceito |
 | [012](docs/arquitetura/adr/012-licenciamento-software-sbom.md) | Licenciamento de software e SBOM | Aceito |
-| [013](docs/arquitetura/adr/013-testes-bdd-pytest-bdd.md) | Testes BDD com pytest-bdd | Aceito |
+| [013](docs/arquitetura/adr/013-testes-bdd-pytest-bdd.md) | Testes BDD com pytest-bdd | Proposta |
 | [014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md) | Gerenciador de pacotes uv | Aceita |
 
 ## Documentação

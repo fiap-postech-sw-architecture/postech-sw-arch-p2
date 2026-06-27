@@ -5,7 +5,7 @@
 **Data**: 2026-06-10
 **Equipe**: PytStop (João Amaral, Allan Aurélio, Carlos Silva, Guilherme Sousa, Nicolas Gerbi)
 
-> **Status**: Proposta
+> **Status**: Aceita
 
 ## Conformidade com Template RFC (Software Architecture — Aula 4)
 
@@ -15,7 +15,7 @@ Como na [RFC-001](../rfc-001-design-do-sistema.md), o documento é estruturado p
 |---|---|
 | **Título** | RFC-002 — Infraestrutura e Deploy da Fase 2 |
 | **Data** | 2026-06-10 |
-| **Status** | Proposta |
+| **Status** | Aceita |
 | **Resumo** | Deploy do monolito da fase 1 em cluster kind provisionado por Terraform, com PostgreSQL como StatefulSet, CI/CD com deploy real a cada push na main, HPA por CPU/memória, notificação por e-mail com Mailpit e observabilidade mínima condicional com Jaeger. Ver seção 1. |
 | **Problema** | A fase 1 roda apenas em docker-compose local; a fase 2 exige Kubernetes, IaC, pipeline com deploy e evolução funcional da API. Ver [gap analysis](../../../requisitos/fase2/gap-analysis-fase-2.md). |
 | **Proposta Técnica** | Seções 2 (Topologia), 3 (Diagrama), 4 (CI/CD), 5 (HPA), 6 (Configuração e secrets), 7 (Migrações), 8 (Evolução da API). |
@@ -171,7 +171,7 @@ O nightly do `full-test-ci.yml` permanece como herdado.
 
 O HPA por CPU e memória é exigência direta do challenge (RNF-020), e o RNF-023 fixa os pré-requisitos:
 
-- **Probes**: liveness e readiness apontando para a rota de saúde real `GET /api/v1/saude` (`src/compartilhado/interfaces/router_publico.py:35-38`) — endpoint deliberadamente fora do middleware de autenticação, pois o kubelet não envia token. Períodos e thresholds ficam deferidos ao plano.
+- **Probes**: liveness e readiness apontando para a rota de saúde real `GET /api/v1/saude` (`src/compartilhado/interfaces/router_publico.py:45-48`) — endpoint deliberadamente fora do middleware de autenticação, pois o kubelet não envia token. Períodos e thresholds ficam deferidos ao plano.
 - **Resources**: requests e limits de CPU/memória no Deployment — pré-requisito funcional do HPA, que calcula a porcentagem de utilização sobre o *request*. Os valores iniciais saem de medição de carga local com o `full-test/` (RNF-023), no plano.
 - **metrics-server**: instalado no provisionamento do cluster (seção 2 — [ADR-016](../../adr/fase2/016-plataforma-kubernetes.md)).
 

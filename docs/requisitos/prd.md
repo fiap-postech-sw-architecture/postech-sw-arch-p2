@@ -135,13 +135,13 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 
 ### Could Have (Opcional)
 
-- Revogação de JWT (tabela blacklist + JTI) — RF-012
-- Refresh tokens — RF-013
-- Endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) — RF-015
-- Orçamentos complementares durante execução — RF-016
-- Histórico de orçamentos (array JSONB) — RF-017, TD-002
-- Transactional outbox para eventos de domínio — RF-018
-- Consentimento explícito LGPD — RF-019, TD-001
+- Revogação de JWT (tabela blacklist + JTI) — RF-012 (✅ implementado)
+- Refresh tokens — RF-013 (✅ implementado)
+- Endpoints LGPD Art. 18 (acesso, portabilidade, exclusão) — RF-015 (✅ implementado)
+- Orçamentos complementares durante execução — RF-016 (✅ implementado)
+- Histórico de orçamentos (array JSONB) — RF-017, TD-002 (✅ implementado)
+- Transactional outbox para eventos de domínio — RF-018 (✅ implementado)
+- Consentimento explícito LGPD — RF-019, TD-001 (✅ implementado)
 - Mutation testing (mutmut) como requisito hard — TD-006
 - Contract testing (schemathesis)
 - Logging estruturado com PII filtering
@@ -153,7 +153,7 @@ Ver [Levantamento de Requisitos](levantamento-de-requisitos.md) para a narrativa
 ### Won't Have (Fora de Escopo)
 
 - Front-end ou interface gráfica
-- Notificações reais (push, email, SMS)
+- Notificações reais por push e SMS (e-mail foi entregue na fase 2: RF-024, notificação de transição de status via SMTP)
 - Integração com sistemas externos
 - Agendamento de serviços
 - Pagamento ou faturamento

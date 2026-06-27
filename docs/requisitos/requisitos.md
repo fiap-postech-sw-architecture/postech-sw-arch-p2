@@ -3,6 +3,8 @@
 > [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)
 
 > **Versão**: 1.0 — Fase 1 MVP.
+>
+> Os requisitos da fase 2 (RF-020 a RF-024, RNF-017 a RNF-024, RN-018 a RN-020) são rastreados separadamente em [fase2/gap-analysis-fase-2.md](fase2/gap-analysis-fase-2.md) — este documento permanece o escopo da fase 1.
 
 ## Requisitos Funcionais
 
@@ -25,7 +27,7 @@
 | RF-015 | Endpoints LGPD Art. 18 | Endpoints para acesso, portabilidade (export JSON) e exclusão (anonimização) dos dados pessoais do cliente. Cross-contexto. | LGPD Art. 18 |
 | RF-016 | Orçamento complementar | Transição EmExecucao → AguardandoAprovacaoComplementar → EmExecucao para serviços adicionais durante execução. | Domínio |
 | RF-017 | Histórico de orçamentos | Orçamentos anteriores mantidos como array JSONB com timestamp. Consulta do histórico via endpoint da OS. | Domínio (TD-002) |
-| RF-018 | Transactional outbox | Eventos de domínio persistidos em tabela `outbox` na mesma transação. Background task despacha eventos. | Observabilidade |
+| RF-018 | Transactional outbox | Eventos de domínio persistidos em tabela `outbox` na mesma transação. Processo relay (`python -m relay`) despacha eventos (claim-then-deliver, LISTEN/NOTIFY). | Observabilidade |
 | RF-019 | Consentimento explícito | Registro de consentimento do cliente para tratamento de dados pessoais. Revogação via endpoint. | LGPD (TD-001) |
 
 ## Requisitos Não-Funcionais

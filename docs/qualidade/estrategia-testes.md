@@ -13,7 +13,7 @@ Estratégia de testes do projeto, consolidando [ADR-005](../arquitetura/adr/005-
 
 ## 2. Pirâmide de Testes
 
-Pirâmide de testes adaptada para DDD com Onion Architecture:
+Pirâmide de testes adaptada para DDD com Onion Architecture (evoluída para Clean Architecture na fase 2 — [ADR-015](../arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md)):
 
 ```
         /\
@@ -271,6 +271,8 @@ Métricas finais da implementação (16/04/2026):
 | Tempo de execução (unitários) | ~6s |
 
 Todas as metas de cobertura atingidas. Testes de integração usam testcontainers com PostgreSQL real e isolamento via SAVEPOINT.
+
+> **Fase 2:** a suíte cresceu para **1426 unitários + 136 de integração** e o gate de cobertura passou a **95%** (`.coveragerc`, `fail_under = 95`), aplicado na CI. Os testes de integração com testcontainers agora também sobem **Redis** (storage do rate limiter — [ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md)), além do PostgreSQL. Os números da fase 1 acima permanecem como registro histórico.
 
 ## 13. Referências
 

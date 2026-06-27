@@ -70,8 +70,9 @@ Adapter **SMTP genérico configurado por variáveis de ambiente**, com **Mailpit
 
 ### Neutras
 
-* O destinatário vem do cadastro do cliente: hoje `Cliente` tem apenas o campo livre `_contato` (`src/cliente_veiculo/dominio/cliente.py:48`), sem e-mail dedicado/validado; reusar o contato ou criar campo próprio fica deferido ao plano de execução (fase de implementação)
+* O destinatário vem do cadastro do cliente: hoje `Cliente` tem apenas o campo livre `_contato` (`src/cliente_veiculo/dominio/cliente.py:49`), sem e-mail dedicado/validado; reusar o contato ou criar campo próprio fica deferido ao plano de execução (fase de implementação)
 * Quais transições além do mínimo notificam, o conteúdo das mensagens e o mecanismo exato de dispatch (chamada pós-commit no caso de uso vs event bus) ficam deferidos ao plano de execução, fora deste ADR
+  * O **mecanismo de dispatch** é definido pela [ADR-022](022-transactional-outbox-relay.md): o evento é gravado na mesma transação do caso de uso (Transactional Outbox) e entregue de forma durável e assíncrona pelo relay após o commit, não de forma síncrona dentro da transação. A decisão deste ADR — **qual adapter realiza a `EmailPort`** (SMTP genérico + Mailpit) — permanece válida: o relay entrega justamente por esse handler de e-mail.
 * O gap analysis nomeava a porta genericamente como `NotificacaoPort`; este ADR a especializa como `EmailPort`, refletindo o canal decidido — um eventual segundo canal (SMS, push) entraria como porta própria
 
 ## Decisões Relacionadas
@@ -79,6 +80,7 @@ Adapter **SMTP genérico configurado por variáveis de ambiente**, com **Mailpit
 - [ADR-015](015-arquitetura-alvo-fase-2.md): porta em `aplicacao/` + adapter em `infraestrutura/` é o desenho de Gateways da Clean — abstração definida pela camada interna, realização na borda
 - [ADR-016](016-plataforma-kubernetes.md): o Mailpit roda no cluster kind como Deployment + Service para a demo do vídeo
 - [ADR-009](../009-decisao-de-idioma.md): `EmailPort` e o adapter seguem o modelo híbrido de idioma (sufixo técnico em inglês)
+- [ADR-022](022-transactional-outbox-relay.md): Transactional Outbox + relay define o mecanismo de dispatch; o adapter SMTP desta ADR é o handler de entrega usado pelo relay
 
 ## Notas
 

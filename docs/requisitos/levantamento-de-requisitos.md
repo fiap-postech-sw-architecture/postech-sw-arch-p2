@@ -209,7 +209,7 @@ journey
 Resumo categorizado com referência ao documento completo:
 
 - **Funcionais**: 10 Must-have (RF-001 a RF-010), 9 Should/Could (RF-011 a RF-019). Ver [requisitos.md](requisitos.md).
-- **Não-Funcionais**: 13 RNFs cobrindo desempenho, segurança, privacidade, qualidade, infraestrutura. Ver [requisitos.md](requisitos.md).
+- **Não-Funcionais**: 17 RNFs cobrindo desempenho, segurança, privacidade, qualidade, infraestrutura. Ver [requisitos.md](requisitos.md).
 - **Regras de Negócio**: 17 RNs. Ver [requisitos.md](requisitos.md).
 - **Rastreabilidade**: Cada RF mapeado para seção do Tech Challenge. Ver tabela de rastreabilidade em [requisitos.md](requisitos.md).
 

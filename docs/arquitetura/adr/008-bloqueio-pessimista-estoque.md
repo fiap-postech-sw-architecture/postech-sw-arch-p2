@@ -15,9 +15,10 @@ Adotar bloqueio pessimista com `SELECT FOR UPDATE NOWAIT` sobre `ItemEstoque`, c
 
 **Mecanismo:**
 
-1. Ao aprovar uma OS que consome peças, o sistema executa `SELECT FOR UPDATE NOWAIT` nos registros de `ItemEstoque` envolvidos
-2. Se algum item já estiver bloqueado por outra transação, o `NOWAIT` faz a operação falhar imediatamente em vez de aguardar, levantando `EstoqueInsuficienteException`
-3. Se todos os itens estiverem disponíveis e em quantidade suficiente, a reserva é efetuada atomicamente
+1. Ao aprovar uma OS que consome peças, o sistema executa `SELECT FOR UPDATE NOWAIT` nos registros de `ItemEstoque` envolvidos (`src/estoque/infraestrutura/repository.py`, `.with_for_update(nowait=True)`)
+2. Se algum item já estiver bloqueado por outra transação, o `NOWAIT` faz a operação falhar imediatamente em vez de aguardar — o PostgreSQL levanta um erro de *lock não disponível* (SQLSTATE 55P03), propagado pelo driver como `OperationalError`. Esse é um conflito de **concorrência**, distinto da regra de negócio de quantidade
+3. Com os locks adquiridos, cada item valida a quantidade no domínio: `ItemEstoque.reservar()` levanta `EstoqueInsuficienteException` (`src/estoque/dominio/item_estoque.py`) se a quantidade disponível for menor que a solicitada — esse é o caminho de falha por **estoque insuficiente**, sem relação com o lock
+4. Se todos os itens estiverem disponíveis e em quantidade suficiente, a reserva é efetuada atomicamente
 
 **Prevenção de deadlock:**
 

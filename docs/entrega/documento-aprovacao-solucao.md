@@ -4,6 +4,8 @@
 
 > **Versão**: 1.0 — Fase 1 MVP.
 
+> **Nota de escopo:** este documento consolida a **Fase 1**. As decisões, a arquitetura e os diagramas da **Fase 2** (Clean Architecture, Kubernetes/Terraform, CI/CD, observabilidade, Transactional Outbox/relay, rate limiter Redis) estão em [entrega-fase-2.md](fase2/entrega-fase-2.md), [RFC-002](../arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md) e nas ADRs **015–023**. O conteúdo abaixo permanece como registro histórico da Fase 1.
+
 Consolidação dos artefatos de arquitetura e engenharia do projeto PytStop.
 
 ---
@@ -110,7 +112,7 @@ Recursos expostos por contexto:
 - `/api/v1/servicos` — catálogo de serviços
 - `/api/v1/estoque` — gestão de peças e insumos
 - `/api/v1/ordens-de-servico` — ciclo completo da OS
-- `/api/v1/auth` — autenticação JWT
+- `/api/v1/autenticacao` — autenticação JWT
 - `/api/v1/acompanhamento` — consulta pública por placa
 
 Ver [inventário de endpoints](../requisitos/requisitos.md#inventário-de-endpoints-api) para a lista completa.

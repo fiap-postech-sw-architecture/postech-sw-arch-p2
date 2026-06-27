@@ -50,7 +50,7 @@ Microframework minimalista e amplamente adotado, com grande ecossistema de exten
 
 Framework completo construído sobre o Django, com serializers, viewsets e browsable API.
 
-* Bom, porque é extremamente maduro e battle-tested para aplicações grandes
+* Bom, porque é extremamente maduro e comprovado em produção para aplicações grandes
 * Bom, porque tem ecossistema vasto com soluções prontas para autenticação, admin, ORM
 * Ruim, porque o ORM acoplado do Django conflita com a abordagem de mapeamento imperativo do SQLAlchemy
 * Ruim, porque a estrutura opinada do Django dificulta a organização em camadas DDD
@@ -69,7 +69,7 @@ Framework completo construído sobre o Django, com serializers, viewsets e brows
 ### Negativas
 
 * Ecossistema menor que o Django para funcionalidades prontas (admin, CMS, etc.)
-* Menos battle-tested para monolitos grandes em produção comparado ao Django
+* Menos comprovado em produção para monolitos grandes comparado ao Django
 * Equipe pode precisar de tempo de adaptação se tiver experiência apenas com Flask ou Django
 
 ## Decisões Relacionadas

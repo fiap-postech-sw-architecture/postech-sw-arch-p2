@@ -20,6 +20,8 @@ Mapeamento de ativos, ameaças e mitigações por bounded context.
 | **Ameaças principais** | Força bruta em login; roubo de token (XSS, MITM); algorithm confusion no JWT; reuso de refresh token comprometido |
 | **Mitigações** | Rate limiting por IP (RNF-003); bcrypt para hashing de senhas; JWT HS256 com enforcement explícito de algoritmo (ADR-004); revogação via tabela `tokens_revogados` com JTI (RF-012); refresh tokens com rotação e invalidação do anterior (RF-013); TLS obrigatório em produção |
 
+> **Fase 2:** o rate limiter passou a usar **storage compartilhado (Redis)** ([ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md)), tornando o limite por IP global e correto sob HPA, com a ressalva de que a chave é o IP do *peer* imediato: atrás de proxy/ingress sem `X-Forwarded-For` confiável, o tráfego externo colapsa num único bucket ([TD-023](../tech-debt/README.md)). A análise estática ganhou também o gate **CodeQL Code Quality** (`make codeql-quality`), além do bandit.
+
 ### 2.2 Cliente + Veiculo
 
 | Aspecto | Descrição |

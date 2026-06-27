@@ -8,6 +8,8 @@
 
 Reexecução dos scans automatizados de segurança sobre o código da fase 2 (RF-020..024, RNF-017..024): análise estática (bandit), auditoria de dependências (pip-audit) e detecção de segredos (gitleaks, working tree + histórico completo). Trivy e OWASP ZAP não foram reexecutados nesta bateria — a imagem runtime e a superfície HTTP foram auditadas na fase 1 e os deltas da fase 2 (rotas novas, OTel opcional) estão cobertos pelos demais scans e pela suíte de testes.
 
+> **Nota:** o `relay/` e o `k8s/redis.yaml` (PRs [#56](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/56), [#62](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/62)) são posteriores a esta bateria de 12/06 e não foram cobertos por ela; o código do `relay/` segue coberto pelo gate `make security` (o bandit varre `src/ ui/ relay/`) no CI de cada PR.
+
 ## Resumo
 
 | Ferramenta | Versão | Alvo | Resultado |
@@ -48,7 +50,7 @@ uv run --with pip-audit pip-audit
 | idna | 3.11 | CVE-2026-45409 | **3.18** | Transitiva. DoS por entradas longas em `idna.encode()`; entradas do app são limitadas por validação Pydantic. |
 | mako | 1.3.11 | CVE-2026-44307 | **1.3.12** | Transitiva (Alembic). Path traversal de templates apenas em Windows; runtime é container Linux e templates não são controlados por usuário. |
 
-**Re-scan pós-upgrade**: `No known vulnerabilities found` (o pacote local `pytstop` é pulado por não estar no PyPI — esperado). Suíte completa verde após o bump (1318 testes unitários + 103 de integração), validando que os upgrades não regrediram comportamento.
+**Re-scan pós-upgrade**: `No known vulnerabilities found` (o pacote local `pytstop` é pulado por não estar no PyPI — esperado). Suíte completa verde após o bump (1426 testes unitários + 136 de integração), validando que os upgrades não regrediram comportamento.
 
 ## Detecção de Segredos (gitleaks)
 

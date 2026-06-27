@@ -19,7 +19,7 @@ Visão macro do sistema para stakeholders técnicos e não-técnicos: decisões 
 | [RFC-001: Design do Sistema](rfc/rfc-001-design-do-sistema.md) | Visão geral da arquitetura, stack tecnológica e decisões fundamentais |
 | [RFC-002: Infraestrutura e Deploy da Fase 2](rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md) | Design integrado da infraestrutura da fase 2 — cluster kind, Terraform, CI/CD com deploy, HPA e notificação por e-mail |
 | [C4 — Diagrama de Contexto](c4/c4-contexto.md) | Sistema como caixa única com atores e sistemas externos |
-| [C4 — Diagrama de Container](c4/c4-container.md) | Principais blocos (FastAPI, PostgreSQL) e comunicação entre eles |
+| [C4 — Diagrama de Container](c4/c4-container.md) | Principais blocos e comunicação entre eles: diagrama da fase 1 (FastAPI, PostgreSQL) e da fase 2 (relay de eventos, Redis, Mailpit, Jaeger sob Kubernetes) |
 | [Mapa de Contextos](mapa-contextos.md) | Bounded contexts e padrões de integração (OHS, Cliente-Fornecedor) |
 | [DAS — Documento de Aprovacao da Solucao](../entrega/documento-aprovacao-solucao.md) | Documento consolidado com todas as decisões para aprovação |
 

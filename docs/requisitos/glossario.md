@@ -60,8 +60,8 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 
 | Termo do Domínio | Identificador no Código | Definição |
 |---|---|---|
-| Usuário | `Usuario` | Entidade que representa um operador do sistema (admin ou mecânico). |
-| Papel | `Papel` | Enum Python que define os papéis de acesso. No MVP, contém apenas `Admin` (Mecânico compartilha o papel Admin — ver PRD). Valor `Mecanico` planejado para evolução futura. Usado no payload JWT. |
+| Usuário | `Usuario` | Entidade que representa um operador do sistema (admin, atendente ou mecânico). |
+| Papel | `Papel` | Enum que define os papéis de acesso: `Admin`, `Atendente`, `Mecanico`. RBAC aplicado por mapa de permissões (`src/autenticacao/interfaces/middleware.py`), com `Admin` herdando os demais; coberto pela matriz RBAC dos testes. Usado no payload JWT. |
 
 ## Termos Compartilhados
 

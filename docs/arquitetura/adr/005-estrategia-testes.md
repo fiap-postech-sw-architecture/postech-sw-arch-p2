@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
 
-* Status: Em Proposta
+* Status: Aceita
 * Data: 2026-03-11
 
 ## Contexto e Problema
@@ -18,7 +18,10 @@ Ferramentas e práticas:
 - **pytest + testcontainers**: cada sessão de teste sobe um container PostgreSQL real, garantindo que ENUM, SELECT FOR UPDATE e demais funcionalidades específicas do PostgreSQL sejam exercitadas
 - **polyfactory**: geração de fixtures tipadas a partir dos modelos de domínio, eliminando fixtures manuais
 - **pytest-xdist**: execução paralela de testes com isolamento por SAVEPOINT — cada teste roda dentro de uma transação com SAVEPOINT que sofre rollback ao final, sem interferência entre testes paralelos
-- **mutmut**: testes de mutação com meta de 70%+ de mutantes mortos, validando a qualidade das asserções
+
+Evoluções planejadas (ainda não adotadas como dependências do projeto):
+
+- **mutmut**: testes de mutação com meta de 70%+ de mutantes mortos, para validar a qualidade das asserções
 - **schemathesis**: testes de contrato gerados a partir da especificação OpenAPI do FastAPI, validando que a API respeita o schema documentado
 
 Metas de cobertura:
@@ -68,8 +71,7 @@ Substituir o repositório real por mocks em todos os testes de integração.
 * Testes realistas que exercitam o mesmo banco de produção, incluindo ENUM, JSONB e SELECT FOR UPDATE
 * Detecção antecipada de problemas de schema, migração e constraints
 * Execução paralela com pytest-xdist compensa o custo do container real
-* Testes de mutação com mutmut garantem que as asserções são significativas, não apenas cobertura de linhas
-* Testes de contrato com schemathesis validam que a API respeita a documentação Swagger
+* Base preparada para evoluções planejadas: testes de mutação (mutmut) reforçariam a significância das asserções e testes de contrato (schemathesis) validariam a API contra a documentação Swagger
 
 ### Negativas
 
