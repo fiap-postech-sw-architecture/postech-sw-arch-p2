@@ -27,7 +27,7 @@ Esta matriz estende a [tabela de rastreabilidade em requisitos.md](requisitos.md
 | RF-015 | Endpoints LGPD Art. 18 | Requisito de plataforma — sem US associada | Endpoints para acesso, portabilidade (export JSON) e exclusão (anonimização) dos dados pessoais; operação cross-contexto | — |
 | RF-016 | Orçamento complementar | Requisito de plataforma — sem US associada | Transição EmExecucao → AguardandoAprovacaoComplementar → EmExecucao para serviços adicionais durante execução | [ADR-003](../arquitetura/adr/003-arquitetura-ddd-onion.md) |
 | RF-017 | Histórico de orçamentos | Requisito de plataforma — sem US associada | Orçamentos anteriores mantidos como array JSONB com timestamp; consulta do histórico via endpoint da OS | — |
-| RF-018 | Transactional outbox | Requisito de plataforma — sem US associada | Eventos de domínio persistidos em tabela `outbox` na mesma transação; background task despacha eventos | — |
+| RF-018 | Transactional outbox | Requisito de plataforma — sem US associada | Eventos de domínio persistidos em tabela `outbox` na mesma transação; processo relay (`python -m relay`) despacha eventos (claim-then-deliver, LISTEN/NOTIFY) | — |
 | RF-019 | Consentimento explícito | Requisito de plataforma — sem US associada | Registro de consentimento do cliente para tratamento de dados pessoais; revogação via endpoint | — |
 
 ## Requisitos Não-Funcionais (Rastreabilidade)

@@ -1,4 +1,4 @@
-# Usar BrUtils para validação de CPF, CNPJ e Placa
+# Usar BrUtils para validação de CPF e CNPJ (Placa via regex própria)
 
 > [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
 
@@ -7,15 +7,15 @@
 
 ## Contexto e Problema
 
-Os Value Objects CPF, CNPJ e Placa exigem validação algorítmica na criação (RF-001: cadastro de cliente; RF-002: cadastro de veículo). CPF e CNPJ requerem cálculo de dígitos verificadores; Placa requer reconhecer formato antigo (AAA-0000) e Mercosul (AAA0A00). Devemos implementar esses algoritmos manualmente ou adotar uma biblioteca externa?
+Os Value Objects CPF, CNPJ e Placa exigem validação algorítmica na criação (RF-001: cadastro de cliente; RF-002: cadastro de veículo). CPF e CNPJ requerem cálculo de dígitos verificadores; Placa requer reconhecer formato antigo (AAA-0000) e Mercosul (AAA0A00). Devemos implementar esses algoritmos manualmente ou adotar uma biblioteca externa? O brutils cobre apenas CPF e CNPJ; a validação de placa fica fora do escopo da biblioteca e precisa ser resolvida à parte.
 
 ## Decisão
 
-Adotar `brutils` (`>=2.3.0,<3`) como dependência para validação de documentos brasileiros. A biblioteca fornece `is_valid_cpf`, `is_valid_cnpj` e `is_valid_license_plate` com suporte aos dois formatos de placa.
+Adotar `brutils` (`>=2.3.0,<3`) como dependência para validação de **CPF e CNPJ**. A biblioteca fornece `is_valid_cpf` e `is_valid_cnpj` — usados em `src/cliente_veiculo/dominio/cpf.py` e `cnpj.py`. A **Placa** fica fora do escopo do brutils e é validada por **regex própria** em `src/cliente_veiculo/dominio/placa.py`, cobrindo o formato antigo (`ABC1234`) e o Mercosul (`ABC1D23`).
 
-Os Value Objects (`Cpf`, `Cnpj`, `Placa`) continuam como classes de domínio puras: brutils é chamado em `__post_init__` exclusivamente para validação, enquanto os métodos `formatado()` e `mascarado()` do protocolo `Documento` são implementados no próprio Value Object. O valor interno é armazenado normalizado — apenas dígitos para CPF/CNPJ; letras maiúsculas sem hífen para Placa — para garantir igualdade estrutural correta.
+Os Value Objects (`Cpf`, `Cnpj`, `Placa`) continuam como classes de domínio puras: a validação acontece em `__post_init__` — brutils para CPF/CNPJ, regex para Placa — enquanto os métodos `formatado()` e `mascarado()` do protocolo `Documento` são implementados no próprio Value Object. O valor interno é armazenado normalizado — apenas dígitos para CPF/CNPJ; letras maiúsculas sem hífen para Placa — para garantir igualdade estrutural correta.
 
-Importar brutils no domínio viola a regra de isolar dependências externas (ADR-003), mas a exceção é justificada: a biblioteca é algorítmica pura (sem I/O, sem side effects, sem estado), equivalente a importar `re` ou `math`. Adapter pattern não se aplica.
+Importar brutils no domínio viola a regra de isolar dependências externas (ADR-003), mas a exceção é justificada: a biblioteca é algorítmica pura (sem I/O, sem side effects, sem estado), equivalente a importar `re` ou `math` — assim como a Placa usa `re` diretamente. Adapter pattern não se aplica.
 
 ## Alternativas Consideradas
 
@@ -25,11 +25,12 @@ Importar brutils no domínio viola a regra de isolar dependências externas (ADR
 
 ### brutils
 
-Biblioteca open source (MIT) da organização `brazilian-utils`. Cobre CPF, CNPJ e Placa (formato antigo + Mercosul). Extras úteis: `generate_cpf`/`generate_cnpj` para testes, `convert_license_plate_to_mercosul`.
+Biblioteca open source (MIT) da organização `brazilian-utils`. Cobre **CPF e CNPJ** (validação de dígitos verificadores). Não valida placas — a Placa fica a cargo de regex própria. Extras opcionais: `generate_cpf`/`generate_cnpj` para fixtures de teste.
 
-* Bom, porque cobre os 3 Value Objects com uma única dependência
-* Bom, porque `generate_*` simplifica fixtures de teste
+* Bom, porque cobre CPF e CNPJ com uma única dependência algorítmica
+* Bom, porque expõe `generate_*` como recurso opcional para fixtures (não adotado até o momento)
 * Bom, porque Production/Stable, mantida ativamente, sem vulnerabilidades conhecidas
+* Ruim, porque não cobre Placa — exige regex própria de qualquer forma
 * Ruim, porque comunidade moderada (~400 stars)
 * Ruim, porque adiciona dependência externa ao domínio
 * Ruim, porque carrega dependências transitivas (`holidays`, `num2words`)
@@ -49,16 +50,16 @@ Algoritmos de dígitos verificadores para CPF e CNPJ, regex para placas.
 Biblioteca para validação de documentos brasileiros. Suporta CPF, CNPJ, CNH, RENAVAM, mas não valida formatos de placa (antigo/Mercosul).
 
 * Bom, porque API consistente entre tipos de documento
-* Ruim, porque não cobre validação de placa nos formatos exigidos
-* Ruim, porque exigiria brutils ou regex manual para placa de qualquer forma
+* Ruim, porque, assim como brutils, não cobre validação de placa nos formatos exigidos (regex própria seria necessária de qualquer forma)
+* Ruim, porque não traz vantagem decisiva sobre brutils para o escopo CPF/CNPJ
 
 ## Consequências
 
 ### Positivas
 
-* Validação algorítmica de CPF/CNPJ/Placa pronta e testada
-* `generate_*` facilita criação de dados válidos em testes sem fixtures hardcoded, alinhado com a estratégia de dados de teste definida em ADR-005
-* Casos de borda tratados pela biblioteca: CPFs com dígitos repetidos (000…0, 111…1), CNPJ zerado, placa com letras minúsculas
+* Validação algorítmica de CPF/CNPJ pronta e testada pela biblioteca; Placa validada por regex própria simples e auditável
+* `generate_*` está disponível como recurso opcional para fixtures, alinhado com a estratégia de dados de teste do ADR-005 — ainda não utilizado no código atual
+* Casos de borda de CPF/CNPJ tratados pela biblioteca: dígitos repetidos (000…0, 111…1), CNPJ zerado; placas com letras minúsculas são normalizadas pela própria `Placa` (`upper()` + remoção de hífen) antes da checagem por regex
 
 ### Negativas
 

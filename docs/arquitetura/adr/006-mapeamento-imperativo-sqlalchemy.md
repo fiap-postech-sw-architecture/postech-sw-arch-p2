@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../../README.md) · [↑ Arquitetura](../README.md)
 
-* Status: Reprovado
+* Status: Aceita
 * Data: 2026-03-11
 
 ## Contexto e Problema

@@ -46,7 +46,7 @@ kubectl --context kind-pytstop get pods -n pytstop
 kubectl --context kind-pytstop get pods -n pytstop-infra
 ```
 
-**Evidência no ar**: smoke OK no final do `make cd-local`; `pytstop-api`, `mailpit` e `jaeger` 1/1 Running em `pytstop`; `postgres-0` 1/1 Running em `pytstop-infra`.
+**Evidência no ar**: smoke OK no final do `make cd-local`; `pytstop-api`, `relay`, `redis`, `mailpit` e `jaeger` 1/1 Running em `pytstop`; `postgres-0` 1/1 Running em `pytstop-infra`.
 
 ### 3. CI/CD no GitHub Actions (2 min)
 
@@ -88,7 +88,7 @@ Sequência gravada:
    ```
 
    → situação vira "Em execução" (estoque reservado). Re-rodar a listagem: a OS aprovada agora abre a lista (prioridade máxima). Repetir na OS preparada em aguardando aprovação com `{"decisao": "recusada"}` → "Cancelada". Mostrar que sem o header o retorno é **401** (token dedicado, fora do RBAC interno — ADR-021).
-5. **RF-024 — e-mail de status**: abrir **http://localhost:8025** (Mailpit) → um e-mail por transição do bloco (diagnóstico, orçamento disponível, Em execução na aprovação, Cancelada na recusa), com destinatário extraído do contato do cliente.
+5. **RF-024 — e-mail de status**: abrir **http://localhost:8025** (Mailpit) → um e-mail por transição do bloco (diagnóstico, orçamento disponível, Em execução na aprovação, Cancelada na recusa), com destinatário extraído do contato do cliente. Mencionar que o e-mail agora flui pela **Transactional Outbox** (evento gravado na mesma transação da mudança de OS) e é entregue pelo **relay** assíncrono, eliminando o dual-write (ADR-022).
 
 **Evidência no ar**: 201 + id; `situacao` nos GETs; listagem na ordem da regra; aprovação e recusa externas com efeito; caixa de entrada do Mailpit com os e-mails.
 
@@ -127,8 +127,8 @@ Abrir **http://localhost:16686** → serviço `pytstop-api` → *Find Traces* �
 
 ### 7. Encerramento (30 s)
 
-- Qualidade sustentada na evolução: cobertura **97,5%** com gate de 95% na CI, contratos de camadas verificados por **import-linter** (Clean Architecture — ADR-015), scans de segurança herdados da fase 1 (bandit na CI; bateria completa em `docs/seguranca/`).
-- Decisões registradas: ADRs 015–021 + RFC-002; rastreabilidade completa em [entrega-fase-2.md](entrega-fase-2.md).
+- Qualidade sustentada na evolução: cobertura **95,3%** com gate de 95% na CI, contratos de camadas verificados por **import-linter** (Clean Architecture — ADR-015), scans de segurança herdados da fase 1 (bandit na CI; bateria completa em `docs/seguranca/`).
+- Decisões registradas: ADRs 015–023 + RFC-002; rastreabilidade completa em [entrega-fase-2.md](entrega-fase-2.md).
 - Repositório privado compartilhado com `soat-architecture`.
 
 ## Notas de Produção

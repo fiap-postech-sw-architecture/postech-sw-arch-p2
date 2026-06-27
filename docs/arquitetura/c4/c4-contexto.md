@@ -23,9 +23,9 @@ C4Context
 
 | Ator | Papel (`Papel` enum) | Descrição |
 |---|---|---|
-| **Admin** | `Papel.Admin` | Gerente da oficina. Único papel no MVP conforme glossário. |
+| **Admin** | `Papel.Admin` | Gerente da oficina. Ator principal do MVP e da demo. |
 
-O papel `Mecanico` está planejado para evolução futura; consulte o [glossário](../../requisitos/glossario.md). No MVP o mecânico opera com credenciais de Admin, por isso não aparece como ator separado no diagrama.
+O enum `Papel` define três papéis — `Admin`, `Atendente` e `Mecanico` (`src/autenticacao/dominio/papel.py`) — com RBAC aplicado por um mapa de permissões em `src/autenticacao/interfaces/middleware.py` (`Admin` herda os demais), coberto pela matriz RBAC dos testes. O diagrama de contexto mantém um único ator representativo (`Admin`) por clareza; os três papéis constam no [glossário](../../requisitos/glossario.md).
 
 ## Sistemas Externos
 

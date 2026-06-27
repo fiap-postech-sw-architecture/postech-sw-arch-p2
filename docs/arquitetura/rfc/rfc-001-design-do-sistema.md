@@ -346,6 +346,8 @@ outbox {
 }
 ```
 
+> **Nota**: este é o esboço da fase 1 (RFC encerrada). O schema final implementado na fase 2 diverge — `id` bigserial, colunas `agregado_id`/`tipo`/`entregue_em` e a tabela `processed_events` (idempotência/DLQ), com entrega via relay dedicado. Ver [ADR-022](../adr/fase2/022-transactional-outbox-relay.md) e `migrations/versions/003_outbox.py`.
+
 - Background task (loop ou scheduler) lê eventos não processados e despacha
 - Falha de despacho não causa rollback — o evento permanece na tabela para retry
 - Garante consistência entre estado do domínio e eventos emitidos

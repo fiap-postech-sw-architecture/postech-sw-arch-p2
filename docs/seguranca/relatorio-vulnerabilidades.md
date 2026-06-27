@@ -288,7 +288,7 @@ Relatórios: `docs/seguranca/trivy-fs-report.json` e `docs/seguranca/trivy-image
 
 1. Adicionar WAF com rate limiting por usuário autenticado
 2. Migrar segredo JWT para KMS (mitigado no MVP via validação de comprimento no startup)
-3. Adicionar CSP headers (TD-003)
+3. ~~Adicionar CSP headers (TD-003)~~ — **concluído**: `Content-Security-Policy: default-src 'none'` enviado pelo `SecurityHeadersMiddleware` (`src/compartilhado/interfaces/middleware.py`), exceto nas rotas de Swagger/ReDoc; TD-003 resolvido.
 4. Evoluir consentimento com granularidade por finalidade de tratamento (RF-019 implementado com modelo básico)
 
 ## Referências

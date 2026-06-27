@@ -202,6 +202,8 @@ classDiagram
     class Papel {
         <<Enum>>
         Admin
+        Mecanico
+        Atendente
     }
 
     Usuario --> Papel : papel
