@@ -179,7 +179,7 @@ Parâmetros do HPA — **proposta baseline, a calibrar no plano da fase de imple
 
 | Parâmetro | Proposta baseline | Justificativa |
 |---|---|---|
-| `minReplicas` | 1 | coerente com o rollout inicial de réplica única exigido pelas migrações (seção 7) |
+| `minReplicas` | 1 | piso do HPA; a migração não exige mais réplica única (seção 7 — Job dedicado de migração) |
 | `maxReplicas` | 5 | teto alcançável na demo sem saturar a máquina local que hospeda o kind |
 | Alvo de CPU | 70% de utilização média | margem antes da saturação; segue o fluxo de validação ensinado (criar Deployment → criar HPA → carga → `kubectl get hpa`) |
 | Alvo de memória | 80% de utilização média | segunda linha de defesa: processos CPython raramente devolvem memória ao sistema, então o sinal serve mais para detectar saturação do que para scale-down |

@@ -107,7 +107,7 @@ jobs:
           # Migracao via Job dedicado antes do rollout (TD-015): resolve a corrida com N replicas
           kubectl -n pytstop delete job pytstop-migrate --ignore-not-found
           sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|${{ needs.image.outputs.tag }}|" k8s/jobs/migration-job.yaml | kubectl -n pytstop apply -f -
-          kubectl -n pytstop wait --for=condition=complete --timeout=180s job/pytstop-migrate
+          kubectl -n pytstop wait --for=condition=complete --timeout=180s job/pytstop-migrate || { echo "::error::Migracao (pytstop-migrate) falhou ou expirou; abortando o deploy antes do rollout."; kubectl -n pytstop logs job/pytstop-migrate --tail=50 || true; exit 1; }
           kubectl -n pytstop set image deployment/pytstop-api api="${{ needs.image.outputs.tag }}"
           kubectl -n pytstop rollout status deployment/pytstop-api --timeout=300s
           kubectl -n pytstop set image deployment/pytstop-relay relay="${{ needs.image.outputs.tag }}"
