@@ -76,6 +76,7 @@ Endpoint **`POST /api/v1/publico/ordens-de-servico/{ordem_id}/decisao-orcamento`
 ### Neutras
 
 * O rate limiter slowapi é in-memory por processo (RNF-024): com N réplicas o teto efetivo é N×limite — aceitável para o canal de demo, já documentado como pendência da fase
+  * _Nota posterior:_ desde a [ADR-023](023-rate-limiter-storage-compartilhado.md) o rate limiter usa storage compartilhado (Redis), tornando o limite correto e global sob HPA — esta consequência reflete o estado no momento desta ADR (mantida como registro histórico).
 * `ORCAMENTO_WEBHOOK_TOKEN` entra em `.env.dev.example`/docker-compose com valor de demonstração; o Secret K8s correspondente entra com os manifests (RNF-020)
 * Auditoria da origem da decisão limita-se ao log estruturado do request (request_id + rota pública); trilha formal de auditoria fica fora do escopo
 

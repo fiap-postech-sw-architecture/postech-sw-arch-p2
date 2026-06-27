@@ -1,0 +1,56 @@
+# Contador compartilhado do rate limiter (TD-016): sob o HPA (hpa.yaml) as
+# replicas da API precisam de um estado unico para o limite por janela --
+# cada replica conta sozinha num store em memoria, furando o limite global.
+# A API le RATE_LIMIT_STORAGE_URI (configmap.yaml: redis://redis:6379) e usa
+# este Redis como balcao unico. Sem persistencia: os contadores sao
+# efemeros (expiram com a janela), entao nem PVC nem volume -- reiniciar o
+# pod so zera as janelas em curso. Sem senha: demo interna ao cluster
+# (ClusterIP), mesma imagem do docker-compose.yml -- paridade dev x cluster.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  namespace: pytstop
+  labels:
+    app: redis
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: redis
+  template:
+    metadata:
+      labels:
+        app: redis
+    spec:
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: redis
+              containerPort: 6379
+          # Footprint minimo: store de contadores efemeros, so para a demo.
+          resources:
+            requests:
+              cpu: 50m
+              memory: 32Mi
+            limits:
+              cpu: 200m
+              memory: 128Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  namespace: pytstop
+  labels:
+    app: redis
+spec:
+  type: ClusterIP
+  selector:
+    app: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: 6379

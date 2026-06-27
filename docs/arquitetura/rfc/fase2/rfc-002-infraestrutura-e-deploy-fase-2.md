@@ -64,6 +64,8 @@ O PostgreSQL 16 ([ADR-002](../../adr/002-banco-postgresql.md)) vive dentro do cl
 - **PytStop API**: Deployment do monolito modular da fase 1, agora nas camadas da Clean Architecture ([ADR-015](../../adr/fase2/015-arquitetura-alvo-fase-2.md) — Entidades, Casos de Uso, Adaptadores de Interface, Frameworks & Drivers); Service na frente dos pods; ConfigMap e Secret com a configuração (seção 6); HPA por CPU e memória (seção 5).
 - **Mailpit** ([ADR-018](../../adr/fase2/018-notificacao-email.md)): servidor SMTP de demo como Deployment + Service ClusterIP; a UI web é acessada por port-forward (ou NodePort) na gravação do vídeo. No docker-compose, entra como serviço `mailpit` (SMTP interno na 1025, UI na 8025).
 - **Jaeger all-in-one** ([ADR-020](../../adr/fase2/020-observabilidade-opentelemetry.md)): backend de traces com receiver OTLP, no mesmo padrão Deployment + Service + port-forward — **onda final condicional**, executada somente com os obrigatórios verdes. A exportação é OTLP direta do SDK para o Jaeger, sem Collector — divergência da recomendação de produção aceita e registrada no ADR; sem o endpoint OTLP configurado, a instrumentação fica inerte e nada disso entra no caminho crítico.
+- **Relay de eventos** ([ADR-022](../../adr/fase2/022-transactional-outbox-relay.md)): Deployment próprio (`python -m relay`, `replicas: 1`) que consome a tabela `outbox` no PostgreSQL via LISTEN/NOTIFY + claim-then-deliver e entrega a notificação por e-mail via SMTP ao Mailpit. A `UnitOfWork` grava o `IntegrationEvent` na mesma transação da mudança de OS, eliminando o dual-write (RF-024/RF-018); o dispatcher síncrono foi congelado vazio.
+- **Redis** ([ADR-023](../../adr/fase2/023-rate-limiter-storage-compartilhado.md)): Deployment + Service ClusterIP, store compartilhado do rate limiter slowapi via `RATE_LIMIT_STORAGE_URI`/`storage_uri` — limite por IP correto e global sob HPA, sem persistência nem senha (serviço de demo). Ausente a env, o storage cai para `memory://`; queda do Redis em runtime degrada graciosamente para per-réplica.
 
 Fora do cluster: o `docker-compose.yml` continua sendo o caminho de desenvolvimento local rápido (RNF-019), com paridade de imagem e variáveis; `ui/` permanece sandbox dev-only sem manifest.
 
@@ -73,7 +75,7 @@ A divisão espelha o próprio challenge, que separa "deploy do banco de dados" d
 
 | | `/infra` (Terraform) | `/k8s` (manifests YAML) |
 |---|---|---|
-| Conteúdo | cluster kind, metrics-server, PostgreSQL (StatefulSet, Service, PVC, Secret de credenciais) | aplicação (Deployment, Service, ConfigMap, Secret, HPA), Mailpit, Jaeger condicional |
+| Conteúdo | cluster kind, metrics-server, PostgreSQL (StatefulSet, Service, PVC, Secret de credenciais) | aplicação (Deployment, Service, ConfigMap, Secret, HPA), Mailpit, Jaeger condicional, Relay de eventos, Redis |
 | Quem aplica | `terraform apply` | `kubectl apply -f k8s/` — pelo pipeline e pelos alvos make locais |
 | Natureza | infraestrutura-base, muda raramente | artefatos de implantação, mudam com a aplicação |
 | Requisito | RNF-021 | RNF-020, RNF-022 |
@@ -111,6 +113,8 @@ flowchart TB
             hpa["HPA — CPU e memória"]
             mailpit["Mailpit (ADR-018)<br/>Deployment + Service ClusterIP"]
             jaeger["Jaeger all-in-one (ADR-020)<br/>onda final condicional"]
+            relay["Relay de eventos (ADR-022)<br/>Deployment — outbox→SMTP"]
+            redis["Redis (ADR-023)<br/>Deployment + Service — rate limit"]
         end
     end
 
@@ -119,7 +123,10 @@ flowchart TB
     hpa -->|"escala réplicas"| app
     ms -.->|"métricas de CPU e memória"| hpa
     app -->|"SQL via DATABASE_URL"| pg
-    app -->|"SMTP"| mailpit
+    app -->|"grava outbox + NOTIFY"| pg
+    relay -->|"LISTEN/NOTIFY + claim outbox"| pg
+    relay -->|"SMTP"| mailpit
+    app -.->|"rate limit"| redis
     app -.->|"traces OTLP"| jaeger
 ```
 
@@ -183,7 +190,7 @@ Parâmetros do HPA — **proposta baseline, a calibrar no plano da fase de imple
 
 - JWT já é stateless, com denylist de revogação compartilhada no PostgreSQL — nada a fazer;
 - `ENCRYPTION_KEY` precisa vir de Secret única e estável (seção 6): chave efêmera gerada por pod quebraria a leitura cruzada de PII entre réplicas;
-- o rate limiter slowapi tem storage in-memory por processo — limites divergem entre réplicas; a escolha entre storage compartilhado e limitação documentada fica para o plano, mas o impacto na demo está mitigado na seção 9;
+- o rate limiter slowapi passou a usar **storage compartilhado (Redis)** — a escolha entre storage compartilhado e limitação documentada foi **resolvida via [ADR-023](../../adr/fase2/023-rate-limiter-storage-compartilhado.md)** (storage compartilhado, com fallback gracioso para `memory://` se o Redis cair): o limite por IP fica correto e global sob HPA, em vez de divergir entre réplicas;
 - o pool de conexões do SQLAlchemy deve ser dimensionado contra o `max_connections` do PostgreSQL no pior caso do HPA (máximo de réplicas × conexões por pod) — valores no plano.
 
 ## 6. Configuração e secrets
@@ -248,11 +255,11 @@ O risco 3 do [gap analysis §5](../../../requisitos/fase2/gap-analysis-fase-2.md
 
 | # | Risco | Origem | Mitigação |
 |---|---|---|---|
-| 1 | Prazo: infra (K8s + Terraform + CI/CD + e-mail) somada à refatoração Clean é o maior risco da fase | gap §5 (risco 4) | sequenciar infra incremental (deploy manual → pipeline); onda OTel condicional e cortável por inteiro ([ADR-020](../../adr/fase2/020-observabilidade-opentelemetry.md)); cortar opcionais cedo — ex.: storage compartilhado do rate limiter pode virar limitação documentada (RNF-024) |
+| 1 | Prazo: infra (K8s + Terraform + CI/CD + e-mail) somada à refatoração Clean é o maior risco da fase | gap §5 (risco 4) | sequenciar infra incremental (deploy manual → pipeline); onda OTel condicional e cortável por inteiro ([ADR-020](../../adr/fase2/020-observabilidade-opentelemetry.md)); cortar opcionais cedo — ex.: o rate limiter rodou como limite por-réplica documentado e ganhou storage compartilhado (Redis) numa onda posterior (RNF-024, [ADR-023](../../adr/fase2/023-rate-limiter-storage-compartilhado.md)) |
 | 2 | Corrida de migração com múltiplas réplicas partindo com migração pendente | [ADR-019](../../adr/fase2/019-pipeline-cicd-deploy.md) | rollout inicial com réplica única; evolução para Job dedicado se a corrida se materializar (seção 7) |
 | 3 | Provider Terraform do kind é comunitário (`tehcyx/kind`) | [ADR-016](../../adr/fase2/016-plataforma-kubernetes.md) | versão fixada em `required_providers`; superfície mínima (cluster + kubeconfig); manifests e HPA portáveis se o provider for trocado |
 | 4 | Encadeamento de providers num só apply: o provider `kubernetes` lê o kubeconfig gerado pelo recurso do cluster | [ADR-017](../../adr/fase2/017-provisionamento-banco.md) | se travar, separar cluster e banco em módulos/applies sequenciais documentados no README de `/infra` |
-| 5 | Demo de HPA poluída pelo rate limiter in-memory por réplica (429 inconsistentes sob carga distribuída) | gap §5 (risco 5); RNF-024 | resolver o statelessness antes do vídeo ou gerar carga em endpoints sem limite agressivo; ensaiar o roteiro com `full-test/` contra o cluster |
+| 5 | Demo de HPA poluída pelo rate limiter in-memory por réplica (429 inconsistentes sob carga distribuída) | gap §5 (risco 5); RNF-024 | **Resolvido**: rate limiter com storage compartilhado (Redis) via `storage_uri` ([ADR-023](../../adr/fase2/023-rate-limiter-storage-compartilhado.md), PR #62) — limite global correto sob HPA, sem 429 divergentes entre réplicas; carga validável com `full-test/` contra o cluster |
 | 6 | Durabilidade local: o PV da StorageClass padrão do kind vive nos containers do nó; sem backup nem alta disponibilidade | [ADR-017](../../adr/fase2/017-provisionamento-banco.md) | suficiente para a demo de persistência; produção real exigiria operator ou serviço gerenciado — limitação aceita e documentada |
 | 7 | metrics-server com TLS do kubelet relaxado | [ADR-016](../../adr/fase2/016-plataforma-kubernetes.md) | aceitável apenas em cluster local/efêmero; configuração declarada não portável para produção |
 | 8 | Cluster efêmero do CI não exercita rolling update nem rollback sobre versão viva | [ADR-016](../../adr/fase2/016-plataforma-kubernetes.md), [ADR-019](../../adr/fase2/019-pipeline-cicd-deploy.md) | operação continuada demonstrada no cluster local do vídeo; rollback declarado como re-execução de SHA anterior (seção 4) |

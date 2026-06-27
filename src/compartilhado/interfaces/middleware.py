@@ -68,6 +68,19 @@ def configurar_cors(app: FastAPI) -> None:
     )
 
 
+def _resolver_storage_uri() -> str | None:
+    """Resolve o backend de storage do rate limiter a partir do ambiente.
+
+    Retorna o valor de ``RATE_LIMIT_STORAGE_URI`` quando definido (ex.:
+    ``redis://host:6379``), habilitando um contador COMPARTILHADO entre
+    replicas. Retorna ``None`` quando ausente, vazio ou só com espaços — o
+    SlowAPI faz fallback para ``memory://`` (contador por-processo). O
+    ``strip()`` evita que um valor em branco chegue a
+    ``limits.storage_from_string`` e dispare ``ConfigurationError`` no import.
+    """
+    return (os.environ.get("RATE_LIMIT_STORAGE_URI") or "").strip() or None
+
+
 # Singleton compartilhado entre todos os routers que queiram aplicar
 # rate limits por endpoint via ``@limiter.limit("...")``.
 #
@@ -84,14 +97,32 @@ def configurar_cors(app: FastAPI) -> None:
 # importar este modulo, o que e verdade no fluxo ``criar_app`` ->
 # ``configurar_rate_limiting``.
 _default_limit = os.environ.get("RATE_LIMIT", "60/minute")
-limiter = Limiter(key_func=get_remote_address, default_limits=[_default_limit])
+limiter = Limiter(
+    key_func=get_remote_address,
+    default_limits=[_default_limit],
+    storage_uri=_resolver_storage_uri(),
+    # GRACEFUL DEGRADATION (TD-016): sem isto, se o Redis configurado em
+    # ``storage_uri`` ficar inalcancavel em runtime o SlowAPI re-raisa o
+    # ``ConnectionError`` e TODA request rate-limitada vira 500 — o Redis
+    # vira SPOF no hot path. Com a flag, na primeira falha de storage o
+    # SlowAPI marca ``_storage_dead`` e cai para um limiter in-memory
+    # por-processo que reaproveita os MESMOS ``default_limits`` (o limite
+    # SEGUE sendo enforcado, so deixa de ser agregado entre replicas), e
+    # auto-recupera quando o backend volta (``slowapi/extension.py``
+    # ``_storage_dead``/``_fallback_limiter``). Disponibilidade > contagem
+    # exata durante um blip de Redis.
+    in_memory_fallback_enabled=True,
+)
 
 
 def configurar_rate_limiting(app: FastAPI) -> None:
     """Anexa o ``limiter`` compartilhado ao app e instala o SlowAPIMiddleware.
 
-    Storage em memoria (por-processo); para multi-replica considere um
-    backend compartilhado (Redis) via ``storage_uri``.
+    O storage do contador e configuravel e compartilhado entre replicas:
+    quando ``RATE_LIMIT_STORAGE_URI`` esta definido (ex.: ``redis://...``),
+    o backend Redis fica ativo e o limite e enforcado de forma agregada
+    entre os processos. Sem a variavel, o fallback e ``memory://``
+    (por-processo).
     """
     from slowapi import _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded

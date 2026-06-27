@@ -107,7 +107,7 @@ kubectl --context kind-pytstop run gerador-carga -n pytstop --image=busybox:1.36
   /bin/sh -c "while true; do wget -q -O- http://pytstop-api:8000/api/v1/saude > /dev/null; done"
 ```
 
-Narrar: metrics-server alimenta o HPA; quando CPU cruza 70% (ou memória 80%) do request, as réplicas sobem de 1 em direção a 5; `kubectl get pods -n pytstop` mostra os pods novos atendendo a mesma carga (RNF-024 — JWT stateless, chave de cifra única via Secret). Respostas `429` do rate limiter durante o loop são esperadas e também consomem CPU ([k8s/README.md](../../../k8s/README.md)). Encerrar a carga e mencionar o scale-down (janela de estabilização ~5 min — não esperar no ar):
+Narrar: metrics-server alimenta o HPA; quando CPU cruza 70% (ou memória 80%) do request, as réplicas sobem de 1 em direção a 5; `kubectl get pods -n pytstop` mostra os pods novos atendendo a mesma carga (RNF-024 — JWT stateless, chave de cifra única via Secret). O rate limiter usa **storage compartilhado (Redis)** (ADR-023), então o limite é global e correto entre as réplicas (não ×réplicas); respostas `429` durante o loop seguem esperadas sob carga e também consomem CPU ([k8s/README.md](../../../k8s/README.md)). Encerrar a carga e mencionar o scale-down (janela de estabilização ~5 min — não esperar no ar):
 
 ```bash
 kubectl --context kind-pytstop delete pod -n pytstop gerador-carga

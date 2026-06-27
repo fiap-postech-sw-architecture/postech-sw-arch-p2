@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md)
 
-> **Versao**: 1.2 — Fase 1 MVP + fase 2 (ADRs 015-022 aceitas; 022 documenta o Transactional Outbox/relay, RF-018).
+> **Versao**: 1.3 — Fase 1 MVP + fase 2 (ADRs 015-023 aceitas; 023 documenta o rate limiter com storage compartilhado (Redis) sob HPA, RNF-024/TD-016).
 
 Classificação dos documentos de arquitetura do projeto conforme HLD (High-Level Design) e LLD (Low-Level Design).
 
@@ -31,7 +31,7 @@ Detalhes técnicos para desenvolvedores: estruturas internas, regras de negócio
 |-----------|-----------|
 | [C4 — Diagrama de Componentes](c4/c4-componentes.md) | Agregados e serviços por bounded context |
 | [Modelo de Dominio](modelo-dominio.md) | Diagramas de classes por agregado |
-| [ADRs (000-022)](adr/) | Decisões técnicas com contexto, alternativas e consequências |
+| [ADRs (000-023)](adr/) | Decisões técnicas com contexto, alternativas e consequências |
 | [Requisitos Funcionais e Nao-Funcionais](../requisitos/requisitos.md) | Especificações detalhadas de comportamento |
 | [Estrategia de Testes](../qualidade/estrategia-testes.md) | Pirâmide de testes, TDD, test doubles, metas de cobertura |
 
@@ -90,6 +90,7 @@ Decisões técnicas com contexto, alternativas e consequências. Três estados p
 | [020](adr/fase2/020-observabilidade-opentelemetry.md) | Observabilidade com OpenTelemetry e Jaeger em escopo mínimo condicional | Aceita |
 | [021](adr/fase2/021-aprovacao-externa-orcamento.md) | Aprovação e recusa externas de orçamento via token dedicado | Aceita |
 | [022](adr/fase2/022-transactional-outbox-relay.md) | Transactional Outbox + relay para entrega de eventos de integração | Aceita |
+| [023](adr/fase2/023-rate-limiter-storage-compartilhado.md) | Rate limiter com storage compartilhado (Redis) sob HPA | Aceita |
 
 ---
 
