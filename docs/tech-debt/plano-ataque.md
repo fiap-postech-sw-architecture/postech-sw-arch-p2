@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
 
-> **Para a próxima IA/dev:** plano priorizado para atacar os 5 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
+> **Para a próxima IA/dev:** plano priorizado para atacar os 13 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
 
 ## Regras de execução (obrigatórias)
 
@@ -15,9 +15,11 @@
 ## Status
 
 - ✅ **Resolvidos: 18** — TD-001, TD-003, TD-005, TD-007, TD-008, TD-009, TD-010, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023.
-- ⬜ **Abertos: 5** — TD-002, TD-004, TD-006, TD-013, TD-014 — abaixo, por ordem de ataque.
+- ⬜ **Abertos: 13** — TD-002, TD-004, TD-006, TD-013, TD-014 (originais) + TD-024, TD-025, TD-026, TD-027, TD-028, TD-029, TD-030, TD-031 (auditoria pré-entrega) — abaixo, por ordem de ataque.
 
-> Nenhum dos 5 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
+> Nenhum dos 13 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
+
+> **TD-024..TD-031 vieram da auditoria pré-entrega** ([auditoria-pre-entrega-fase2.md](auditoria-pre-entrega-fase2.md)) e entram no **Tier 4 (aceitar-ou-evoluir)**: compromissos aceitos/justificados, sem risco de produção no caminho suportado. Os **bugs confirmados** e as **correções delivery-facing** da mesma auditoria são rastreados como **issues no GitHub**, não aqui — este plano cobre só o débito aceito.
 
 ## Ordem de ataque
 
@@ -82,6 +84,17 @@ Débitos deliberados, justificados, sem risco de produção. Atacar apenas com f
 - [x] **TD-010** — SonarQube — ✅ **Fechado por decisão** (PR #71): não vira gate de CI (repo privado = SonarCloud pago; self-hosted = servidor desproporcional ao MVP). A análise estática em CI é CodeQL (`make codeql-quality`) + ruff + bandit; o SonarQube permanece scan manual de fechamento de fase (suportado pelo `sonar-project.properties`, mantido). Decisão em [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md).
 - [ ] **TD-013** — testes BDD/Gherkin (pytest-bdd)
 - [ ] **TD-014** — relatórios Allure
+
+Da auditoria pré-entrega ([auditoria-pre-entrega-fase2.md](auditoria-pre-entrega-fase2.md)) — compromissos aceitos, *aceitar-ou-evoluir*:
+
+- [ ] **TD-024** — `securityContext` nos workloads k8s (`runAsNonRoot` / `allowPrivilegeEscalation:false` / `capabilities.drop:[ALL]` / `readOnlyRootFilesystem`; relay precisa de `emptyDir` em `/tmp`) **ou** documentar a decisão. Esforço médio.
+- [ ] **TD-025** — índice B-tree em `itens_da_ordem.item_estoque_id` (migração nova reversível; remove o seq scan do `DesativarItemEstoque`). Esforço baixo.
+- [ ] **TD-026** — auto-enforçar migração-antes-do-rollout (initContainer / Helm hook / sync-wave) **ou** documentar "deploy fora do pipeline não-suportado". Esforço médio.
+- [ ] **TD-027** — assinatura HMAC-SHA256 no webhook de orçamento (`ordem_id` + `timestamp` + body, janela ±5min) sobre o segredo estático atual. Esforço médio.
+- [ ] **TD-028** — pré-hash `base64(sha256(senha))` antes do bcrypt **ou** Argon2 (remove o truncamento em 72 bytes). Esforço baixo.
+- [ ] **TD-029** — validar `type == "access"` em `obter_usuario_atual` (`if type != "access": 401`), espelhando o check do fluxo de refresh. Esforço baixo.
+- [ ] **TD-030** — documentar os eventos de domínio órfãos como "intenção de modelagem, sem consumidor na fase 2" (doc) **ou** wire dos handlers + promover a `IntegrationEvent` os que precisarem de durabilidade. Esforço baixo (doc) / médio (handlers).
+- [ ] **TD-031** — explicitar `--cov-fail-under=95` no step de cobertura de `src/` (hoje implícito via `.coveragerc`). Esforço baixo.
 
 ## Notas de complexidade — o que dá para fazer
 
