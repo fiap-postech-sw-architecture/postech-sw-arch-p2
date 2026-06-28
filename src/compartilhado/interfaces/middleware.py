@@ -68,6 +68,49 @@ def configurar_cors(app: FastAPI) -> None:
     )
 
 
+def _resolver_trusted_proxies() -> list[str]:
+    """Resolve a lista de proxies confiaveis a partir do ambiente.
+
+    Le ``TRUSTED_PROXIES`` (hosts separados por virgula) e devolve a lista de
+    tokens nao vazios. Cada token e passado ao ``trusted_hosts`` do
+    ``ProxyHeadersMiddleware`` do uvicorn, que aceita IP exato (``10.0.0.5``),
+    rede CIDR (``10.0.0.0/8``) ou o wildcard ``*`` (confia em qualquer peer).
+
+    Vazio (ausente, em branco ou so virgulas) -> lista vazia -> o middleware
+    NAO e instalado e o ``X-Forwarded-For`` e ignorado. Default SEGURO: sem
+    configuracao explicita nunca se confia no XFF (sem risco de spoof do IP
+    do cliente).
+    """
+    bruto = os.environ.get("TRUSTED_PROXIES", "")
+    return [host.strip() for host in bruto.split(",") if host.strip()]
+
+
+def configurar_proxy_headers(app: FastAPI) -> None:
+    """Instala o ``ProxyHeadersMiddleware`` do uvicorn quando ha proxy confiavel.
+
+    Quando ``TRUSTED_PROXIES`` esta definido, o middleware reescreve
+    ``scope["client"]`` a partir do ``X-Forwarded-For`` SOMENTE quando o peer
+    imediato (o IP da conexao TCP) esta na lista de confianca — entao
+    ``get_remote_address`` (chave do rate limiter) passa a devolver o IP real
+    do cliente, e nao o IP do proxy/ingress (TD-023). Vazio (default) -> nao
+    instala -> comportamento atual preservado (XFF ignorado, sem spoof).
+
+    ORDEM (Starlette: o ULTIMO middleware adicionado e o MAIS EXTERNO e roda
+    PRIMEIRO no request). Este precisa rodar ANTES do ``SlowAPIMiddleware``
+    para que o ``client`` ja esteja reescrito quando o limiter ler
+    ``request.client.host``. ``criar_app`` adiciona este middleware DEPOIS de
+    ``configurar_rate_limiting`` justamente para coloca-lo por fora do
+    SlowAPI. ``SecurityHeadersMiddleware``, adicionado por ultimo, fica ainda
+    mais externo (so estampa request_id/headers, nao depende do client).
+    """
+    trusted = _resolver_trusted_proxies()
+    if not trusted:
+        return
+    from uvicorn.middleware.proxy_headers import ProxyHeadersMiddleware
+
+    app.add_middleware(ProxyHeadersMiddleware, trusted_hosts=trusted)
+
+
 def _resolver_storage_uri() -> str | None:
     """Resolve o backend de storage do rate limiter a partir do ambiente.
 

@@ -13,6 +13,7 @@ from src.compartilhado.interfaces.error_handler import registrar_error_handlers
 from src.compartilhado.interfaces.middleware import (
     SecurityHeadersMiddleware,
     configurar_cors,
+    configurar_proxy_headers,
     configurar_rate_limiting,
 )
 from src.compartilhado.interfaces.router_publico import router as router_publico
@@ -173,13 +174,22 @@ def criar_app() -> FastAPI:
     application.include_router(auth_router)
 
     # Middleware execution order (Starlette "last added runs first" on request,
-    # reversed on response). SecurityHeadersMiddleware is added last so it is
-    # the OUTERMOST wrapper: it runs first on the request (stamping the
-    # request_id) and last on the response (stamping security headers),
-    # guaranteeing the headers land on CORS preflight replies and on 429s
-    # from the rate limiter.
+    # reversed on response). Resulting request-side order, outermost -> route:
+    # SecurityHeaders -> ProxyHeaders -> SlowAPI -> CORS -> route.
+    #
+    # SecurityHeadersMiddleware is added LAST so it is the OUTERMOST wrapper: it
+    # runs first on the request (stamping the request_id) and last on the
+    # response (stamping security headers), guaranteeing the headers land on
+    # CORS preflight replies and on 429s from the rate limiter.
+    #
+    # configurar_proxy_headers (TD-023) is added AFTER configurar_rate_limiting
+    # ON PURPOSE: it must sit OUTSIDE the SlowAPIMiddleware so it rewrites
+    # request.client from a trusted X-Forwarded-For BEFORE the rate limiter
+    # reads request.client.host as its key. It only installs the middleware
+    # when TRUSTED_PROXIES is set (default empty -> no-op, XFF ignored).
     configurar_cors(application)
     configurar_rate_limiting(application)
+    configurar_proxy_headers(application)
     application.add_middleware(SecurityHeadersMiddleware)
     registrar_error_handlers(application)
 
