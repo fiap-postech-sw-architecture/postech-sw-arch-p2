@@ -43,6 +43,7 @@ def upgrade() -> None:
         "ordens_de_servico",
         "orcamento_json",
         type_=postgresql.JSONB(),
+        existing_type=sa.Text(),
         postgresql_using="orcamento_json::jsonb",
         existing_nullable=True,
     )
@@ -53,6 +54,7 @@ def downgrade() -> None:
         "ordens_de_servico",
         "orcamento_json",
         type_=sa.Text(),
+        existing_type=postgresql.JSONB(),
         postgresql_using="orcamento_json::text",
         existing_nullable=True,
     )
