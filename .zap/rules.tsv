@@ -1,0 +1,17 @@
+# OWASP ZAP baseline — arquivo de regras (TD-011 / ADR-011).
+#
+# Formato (tab-separated, uma regra por linha):
+#   <pluginId>	<action>	<url-regex (opcional)>	<comentario (opcional)>
+#   action ∈ { IGNORE | WARN | FAIL }
+#
+# Sem o ``-I`` no comando do baseline, qualquer alerta que NAO esteja como
+# IGNORE aqui falha o job (gate real): WARN/FAIL viram exit code != 0. Por isso
+# este arquivo lista APENAS os 2 warnings ACEITOS e justificados na fase 1
+# (relatorio-vulnerabilidades.md: 65 PASS / 0 FAIL / 2 WARN, Caso A). Qualquer
+# achado NOVO (plugin nao listado abaixo) reprova a build — e o ponto do DAST.
+#
+# Para aceitar um novo warning no futuro: adicione a linha aqui COM justificativa
+# no mesmo PR que atualiza o relatorio de seguranca (nunca silenciar sem registro).
+#
+10049	IGNORE	(Non-Storable Content — correto para uma API com Cache-Control: no-store)
+90004	IGNORE	(CORP — aceito; superficie interna do cluster de demo)
