@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
 
-> **Para a próxima IA/dev:** plano priorizado para atacar os 9 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
+> **Para a próxima IA/dev:** plano priorizado para atacar os 8 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
 
 ## Regras de execução (obrigatórias)
 
@@ -14,10 +14,10 @@
 
 ## Status
 
-- ✅ **Resolvidos: 14** — TD-001, TD-003, TD-008, TD-009, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022.
-- ⬜ **Abertos: 9** — TD-002, TD-004, TD-005, TD-006, TD-007, TD-010, TD-013, TD-014, TD-023 — abaixo, por ordem de ataque.
+- ✅ **Resolvidos: 15** — TD-001, TD-003, TD-008, TD-009, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023.
+- ⬜ **Abertos: 8** — TD-002, TD-004, TD-005, TD-006, TD-007, TD-010, TD-013, TD-014 — abaixo, por ordem de ataque.
 
-> Nenhum dos 9 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
+> Nenhum dos 8 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
 
 ## Ordem de ataque
 
@@ -25,7 +25,7 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
 
 ### Tier 1 — atacar primeiro (risco-prod = Sim; alinha HPA/CD)
 
-> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). Tier 2 também avançou: **TD-011 — DAST no CI** (PR #65), **TD-021 — fencing de lease do relay** (PR #66) e **TD-022 — OTel no relay** (PR #66) fechados. A cabeça da fila aberta passa a ser **TD-023** (único item aberto com risco de produção).
+> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). Tier 2 **concluído**: **TD-011 — DAST no CI** (PR #65), **TD-021 — fencing de lease do relay** (PR #66), **TD-022 — OTel no relay** (PR #66) e **TD-023 — rate-limit por cliente atrás de proxy** (PR #67) fechados. Sem mais itens abertos com risco de produção; a cabeça da fila aberta passa ao Tier 3 (**TD-005**, quick win de limpeza).
 
 - [x] **TD-016 — Rate limiter compartilhado (Redis)** — ✅ Fechado (PR #62)
   - **Por quê:** o slowapi conta in-memory por pod → sob HPA o limite efetivo é multiplicado pelo nº de réplicas (RNF-024). Risco de produção real; tema HPA direto.
@@ -46,11 +46,11 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
   - **Docs no PR:** README; [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md); [scan-fase-2](../seguranca/scan-fase-2.md); [plano-seguranca](../seguranca/plano-seguranca.md).
   - **Esforço:** médio · **Valor:** médio-alto (maturidade de segurança).
 
-- [ ] **TD-023 — Rate-limit por cliente atrás de proxy (X-Forwarded-For confiável)**
+- [x] **TD-023 — Rate-limit por cliente atrás de proxy (X-Forwarded-For confiável)** — ✅ Fechado (PR #67)
   - **Por quê:** a chave do rate limit é `get_remote_address` (`request.client.host`), o IP do *peer* imediato. Atrás de um ingress sem XFF confiável, todo o tráfego externo colapsa num único bucket → o limite global vira um só para todos. Risco de produção; no demo (ClusterIP/port-forward) não se manifesta.
-  - **Como:** ingress que injeta `X-Forwarded-For` + uvicorn `--proxy-headers --forwarded-allow-ips=<trusted>` (ou `ProxyHeadersMiddleware`), restringindo a origem confiável; validar que a chave passa a refletir o cliente real, não o proxy.
+  - **Como (feito):** `ProxyHeadersMiddleware` do uvicorn aplicado programaticamente em `criar_app` ([src/main.py](../../src/main.py)), gated pela env `TRUSTED_PROXIES` (`configurar_proxy_headers`/`_resolver_trusted_proxies` em [middleware.py](../../src/compartilhado/interfaces/middleware.py)). Quando definida (IP exato/CIDR/`*`), o middleware reescreve `request.client` a partir do `X-Forwarded-For` SOMENTE quando o peer imediato é confiável, e é adicionado DEPOIS do `SlowAPIMiddleware` (fica por fora → reescreve o client antes do limiter ler a chave). Default vazio → não instala → XFF ignorado (sem spoof). `k8s/configmap.yaml`: `TRUSTED_PROXIES: ""` (demo sem ingress) com comentário do uso em produção. Coberto por testes de integração com `TestClient` (trusted+XFF → bucket por cliente real; default → bucket do peer, XFF ignorado).
   - **Docs no PR:** README; [ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md); [gap-analysis (RNF-024)](../requisitos/fase2/gap-analysis-fase-2.md).
-  - **Esforço:** médio (precisa de ingress + proxy-headers) · **Valor:** médio (correção de segurança).
+  - **Esforço:** médio · **Valor:** médio (correção de segurança).
 
 - [x] **TD-022 — OTel no relay** — ✅ Fechado (PR #66)
   - **Como (feito):** OTel da API ([ADR-020](../arquitetura/adr/fase2/020-observabilidade-opentelemetry.md)) estendido ao processo do relay com backend Prometheus — `MeterProvider` + `PrometheusMetricReader` ([relay/metrics.py](../../relay/metrics.py)) servem `/metrics` (porta 9100), scrapeado pelo [`k8s/prometheus.yaml`](../../k8s/prometheus.yaml) (Service `pytstop-relay-metrics`): gauges de profundidade (pendentes/idade/dead, mesma query do gauge structlog) + contadores entregue/falha/dead/retry.
@@ -92,8 +92,8 @@ Da tabela *Considerações de Complexidade Algorítmica* do [README.md](README.m
 
 ## O que entra na entrega (must vs nice)
 
-- **Must (já feito):** os 14 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 9 abertos.
-- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD) e Tier 2 com **TD-011 DAST** (PR #65), **TD-021 fencing do relay** (PR #66) e **TD-022 OTel no relay** (PR #66) fechados; seguir pelo restante do Tier 2 (TD-023).
+- **Must (já feito):** os 15 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 8 abertos.
+- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD) e Tier 2 **concluído** — **TD-011 DAST** (PR #65), **TD-021 fencing do relay** (PR #66), **TD-022 OTel no relay** (PR #66) e **TD-023 proxy-headers** (PR #67); resta só o Tier 3 (TD-005) e os deliberados do Tier 4.
 - **Provavelmente fora:** Tier 3 (limpeza de baixo retorno) e Tier 4 (deliberados de baixo valor para a banca).
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)

@@ -62,3 +62,24 @@ data:
   # compartilhado. Default do codigo e in-memory (basta no compose/CI de
   # uma instancia); aqui o limite vale para a frota toda.
   RATE_LIMIT_STORAGE_URI: "redis://redis:6379"
+  # Proxies confiaveis para o rate-limit pelo IP REAL do cliente (TD-023).
+  # Quando definido, o app instala o ProxyHeadersMiddleware do uvicorn, que
+  # reescreve o client a partir do X-Forwarded-For SOMENTE quando o peer
+  # imediato esta nesta lista -> a chave do rate limiter vira o cliente real,
+  # nao o IP do proxy/ingress. Aceita IP exato, CIDR ou `*`.
+  #
+  # DEMO: VAZIO (efetivamente OFF). O acesso e ClusterIP/port-forward, sem
+  # ingress injetando XFF; confiar no XFF aqui seria spoofavel sem ganho.
+  # PRODUCAO atras de ingress: setar para o(s) IP(s)/CIDR do ingress (ex.:
+  # "10.0.0.0/8"); se o app for ESTRITAMENTE ClusterIP atras do proxy (so o
+  # ingress o alcanca), "*" e aceitavel. NUNCA "*" exposto direto a internet.
+  # PRECONDICAO: o proxy/ingress confiavel DEVE adicionar (append) ou
+  # sobrescrever o X-Forwarded-For com o IP real do cliente; se ele apenas
+  # repassar um XFF enviado pelo cliente, o limite e burlavel (a entrada mais
+  # a direita nao-confiavel vira controlada pelo atacante). No ingress-nginx o
+  # `use-forwarded-headers` controla esse append — confirme antes de habilitar:
+  # em alguns charts/versoes do ingress-nginx o default de
+  # `use-forwarded-headers` e `false` (o controller NAO faz append do XFF), ou
+  # seja, a pre-condicao de append NAO e automatica; habilite-a explicitamente,
+  # senao o XFF do cliente e repassado e o limite fica burlavel.
+  TRUSTED_PROXIES: ""

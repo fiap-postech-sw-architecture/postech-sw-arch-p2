@@ -44,9 +44,14 @@ echo "Iniciando uvicorn em http://${UVICORN_HOST}:${UVICORN_PORT} (reload ativad
 # Prefere `uv run` (funciona sem ativar venv e garante o ambiente do uv.lock);
 # cai para `.venv/bin/uvicorn` se uv nao estiver disponivel (fallback
 # documentado na ADR-014).
+#
+# --no-proxy-headers nos dois execs: paridade com a producao (entrypoint.sh); o
+# trust de X-Forwarded-For e gerido so pela app via TRUSTED_PROXIES (TD-023),
+# nunca pela camada implicita do uvicorn (que confiaria no XFF de loopback).
 if command -v uv >/dev/null 2>&1; then
     exec uv run uvicorn src.main:app \
         --reload \
+        --no-proxy-headers \
         --host "${UVICORN_HOST}" \
         --port "${UVICORN_PORT}"
 fi
@@ -59,5 +64,6 @@ fi
 
 exec .venv/bin/uvicorn src.main:app \
     --reload \
+    --no-proxy-headers \
     --host "${UVICORN_HOST}" \
     --port "${UVICORN_PORT}"
