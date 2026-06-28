@@ -17,6 +17,8 @@ Classificação por tipo:
 
 > 📋 **Plano de ataque** dos 5 abertos — priorização, como resolver cada um e checklist de progresso: **[plano-ataque.md](plano-ataque.md)**. Regra: cada TD vira **um PR próprio** que atualiza **todos os docs afetados no mesmo PR**.
 
+> 📋 Auditoria pré-entrega (2026-06-28): [auditoria-pre-entrega-fase2.md](auditoria-pre-entrega-fase2.md) — achados priorizados do teste de mesa profundo + review estruturado.
+
 ## Itens Resolvidos (18)
 
 | # | Área | Descrição | Resolução |
