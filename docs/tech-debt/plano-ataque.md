@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
 
-> **Para a próxima IA/dev:** plano priorizado para atacar os 6 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
+> **Para a próxima IA/dev:** plano priorizado para atacar os 5 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
 
 ## Regras de execução (obrigatórias)
 
@@ -14,10 +14,10 @@
 
 ## Status
 
-- ✅ **Resolvidos: 17** — TD-001, TD-003, TD-005, TD-007, TD-008, TD-009, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023.
-- ⬜ **Abertos: 6** — TD-002, TD-004, TD-006, TD-010, TD-013, TD-014 — abaixo, por ordem de ataque.
+- ✅ **Resolvidos: 18** — TD-001, TD-003, TD-005, TD-007, TD-008, TD-009, TD-010, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023.
+- ⬜ **Abertos: 5** — TD-002, TD-004, TD-006, TD-013, TD-014 — abaixo, por ordem de ataque.
 
-> Nenhum dos 6 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
+> Nenhum dos 5 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
 
 ## Ordem de ataque
 
@@ -25,7 +25,7 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
 
 ### Tier 1 — atacar primeiro (risco-prod = Sim; alinha HPA/CD)
 
-> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). Tier 2 **concluído**: **TD-011 — DAST no CI** (PR #65), **TD-021 — fencing de lease do relay** (PR #66), **TD-022 — OTel no relay** (PR #66) e **TD-023 — rate-limit por cliente atrás de proxy** (PR #67) fechados. Tier 3 **concluído**: **TD-005** (PR #68) e **TD-007 — `Contato` Value Object** (PR #70) fechados. Sem mais itens abertos com risco de produção nem quick wins; a fila aberta passa a ser só o **Tier 4** (deliberados de baixo valor para a banca).
+> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). Tier 2 **concluído**: **TD-011 — DAST no CI** (PR #65), **TD-021 — fencing de lease do relay** (PR #66), **TD-022 — OTel no relay** (PR #66) e **TD-023 — rate-limit por cliente atrás de proxy** (PR #67) fechados. Tier 3 **concluído**: **TD-005** (PR #68) e **TD-007 — `Contato` Value Object** (PR #70) fechados. Sem mais itens abertos com risco de produção nem quick wins; a fila aberta passa a ser só o **Tier 4** (deliberados de baixo valor para a banca) — do qual **TD-010 — SonarQube** já foi **fechado por decisão** (PR #71, não vira gate de CI; ver Tier 4).
 
 - [x] **TD-016 — Rate limiter compartilhado (Redis)** — ✅ Fechado (PR #62)
   - **Por quê:** o slowapi conta in-memory por pod → sob HPA o limite efetivo é multiplicado pelo nº de réplicas (RNF-024). Risco de produção real; tema HPA direto.
@@ -79,7 +79,7 @@ Débitos deliberados, justificados, sem risco de produção. Atacar apenas com f
 - [ ] **TD-002** — histórico de orçamentos (RF-017 Could-Have)
 - [ ] **TD-004** — notificações push/SMS (fora de escopo do MVP)
 - [ ] **TD-006** — mutation testing (pinar `mutmut` funcional ou trocar por `cosmic-ray`)
-- [ ] **TD-010** — SonarCloud (o gate CodeQL local já dá cobertura parcial)
+- [x] **TD-010** — SonarQube — ✅ **Fechado por decisão** (PR #71): não vira gate de CI (repo privado = SonarCloud pago; self-hosted = servidor desproporcional ao MVP). A análise estática em CI é CodeQL (`make codeql-quality`) + ruff + bandit; o SonarQube permanece scan manual de fechamento de fase (suportado pelo `sonar-project.properties`, mantido). Decisão em [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md).
 - [ ] **TD-013** — testes BDD/Gherkin (pytest-bdd)
 - [ ] **TD-014** — relatórios Allure
 
@@ -92,7 +92,7 @@ Da tabela *Considerações de Complexidade Algorítmica* do [README.md](README.m
 
 ## O que entra na entrega (must vs nice)
 
-- **Must (já feito):** os 17 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 6 abertos.
+- **Must (já feito):** os 18 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 5 abertos.
 - **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD), Tier 2 **concluído** — **TD-011 DAST** (PR #65), **TD-021 fencing do relay** (PR #66), **TD-022 OTel no relay** (PR #66) e **TD-023 proxy-headers** (PR #67) — e o Tier 3 **concluído** — **TD-005** (PR #68) e **TD-007 `Contato` VO** (PR #70). Resta só o Tier 4 (deliberados).
 - **Provavelmente fora:** Tier 4 (deliberados de baixo valor para a banca).
 
