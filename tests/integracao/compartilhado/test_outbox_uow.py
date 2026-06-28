@@ -35,6 +35,7 @@ def test_outbox_tem_colunas_esperadas(engine: Engine) -> None:
 
 def _seed_cliente_veiculo(session) -> tuple:
     from src.cliente_veiculo.dominio.cliente import Cliente
+    from src.cliente_veiculo.dominio.contato import Contato
     from src.cliente_veiculo.dominio.cpf import CPF
     from src.cliente_veiculo.dominio.placa import Placa
     from src.cliente_veiculo.infraestrutura.repository import (
@@ -44,7 +45,7 @@ def _seed_cliente_veiculo(session) -> tuple:
     cliente = Cliente(
         _nome="Cli Outbox",
         _documento=CPF(numero="21249722519"),
-        _contato="cli@x.com",
+        _contato=Contato(valor="cli@x.com"),
     )
     ClienteSQLAlchemyRepository(session=session).salvar(cliente)
     cliente.adicionar_veiculo(

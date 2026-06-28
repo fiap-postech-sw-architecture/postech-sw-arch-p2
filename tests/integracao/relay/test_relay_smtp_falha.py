@@ -40,6 +40,7 @@ from sqlalchemy.orm import Session as SASession
 from relay.handlers import NOME_HANDLER_EMAIL, construir_mapa_handlers
 from relay.processador import processar_ciclo
 from src.cliente_veiculo.dominio.cliente import Cliente
+from src.cliente_veiculo.dominio.contato import Contato
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.placa import Placa
 from src.cliente_veiculo.infraestrutura.repository import ClienteSQLAlchemyRepository
@@ -77,7 +78,7 @@ def _seed_os_real(engine: Engine) -> tuple[UUID, UUID]:
         cliente = Cliente(
             _nome="Cliente DLQ",
             _documento=CPF(numero="21249722519"),
-            _contato="cliente.dlq@exemplo.com",
+            _contato=Contato(valor="cliente.dlq@exemplo.com"),
         )
         ClienteSQLAlchemyRepository(session=sess).salvar(cliente)
         cliente.adicionar_veiculo(

@@ -94,7 +94,7 @@ classDiagram
         -id: UUID
         -nome: str
         -documento: Documento
-        -contato: str
+        -contato: Contato
         -veiculos: list~Veiculo~
         -ativo: bool
         +adicionar_veiculo(placa, marca, modelo, ano)
@@ -129,6 +129,11 @@ classDiagram
         -valor: str
     }
 
+    class Contato {
+        <<ValueObject>>
+        -valor: str
+    }
+
     class Documento {
         <<Protocol>>
         +formatado() str
@@ -137,6 +142,7 @@ classDiagram
 
     Cliente *-- Veiculo : possui
     Cliente --> Documento : documento
+    Cliente --> Contato : contato
     CPF ..|> Documento : implementa
     CNPJ ..|> Documento : implementa
     Veiculo --> Placa : placa

@@ -25,6 +25,7 @@ import pytest
 from sqlalchemy import text
 
 from src.cliente_veiculo.dominio.cliente import Cliente
+from src.cliente_veiculo.dominio.contato import Contato
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.placa import Placa
 from src.compartilhado.infraestrutura.outbox_mapping import outbox_table
@@ -77,7 +78,7 @@ def _seed_cliente_com_veiculo(
     cliente = Cliente(
         _nome="Maria Notificada",
         _documento=CPF(numero="21249722519"),
-        _contato=contato,
+        _contato=Contato(valor=contato),
     )
     ClienteSQLAlchemyRepository(session=sessao).salvar(cliente)
     cliente.adicionar_veiculo(

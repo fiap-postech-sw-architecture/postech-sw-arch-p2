@@ -37,7 +37,7 @@ class ExportarDadosPessoais:
             nome=cliente.nome,
             documento_formatado=cliente.documento.formatado(),
             tipo_documento=_tipo_documento(cliente),
-            contato=cliente.contato,
+            contato=cliente.contato.valor,
             veiculos=[
                 {
                     "id": str(v.id),

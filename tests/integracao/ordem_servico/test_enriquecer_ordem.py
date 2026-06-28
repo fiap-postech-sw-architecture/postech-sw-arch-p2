@@ -22,6 +22,7 @@ import pytest
 
 from src.catalogo_servicos.dominio.servico_oferecido import ServicoOferecido
 from src.cliente_veiculo.dominio.cliente import Cliente
+from src.cliente_veiculo.dominio.contato import Contato
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.placa import Placa
 from src.compartilhado.dominio.dinheiro import Dinheiro
@@ -90,7 +91,7 @@ def _persistir_cliente_e_veiculo(
     cliente = Cliente(
         _nome=nome,
         _documento=CPF(numero=cpf_numero),
-        _contato="11999990000",
+        _contato=Contato(valor="11999990000"),
     )
     cliente.adicionar_veiculo(
         placa=Placa(valor=placa_valor),

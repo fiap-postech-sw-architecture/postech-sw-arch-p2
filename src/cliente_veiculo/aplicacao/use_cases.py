@@ -9,6 +9,7 @@ from src.cliente_veiculo.aplicacao.dtos import (
 )
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.cnpj import CNPJ
+from src.cliente_veiculo.dominio.contato import Contato
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.exceptions import (
@@ -73,7 +74,7 @@ def _cliente_dto(cliente: Cliente) -> ClienteDTO:
         documento_formatado=cliente.documento.formatado(),
         documento_mascarado=cliente.documento.mascarado(),
         tipo_documento=_tipo_documento(cliente),
-        contato=cliente.contato,
+        contato=cliente.contato.valor,
         ativo=cliente.ativo,
         veiculos=[_veiculo_dto(v) for v in cliente.veiculos],
     )
@@ -86,7 +87,7 @@ def _cliente_resumo_dto(cliente: Cliente) -> ClienteResumoDTO:
         nome=cliente.nome,
         documento_mascarado=cliente.documento.mascarado(),
         tipo_documento=_tipo_documento(cliente),
-        contato=cliente.contato,
+        contato=cliente.contato.valor,
         ativo=cliente.ativo,
     )
 
@@ -123,7 +124,8 @@ class CriarCliente:
         if self._repo.obter_por_documento(documento) is not None:
             raise DocumentoDuplicadoException()
 
-        cliente = Cliente.criar(nome=dto.nome, documento=documento, contato=dto.contato)
+        contato = Contato(valor=dto.contato)
+        cliente = Cliente.criar(nome=dto.nome, documento=documento, contato=contato)
         self._salvar_com_commit(cliente)
         return _cliente_dto(cliente)
 
@@ -171,7 +173,7 @@ class AtualizarCliente:
 
     def executar(self, cliente_id: UUID, dto: AtualizarClienteDTO) -> ClienteDTO:
         cliente = _obter_cliente_ou_falhar(self._repo, cliente_id)
-        cliente.atualizar(nome=dto.nome, contato=dto.contato)
+        cliente.atualizar(nome=dto.nome, contato=Contato(valor=dto.contato))
         self._salvar_com_commit(cliente)
         return _cliente_dto(cliente)
 

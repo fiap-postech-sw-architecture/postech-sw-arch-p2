@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
 
-> **Para a próxima IA/dev:** plano priorizado para atacar os 8 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
+> **Para a próxima IA/dev:** plano priorizado para atacar os 6 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
 
 ## Regras de execução (obrigatórias)
 
@@ -14,10 +14,10 @@
 
 ## Status
 
-- ✅ **Resolvidos: 16** — TD-001, TD-003, TD-005, TD-008, TD-009, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023.
-- ⬜ **Abertos: 7** — TD-002, TD-004, TD-006, TD-007, TD-010, TD-013, TD-014 — abaixo, por ordem de ataque.
+- ✅ **Resolvidos: 17** — TD-001, TD-003, TD-005, TD-007, TD-008, TD-009, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023.
+- ⬜ **Abertos: 6** — TD-002, TD-004, TD-006, TD-010, TD-013, TD-014 — abaixo, por ordem de ataque.
 
-> Nenhum dos 7 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
+> Nenhum dos 6 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
 
 ## Ordem de ataque
 
@@ -25,7 +25,7 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
 
 ### Tier 1 — atacar primeiro (risco-prod = Sim; alinha HPA/CD)
 
-> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). Tier 2 **concluído**: **TD-011 — DAST no CI** (PR #65), **TD-021 — fencing de lease do relay** (PR #66), **TD-022 — OTel no relay** (PR #66) e **TD-023 — rate-limit por cliente atrás de proxy** (PR #67) fechados. Sem mais itens abertos com risco de produção; o Tier 3 segue com **TD-005** fechado (PR #68) e a cabeça da fila aberta passa a **TD-007** (quick win de pureza DDD).
+> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). Tier 2 **concluído**: **TD-011 — DAST no CI** (PR #65), **TD-021 — fencing de lease do relay** (PR #66), **TD-022 — OTel no relay** (PR #66) e **TD-023 — rate-limit por cliente atrás de proxy** (PR #67) fechados. Tier 3 **concluído**: **TD-005** (PR #68) e **TD-007 — `Contato` Value Object** (PR #70) fechados. Sem mais itens abertos com risco de produção nem quick wins; a fila aberta passa a ser só o **Tier 4** (deliberados de baixo valor para a banca).
 
 - [x] **TD-016 — Rate limiter compartilhado (Redis)** — ✅ Fechado (PR #62)
   - **Por quê:** o slowapi conta in-memory por pod → sob HPA o limite efetivo é multiplicado pelo nº de réplicas (RNF-024). Risco de produção real; tema HPA direto.
@@ -68,8 +68,8 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
   - **Como (feito):** coluna migrada de `Text` para `jsonb` nativo (migração [004](../../migrations/versions/004_orcamento_jsonb.py), `orcamento_json::jsonb`), removendo a camada manual `json.dumps`/`json.loads` no [mapping.py](../../src/ordem_servico/infraestrutura/mapping.py) — o `dict` cru é passado à coluna `JSONB().with_variant(JSON(), "sqlite")`, espelhando `outbox.payload`. Sem índice GIN (nenhuma consulta filtra por campo do orçamento — YAGNI). Coberto por round-trip do VO em Postgres real + assert `jsonb_typeof = 'object'` (prova que não há string duplamente codificada) e por teste de ida-e-volta da migração 004.
   - **Esforço:** baixo · **Valor:** baixo (limpeza).
 
-- [ ] **TD-007 — Value Object de contato**
-  - **Como:** extrair `Telefone`/`Email` (ou um `Contato`) como Value Object com validação de formato, em vez do `contato: str` atual. Docs no PR: README; [modelo-dominio](../arquitetura/modelo-dominio.md).
+- [x] **TD-007 — Value Object de contato** — ✅ Fechado (PR #70)
+  - **Como (feito):** `Contato` Value Object ([contato.py](../../src/cliente_veiculo/dominio/contato.py)) — `@dataclass(frozen=True, slots=True)`, validação leve (não-vazio, `<=255` chars, `strip`) e `__repr__` PII-safe — substitui o `contato: str` no agregado `Cliente`. Como o campo é **texto livre** (e-mail, telefone ou nome+e-mail+telefone), NÃO se extraiu `Telefone`/`Email` estritos: um VO `Contato` com validação leve é o ajuste fiel ao domínio. Persiste na mesma coluna `String(255)` via shadow `_contato_valor` + event listeners (load/refresh reidrata o VO; before_insert/before_update serializa de volta), espelhando o padrão CPF/Placa — **sem migração**. Aceita o sentinela LGPD `anonimizado@anonimizado.local` gravado pelo raw UPDATE de `anonimizar_dados`. **`email()` deliberadamente fora do VO:** o handler `notificacoes.py` (RF-024) consome o contato como `str` cru via `ClientePort` (comunicação cross-context por porta); mover a regex `_extrair_email` para o VO criaria o primeiro import `ordem_servico.aplicacao → cliente_veiculo.dominio` do código e quebraria o isolamento de bounded context (verificado: nenhum `aplicacao` importa o `dominio` de outro contexto hoje) — `make lint-arch` segue 3/0.
   - **Esforço:** baixo · **Valor:** baixo-médio (pureza DDD).
 
 ### Tier 4 — aceitar (baixo valor; só se sobrar tempo)
@@ -92,8 +92,8 @@ Da tabela *Considerações de Complexidade Algorítmica* do [README.md](README.m
 
 ## O que entra na entrega (must vs nice)
 
-- **Must (já feito):** os 16 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 7 abertos.
-- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD), Tier 2 **concluído** — **TD-011 DAST** (PR #65), **TD-021 fencing do relay** (PR #66), **TD-022 OTel no relay** (PR #66) e **TD-023 proxy-headers** (PR #67) — e o Tier 3 **TD-005** (PR #68) fechado; resta só **TD-007** (Tier 3) e os deliberados do Tier 4.
-- **Provavelmente fora:** o restante do Tier 3 (TD-007, pureza DDD de baixo retorno) e Tier 4 (deliberados de baixo valor para a banca).
+- **Must (já feito):** os 17 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 6 abertos.
+- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD), Tier 2 **concluído** — **TD-011 DAST** (PR #65), **TD-021 fencing do relay** (PR #66), **TD-022 OTel no relay** (PR #66) e **TD-023 proxy-headers** (PR #67) — e o Tier 3 **concluído** — **TD-005** (PR #68) e **TD-007 `Contato` VO** (PR #70). Resta só o Tier 4 (deliberados).
+- **Provavelmente fora:** Tier 4 (deliberados de baixo valor para a banca).
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
