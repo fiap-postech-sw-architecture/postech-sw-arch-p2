@@ -41,6 +41,13 @@ class TestCliente:
         with pytest.raises(ValueError, match="Documento do cliente nao pode ser nulo"):
             _ = cliente.documento
 
+    def test_contato_nao_pode_ser_nulo(self) -> None:
+        cliente = Cliente.__new__(Cliente)
+        object.__setattr__(cliente, "_contato", None)
+
+        with pytest.raises(ValueError, match="Contato do cliente nao pode ser nulo"):
+            _ = cliente.contato
+
     def test_criacao_com_cnpj(self) -> None:
         cnpj = CNPJ(numero=CNPJ_VALIDO)
         cliente = Cliente(
