@@ -218,7 +218,7 @@ Análise estática no desenvolvimento e CI:
 | ruff       | Lint + formatação                            | `pyproject.toml` [tool.ruff] |
 | mypy       | Verificação de tipos (modo strict)  | `pyproject.toml` [tool.mypy]  |
 | bandit     | Vulnerabilidades de segurança (ADR-011) | `.bandit.yml`     |
-| SonarQube  | Quality gate em PR (quando disponível) | CI pipeline        |
+| SonarQube  | Análise estática/qualidade — scan **manual** de fechamento (não é gate de CI, ver TD-010) | `sonar-project.properties` |
 
 Execução local:
 
