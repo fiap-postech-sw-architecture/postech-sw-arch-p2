@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
+import pytest
+
+import relay.processador as processador_modulo
 from relay.processador import LinhaOutbox, processar_linha
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
 class _ConnFake:
@@ -236,3 +243,119 @@ def test_pii_email_redacted_em_marcar_dead() -> None:
         f"(DLQ): {erro_persistido!r}"
     )
     assert "RuntimeError" in erro_persistido
+
+
+# ---------------------------------------------------------------------------
+# Wiring transicao -> contador da fachada de metricas (TD-022)
+#
+# Trava o mapeamento transicao->contador: cada caminho de `processar_linha`
+# (sucesso / falha-com-retry / falha-no-DLQ / config sem handler) deve disparar
+# EXATAMENTE os contadores certos da fachada `metricas`. Sem isto, uma fiacao
+# trocada (ex.: `metricas.falha()` no caminho de sucesso, ou esquecer
+# `metricas.dead()` no DLQ) passaria silenciosa — os contadores OTel/Prometheus
+# do ADR-024 mentiriam sem nenhum teste vermelho.
+# ---------------------------------------------------------------------------
+
+
+class _FachadaMetricasFake:
+    """Registra, em ordem, qual contador da fachada foi disparado."""
+
+    def __init__(self) -> None:
+        self.chamadas: list[str] = []
+
+    def entregue(self) -> None:
+        self.chamadas.append("entregue")
+
+    def falha(self) -> None:
+        self.chamadas.append("falha")
+
+    def dead(self) -> None:
+        self.chamadas.append("dead")
+
+    def retry(self) -> None:
+        self.chamadas.append("retry")
+
+
+@pytest.fixture
+def metricas_fake(monkeypatch: pytest.MonkeyPatch) -> _FachadaMetricasFake:
+    # processar_linha usa `metricas` via binding de modulo
+    # (`from relay.metrics import metricas`): faz patch do nome no modulo do
+    # processador para espionar as transicoes -> contadores.
+    fake = _FachadaMetricasFake()
+    monkeypatch.setattr(processador_modulo, "metricas", fake)
+    return fake
+
+
+def _processar(
+    conn: _ConnFake,
+    linha: LinhaOutbox,
+    handler: Callable[[dict[str, Any]], None],
+) -> None:
+    processar_linha(
+        conn,
+        linha,
+        handlers={"DiagnosticoIniciadoEvent": handler},
+        nome_handler="email",
+    )
+
+
+def test_metrica_sucesso_dispara_so_entregue(
+    metricas_fake: _FachadaMetricasFake,
+) -> None:
+    _processar(_ConnFake(), _linha(), lambda _p: None)
+
+    # Sucesso conta SO entregue — nunca falha/dead/retry.
+    assert metricas_fake.chamadas == ["entregue"]
+
+
+def test_metrica_falha_com_retry_dispara_falha_e_retry(
+    metricas_fake: _FachadaMetricasFake,
+) -> None:
+    def handler_quebrado(_payload: dict) -> None:
+        raise RuntimeError("smtp fora")
+
+    # tentativas=0 -> 1a falha, ainda ha retries: falha + retry, nunca dead.
+    _processar(_ConnFake(), _linha(tentativas=0), handler_quebrado)
+
+    assert metricas_fake.chamadas == ["falha", "retry"]
+    assert "dead" not in metricas_fake.chamadas
+    assert "entregue" not in metricas_fake.chamadas
+
+
+def test_metrica_falha_no_maximo_dispara_falha_e_dead(
+    metricas_fake: _FachadaMetricasFake,
+) -> None:
+    def handler_quebrado(_payload: dict) -> None:
+        raise RuntimeError("smtp fora")
+
+    # tentativas=4 -> esta e a 5a (maximo): falha + dead, nunca retry.
+    _processar(_ConnFake(), _linha(tentativas=4), handler_quebrado)
+
+    assert metricas_fake.chamadas == ["falha", "dead"]
+    assert "retry" not in metricas_fake.chamadas
+    assert "entregue" not in metricas_fake.chamadas
+
+
+def test_metrica_sem_handler_dispara_so_dead(
+    metricas_fake: _FachadaMetricasFake,
+) -> None:
+    # Config invalida (tipo sem handler) -> DLQ direto: so dead, sem falha
+    # (nao houve tentativa de entrega) e sem entregue/retry.
+    processar_linha(
+        _ConnFake(),
+        _linha(tentativas=2),
+        handlers={},
+        nome_handler="email",
+    )
+
+    assert metricas_fake.chamadas == ["dead"]
+
+
+def test_metrica_idempotente_nao_dispara_contador(
+    metricas_fake: _FachadaMetricasFake,
+) -> None:
+    # Linha ja processada (crash apos handler): marca entregue mas NAO
+    # reconta — o contador ja subiu no ciclo que executou o handler.
+    _processar(_ConnFake(ja_processado=True), _linha(), lambda _p: None)
+
+    assert metricas_fake.chamadas == []

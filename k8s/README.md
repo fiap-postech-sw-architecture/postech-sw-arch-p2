@@ -96,7 +96,7 @@ O ConfigMap liga a instrumentação no cluster de demo (`OTEL_ENABLED=true`): a 
 
 ## Ver métricas no Prometheus (ADR-024)
 
-O ConfigMap liga as métricas do relay no cluster de demo (`RELAY_METRICS_ENABLED=true`): o relay expõe `/metrics` no formato Prometheus (porta 9100, Service `pytstop-relay-metrics`) e o **Prometheus faz *scrape*** desse alvo. Com o port-forward do Prometheus acima ativo, abra **http://localhost:9090** e consulte os sinais da outbox: `outbox_pendentes`, `outbox_idade_mais_antigo_segundos`, `outbox_dead` (gauges) e `outbox_entregue_total`/`outbox_falha_total`/`outbox_dead_total`/`outbox_retry_total` (counters). Ausente `RELAY_METRICS_ENABLED`, o relay não sobe o `/metrics` e o alvo fica vazio.
+O relay liga as métricas via env **inline** no `k8s/relay.yaml` (`RELAY_METRICS_ENABLED=true`/`RELAY_METRICS_PORT=9100`), e não pelo ConfigMap (diferente do `OTEL_ENABLED` da API, que vem do ConfigMap): o relay expõe `/metrics` no formato Prometheus (porta 9100, Service `pytstop-relay-metrics`) e o **Prometheus faz *scrape*** desse alvo. Com o port-forward do Prometheus acima ativo, abra **http://localhost:9090** e consulte os sinais da outbox: `outbox_pendentes`, `outbox_idade_mais_antigo_segundos`, `outbox_dead` (gauges) e `outbox_entregue_total`/`outbox_falha_total`/`outbox_dead_total`/`outbox_retry_total` (counters). Ausente `RELAY_METRICS_ENABLED`, o relay não sobe o `/metrics` e o alvo fica vazio.
 
 ## Validar o HPA
 

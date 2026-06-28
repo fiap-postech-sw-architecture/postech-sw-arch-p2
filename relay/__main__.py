@@ -8,7 +8,9 @@ migrations (a API pod executa ``alembic upgrade head`` no boot).
 
 from __future__ import annotations
 
+import logging
 import os
+import sys
 from datetime import UTC, datetime
 
 import structlog
@@ -49,6 +51,17 @@ def main() -> None:
     from src.compartilhado.infraestrutura.database import criar_engine
     from src.compartilhado.infraestrutura.logging import configurar_logging
 
+    # O relay e um daemon standalone (`python -m relay`): ao contrario da API,
+    # NAO sobe uvicorn, que e quem instala um handler no root logger do stdlib.
+    # `configurar_logging` roteia o structlog pelo stdlib (LoggerFactory), entao
+    # sem um handler no root os eventos INFO do relay (outbox_profundidade,
+    # entrega_pulada_fencing, entregas) ficariam no nivel WARNING-default e nao
+    # chegariam ao stdout / `kubectl logs`. Instala um StreamHandler em INFO no
+    # stdout (idempotente: so age se o root ainda nao tem handler) ANTES de
+    # configurar o structlog. Processo isolado da API — nao afeta nem duplica o
+    # logging do uvicorn (entrypoint/outro processo).
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="%(message)s")
     configurar_logging()
     git_sha = os.environ.get("PYTSTOP_GIT_SHA", "unknown")[:12]
     git_date = os.environ.get("PYTSTOP_GIT_DATE", "unknown")

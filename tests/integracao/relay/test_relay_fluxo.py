@@ -268,12 +268,18 @@ def test_fencing_serializa_duas_replicas_na_entrega(engine: Engine) -> None:
 def test_duas_replicas_concorrentes_entregam_linha_exatamente_uma_vez(
     engine: Engine,
 ) -> None:
-    # TD-021 (nivel mais alto): duas replicas (`processar_ciclo`) correndo
-    # sobre UMA linha, com um handler artificialmente lento (segura o lock por
-    # ~0,3s na tx por-linha). O fencing garante que so a replica que vence o
-    # re-lock entrega; a outra pula a linha. Resultado: handler chamado UMA
-    # unica vez. Sem o fencing (entrega sem re-lock), as duas reivindicariam
-    # via claim e o e-mail duplicaria.
+    # Smoke de exactly-once sob dois workers `processar_ciclo` concorrentes
+    # sobre UMA linha (handler lento, ~0,3s, segura a tx por-linha). O que
+    # impede a duplicacao AQUI e o CLAIM: `reivindicar_lote` reivindica a linha
+    # com `FOR UPDATE OF o SKIP LOCKED` e crava o lease de 60s numa tx
+    # COMITADA, ANTES da entrega. So um worker reivindica; quando o handler
+    # lento roda (fase DELIVER), a linha ja foi serializada no claim e o lease
+    # esta longe de vencer. O fencing de entrega (`bloquear_para_entrega`) NAO
+    # e exercitado aqui — sua prova determinista, sem timing, esta em
+    # `test_fencing_serializa_duas_replicas_na_entrega` (segura o lock da
+    # replica A e mostra que o re-lock de B retorna vazio + status != pendente
+    # apos o commit). Este teste vale como smoke de exactly-once concorrente
+    # via claim; NAO cobre a corrida de lease-vencido-no-meio-da-entrega.
     import time
 
     outbox_id = _inserir_pendente(engine)
@@ -303,7 +309,8 @@ def test_duas_replicas_concorrentes_entregam_linha_exatamente_uma_vez(
     for t in threads:
         t.join()
 
-    # Fencing: a linha foi entregue por exatamente uma replica.
+    # Exactly-once: a linha foi entregue por exatamente uma replica (o claim
+    # com SKIP LOCKED + lease serializou; o fencing de entrega nao entra aqui).
     assert entregues == [entregues[0]]
     assert len(entregues) == 1
     assert _status(engine, outbox_id) == ("entregue", 0)
