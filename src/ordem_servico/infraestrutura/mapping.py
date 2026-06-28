@@ -8,8 +8,10 @@ imperativos das entidades, e os event listeners responsaveis por:
   e ``preco_unitario_moeda`` na entidade ``ItemDaOrdem``;
 - converter o enum ``StatusOrdem`` para sua representacao string no
   banco (coluna ``status``);
-- serializar/desserializar o VO ``Orcamento`` como snapshot JSON na
-  coluna ``orcamento_json``. Snapshot e preferido a tabela filha
+- serializar/desserializar o VO ``Orcamento`` como snapshot JSONB
+  nativo na coluna ``orcamento_json`` (TD-005: dict cru, sem camada
+  manual json.dumps/loads — mesmo padrao de ``outbox.payload``).
+  Snapshot e preferido a tabela filha
   porque ``Orcamento`` e um VO imutavel versionado por
   ``versao_schema``: uma modelagem relacional convidaria mutacoes
   parciais e perderia a semantica atomica do snapshot;
@@ -20,11 +22,11 @@ imperativos das entidades, e os event listeners responsaveis por:
 
 from __future__ import annotations
 
-import json
 from datetime import datetime
 from decimal import Decimal
 
 from sqlalchemy import (
+    JSON,
     Column,
     DateTime,
     ForeignKey,
@@ -33,10 +35,10 @@ from sqlalchemy import (
     Numeric,
     String,
     Table,
-    Text,
     Uuid,
     event,
 )
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import registry, relationship
 
 from src.compartilhado.dominio.dinheiro import Dinheiro
@@ -53,7 +55,10 @@ ordens_de_servico_table = Table(
     Column("cliente_id", Uuid, ForeignKey("clientes.id"), nullable=False),
     Column("veiculo_id", Uuid, ForeignKey("veiculos.id"), nullable=False),
     Column("status", String(50), nullable=False, default="recebida"),
-    Column("orcamento_json", Text, nullable=True),
+    # Snapshot do orcamento como JSONB nativo (TD-005). Prod/Postgres usa
+    # JSONB; a variante sqlite existe so para que unit-test create_all(sqlite)
+    # nao trave (sqlite nao tem o tipo JSONB). Mesmo padrao de outbox.payload.
+    Column("orcamento_json", JSONB().with_variant(JSON(), "sqlite"), nullable=True),
     Column("criado_em", DateTime(timezone=True), nullable=False),
     Column("atualizado_em", DateTime(timezone=True), nullable=False),
 )
@@ -162,9 +167,11 @@ def iniciar_mapeamentos() -> None:
         # execucao pelo map_imperatively acima.
         status_str = target._status_valor  # type: ignore[attr-defined]  # imperative-mapped attr
         object.__setattr__(target, "_status", StatusOrdem(status_str))
-        json_str = target._orcamento_json  # type: ignore[attr-defined]  # imperative-mapped attr
-        if json_str:
-            data = json.loads(json_str)
+        # A coluna e JSONB nativo (TD-005): o valor ja chega como dict
+        # (adapter jsonb do psycopg2 no Postgres; tipo JSON do SQLAlchemy no
+        # sqlite de teste). Sem json.loads — a camada manual foi removida.
+        data = target._orcamento_json  # type: ignore[attr-defined]  # imperative-mapped attr
+        if data:
             # Snapshots antigos (versao_schema < 2) nao persistiam a moeda;
             # cair para "BRL" como fallback. Snapshots 2+ incluem "moeda"
             # por linha e um "moeda_total" para o agregado, permitindo
@@ -238,6 +245,9 @@ def iniciar_mapeamentos() -> None:
                     for li in orc.itens
                 ],
             }
-            target._orcamento_json = json.dumps(data)
+            # Dict cru para a coluna JSONB (TD-005); psycopg2 + SQLAlchemy
+            # adaptam para jsonb. Sem json.dumps — mesmo padrao de
+            # outbox.payload (camada manual removida).
+            target._orcamento_json = data
         else:
             target._orcamento_json = None
