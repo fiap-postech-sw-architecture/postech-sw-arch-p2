@@ -9,8 +9,10 @@ do cluster (``k8s/prometheus.yaml``).
 
 Metricas (meter ``pytstop-relay``):
 
-- ObservableGauges ``outbox_pendentes`` / ``outbox_idade_mais_antigo_segundos``
-  / ``outbox_dead``: callback roda a MESMA query de profundidade que o gauge
+- ObservableGauges ``outbox_pendentes`` / ``outbox_idade_mais_antigo``
+  (exportado como ``outbox_idade_mais_antigo_seconds`` — o exportador anexa o
+  ``unit="s"`` ao nome) / ``outbox_dead``: callback roda a MESMA query de
+  profundidade que o gauge
   structlog (``consultar_profundidade`` em ``processador.py``) — SQL nao
   duplicado. Os 3 callbacks de UM scrape compartilham um unico ``ProfundidadeOutbox``
   via um cache TTL curto (``_CacheProfundidade``): cada coleta do Prometheus
@@ -237,8 +239,12 @@ def configurar_metricas(engine: Engine) -> bool:
         callbacks=[_observar_pendentes],
         description="Eventos da outbox em status pendente.",
     )
+    # Nome SEM o sufixo `_segundos`: o exportador Prometheus do OTel anexa o
+    # `unit` ("s" -> `_seconds`) ao nome da serie. O nome base + sufixo exportam
+    # como `outbox_idade_mais_antigo_seconds` (idiomatico, como os demais gauges
+    # de segundos); manter `_segundos` no nome geraria `..._segundos_seconds`.
     meter.create_observable_gauge(
-        "outbox_idade_mais_antigo_segundos",
+        "outbox_idade_mais_antigo",
         callbacks=[_observar_idade],
         unit="s",
         description="Idade (segundos) do evento pendente mais antigo.",

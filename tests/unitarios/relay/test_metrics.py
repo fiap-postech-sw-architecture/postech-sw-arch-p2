@@ -262,10 +262,13 @@ class TestFlagLigadaComDependencias:
         # Meter nomeado pytstop-relay; reader injetado no provider.
         assert otel_stubs["meter_nome"] == "pytstop-relay"
         assert otel_stubs["metric_readers"] == [otel_stubs["reader"]]
-        # Os 3 gauges de profundidade registrados.
+        # Os 3 gauges de profundidade registrados. O gauge de idade usa o nome
+        # base `outbox_idade_mais_antigo` (sem `_segundos`): o exportador
+        # Prometheus do OTel anexa o `unit="s"` -> serie
+        # `outbox_idade_mais_antigo_seconds` (evita o duplo `_segundos_seconds`).
         assert set(otel_stubs["gauges"]) == {
             "outbox_pendentes",
-            "outbox_idade_mais_antigo_segundos",
+            "outbox_idade_mais_antigo",
             "outbox_dead",
         }
         # Os 4 counters de entrega registrados.
@@ -338,7 +341,7 @@ class TestFlagLigadaComDependencias:
         # As 3 callbacks de uma mesma coleta (quase simultaneas) compartilham o
         # snapshot do cache: uma unica query.
         (pendentes,) = gauges["outbox_pendentes"][0](None)
-        (idade,) = gauges["outbox_idade_mais_antigo_segundos"][0](None)
+        (idade,) = gauges["outbox_idade_mais_antigo"][0](None)
         (dead,) = gauges["outbox_dead"][0](None)
         assert pendentes.value == 7
         assert idade.value == 12.5
@@ -365,7 +368,7 @@ class TestFlagLigadaComDependencias:
         assert configurar_metricas(object()) is True  # type: ignore[arg-type]
 
         gauges = otel_stubs["gauges"]
-        assert gauges["outbox_idade_mais_antigo_segundos"][0](None) == []
+        assert gauges["outbox_idade_mais_antigo"][0](None) == []
         # pendentes/dead continuam emitindo (zero e significativo neles).
         (pendentes,) = gauges["outbox_pendentes"][0](None)
         assert pendentes.value == 0
