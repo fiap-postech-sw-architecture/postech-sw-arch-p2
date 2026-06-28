@@ -77,6 +77,9 @@ data:
   # sobrescrever o X-Forwarded-For com o IP real do cliente; se ele apenas
   # repassar um XFF enviado pelo cliente, o limite e burlavel (a entrada mais
   # a direita nao-confiavel vira controlada pelo atacante). No ingress-nginx o
-  # comportamento padrao (`use-forwarded-headers`) faz append — confirme antes
-  # de habilitar.
+  # `use-forwarded-headers` controla esse append — confirme antes de habilitar:
+  # em alguns charts/versoes do ingress-nginx o default de
+  # `use-forwarded-headers` e `false` (o controller NAO faz append do XFF), ou
+  # seja, a pre-condicao de append NAO e automatica; habilite-a explicitamente,
+  # senao o XFF do cliente e repassado e o limite fica burlavel.
   TRUSTED_PROXIES: ""

@@ -484,3 +484,88 @@ class TestProxyHeadersChaveDeRateLimit:
 
         assert resp.status_code == 200
         assert resp.json()["client"] == "2001:db8:abcd::42"
+
+
+class TestCriarAppRealOrdemProxyHeadersSlowAPI:
+    """TD-023 (regressao de ORDEM): exercita o ``criar_app`` REAL, nao um app
+    minimo que espelha a ordem manualmente.
+
+    A propriedade critica de seguranca e que, na pilha real, o
+    ``ProxyHeadersMiddleware`` roda ANTES do ``SlowAPIMiddleware`` no request:
+    so assim o ``request.client`` ja foi reescrito pelo XFF confiavel quando o
+    rate limiter le ``request.client.host`` como chave. As demais provas de
+    proxy neste arquivo usam ``_montar_app_proxy`` (app minimo que IMITA a
+    ordem de ``criar_app``); se alguem reordenar os ``configurar_*`` em
+    ``src/main.py:criar_app``, aqueles testes seguem verdes e a regressao passa
+    silenciosa. Este teste fecha essa lacuna driblando o ``criar_app`` de
+    verdade.
+    """
+
+    def test_criar_app_real_proxyheaders_antes_do_slowapi(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # TRUSTED_PROXIES setado ANTES de criar_app: assim
+        # configurar_proxy_headers instala o ProxyHeadersMiddleware na pilha
+        # real (default vazio -> nao instalaria).
+        monkeypatch.setenv("TRUSTED_PROXIES", _PEER_PROXY)
+
+        # O singleton ``limiter`` do modulo congela seu limite default em tempo
+        # de import (60/minute), inviavel para um teste deterministico. Troca-se
+        # por um Limiter de limite BAIXO (2/minute) ANTES de criar_app: o
+        # composition root le ``mw.limiter`` em ``configurar_rate_limiting`` e o
+        # mesmo objeto vira ``app.state.limiter`` lido pelo SlowAPIMiddleware,
+        # entao a troca propaga de ponta a ponta. ``/api/v1/saude`` nao tem
+        # ``@limiter.limit`` proprio -> e governado SO por estes default_limits,
+        # exatamente o caminho do limiter de middleware keyed por
+        # ``get_remote_address``.
+        import src.compartilhado.interfaces.middleware as mw
+
+        limiter_baixo = Limiter(
+            key_func=get_remote_address, default_limits=["2/minute"]
+        )
+        monkeypatch.setattr(mw, "limiter", limiter_baixo)
+
+        # Importa criar_app DEPOIS dos patches (env + singleton) para que a
+        # fabrica monte a pilha real com o proxy-headers ativo e o limite baixo.
+        from src.main import criar_app
+
+        app = criar_app()
+        # Sanidade: a fabrica realmente instalou o limiter de teste (mesma
+        # instancia que os decorators e o middleware compartilham).
+        assert app.state.limiter is limiter_baixo
+
+        # Peer = proxy confiavel; o XFF carrega o IP do cliente real.
+        client = TestClient(app, client=(_PEER_PROXY, 12345))
+        cliente_a = {"X-Forwarded-For": "198.51.100.7"}
+        cliente_b = {"X-Forwarded-For": "198.51.100.8"}
+
+        # Cliente A gasta o limite (2/minute) e e barrado no 3o.
+        assert client.get("/api/v1/saude", headers=cliente_a).status_code == 200
+        assert client.get("/api/v1/saude", headers=cliente_a).status_code == 200
+        assert client.get("/api/v1/saude", headers=cliente_a).status_code == 429
+
+        # Cliente B, atras do MESMO proxy confiavel, cai em bucket SEPARADO ->
+        # 200, 200. Isso so e possivel se o ProxyHeadersMiddleware ja reescreveu
+        # request.client a partir do XFF ANTES do SlowAPIMiddleware ler a chave,
+        # na PILHA REAL. Se alguem mover ``configurar_proxy_headers`` para ANTES
+        # de ``configurar_rate_limiting`` em criar_app (proxy-headers passa a
+        # rodar DEPOIS do SlowAPI), a chave volta a ser o IP do peer, A e B
+        # compartilham o bucket do peer e o cliente B ja viria 429 aqui ->
+        # ESTE TESTE FALHA, capturando a regressao.
+        assert client.get("/api/v1/saude", headers=cliente_b).status_code == 200
+        assert client.get("/api/v1/saude", headers=cliente_b).status_code == 200
+
+    def test_criar_app_real_sem_trusted_proxies_nao_instala_proxyheaders(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Espelho do default SEGURO na pilha REAL: sem TRUSTED_PROXIES o
+        # ProxyHeadersMiddleware NAO e instalado (XFF ignorado, sem spoof).
+        monkeypatch.delenv("TRUSTED_PROXIES", raising=False)
+
+        from src.main import criar_app
+
+        app = criar_app()
+        nomes = [getattr(m.cls, "__name__", "") for m in app.user_middleware]
+        assert "ProxyHeadersMiddleware" not in nomes
+        # SlowAPI segue presente: o rate limiting nao depende do proxy-headers.
+        assert "SlowAPIMiddleware" in nomes
