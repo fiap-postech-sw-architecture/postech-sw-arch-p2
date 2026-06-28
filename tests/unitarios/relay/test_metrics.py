@@ -313,29 +313,40 @@ class TestFlagLigadaComDependencias:
         self, monkeypatch: pytest.MonkeyPatch, otel_stubs: dict
     ) -> None:
         # Os gauges devem ler a profundidade pela MESMA funcao do gauge structlog
-        # (consultar_profundidade) — SQL nao duplicado (TD-022). Faz patch dela e
-        # confere que cada callback emite a observacao certa.
+        # (consultar_profundidade) — SQL nao duplicado (TD-022). Alem disso, as 3
+        # callbacks de UM scrape compartilham um unico snapshot (cache TTL): a
+        # coleta dispara as 3 quase simultaneamente -> UMA query, nao tres, e os
+        # 3 gauges coerentes entre si. Espia a query e confere a contagem.
         monkeypatch.setenv("RELAY_METRICS_ENABLED", "true")
+
+        chamadas = {"n": 0}
+
+        def _query_espiada(_engine: object) -> ProfundidadeOutbox:
+            chamadas["n"] += 1
+            return ProfundidadeOutbox(pendentes=7, idade_mais_antigo_s=12.5, dead=3)
+
         # consultar_profundidade e importada lazy de relay.processador dentro de
         # configurar_metricas; faz patch na origem (o `from ... import ...` resolve
         # o atributo do modulo no momento da chamada).
         monkeypatch.setattr(
-            processador_modulo,
-            "consultar_profundidade",
-            lambda _engine: ProfundidadeOutbox(
-                pendentes=7, idade_mais_antigo_s=12.5, dead=3
-            ),
+            processador_modulo, "consultar_profundidade", _query_espiada
         )
 
         assert configurar_metricas(object()) is True  # type: ignore[arg-type]
 
         gauges = otel_stubs["gauges"]
+        # As 3 callbacks de uma mesma coleta (quase simultaneas) compartilham o
+        # snapshot do cache: uma unica query.
         (pendentes,) = gauges["outbox_pendentes"][0](None)
         (idade,) = gauges["outbox_idade_mais_antigo_segundos"][0](None)
         (dead,) = gauges["outbox_dead"][0](None)
         assert pendentes.value == 7
         assert idade.value == 12.5
         assert dead.value == 3
+        assert chamadas["n"] == 1, (
+            "as 3 callbacks de um scrape devem compartilhar UMA query (cache TTL), "
+            f"mas houve {chamadas['n']} chamadas a consultar_profundidade"
+        )
 
     def test_gauge_idade_omite_observacao_quando_nao_ha_pendentes(
         self, monkeypatch: pytest.MonkeyPatch, otel_stubs: dict

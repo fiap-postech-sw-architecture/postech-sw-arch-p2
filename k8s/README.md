@@ -98,6 +98,8 @@ O ConfigMap liga a instrumentação no cluster de demo (`OTEL_ENABLED=true`): a 
 
 O relay liga as métricas via env **inline** no `k8s/relay.yaml` (`RELAY_METRICS_ENABLED=true`/`RELAY_METRICS_PORT=9100`), e não pelo ConfigMap (diferente do `OTEL_ENABLED` da API, que vem do ConfigMap): o relay expõe `/metrics` no formato Prometheus (porta 9100, Service `pytstop-relay-metrics`) e o **Prometheus faz *scrape*** desse alvo. Com o port-forward do Prometheus acima ativo, abra **http://localhost:9090** e consulte os sinais da outbox: `outbox_pendentes`, `outbox_idade_mais_antigo_segundos`, `outbox_dead` (gauges) e `outbox_entregue_total`/`outbox_falha_total`/`outbox_dead_total`/`outbox_retry_total` (counters). Ausente `RELAY_METRICS_ENABLED`, o relay não sobe o `/metrics` e o alvo fica vazio.
 
+> **Escalar o relay (`replicas>1`)**: os counters (`outbox_*_total`) são in-memory por-processo e o `pytstop-relay-metrics` é um Service ClusterIP (load-balanced), então a `replicas>1` cada *scrape* cai num pod aleatório e `rate()`/`increase()` veriam resets espúrios — operar o relay escalado com counters corretos exige *scrape* por-pod (Service *headless* + *service-discovery*). Os gauges (lidos do banco) não têm esse problema. No demo (`replicas:1`) não se manifesta — detalhe na [ADR-024](../docs/arquitetura/adr/fase2/024-metricas-prometheus.md) (Negativas).
+
 ## Validar o HPA
 
 Num terminal, observe o HPA:

@@ -88,6 +88,12 @@ spec:
 # expoe trafego de negocio — o relay continua sem Service de aplicacao (nao
 # atende HTTP). ClusterIP: o acesso e interno ao cluster (o Prometheus do
 # namespace `pytstop`).
+#
+# Nota (replicas>1): este ClusterIP e load-balanced. Como os counters
+# (outbox_*_total) sao in-memory por-processo, escalar o relay para replicas>1
+# exigiria scrape por-pod (Service headless + service-discovery) para
+# rate()/increase() nao verem resets espurios; os gauges (lidos do banco) nao
+# tem esse problema. Detalhe na ADR-024 (Negativas).
 apiVersion: v1
 kind: Service
 metadata:

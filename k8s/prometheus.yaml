@@ -19,9 +19,9 @@ data:
     scrape_configs:
       # Alvo unico da demo: o /metrics do relay via Service ClusterIP. Targets
       # estaticos (sem service-discovery do k8s) bastam para um alvo fixo e
-      # mantem o RBAC minimo — o pod nao precisa ler a API do cluster.
+      # mantem o RBAC minimo — o pod nao precisa ler a API do cluster. O
+      # scrape_interval e herdado do bloco global (15s acima).
       - job_name: pytstop-relay
-        scrape_interval: 15s
         static_configs:
           - targets:
               - pytstop-relay-metrics:9100
@@ -45,7 +45,8 @@ spec:
     spec:
       containers:
         - name: prometheus
-          image: prom/prometheus
+          # Tag imutavel (ADR-019): nada de `:latest`, build reproduzivel.
+          image: prom/prometheus:v2.54.1
           imagePullPolicy: IfNotPresent
           args:
             - --config.file=/etc/prometheus/prometheus.yml

@@ -12,7 +12,13 @@ Metricas (meter ``pytstop-relay``):
 - ObservableGauges ``outbox_pendentes`` / ``outbox_idade_mais_antigo_segundos``
   / ``outbox_dead``: callback roda a MESMA query de profundidade que o gauge
   structlog (``consultar_profundidade`` em ``processador.py``) — SQL nao
-  duplicado.
+  duplicado. Os 3 callbacks de UM scrape compartilham um unico ``ProfundidadeOutbox``
+  via um cache TTL curto (``_CacheProfundidade``): cada coleta do Prometheus
+  dispara as 3 callbacks quase simultaneamente; sem o cache seriam 3
+  ``engine.begin()`` + 3 agregacoes de tabela cheia por scrape, e os 3 gauges
+  poderiam refletir 3 snapshots diferentes. Com TTL bem abaixo do intervalo de
+  scrape (15s), cada scrape ainda le um valor fresco, mas as 3 callbacks dentro
+  dele veem UMA query e um snapshot consistente.
 - Counters ``outbox_entregue_total`` / ``outbox_falha_total`` /
   ``outbox_dead_total`` / ``outbox_retry_total``: incrementados pelo processador
   nas transicoes de entrega/retry/DLQ via a fachada ``metricas`` (modulo-level).
@@ -30,18 +36,63 @@ para warning + no-op.
 from __future__ import annotations
 
 import os
+import threading
+import time
 from typing import TYPE_CHECKING, Protocol
 
 import structlog
 
 if TYPE_CHECKING:
+    from collections.abc import Callable
+
     from sqlalchemy import Engine
+
+    from relay.processador import ProfundidadeOutbox
 
 _log = structlog.get_logger(__name__)
 
 _VALORES_VERDADEIROS = frozenset({"true", "1"})
 _PORTA_PADRAO = 9100
 _NOME_METER = "pytstop-relay"
+# TTL do snapshot de profundidade compartilhado pelas 3 callbacks de um scrape.
+# Bem abaixo do scrape_interval do Prometheus (15s, k8s/prometheus.yaml): cada
+# scrape recalcula (valor fresco), mas as 3 callbacks quase simultaneas dentro
+# dele reusam um unico ProfundidadeOutbox (1 query, snapshot consistente).
+_TTL_PROFUNDIDADE_S = 2.0
+
+
+class _CacheProfundidade:
+    """Cache TTL thread-safe de ``ProfundidadeOutbox`` por scrape.
+
+    O servidor HTTP do ``prometheus_client`` faz scrape de uma thread propria e
+    dispara as 3 callbacks dos gauges quase simultaneamente. Este cache faz as 3
+    compartilharem uma unica chamada a ``consultar_profundidade`` (1 query +
+    snapshot consistente) e so recomputa quando o valor fica mais velho que o
+    TTL — comodamente abaixo do intervalo de scrape, entao cada scrape ainda le
+    um valor fresco.
+    """
+
+    def __init__(
+        self,
+        consultar: Callable[[], ProfundidadeOutbox],
+        *,
+        ttl_s: float = _TTL_PROFUNDIDADE_S,
+        relogio: Callable[[], float] = time.monotonic,
+    ) -> None:
+        self._consultar = consultar
+        self._ttl_s = ttl_s
+        self._relogio = relogio
+        self._lock = threading.Lock()
+        self._em_cache: tuple[float, ProfundidadeOutbox] | None = None
+
+    def obter(self) -> ProfundidadeOutbox:
+        agora = self._relogio()
+        with self._lock:
+            if self._em_cache is not None and agora - self._em_cache[0] < self._ttl_s:
+                return self._em_cache[1]
+            valor = self._consultar()
+            self._em_cache = (agora, valor)
+            return valor
 
 
 class _Counter(Protocol):
@@ -119,7 +170,9 @@ def configurar_metricas(engine: Engine) -> bool:
     servidor HTTP ``/metrics`` na porta ``RELAY_METRICS_PORT`` (default
     ``9100``) via ``start_http_server``. Registra os ObservableGauges de
     profundidade (callback = ``consultar_profundidade``, mesma query do gauge
-    structlog) e vincula os Counters de entrega na fachada ``metricas``.
+    structlog; as 3 callbacks compartilham um snapshot por scrape via
+    ``_CacheProfundidade`` — 1 query, gauges coerentes) e vincula os Counters de
+    entrega na fachada ``metricas``.
 
     Returns:
         True quando as metricas foram ativadas; False quando a flag esta
@@ -143,6 +196,10 @@ def configurar_metricas(engine: Engine) -> bool:
 
     from relay.processador import consultar_profundidade
 
+    # As 3 callbacks de profundidade compartilham um snapshot por scrape: 1 query
+    # em vez de 3 e os 3 gauges coerentes entre si (TTL << scrape_interval).
+    cache_profundidade = _CacheProfundidade(lambda: consultar_profundidade(engine))
+
     porta = int(os.environ.get("RELAY_METRICS_PORT", str(_PORTA_PADRAO)))
     resource = Resource.create(
         {
@@ -160,20 +217,20 @@ def configurar_metricas(engine: Engine) -> bool:
     def _observar_pendentes(
         _options: CallbackOptions,
     ) -> list[Observation]:
-        return [Observation(consultar_profundidade(engine).pendentes)]
+        return [Observation(cache_profundidade.obter().pendentes)]
 
     def _observar_idade(
         _options: CallbackOptions,
     ) -> list[Observation]:
         # idade e None quando nao ha pendentes (min(...) FILTER -> NULL):
         # nao emite observacao nesse caso (gauge ausente, nao zero enganoso).
-        idade = consultar_profundidade(engine).idade_mais_antigo_s
+        idade = cache_profundidade.obter().idade_mais_antigo_s
         return [] if idade is None else [Observation(idade)]
 
     def _observar_dead(
         _options: CallbackOptions,
     ) -> list[Observation]:
-        return [Observation(consultar_profundidade(engine).dead)]
+        return [Observation(cache_profundidade.obter().dead)]
 
     meter.create_observable_gauge(
         "outbox_pendentes",
