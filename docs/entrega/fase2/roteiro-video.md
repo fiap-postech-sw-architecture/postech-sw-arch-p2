@@ -71,7 +71,7 @@ kubectl --context kind-pytstop -n pytstop port-forward svc/pytstop-api 18000:800
 kubectl --context kind-pytstop -n pytstop port-forward svc/mailpit 8025:8025
 ```
 
-Swagger em **http://localhost:18000/docs** (collection Postman equivalente versionada em [`docs/entrega/fase2/postman_collection.json`](postman_collection.json)). Login: `POST /api/v1/autenticacao/login` com `admin@pytstop.local` / `pytstop-admin-demo-2026` → **Authorize** com o token.
+Swagger em **http://localhost:18000/docs** (collection Postman equivalente versionada em [`docs/entrega/fase2/postman_collection.json`](postman_collection.json)). Login: `POST /api/v1/autenticacao/login` com `admin@pytstop.dev` / `pytstop-admin-demo-2026` → **Authorize** com o token.
 
 **Preparação prévia (fora do ar, antes de gravar o bloco)**: cadastrar 1 cliente (com e-mail no contato), 1 veículo, 2 serviços e 1 item de estoque; criar 2 OS extras e avançá-las para status distintos (uma em diagnóstico, uma aguardando aprovação) para a listagem e a recusa externa terem matéria-prima.
 
