@@ -8,6 +8,7 @@ from sqlalchemy.orm import Session
 
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.cnpj import CNPJ
+from src.cliente_veiculo.dominio.contato import Contato
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.placa import Placa
@@ -75,7 +76,7 @@ def _criar_cliente(documento: CPF | CNPJ, nome: str = "Joao Silva") -> Cliente:
         id=uuid4(),
         _nome=nome,
         _documento=documento,
-        _contato="11999990000",
+        _contato=Contato(valor="11999990000"),
     )
 
 
@@ -89,7 +90,7 @@ class TestEventosMapeamento:
                 id=cliente_id,
                 _nome="Joao Silva",
                 _documento=CPF(numero="21249722519"),
-                _contato="11999990000",
+                _contato=Contato(valor="11999990000"),
             )
             sessao_insert.add(cliente)
             sessao_insert.flush()
@@ -157,7 +158,7 @@ class TestEventosMapeamento:
                 id=cliente_id,
                 _nome="Empresa LTDA",
                 _documento=CNPJ(numero="11222333000181"),
-                _contato="11999990000",
+                _contato=Contato(valor="11999990000"),
             )
             sessao_insert.add(cliente)
             sessao_insert.flush()
@@ -184,7 +185,7 @@ class TestEventosMapeamento:
                 id=cliente_id,
                 _nome="Maria",
                 _documento=CPF(numero="21249722519"),
-                _contato="11988887777",
+                _contato=Contato(valor="11988887777"),
             )
             cliente.adicionar_veiculo(
                 placa=Placa(valor="ABC1D23"),
@@ -207,6 +208,92 @@ class TestEventosMapeamento:
             assert len(carregado.veiculos) == 1
             assert carregado.veiculos[0]._placa.valor == "ABC1D23"
 
+    def test_insert_e_select_de_cliente_reconstroi_contato(
+        self, engine_sqlite: object
+    ) -> None:
+        # Espelha o round-trip da Placa: o VO ``Contato`` decompoe para a coluna
+        # ``contato`` (String(255)) no before_insert e reidrata no load.
+        cliente_id = uuid4()
+        contato_livre = "Maria - maria@x.com / (11) 99999-0000"
+        with Session(engine_sqlite) as sessao_insert:  # type: ignore[arg-type]
+            cliente = Cliente(
+                id=cliente_id,
+                _nome="Maria",
+                _documento=CPF(numero="21249722519"),
+                _contato=Contato(valor=contato_livre),
+            )
+            sessao_insert.add(cliente)
+            sessao_insert.flush()
+            contato_gravado = sessao_insert.scalar(
+                clientes_table.select().with_only_columns(clientes_table.c.contato)
+            )
+            sessao_insert.commit()
+
+        # A coluna guarda a string crua (serializacao do VO), nao o objeto.
+        assert contato_gravado == contato_livre
+
+        with Session(engine_sqlite) as sessao_load:  # type: ignore[arg-type]
+            carregado = sessao_load.get(Cliente, cliente_id)
+            assert carregado is not None
+            assert isinstance(carregado._contato, Contato)
+            assert carregado.contato == Contato(valor=contato_livre)
+            assert carregado.contato.valor == contato_livre
+
+    def test_update_de_contato_persiste_via_before_update(
+        self, engine_sqlite: object
+    ) -> None:
+        # O before_update decompoe o novo VO ``Contato`` de volta para a coluna.
+        cliente_id = uuid4()
+        with Session(engine_sqlite) as sessao_insert:  # type: ignore[arg-type]
+            cliente = Cliente(
+                id=cliente_id,
+                _nome="Joao",
+                _documento=CPF(numero="21249722519"),
+                _contato=Contato(valor="joao@old.com"),
+            )
+            sessao_insert.add(cliente)
+            sessao_insert.commit()
+
+        with Session(engine_sqlite) as sessao_update:  # type: ignore[arg-type]
+            cliente = sessao_update.get(Cliente, cliente_id)
+            assert cliente is not None
+            cliente.atualizar(nome="Joao", contato=Contato(valor="joao@new.com"))
+            sessao_update.flush()
+            contato_gravado = sessao_update.scalar(
+                clientes_table.select()
+                .with_only_columns(clientes_table.c.contato)
+                .where(clientes_table.c.id == cliente_id)
+            )
+            sessao_update.commit()
+
+        assert contato_gravado == "joao@new.com"
+
+    def test_load_reidrata_contato_de_valor_lgpd_anonimizado(
+        self, engine_sqlite: object
+    ) -> None:
+        # ``anonimizar_dados`` grava ``contato="anonimizado@anonimizado.local"``
+        # via raw UPDATE (bypassa listeners). Ao recarregar, o VO PRECISA aceitar
+        # esse sentinela — senao o load explodiria com ValueError.
+        cliente_id = uuid4()
+        with Session(engine_sqlite) as sessao_insert:  # type: ignore[arg-type]
+            sessao_insert.execute(
+                clientes_table.insert().values(
+                    id=cliente_id,
+                    nome="ANONIMIZADO",
+                    documento="ANONIMIZADO",
+                    documento_hash=f"ANONIMIZADO:{cliente_id}",
+                    tipo_documento="cpf",
+                    contato="anonimizado@anonimizado.local",
+                    ativo=False,
+                )
+            )
+            sessao_insert.commit()
+
+        with Session(engine_sqlite) as sessao_load:  # type: ignore[arg-type]
+            carregado = sessao_load.get(Cliente, cliente_id)
+            assert carregado is not None
+            assert carregado.contato == Contato(valor="anonimizado@anonimizado.local")
+
     def test_cliente_carregado_rejeita_mutacao_de_id(
         self, engine_sqlite: object
     ) -> None:
@@ -219,7 +306,7 @@ class TestEventosMapeamento:
                 id=cliente_id,
                 _nome="Joao",
                 _documento=CPF(numero="21249722519"),
-                _contato="11999990000",
+                _contato=Contato(valor="11999990000"),
             )
             sessao_insert.add(cliente)
             sessao_insert.commit()
@@ -241,7 +328,7 @@ class TestEventosMapeamento:
                 id=cliente_id,
                 _nome="Maria",
                 _documento=CPF(numero="21249722519"),
-                _contato="11988887777",
+                _contato=Contato(valor="11988887777"),
             )
             cliente.adicionar_veiculo(
                 placa=Placa(valor="XYZ9W87"),

@@ -19,6 +19,7 @@ from src.compartilhado.dominio.aggregate_root import AggregateRoot
 if TYPE_CHECKING:
     from uuid import UUID
 
+    from src.cliente_veiculo.dominio.contato import Contato
     from src.cliente_veiculo.dominio.documento import Documento
     from src.cliente_veiculo.dominio.placa import Placa
     from src.cliente_veiculo.dominio.veiculo import Veiculo
@@ -46,7 +47,7 @@ class Cliente(AggregateRoot):
     # vazar PII pelo `__repr__` gerado automaticamente pelo dataclass.
     _nome: str = field(default="", repr=False)
     _documento: Documento | None = None  # validated in __post_init__
-    _contato: str = field(default="", repr=False)
+    _contato: Contato | None = field(default=None, repr=False)  # validated below
     _veiculos: list[Veiculo] = field(default_factory=list, repr=False)
     _ativo: bool = True
 
@@ -58,9 +59,12 @@ class Cliente(AggregateRoot):
         if self._documento is None:
             msg = "Documento do cliente e obrigatorio"
             raise ValueError(msg)
+        if self._contato is None:
+            msg = "Contato do cliente e obrigatorio"
+            raise ValueError(msg)
 
     @classmethod
-    def criar(cls, *, nome: str, documento: Documento, contato: str) -> Cliente:
+    def criar(cls, *, nome: str, documento: Documento, contato: Contato) -> Cliente:
         """Factory de cadastro: constroi o Cliente e registra o evento de criacao.
 
         A emissao do `ClienteCadastradoEvent` vive aqui, e nao no
@@ -84,7 +88,10 @@ class Cliente(AggregateRoot):
         return self._documento
 
     @property
-    def contato(self) -> str:
+    def contato(self) -> Contato:
+        if self._contato is None:
+            msg = "Contato do cliente nao pode ser nulo"
+            raise ValueError(msg)
         return self._contato
 
     @property
@@ -139,7 +146,7 @@ class Cliente(AggregateRoot):
         self._ativo = False
         self._registrar_evento(ClienteDesativadoEvent(agregado_id=self.id))
 
-    def atualizar(self, nome: str, contato: str) -> None:
+    def atualizar(self, nome: str, contato: Contato) -> None:
         """Atualiza nome e contato do cliente. Nome vazio e rejeitado."""
         if not nome:
             msg = "Nome do cliente nao pode ser vazio"

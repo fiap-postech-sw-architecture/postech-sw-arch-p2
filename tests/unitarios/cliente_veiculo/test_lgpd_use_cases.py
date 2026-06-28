@@ -14,6 +14,7 @@ from src.cliente_veiculo.aplicacao.lgpd_use_cases import (
 )
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.consentimento import ConsentimentoCliente
+from src.cliente_veiculo.dominio.contato import Contato
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.exceptions import (
@@ -102,7 +103,7 @@ class TestExportarDadosPessoais:
     def test_sucesso(self) -> None:
         repo = FakeClienteRepoLGPD()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         placa = Placa(valor="ABC1234")
         cliente.adicionar_veiculo(placa, "Fiat", "Uno", 2020)
         repo.salvar(cliente)
@@ -131,7 +132,7 @@ class TestExportarDadosPessoais:
             id=cliente_id,
             _nome="ANONIMIZADO",
             _documento=DocumentoAnonimizado(cliente_id=cliente_id),
-            _contato="anonimizado@anonimizado.local",
+            _contato=Contato(valor="anonimizado@anonimizado.local"),
         )
         repo.salvar(cliente)
         uc = ExportarDadosPessoais(repo=repo)
@@ -146,7 +147,7 @@ class TestExcluirDadosPessoais:
         repo = FakeClienteRepoLGPD()
         uow = FakeUnitOfWork()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = ExcluirDadosPessoais(repo=repo, uow=uow)
         uc.executar(cliente.id)
@@ -166,7 +167,7 @@ class TestRegistrarConsentimento:
         repo = FakeClienteRepoLGPD()
         uow = FakeUnitOfWork()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = RegistrarConsentimento(repo=repo, uow=uow)
         dto = RegistrarConsentimentoDTO(tipo="tratamento_dados")
@@ -191,7 +192,7 @@ class TestRevogarConsentimento:
         repo = FakeClienteRepoLGPD()
         uow = FakeUnitOfWork()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         agora = datetime.now(tz=UTC)
         consentimento = ConsentimentoCliente(
@@ -211,7 +212,7 @@ class TestRevogarConsentimento:
         repo = FakeClienteRepoLGPD()
         uow = FakeUnitOfWork()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         agora = datetime.now(tz=UTC)
         consentimento = ConsentimentoCliente(

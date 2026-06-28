@@ -25,6 +25,7 @@ from src.cliente_veiculo.aplicacao.use_cases import (
 )
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.cnpj import CNPJ
+from src.cliente_veiculo.dominio.contato import Contato
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.exceptions import (
     ClienteNaoEncontradoException,
@@ -226,7 +227,7 @@ class TestListarClientes:
     def test_contar(self) -> None:
         repo = FakeClienteRepository()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = ListarClientes(repo=repo)
         assert uc.contar() == 1
@@ -234,7 +235,7 @@ class TestListarClientes:
     def test_com_dados(self) -> None:
         repo = FakeClienteRepository()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = ListarClientes(repo=repo)
         result = uc.executar()
@@ -245,7 +246,9 @@ class TestListarClientes:
         repo = FakeClienteRepository()
         for i in range(5):
             cpf = CPF(numero=_cpf_alternativo(i))
-            cliente = Cliente(_nome=f"Cliente {i}", _documento=cpf, _contato="11999")
+            cliente = Cliente(
+                _nome=f"Cliente {i}", _documento=cpf, _contato=Contato(valor="11999")
+            )
             repo.salvar(cliente)
         uc = ListarClientes(repo=repo)
         result = uc.executar(offset=0, limit=2)
@@ -256,7 +259,7 @@ class TestObterCliente:
     def test_encontrado(self) -> None:
         repo = FakeClienteRepository()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = ObterCliente(repo=repo)
         result = uc.executar(cliente.id)
@@ -274,7 +277,7 @@ class TestAtualizarCliente:
         repo = FakeClienteRepository()
         uow = FakeUnitOfWork()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = AtualizarCliente(repo=repo, uow=uow)
         dto = AtualizarClienteDTO(nome="Joao Silva", contato="11888")
@@ -296,7 +299,7 @@ class TestDesativarCliente:
         uow = FakeUnitOfWork()
         os_port = StubOrdemDeServicoPort(os_ativa_cliente=False)
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = DesativarCliente(repo=repo, uow=uow, os_port=os_port)
         uc.executar(cliente.id)
@@ -308,7 +311,7 @@ class TestDesativarCliente:
         uow = FakeUnitOfWork()
         os_port = StubOrdemDeServicoPort(os_ativa_cliente=True)
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = DesativarCliente(repo=repo, uow=uow, os_port=os_port)
         with pytest.raises(ViolacaoRegraDeNegocioException):
@@ -328,7 +331,7 @@ class TestAdicionarVeiculo:
         repo = FakeClienteRepository()
         uow = FakeUnitOfWork()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = AdicionarVeiculo(repo=repo, uow=uow)
         dto = AdicionarVeiculoDTO(placa="ABC1234", marca="Fiat", modelo="Uno", ano=2020)
@@ -340,12 +343,16 @@ class TestAdicionarVeiculo:
         repo = FakeClienteRepository()
         uow = FakeUnitOfWork()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente1 = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente1 = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999")
+        )
         placa = Placa(valor="ABC1234")
         cliente1.adicionar_veiculo(placa, "Fiat", "Uno", 2020)
         repo.salvar(cliente1)
         cnpj = CNPJ(numero=CNPJ_VALIDO)
-        cliente2 = Cliente(_nome="Maria", _documento=cnpj, _contato="11888")
+        cliente2 = Cliente(
+            _nome="Maria", _documento=cnpj, _contato=Contato(valor="11888")
+        )
         repo.salvar(cliente2)
         uc = AdicionarVeiculo(repo=repo, uow=uow)
         dto = AdicionarVeiculoDTO(placa="ABC1234", marca="VW", modelo="Gol", ano=2021)
@@ -364,7 +371,7 @@ class TestAdicionarVeiculo:
         repo = FakeClienteRepository()
         uow = FakeUnitOfWork()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = AdicionarVeiculo(repo=repo, uow=uow)
         dto = AdicionarVeiculoDTO(placa="ABC1234", marca="  ", modelo="Uno", ano=2020)
@@ -375,7 +382,7 @@ class TestAdicionarVeiculo:
         repo = FakeClienteRepository()
         uow = FakeUnitOfWork()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = AdicionarVeiculo(repo=repo, uow=uow)
         dto = AdicionarVeiculoDTO(placa="ABC1234", marca="Fiat", modelo="", ano=2020)
@@ -387,7 +394,7 @@ class TestListarVeiculos:
     def test_com_veiculos(self) -> None:
         repo = FakeClienteRepository()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         placa = Placa(valor="ABC1234")
         cliente.adicionar_veiculo(placa, "Fiat", "Uno", 2020)
         repo.salvar(cliente)
@@ -398,7 +405,7 @@ class TestListarVeiculos:
     def test_sem_veiculos(self) -> None:
         repo = FakeClienteRepository()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = ListarVeiculos(repo=repo)
         assert uc.executar(cliente.id) == []
@@ -416,7 +423,7 @@ class TestRemoverVeiculo:
         uow = FakeUnitOfWork()
         os_port = StubOrdemDeServicoPort(os_para_veiculo=False)
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         placa = Placa(valor="ABC1234")
         veiculo = cliente.adicionar_veiculo(placa, "Fiat", "Uno", 2020)
         repo.salvar(cliente)
@@ -430,7 +437,7 @@ class TestRemoverVeiculo:
         uow = FakeUnitOfWork()
         os_port = StubOrdemDeServicoPort(os_para_veiculo=True)
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         placa = Placa(valor="ABC1234")
         veiculo = cliente.adicionar_veiculo(placa, "Fiat", "Uno", 2020)
         repo.salvar(cliente)
@@ -444,7 +451,7 @@ class TestRemoverVeiculo:
         uow = FakeUnitOfWork()
         os_port = StubOrdemDeServicoPort()
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
         uc = RemoverVeiculo(repo=repo, uow=uow, os_port=os_port)
         with pytest.raises(VeiculoNaoEncontradoException):
@@ -469,7 +476,7 @@ class TestRemoverVeiculo:
         uow = FakeUnitOfWork()
         os_port = StubOrdemDeServicoPort(os_para_veiculo=False)
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         placa = Placa(valor="ABC1234")
         veiculo = cliente.adicionar_veiculo(placa, "Fiat", "Uno", 2020)
         repo.salvar(cliente)
@@ -500,7 +507,7 @@ class TestTipoDocumentoGuardaTipoDesconhecido:
         from src.cliente_veiculo.aplicacao.use_cases import _tipo_documento
 
         cpf = CPF(numero=CPF_VALIDO)
-        cliente = Cliente(_nome="Joao", _documento=cpf, _contato="11999")
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         # Substitui o documento por uma implementacao que nao e CPF nem CNPJ
         object.__setattr__(cliente, "_documento", _DocumentoFake())
 

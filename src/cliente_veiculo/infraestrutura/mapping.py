@@ -16,6 +16,7 @@ from sqlalchemy.orm import registry, relationship
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.cnpj import CNPJ
 from src.cliente_veiculo.dominio.consentimento import ConsentimentoCliente
+from src.cliente_veiculo.dominio.contato import Contato
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.placa import Placa
@@ -64,7 +65,7 @@ consentimentos_table = Table(
 _mapeamento_iniciado = False
 
 
-def iniciar_mapeamentos() -> None:  # noqa: C901  # mapeamento declarativo coeso
+def iniciar_mapeamentos() -> None:  # noqa: C901, PLR0915  # mapeamento declarativo coeso
     global _mapeamento_iniciado  # noqa: PLW0603  # init-once flag
     if _mapeamento_iniciado:
         return
@@ -93,7 +94,7 @@ def iniciar_mapeamentos() -> None:  # noqa: C901  # mapeamento declarativo coeso
             "_documento_numero": clientes_table.c.documento,
             "_documento_hash": clientes_table.c.documento_hash,
             "_tipo_documento": clientes_table.c.tipo_documento,
-            "_contato": clientes_table.c.contato,
+            "_contato_valor": clientes_table.c.contato,
             "_ativo": clientes_table.c.ativo,
             "_veiculos": relationship(
                 Veiculo,
@@ -148,6 +149,8 @@ def iniciar_mapeamentos() -> None:  # noqa: C901  # mapeamento declarativo coeso
             msg = f"tipo_documento invalido ao reidratar Cliente: {tipo!r}"
             raise ValueError(msg)
         object.__setattr__(target, "_documento", doc)
+        contato_valor: str = target._contato_valor  # type: ignore[attr-defined]
+        object.__setattr__(target, "_contato", Contato(valor=contato_valor))
         object.__setattr__(target, "_id_atribuido", True)
         object.__setattr__(target, "_eventos_pendentes", [])
 
@@ -169,6 +172,20 @@ def iniciar_mapeamentos() -> None:  # noqa: C901  # mapeamento declarativo coeso
     @event.listens_for(Veiculo, "before_update")
     def _decompor_placa(_mapper: object, _connection: object, target: Veiculo) -> None:
         target._placa_valor = target.placa.valor
+
+    @event.listens_for(Cliente, "before_insert")
+    @event.listens_for(Cliente, "before_update")
+    def _decompor_contato(
+        _mapper: object, _connection: object, target: Cliente
+    ) -> None:
+        # Espelha ``_decompor_placa``: serializa o VO ``Contato`` de volta para
+        # a coluna ``contato`` (String(255)) via shadow ``_contato_valor``.
+        # Incondicional inclusive para clientes anonimizados: o ``anonimizar_dados``
+        # ja gravou ``contato="anonimizado@anonimizado.local"`` (raw UPDATE) e o
+        # ``_contato`` em memoria foi reidratado com esse mesmo valor, entao
+        # re-escreve-lo aqui e idempotente (sem o problema de hash unico que o
+        # documento tem).
+        target._contato_valor = target.contato.valor
 
     @event.listens_for(Cliente, "before_insert")
     @event.listens_for(Cliente, "before_update")

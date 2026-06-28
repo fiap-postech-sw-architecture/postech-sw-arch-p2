@@ -11,6 +11,7 @@ from src.autenticacao.dominio.usuario import Usuario
 from src.catalogo_servicos.dominio.servico_oferecido import ServicoOferecido
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.cnpj import CNPJ
+from src.cliente_veiculo.dominio.contato import Contato
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.placa import Placa
@@ -46,7 +47,7 @@ def _criar_cliente_cpf(
     cliente = Cliente(
         _nome=nome,
         _documento=CPF(numero=cpf_numero),
-        _contato=contato,
+        _contato=Contato(valor=contato),
     )
     repo.salvar(cliente)
     return cliente
@@ -66,7 +67,7 @@ def _criar_cliente_cnpj(
     cliente = Cliente(
         _nome=nome,
         _documento=CNPJ(numero=cnpj_numero),
-        _contato=contato,
+        _contato=Contato(valor=contato),
     )
     repo.salvar(cliente)
     return cliente
@@ -322,7 +323,7 @@ class TestClienteRepository:
         assert resultado.nome == "Maria Silva"
         assert isinstance(resultado.documento, CPF)
         assert resultado.documento.numero == "21249722519"
-        assert resultado.contato == "11999990000"
+        assert resultado.contato == Contato(valor="11999990000")
         assert resultado.ativo is True
 
     def test_salvar_e_obter_com_cnpj(self, session: Session) -> None:
@@ -377,7 +378,7 @@ class TestClienteRepository:
         duplicado = Cliente(
             _nome="Outro Nome",
             _documento=CPF(numero="21249722519"),
-            _contato="11888880000",
+            _contato=Contato(valor="11888880000"),
         )
         with pytest.raises(IntegrityError):
             repo.salvar(duplicado)
@@ -467,14 +468,14 @@ class TestClienteRepository:
 
         repo = ClienteSQLAlchemyRepository(session=session)
         cliente = _criar_cliente_cpf(session)
-        cliente.atualizar(nome="Maria Souza", contato="11888881111")
+        cliente.atualizar(nome="Maria Souza", contato=Contato(valor="11888881111"))
         session.flush()
 
         resultado = repo.obter_por_id(cliente.id)
 
         assert resultado is not None
         assert resultado.nome == "Maria Souza"
-        assert resultado.contato == "11888881111"
+        assert resultado.contato == Contato(valor="11888881111")
 
     def test_desativar_cliente(self, session: Session) -> None:
         from src.cliente_veiculo.infraestrutura.repository import (

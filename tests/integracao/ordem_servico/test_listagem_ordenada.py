@@ -27,6 +27,7 @@ from uuid import UUID, uuid4
 import pytest
 
 from src.cliente_veiculo.dominio.cliente import Cliente
+from src.cliente_veiculo.dominio.contato import Contato
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.placa import Placa
 from src.ordem_servico.dominio.status import StatusOrdem
@@ -51,7 +52,7 @@ def _criar_cliente_com_veiculo(session: Session) -> tuple[UUID, UUID]:
     cliente = Cliente(
         _nome="Cliente Listagem",
         _documento=CPF(numero="21249722519"),
-        _contato="11999990000",
+        _contato=Contato(valor="11999990000"),
     )
     ClienteSQLAlchemyRepository(session=session).salvar(cliente)
     cliente.adicionar_veiculo(
