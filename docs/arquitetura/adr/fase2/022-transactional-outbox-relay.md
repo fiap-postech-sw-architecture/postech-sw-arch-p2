@@ -82,7 +82,7 @@ Detalhes de implementação em [relay/processador.py](../../../../relay/processa
 * Entrega **at-least-once**, não exactly-once: o consumidor precisa ser idempotente — resolvido com `processed_events`, mas é disciplina obrigatória para todo handler novo
 * Consistência **eventual**: a notificação chega logo após o commit, não dentro dele — aceitável para e-mail, a registrar caso surja um consumidor que exija sincronia
 * Um processo a mais para empacotar, deployar e observar
-* O relay roda com `replicas: 1`: a topologia HA com *fencing* de lease para `replicas>1` fica como **TD-021**; e ainda não há métricas OTel no processo do relay (só structlog), registrado como **TD-022**
+* O relay roda com `replicas: 1` como default conservador, mas `replicas>1` já é **seguro**: o *fencing* de lease na entrega (re-lock `FOR UPDATE SKIP LOCKED` + checagem de status `pendente` na transação por-linha — `bloquear_para_entrega` em [relay/processador.py](../../../../relay/processador.py)) serializa réplicas concorrentes sobre a mesma linha, sem duplicar a entrega mesmo se um lease vencer no meio de uma entrega lenta (**TD-021**, fechado no PR #66, sem mudança de schema). Permanece em aberto a ausência de métricas OTel no processo do relay (só structlog), registrada como **TD-022**
 
 ### Neutras
 
@@ -101,8 +101,8 @@ Detalhes de implementação em [relay/processador.py](../../../../relay/processa
 
 ## Notas
 
-* Requisito: [RF-018](../../../requisitos/requisitos.md). Resolve **TD-008**; deixa em aberto **TD-021** (fencing de lease para `replicas>1`) e **TD-022** (métricas OTel + alerting no relay) — ver [tech-debt.md](../../../tech-debt/README.md)
-* Implementação: PR #56
-* Gatilhos de revisão: necessidade de escalar o relay para `replicas>1` (exige o fencing do TD-021); volume ou requisito de integração que justifique promover o broker dedicado, passando a outbox a alimentá-lo em vez do SMTP direto
+* Requisito: [RF-018](../../../requisitos/requisitos.md). Resolve **TD-008** e, depois, **TD-021** (fencing de lease na entrega, PR #66 — `replicas>1` agora é seguro); deixa em aberto **TD-022** (métricas OTel + alerting no relay) — ver [tech-debt.md](../../../tech-debt/README.md)
+* Implementação: PR #56 (outbox + relay); fencing de lease no PR #66 (TD-021)
+* Gatilhos de revisão: escalar o relay para `replicas>1` já é seguro com o fencing de lease (TD-021); o gatilho remanescente é volume ou requisito de integração que justifique promover o broker dedicado, passando a outbox a alimentá-lo em vez do SMTP direto
 
 > [↑ Raiz do projeto](../../../../README.md) · [↑ Arquitetura](../../README.md)

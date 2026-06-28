@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../README.md)
 
-Manifests da aplicação PytStop para o cluster kind da fase 2 (RNF-020): Deployment, Service, ConfigMap, Secret e HPA, mais o Mailpit de demonstração ([ADR-018](../docs/arquitetura/adr/fase2/018-notificacao-email.md)) e o Jaeger de traces ([ADR-020](../docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md)). O desenho integrado está na [RFC-002](../docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md) (§2, §5 e §6).
+Manifests da aplicação PytStop para o cluster kind da fase 2 (RNF-020): Deployment, Service, ConfigMap, Secret e HPA, mais o Mailpit de demonstração ([ADR-018](../docs/arquitetura/adr/fase2/018-notificacao-email.md)), o Jaeger de traces ([ADR-020](../docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md)) e o Prometheus que coleta as métricas do relay ([ADR-024](../docs/arquitetura/adr/fase2/024-metricas-prometheus.md)). O desenho integrado está na [RFC-002](../docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md) (§2, §5 e §6).
 
 | Arquivo | Recurso |
 |---|---|
@@ -14,6 +14,8 @@ Manifests da aplicação PytStop para o cluster kind da fase 2 (RNF-020): Deploy
 | `hpa.yaml` | HPA por CPU e memória, 1–5 réplicas |
 | `mailpit.yaml` | Mailpit — SMTP de demo + UI web |
 | `jaeger.yaml` | Jaeger all-in-one — traces OTLP da demo (ADR-020) |
+| `prometheus.yaml` | Prometheus — Deployment + Service (9090) que faz *scrape* das métricas do relay (ADR-024) |
+| `relay.yaml` | Relay de eventos + Service `pytstop-relay-metrics` (9100) expondo o `/metrics` do relay (ADR-022/ADR-024) |
 | `jobs/migration-job.yaml` | `pytstop-migrate` — Job de migração do schema (TD-015), **aplicado à parte** (ver abaixo) |
 
 > O `jobs/migration-job.yaml` fica num **subdir** de propósito: `kubectl apply -f k8s/` não é recursivo, então o Job **não** entra no apply do diretório. Ele é aplicado separadamente, com a tag do SHA substituída, **antes do rollout** (seção [Aplicar](#aplicar)) — resolve a corrida de migração com N réplicas (TD-015; [ADR-019](../docs/arquitetura/adr/fase2/019-pipeline-cicd-deploy.md)).
@@ -71,7 +73,7 @@ O fluxo integrado (`make cd-local` / CD na main) já executa esses passos na ord
 ## Conferir
 
 ```bash
-kubectl get pods -n pytstop                  # pytstop-api, mailpit e jaeger 1/1 Running
+kubectl get pods -n pytstop                  # pytstop-api, mailpit, jaeger e prometheus 1/1 Running
 kubectl get hpa -n pytstop                   # percentuais de cpu/memoria (exige metrics-server)
 kubectl logs -n pytstop deploy/pytstop-api   # so uvicorn no boot (migracao roda no Job)
 kubectl logs -n pytstop job/pytstop-migrate  # alembic upgrade head + seed do admin
@@ -85,11 +87,16 @@ No cluster a migração **não** roda no boot do pod: o Job `pytstop-migrate` ro
 kubectl port-forward -n pytstop svc/pytstop-api 8000:8000   # API: http://localhost:8000/docs
 kubectl port-forward -n pytstop svc/mailpit 8025:8025       # Mailpit UI: http://localhost:8025
 kubectl port-forward -n pytstop svc/jaeger 16686:16686      # Jaeger UI: http://localhost:16686
+kubectl port-forward -n pytstop svc/prometheus 9090:9090    # Prometheus UI: http://localhost:9090
 ```
 
 ## Ver traces no Jaeger (ADR-020)
 
 O ConfigMap liga a instrumentação no cluster de demo (`OTEL_ENABLED=true`): a API exporta traces OTLP direto para o Service `jaeger` (porta 4317). Com o port-forward acima ativo, faça qualquer requisição à API (ex.: login no Swagger ou uma listagem) e abra **http://localhost:16686** — selecione o serviço `pytstop-api` e clique em *Find Traces*. Cada trace mostra a jornada da requisição: span do endpoint FastAPI com os spans das queries SQLAlchemy aninhados. `/api/v1/saude` fica fora do trace de propósito (probes do kubelet gerariam ruído contínuo).
+
+## Ver métricas no Prometheus (ADR-024)
+
+O ConfigMap liga as métricas do relay no cluster de demo (`RELAY_METRICS_ENABLED=true`): o relay expõe `/metrics` no formato Prometheus (porta 9100, Service `pytstop-relay-metrics`) e o **Prometheus faz *scrape*** desse alvo. Com o port-forward do Prometheus acima ativo, abra **http://localhost:9090** e consulte os sinais da outbox: `outbox_pendentes`, `outbox_idade_mais_antigo_segundos`, `outbox_dead` (gauges) e `outbox_entregue_total`/`outbox_falha_total`/`outbox_dead_total`/`outbox_retry_total` (counters). Ausente `RELAY_METRICS_ENABLED`, o relay não sobe o `/metrics` e o alvo fica vazio.
 
 ## Validar o HPA
 
@@ -118,7 +125,7 @@ kubectl delete pod -n pytstop gerador-carga
 kubectl delete namespace pytstop
 ```
 
-Remove aplicação, Mailpit, Jaeger e configuração de uma vez. A infraestrutura de `/infra` (cluster e banco) é gerenciada pelo Terraform (`terraform destroy`).
+Remove aplicação, Mailpit, Jaeger, Prometheus e configuração de uma vez. A infraestrutura de `/infra` (cluster e banco) é gerenciada pelo Terraform (`terraform destroy`).
 
 ---
 

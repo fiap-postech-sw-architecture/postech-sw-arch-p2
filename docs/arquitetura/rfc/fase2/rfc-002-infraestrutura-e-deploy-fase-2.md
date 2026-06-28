@@ -36,7 +36,7 @@ Objetivos, amarrados aos requisitos do [gap analysis](../../../requisitos/fase2/
 - **CD real**: push na main produz imagem versionada por SHA e implanta o sistema do zero em cluster efêmero no runner, com smoke test (RNF-022 — [ADR-019](../../adr/fase2/019-pipeline-cicd-deploy.md));
 - **Escalabilidade automática** por CPU e memória, com probes e resources como pré-requisitos (RNF-020/RNF-023) e comportamento correto com N réplicas (RNF-024);
 - **Notificação de status por e-mail** demonstrável no vídeo, sem segredo pessoal (RF-024 — [ADR-018](../../adr/fase2/018-notificacao-email.md));
-- **Observabilidade mínima condicional** — traces na Jaeger UI como onda final, somente após os obrigatórios verdes ([ADR-020](../../adr/fase2/020-observabilidade-opentelemetry.md));
+- **Observabilidade** — traces na Jaeger UI como onda final condicional, somente após os obrigatórios verdes ([ADR-020](../../adr/fase2/020-observabilidade-opentelemetry.md)); e **métricas** do relay no Prometheus ([ADR-024](../../adr/fase2/024-metricas-prometheus.md)), que reabriu a ADR-020 na parte de métricas (TD-022);
 - **Refatoração Clean Architecture sem rewrite** como pano de fundo: a aplicação implantada é o mesmo monolito modular, com as camadas renomeadas e a borda subdividida (RNF-017 — [ADR-015](../../adr/fase2/015-arquitetura-alvo-fase-2.md)).
 
 Não são objetivos desta RFC: o design fino da evolução funcional da API (resumido na seção 8, detalhado no [gap analysis §3](../../../requisitos/fase2/gap-analysis-fase-2.md)); operação de produção real (durabilidade, alta disponibilidade, entregabilidade de e-mail — limitações aceitas e registradas na seção 9); e valores finais de tuning, que ficam deferidos ao plano da fase de implementação.
@@ -66,6 +66,7 @@ O PostgreSQL 16 ([ADR-002](../../adr/002-banco-postgresql.md)) vive dentro do cl
 - **Jaeger all-in-one** ([ADR-020](../../adr/fase2/020-observabilidade-opentelemetry.md)): backend de traces com receiver OTLP, no mesmo padrão Deployment + Service + port-forward — **onda final condicional**, executada somente com os obrigatórios verdes. A exportação é OTLP direta do SDK para o Jaeger, sem Collector — divergência da recomendação de produção aceita e registrada no ADR; sem o endpoint OTLP configurado, a instrumentação fica inerte e nada disso entra no caminho crítico.
 - **Relay de eventos** ([ADR-022](../../adr/fase2/022-transactional-outbox-relay.md)): Deployment próprio (`python -m relay`, `replicas: 1`) que consome a tabela `outbox` no PostgreSQL via LISTEN/NOTIFY + claim-then-deliver e entrega a notificação por e-mail via SMTP ao Mailpit. A `UnitOfWork` grava o `IntegrationEvent` na mesma transação da mudança de OS, eliminando o dual-write (RF-024/RF-018); o dispatcher síncrono foi congelado vazio.
 - **Redis** ([ADR-023](../../adr/fase2/023-rate-limiter-storage-compartilhado.md)): Deployment + Service ClusterIP, store compartilhado do rate limiter slowapi via `RATE_LIMIT_STORAGE_URI`/`storage_uri` — limite por IP correto e global sob HPA, sem persistência nem senha (serviço de demo). Ausente a env, o storage cai para `memory://`; queda do Redis em runtime degrada graciosamente para per-réplica.
+- **Prometheus** ([ADR-024](../../adr/fase2/024-metricas-prometheus.md)): Deployment + Service (porta 9090) que faz *scrape* do endpoint `/metrics` do relay (porta 9100, Service `pytstop-relay-metrics`), trazendo o **pilar de métricas** que a observabilidade da fase ([ADR-020](../../adr/fase2/020-observabilidade-opentelemetry.md)) deixara de fora. O relay é instrumentado com um `MeterProvider` do OTel + `PrometheusMetricReader` expondo profundidade da outbox, idade do pendente mais antigo, tamanho da DLQ e contadores de entrega/falha/retry — opt-in por `RELAY_METRICS_ENABLED` (ausente, a instrumentação fica inerte). Sem persistência nem HA (serviço de demo), UI por port-forward; supersede parcialmente a ADR-020 na parte de métricas (os traces seguem inalterados). Resolve **TD-022**.
 
 Fora do cluster: o `docker-compose.yml` continua sendo o caminho de desenvolvimento local rápido (RNF-019), com paridade de imagem e variáveis; `ui/` permanece sandbox dev-only sem manifest.
 
@@ -75,7 +76,7 @@ A divisão espelha o próprio challenge, que separa "deploy do banco de dados" d
 
 | | `/infra` (Terraform) | `/k8s` (manifests YAML) |
 |---|---|---|
-| Conteúdo | cluster kind, metrics-server, PostgreSQL (StatefulSet, Service, PVC, Secret de credenciais) | aplicação (Deployment, Service, ConfigMap, Secret, HPA), Mailpit, Jaeger condicional, Relay de eventos, Redis |
+| Conteúdo | cluster kind, metrics-server, PostgreSQL (StatefulSet, Service, PVC, Secret de credenciais) | aplicação (Deployment, Service, ConfigMap, Secret, HPA), Mailpit, Jaeger condicional, Relay de eventos, Redis, Prometheus |
 | Quem aplica | `terraform apply` | `kubectl apply -f k8s/` — pelo pipeline e pelos alvos make locais |
 | Natureza | infraestrutura-base, muda raramente | artefatos de implantação, mudam com a aplicação |
 | Requisito | RNF-021 | RNF-020, RNF-022 |
@@ -115,6 +116,7 @@ flowchart TB
             jaeger["Jaeger all-in-one (ADR-020)<br/>onda final condicional"]
             relay["Relay de eventos (ADR-022)<br/>Deployment — outbox→SMTP"]
             redis["Redis (ADR-023)<br/>Deployment + Service — rate limit"]
+            prometheus["Prometheus (ADR-024)<br/>Deployment + Service — métricas do relay"]
         end
     end
 
@@ -128,6 +130,7 @@ flowchart TB
     relay -->|"SMTP"| mailpit
     app -.->|"rate limit"| redis
     app -.->|"traces OTLP"| jaeger
+    prometheus -.->|"scrape /metrics"| relay
 ```
 
 Notas de leitura:
@@ -275,6 +278,7 @@ As alternativas foram avaliadas decisão a decisão nos ADRs — este RFC não a
 | Adapter SMTP genérico + Mailpit | provedor SaaS (SendGrid/SES); adapter de log/console | [ADR-018](../../adr/fase2/018-notificacao-email.md) |
 | CD em cluster kind efêmero no runner | cluster cloud persistente; sem CD (deploy manual documentado) | [ADR-019](../../adr/fase2/019-pipeline-cicd-deploy.md) |
 | OTel em escopo mínimo condicional | stack completa (Collector + Prometheus + Grafana + Loki); nenhuma instrumentação | [ADR-020](../../adr/fase2/020-observabilidade-opentelemetry.md) |
+| Métricas via Prometheus + relay instrumentado (OTel) | push OTLP ao Jaeger (não armazena métricas); só o gauge structlog; stack completa | [ADR-024](../../adr/fase2/024-metricas-prometheus.md) |
 
 ## Referências
 

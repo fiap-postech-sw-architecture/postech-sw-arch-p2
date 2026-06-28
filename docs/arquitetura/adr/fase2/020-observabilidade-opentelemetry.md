@@ -66,6 +66,7 @@ Do outro lado da balança, o escopo obrigatório da fase já é grande — o gap
 ### Negativas
 
 * Métricas e logs ficam de fora: perguntas de tendência (latência p95, taxa de erro) seguem sem resposta na fase 2 — a métrica existente é a do metrics-server do HPA, mecanismo independente
+  * _Nota posterior:_ a parte de **métricas**, excluída aqui de propósito, foi adicionada depois pela [ADR-024](024-metricas-prometheus.md) — Prometheus no cluster + o relay instrumentado com OTel (profundidade da outbox, idade do pendente mais antigo, DLQ, contadores de entrega/falha/retry). Os traces seguem como decididos nesta ADR; esta consequência reflete o escopo no momento desta decisão (mantida como registro histórico)
 * A ausência do Collector pode ser notada por avaliador que siga o material à risca — mitigada por este ADR registrar a divergência e o motivo
 * Por desenho, a onda pode ser cortada: o ADR pode terminar a fase como Proposta sem implementação — preferível a comprometer obrigatórios
 
@@ -74,6 +75,7 @@ Do outro lado da balança, o escopo obrigatório da fase já é grande — o gap
 * Versões das bibliotecas, variáveis `OTEL_*`, manifest do Jaeger, amostragem e um eventual span manual de negócio (ex.: aprovação de orçamento, o tipo de contexto que a Aula 05 recomenda adicionar à instrumentação automática) ficam deferidos ao plano de execução da infraestrutura (fase de implementação), fora deste ADR
 * A demo de HPA (RNF-023) não depende desta decisão — metrics-server e OTel são trilhos separados
 * Se a banca vier a exigir os três pilares, a reabertura deste ADR parte da alternativa de stack completa
+  * _Nota posterior:_ a reabertura aconteceu pela **parte de métricas** (não pela stack completa): a [ADR-024](024-metricas-prometheus.md) adicionou o Prometheus + o relay instrumentado, superando parcialmente esta ADR nessa parte; os traces seguem aqui
 
 ## Decisões Relacionadas
 

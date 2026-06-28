@@ -1,10 +1,16 @@
 # Deployment do relay da Transactional Outbox (RF-018 / TD-008). Mesma
 # imagem da API; sobrescreve o command para `python -m relay` (sem
 # uvicorn, sem migrations -- a migracao roda no Job `pytstop-migrate`
-# antes do rollout, TD-015). replicas:1 por desenho: o relay processa a
-# outbox ORDER BY id;
-# `FOR UPDATE SKIP LOCKED` deixa N replicas seguras no futuro sem
-# reprocessar. SEM Service (nao atende trafego HTTP).
+# antes do rollout, TD-015). replicas:1 e o default conservador, NAO um
+# limite: o relay processa a outbox ORDER BY id e, alem do claim com
+# `FOR UPDATE SKIP LOCKED`, faz fencing de lease na entrega (re-lock
+# `FOR UPDATE SKIP LOCKED` + checagem de status na tx por-linha,
+# relay/processador.py) -- isso torna `replicas>1` seguro sem duplicar a
+# entrega, mesmo se um lease vencer no meio de uma entrega lenta (TD-021
+# fechado). Escalavel com seguranca; mantido em 1 por ora. NAO atende
+# trafego HTTP de negocio; expoe apenas /metrics (porta 9100) para o
+# Prometheus scrapear (TD-022/ADR-024) via o Service `pytstop-relay-metrics`
+# abaixo.
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,6 +19,8 @@ metadata:
   labels:
     app: pytstop-relay
 spec:
+  # Seguro escalar para >1: o fencing de lease na entrega (TD-021) serializa
+  # as replicas por linha. Mantido em 1 como default conservador.
   replicas: 1
   selector:
     matchLabels:
@@ -38,10 +46,22 @@ spec:
             - secretRef:
                 name: pytstop-secrets
           # Caminho do heartbeat explicito no container (alinhado ao default
-          # do ConfigMap): a probe abaixo le este mesmo arquivo.
+          # do ConfigMap): a probe abaixo le este mesmo arquivo. As envs de
+          # metricas (TD-022/ADR-024) ligam o /metrics: RELAY_METRICS_ENABLED
+          # gateia a instrumentacao OTel (relay/metrics.py) e RELAY_METRICS_PORT
+          # casa com a `containerPort: 9100` e o Service `pytstop-relay-metrics`.
           env:
             - name: RELAY_HEARTBEAT
               value: /tmp/relay-heartbeat
+            - name: RELAY_METRICS_ENABLED
+              value: "true"
+            - name: RELAY_METRICS_PORT
+              value: "9100"
+          # Servidor /metrics do Prometheus (TD-022): NAO e trafego de negocio,
+          # apenas o endpoint scrapeado pelo job `pytstop-relay` (k8s/prometheus.yaml).
+          ports:
+            - name: metrics
+              containerPort: 9100
           # Liveness por HEARTBEAT (F6), nao por `kill -0 1`: um SMTP travado
           # ou loop preso mantem o PID 1 vivo, mas para de atualizar o
           # heartbeat. A probe falha se o arquivo nao existir ou estiver mais
@@ -62,3 +82,24 @@ spec:
             limits:
               cpu: 250m
               memory: 256Mi
+---
+# Service so do /metrics (TD-022/ADR-024): da um nome DNS estavel
+# (`pytstop-relay-metrics:9100`) para o Prometheus scrapear o relay. NAO
+# expoe trafego de negocio — o relay continua sem Service de aplicacao (nao
+# atende HTTP). ClusterIP: o acesso e interno ao cluster (o Prometheus do
+# namespace `pytstop`).
+apiVersion: v1
+kind: Service
+metadata:
+  name: pytstop-relay-metrics
+  namespace: pytstop
+  labels:
+    app: pytstop-relay
+spec:
+  type: ClusterIP
+  selector:
+    app: pytstop-relay
+  ports:
+    - name: metrics
+      port: 9100
+      targetPort: 9100

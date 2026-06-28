@@ -8,7 +8,7 @@ from relay.processador import LinhaOutbox, processar_linha
 class _ConnFake:
     """Captura os efeitos colaterais de processar_linha (sem banco)."""
 
-    def __init__(self, ja_processado: bool = False) -> None:
+    def __init__(self, ja_processado: bool = False, bloquear: bool = True) -> None:
         self.marcado_entregue: list[int] = []
         self.marcado_processed: list[tuple[int, str]] = []
         self.agendado_retry: list[tuple[int, int]] = []
@@ -19,7 +19,15 @@ class _ConnFake:
         # asseverar que PII foi redacted antes de gravar no banco).
         self.erros_retry: list[str] = []
         self.erros_dead: list[str] = []
+        # bloqueados captura os ids para os quais o fencing foi consultado
+        # (TD-021): o re-lock `FOR UPDATE SKIP LOCKED` na tx por-linha.
+        self.bloqueados: list[int] = []
         self._ja_processado = ja_processado
+        self._bloquear = bloquear
+
+    def bloquear_para_entrega(self, outbox_id: int) -> bool:
+        self.bloqueados.append(outbox_id)
+        return self._bloquear
 
     def ja_processado(self, outbox_id: int, handler: str) -> bool:
         return self._ja_processado
@@ -89,6 +97,28 @@ def test_idempotencia_pula_handler_ja_processado() -> None:
     assert chamado == []  # nao invoca o handler
     assert conn.marcado_entregue == [42]  # mas marca entregue (idempotente)
     assert conn.marcado_processed == []
+
+
+def test_fencing_falho_pula_entrega_sem_chamar_handler() -> None:
+    # TD-021: se o re-lock da linha falha (outra replica detem a entrega, ou a
+    # linha nao esta mais `pendente`), processar_linha aborta ANTES de tocar no
+    # handler ou em qualquer efeito de conclusao — nao duplica a entrega.
+    conn = _ConnFake(bloquear=False)
+    chamado: list[dict] = []
+
+    processar_linha(
+        conn,
+        _linha(),
+        handlers={"DiagnosticoIniciadoEvent": lambda p: chamado.append(p)},
+        nome_handler="email",
+    )
+
+    assert conn.bloqueados == [42]  # o fencing foi consultado
+    assert chamado == []  # handler NAO invocado
+    assert conn.marcado_entregue == []
+    assert conn.marcado_processed == []
+    assert conn.agendado_retry == []
+    assert conn.marcado_dead == []
 
 
 def test_falha_agenda_retry_com_tentativas_incrementadas() -> None:

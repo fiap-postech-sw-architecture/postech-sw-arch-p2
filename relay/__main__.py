@@ -11,6 +11,10 @@ from __future__ import annotations
 import os
 from datetime import UTC, datetime
 
+import structlog
+
+_log = structlog.get_logger(__name__)
+
 
 def _bootstrap_mappings() -> None:
     """Registra os mappings imperativos + tabelas Core da outbox."""
@@ -41,6 +45,7 @@ def _bootstrap_mappings() -> None:
 def main() -> None:
     from relay.handlers import NOME_HANDLER_EMAIL, construir_mapa_handlers
     from relay.listener import executar_relay
+    from relay.metrics import configurar_metricas
     from src.compartilhado.infraestrutura.database import criar_engine
     from src.compartilhado.infraestrutura.logging import configurar_logging
 
@@ -56,6 +61,13 @@ def main() -> None:
         msg = "DATABASE_URL obrigatoria para o relay."
         raise RuntimeError(msg)
     engine = criar_engine(database_url)
+    # Metricas OTel via Prometheus (TD-022/ADR-024): gated por
+    # RELAY_METRICS_ENABLED (default off), igual a API liga o OTel pelo
+    # OTEL_ENABLED. Sobe /metrics ANTES do loop para que o Prometheus ja
+    # encontre o alvo no primeiro scrape.
+    metricas_ativas = configurar_metricas(engine)
+    if not metricas_ativas:
+        _log.info("relay sem metricas OTel (RELAY_METRICS_ENABLED desligado)")
     try:
         executar_relay(
             engine,

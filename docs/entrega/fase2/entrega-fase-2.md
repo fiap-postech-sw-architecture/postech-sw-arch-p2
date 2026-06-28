@@ -10,7 +10,7 @@ Documento de entrega da Fase 2 do Tech Challenge da Pós-Graduação em Arquitet
 
 O repositório é a fonte de verdade da entrega. Os artefatos exigidos pela fase — código refatorado com Clean Architecture, Dockerfile e docker-compose revisados, manifests Kubernetes em `/k8s`, scripts Terraform em `/infra`, pipeline de CI/CD e README atualizado — estão versionados no próprio projeto. Os links abaixo apontam diretamente para esses arquivos no GitHub (branch `main`), navegáveis pela UI nativa do GitHub com o avaliador adicionado como colaborador. O desenho da arquitetura é modelado em Mermaid, renderizado nativamente pelo GitHub; a fonte única do diagrama é a [RFC-002 §3](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md), replicada no [README](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/README.md) e na seção 6 deste documento.
 
-A opção por documentação textual e versionada segue a fase 1: o projeto é AI-first, e Markdown + Mermaid permitem manutenção por agentes de IA sem prejuízo da leitura humana. As decisões da fase estão registradas em ADRs (015–023) e consolidadas na RFC-002; a rastreabilidade requisito → implementação → evidência está na seção 5.
+A opção por documentação textual e versionada segue a fase 1: o projeto é AI-first, e Markdown + Mermaid permitem manutenção por agentes de IA sem prejuízo da leitura humana. As decisões da fase estão registradas em ADRs (015–024) e consolidadas na RFC-002; a rastreabilidade requisito → implementação → evidência está na seção 5.
 
 ---
 
@@ -92,6 +92,7 @@ Toda a documentação versionada está no próprio repositório, na pasta `docs/
 | ADR-021 | Aprovação e recusa externas de orçamento via token dedicado | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/021-aprovacao-externa-orcamento.md |
 | ADR-022 | Transactional Outbox + relay para entrega de eventos de integração | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/022-transactional-outbox-relay.md |
 | ADR-023 | Rate limiter com storage compartilhado (Redis) sob HPA | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md |
+| ADR-024 | Métricas de observabilidade com Prometheus e OpenTelemetry no relay | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/024-metricas-prometheus.md |
 
 A documentação da fase 1 (Event Storming, Domain Storytelling, Linguagem Ubíqua, mapa de contextos, modelo de domínio, ADRs 001–014) permanece válida e versionada nas mesmas pastas — índice em [`docs/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/docs).
 
@@ -116,7 +117,7 @@ Cada requisito da fase 2 ([gap analysis](https://github.com/fiap-postech-sw-arch
 | RNF-017 | Clean Architecture formalizada e verificada | [#12](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/12) | Contratos de camadas em `[tool.importlinter]` (`pyproject.toml`), verificados por `make lint-arch` na CI; [ADR-015](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md) | Bloco 1 (diagrama) + encerramento |
 | RNF-018 | Testes dos fluxos críticos mantidos na evolução | [#13](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/13)–[#17](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/17) (transversal) | Gate de 95% em `.coveragerc`; cobertura de 95,34% na CI da main pós-#62 ([run 28299121351](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/28299121351)) | Encerramento |
 | RNF-019 | Dockerfile e docker-compose revisados (healthcheck do app) | [#18](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/18) | `HEALTHCHECK` no `Dockerfile` + bloco `healthcheck` do serviço `app` no `docker-compose.yml`, ambos probando `/api/v1/saude` | Bloco 2 — paridade local × cluster |
-| RNF-020 | Manifests K8s: Deployment, Service, ConfigMap, Secret, HPA | [#19](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/19) | [`k8s/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/k8s) — `deployment.yaml`, `service.yaml`, `configmap.yaml`, `secret.yaml`, `hpa.yaml`, `mailpit.yaml`, `jaeger.yaml`, `relay.yaml`, `redis.yaml` | Blocos 2 e 5 |
+| RNF-020 | Manifests K8s: Deployment, Service, ConfigMap, Secret, HPA | [#19](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/19) | [`k8s/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/k8s) — `deployment.yaml`, `service.yaml`, `configmap.yaml`, `secret.yaml`, `hpa.yaml`, `mailpit.yaml`, `jaeger.yaml`, `relay.yaml`, `redis.yaml`, `prometheus.yaml` | Blocos 2 e 5 |
 | RNF-021 | IaC: Terraform provisiona cluster e banco, documentado | [#20](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/20) | [`infra/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/infra) — cluster kind + namespace + Secret + StatefulSet PostgreSQL + Service num único apply; recursos documentados em `infra/README.md` | Bloco 2 — `terraform apply` dentro do `make cd-local` |
 | RNF-022 | CI/CD: build, testes, imagem, deploy de banco e app, manifests | [#21](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/21) | [`.github/workflows/cd.yml`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/.github/workflows/cd.yml) + alvos `make k8s-up`/`k8s-smoke`/`cd-local` espelhando o workflow | Bloco 3 — runs verdes 27450493913 e 27451618014 |
 | RNF-023 | HPA-readiness: probes e resources no Deployment | [#19](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/19) | Liveness/readiness em `/api/v1/saude` + requests/limits em `k8s/deployment.yaml`; metrics-server instalado pelo fluxo de deploy | Bloco 5 — HPA reagindo à carga |
@@ -130,7 +131,7 @@ Cada requisito da fase 2 ([gap analysis](https://github.com/fiap-postech-sw-arch
 | RN-019 | Exclusão lógica de `FINALIZADA`/`ENTREGUE` (nenhum delete físico) | [#13](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/13) | Filtro de consulta `notin_(_ESTADOS_ENCERRADOS)`; `incluir_encerradas=true` prova que as linhas permanecem | Bloco 4 — listagem com e sem `incluir_encerradas` |
 | RN-020 | Status extras: complementar ordena com Aguardando aprovação; `CANCELADA` excluída como encerrada | [#13](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/13) (ratificada no [ADR-021](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/021-aprovacao-externa-orcamento.md)) | Teste-guarda de totalidade dos 8 estados em `tests/unitarios/ordem_servico/test_repository_os.py` | Bloco 4 — implícito na listagem |
 
-**Além dos requisitos**: observabilidade mínima com OpenTelemetry + Jaeger — traces de FastAPI e SQLAlchemy no cluster de demo ([ADR-020](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md), [PR #22](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/22)); demonstrada no bloco 6 do vídeo.
+**Além dos requisitos**: observabilidade com OpenTelemetry — **traces** de FastAPI e SQLAlchemy no Jaeger ([ADR-020](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md), [PR #22](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/22)) e, depois, **métricas** do relay no Prometheus — profundidade da outbox, idade do pendente mais antigo, DLQ e contadores de entrega/falha/retry, via `MeterProvider` OTel + `PrometheusMetricReader` ([ADR-024](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/024-metricas-prometheus.md), [PR #66](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/66), TD-022); ambos no cluster de demo, demonstrados no bloco 6 do vídeo.
 
 ### Qualidade além do escopo — dívida técnica endereçada
 
@@ -141,6 +142,7 @@ O backlog de dívida técnica é mantido como um ledger versionado em [`docs/tec
 | TD-009 (DDD tático — fase 1) | Emissão dos eventos de criação que faltavam no event storming, `ClienteCadastrado` e `ServicoCadastrado`, via factory `criar()` nos agregados, com payload sem PII e teste de regressão | [#48](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/48) |
 | TD-008 (Transactional Outbox — RF-018) | Dispatch de eventos passou a usar outbox transacional + processo relay (claim-then-deliver, head-of-line, backoff/DLQ, idempotência via processed_events, LISTEN/NOTIFY) — elimina o dual-write das notificações | [#56](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/56) |
 | TD-016 (rate limiter sob HPA — RNF-024) | Rate limiter slowapi com storage compartilhado (Redis), opt-in por env, com degradação graciosa; limite correto entre réplicas | [#62](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/62) |
+| TD-022 (métricas do relay — observabilidade) | Pilar de **métricas** no relay: Prometheus no cluster + `MeterProvider` OTel/`PrometheusMetricReader` expondo `/metrics` (profundidade da outbox, idade do pendente mais antigo, DLQ, contadores de entrega/falha/retry), opt-in por env; reabre a [ADR-020](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md) na parte de métricas ([ADR-024](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/024-metricas-prometheus.md)) | [#66](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/66) |
 | Reconciliação do ledger | Auditoria item a item de `tech-debt/README.md` contra o código: TD-003 (CSP) e TD-017 (PII no OpenTelemetry) marcados como resolvidos (já implementados) e TD-002/004/005/008/016 corrigidos para refletir o estado real | [#47](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/47) |
 | TD-019 (Clean Architecture) | Extração de `PasswordHasherPort`/`JWTServicePort` na autenticação, removendo o último acoplamento `aplicação → infraestrutura`; o contrato `forbidden` do import-linter passou a verificá-lo globalmente em todos os contextos, reforçando a **RNF-017** | [#50](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/50) |
 
@@ -182,6 +184,7 @@ flowchart TB
             jaeger["Jaeger all-in-one (ADR-020)<br/>onda final condicional"]
             relay["Relay de eventos (ADR-022)<br/>Deployment — outbox→SMTP"]
             redis["Redis (ADR-023)<br/>Deployment + Service — rate limit"]
+            prometheus["Prometheus (ADR-024)<br/>Deployment + Service — métricas do relay"]
         end
     end
 
@@ -195,6 +198,7 @@ flowchart TB
     relay -->|"SMTP"| mailpit
     app -.->|"rate limit"| redis
     app -.->|"traces OTLP"| jaeger
+    prometheus -.->|"scrape /metrics"| relay
 ```
 
 ## 7. Conteúdo do PDF de submissão
@@ -202,7 +206,7 @@ flowchart TB
 O PDF entregue no portal do aluno é gerado a partir deste documento e contém os três itens exigidos pelo enunciado:
 
 1. **Link do repositório GitHub** compartilhado com o usuário `soat-architecture`: https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2
-2. **Desenho da arquitetura** com os recursos escolhidos (seção 6 — kind, Terraform, GHCR, manifests K8s com HPA, Mailpit, Jaeger).
+2. **Desenho da arquitetura** com os recursos escolhidos (seção 6 — kind, Terraform, GHCR, manifests K8s com HPA, Mailpit, Jaeger, Prometheus).
 3. **Link do vídeo** de até 15 minutos apresentando a solução (seção 3 — preenchido após a gravação).
 
 ## 8. Pendências para fechar a entrega
