@@ -73,4 +73,10 @@ data:
   # PRODUCAO atras de ingress: setar para o(s) IP(s)/CIDR do ingress (ex.:
   # "10.0.0.0/8"); se o app for ESTRITAMENTE ClusterIP atras do proxy (so o
   # ingress o alcanca), "*" e aceitavel. NUNCA "*" exposto direto a internet.
+  # PRECONDICAO: o proxy/ingress confiavel DEVE adicionar (append) ou
+  # sobrescrever o X-Forwarded-For com o IP real do cliente; se ele apenas
+  # repassar um XFF enviado pelo cliente, o limite e burlavel (a entrada mais
+  # a direita nao-confiavel vira controlada pelo atacante). No ingress-nginx o
+  # comportamento padrao (`use-forwarded-headers`) faz append — confirme antes
+  # de habilitar.
   TRUSTED_PROXIES: ""

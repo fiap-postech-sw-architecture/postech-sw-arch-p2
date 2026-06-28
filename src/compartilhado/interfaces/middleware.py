@@ -76,6 +76,10 @@ def _resolver_trusted_proxies() -> list[str]:
     ``ProxyHeadersMiddleware`` do uvicorn, que aceita IP exato (``10.0.0.5``),
     rede CIDR (``10.0.0.0/8``) ou o wildcard ``*`` (confia em qualquer peer).
 
+    PERIGO: ``*`` confia em QUALQUER peer e usa o XFF mais a esquerda
+    (spoofavel) -- so com a app ESTRITAMENTE ClusterIP atras de proxy
+    confiavel, nunca exposta direto.
+
     Vazio (ausente, em branco ou so virgulas) -> lista vazia -> o middleware
     NAO e instalado e o ``X-Forwarded-For`` e ignorado. Default SEGURO: sem
     configuracao explicita nunca se confia no XFF (sem risco de spoof do IP
@@ -102,6 +106,10 @@ def configurar_proxy_headers(app: FastAPI) -> None:
     ``configurar_rate_limiting`` justamente para coloca-lo por fora do
     SlowAPI. ``SecurityHeadersMiddleware``, adicionado por ultimo, fica ainda
     mais externo (so estampa request_id/headers, nao depende do client).
+
+    PERIGO: ``*`` em ``TRUSTED_PROXIES`` confia em QUALQUER peer e usa o XFF
+    mais a esquerda (spoofavel) -- so com a app ESTRITAMENTE ClusterIP atras
+    de proxy confiavel, nunca exposta direto.
     """
     trusted = _resolver_trusted_proxies()
     if not trusted:

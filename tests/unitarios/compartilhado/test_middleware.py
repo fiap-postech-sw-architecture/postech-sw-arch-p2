@@ -418,3 +418,69 @@ class TestProxyHeadersChaveDeRateLimit:
 
         assert resp.status_code == 200
         assert resp.json()["client"] == _PEER_NAO_CONFIAVEL
+
+    def test_proxy_que_repassa_xff_do_cliente_e_burlavel(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # CAVEAT CAPTURADO (NAO e propriedade desejada): documenta executavelmente
+        # POR QUE o proxy confiavel DEVE adicionar (append)/sobrescrever o
+        # X-Forwarded-For com o IP real do cliente. Aqui simulamos um proxy
+        # MAL CONFIGURADO que REPASSA, sem append, um XFF de UM unico hop enviado
+        # pelo cliente: o peer e confiavel, mas a unica entrada do XFF e
+        # controlada pelo atacante. Como uvicorn devolve a entrada mais a direita
+        # NAO-confiavel, request.client vira o IP forjado -> rotacionar o XFF
+        # forjado abre buckets SEPARADOS -> o limite E burlavel nesse misconfig.
+        # A defesa (append/overwrite no proxy) esta documentada no configmap.yaml
+        # e na ADR-023; este teste existe para travar o entendimento do caveat.
+        monkeypatch.setenv("TRUSTED_PROXIES", _PEER_PROXY)
+        app = _montar_app_proxy(limite="2/minute")
+        client = TestClient(app, client=(_PEER_PROXY, 51000))
+
+        # Single hop forjado: a chave do limiter passa a ser o IP que o atacante
+        # escolheu, nao o peer confiavel.
+        forjado_1 = {"X-Forwarded-For": "198.51.100.250"}
+        resp = client.get("/ip", headers=forjado_1)
+        assert resp.status_code == 200
+        assert resp.json()["client"] == "198.51.100.250"
+
+        # Gasta o limite (2/minute) do IP forjado_1 -> 3a barrada (429).
+        assert client.get("/ip", headers=forjado_1).status_code == 200
+        assert client.get("/ip", headers=forjado_1).status_code == 429
+
+        # Rotacionar o XFF forjado abre um bucket NOVO (limite contornado) ->
+        # 200 de novo. Com o proxy fazendo append/overwrite isto seria impossivel.
+        forjado_2 = {"X-Forwarded-For": "198.51.100.251"}
+        assert client.get("/ip", headers=forjado_2).status_code == 200
+        assert client.get("/ip", headers=forjado_2).status_code == 200
+
+    def test_cidr_confiavel_chaveia_pelo_cliente_real(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Forma de PRODUCAO: TRUSTED_PROXIES como CIDR (faixa do ingress). O peer
+        # 10.1.2.3 esta dentro de 10.0.0.0/8 -> confiavel -> o XFF e honrado e a
+        # chave vira o IP real do cliente. Prova o match por CIDR ponta a ponta
+        # (uvicorn resolve via ipaddress.ip_network).
+        monkeypatch.setenv("TRUSTED_PROXIES", "10.0.0.0/8")
+        app = _montar_app_proxy()
+        client = TestClient(app, client=("10.1.2.3", 51000))
+
+        resp = client.get("/ip", headers={"X-Forwarded-For": "203.0.113.7"})
+
+        assert resp.status_code == 200
+        assert resp.json()["client"] == "203.0.113.7"
+
+    def test_ipv6_cidr_confiavel_chaveia_pelo_cliente_real(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # IPv6: TRUSTED_PROXIES como CIDR v6 (2001:db8::/32), peer v6 dentro da
+        # faixa e cliente v6 no XFF -> a chave vira o cliente v6. Prova que o
+        # caminho v6 funciona ponta a ponta no harness (TestClient aceita a
+        # string v6 no client=; uvicorn casa via ipaddress.ip_network v6).
+        monkeypatch.setenv("TRUSTED_PROXIES", "2001:db8::/32")
+        app = _montar_app_proxy()
+        client = TestClient(app, client=("2001:db8::1", 51000))
+
+        resp = client.get("/ip", headers={"X-Forwarded-For": "2001:db8:abcd::42"})
+
+        assert resp.status_code == 200
+        assert resp.json()["client"] == "2001:db8:abcd::42"
