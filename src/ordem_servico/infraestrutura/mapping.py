@@ -58,7 +58,14 @@ ordens_de_servico_table = Table(
     # Snapshot do orcamento como JSONB nativo (TD-005). Prod/Postgres usa
     # JSONB; a variante sqlite existe so para que unit-test create_all(sqlite)
     # nao trave (sqlite nao tem o tipo JSONB). Mesmo padrao de outbox.payload.
-    Column("orcamento_json", JSONB().with_variant(JSON(), "sqlite"), nullable=True),
+    # none_as_null=True: orcamento ausente grava SQL NULL (nao o token JSON
+    # 'null'), igual ao comportamento Text anterior e consistente com linhas
+    # legadas — assim `WHERE orcamento_json IS NULL` casa "sem orcamento".
+    Column(
+        "orcamento_json",
+        JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
+        nullable=True,
+    ),
     Column("criado_em", DateTime(timezone=True), nullable=False),
     Column("atualizado_em", DateTime(timezone=True), nullable=False),
 )
