@@ -14,10 +14,10 @@
 
 ## Status
 
-- ✅ **Resolvidos: 15** — TD-001, TD-003, TD-008, TD-009, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023.
-- ⬜ **Abertos: 8** — TD-002, TD-004, TD-005, TD-006, TD-007, TD-010, TD-013, TD-014 — abaixo, por ordem de ataque.
+- ✅ **Resolvidos: 16** — TD-001, TD-003, TD-005, TD-008, TD-009, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023.
+- ⬜ **Abertos: 7** — TD-002, TD-004, TD-006, TD-007, TD-010, TD-013, TD-014 — abaixo, por ordem de ataque.
 
-> Nenhum dos 8 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
+> Nenhum dos 7 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
 
 ## Ordem de ataque
 
@@ -25,7 +25,7 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
 
 ### Tier 1 — atacar primeiro (risco-prod = Sim; alinha HPA/CD)
 
-> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). Tier 2 **concluído**: **TD-011 — DAST no CI** (PR #65), **TD-021 — fencing de lease do relay** (PR #66), **TD-022 — OTel no relay** (PR #66) e **TD-023 — rate-limit por cliente atrás de proxy** (PR #67) fechados. Sem mais itens abertos com risco de produção; a cabeça da fila aberta passa ao Tier 3 (**TD-005**, quick win de limpeza).
+> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). Tier 2 **concluído**: **TD-011 — DAST no CI** (PR #65), **TD-021 — fencing de lease do relay** (PR #66), **TD-022 — OTel no relay** (PR #66) e **TD-023 — rate-limit por cliente atrás de proxy** (PR #67) fechados. Sem mais itens abertos com risco de produção; o Tier 3 segue com **TD-005** fechado (PR #68) e a cabeça da fila aberta passa a **TD-007** (quick win de pureza DDD).
 
 - [x] **TD-016 — Rate limiter compartilhado (Redis)** — ✅ Fechado (PR #62)
   - **Por quê:** o slowapi conta in-memory por pod → sob HPA o limite efetivo é multiplicado pelo nº de réplicas (RNF-024). Risco de produção real; tema HPA direto.
@@ -64,8 +64,8 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
 
 ### Tier 3 — quick wins (baixo esforço)
 
-- [ ] **TD-005 — `orcamento_json` Text → `jsonb`**
-  - **Como:** migração de coluna Text → jsonb (índice GIN só se for filtrar por campo do orçamento — hoje não é). Docs no PR: README; modelo de dados.
+- [x] **TD-005 — `orcamento_json` Text → `jsonb`** — ✅ Fechado (PR #68)
+  - **Como (feito):** coluna migrada de `Text` para `jsonb` nativo (migração [004](../../migrations/versions/004_orcamento_jsonb.py), `orcamento_json::jsonb`), removendo a camada manual `json.dumps`/`json.loads` no [mapping.py](../../src/ordem_servico/infraestrutura/mapping.py) — o `dict` cru é passado à coluna `JSONB().with_variant(JSON(), "sqlite")`, espelhando `outbox.payload`. Sem índice GIN (nenhuma consulta filtra por campo do orçamento — YAGNI). Coberto por round-trip do VO em Postgres real + assert `jsonb_typeof = 'object'` (prova que não há string duplamente codificada) e por teste de ida-e-volta da migração 004.
   - **Esforço:** baixo · **Valor:** baixo (limpeza).
 
 - [ ] **TD-007 — Value Object de contato**
@@ -88,12 +88,12 @@ Débitos deliberados, justificados, sem risco de produção. Atacar apenas com f
 Da tabela *Considerações de Complexidade Algorítmica* do [README.md](README.md):
 
 - **Cálculo de média (full scan hoje):** o `AVG` filtra `status IN (status finais)` sem índice de suporte — os índices da OS são `(cliente_id, status)`/`(veiculo_id, status)`, com `status` não-líder, que um filtro só por `status` não usa. Se o volume crescer: criar um **índice parcial** `CREATE INDEX ... ON ordens_de_servico (status) WHERE status IN (...)` ou um composto `(status, criado_em, atualizado_em)`. **Hoje é aceitável no volume do MVP — não atacar sem dado de produção** (evita índice especulativo).
-- **Orçamento Text → jsonb (TD-005):** ver Tier 3. Sem necessidade de query estruturada hoje; `jsonb` + índice GIN só se surgir filtro por campo do orçamento.
+- **Orçamento Text → jsonb (TD-005):** ✅ feito (PR #68). A coluna já é `jsonb` nativo (migração 004); índice GIN só se surgir filtro por campo do orçamento (hoje lido junto da OS, nunca filtrado).
 
 ## O que entra na entrega (must vs nice)
 
-- **Must (já feito):** os 15 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 8 abertos.
-- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD) e Tier 2 **concluído** — **TD-011 DAST** (PR #65), **TD-021 fencing do relay** (PR #66), **TD-022 OTel no relay** (PR #66) e **TD-023 proxy-headers** (PR #67); resta só o Tier 3 (TD-005) e os deliberados do Tier 4.
-- **Provavelmente fora:** Tier 3 (limpeza de baixo retorno) e Tier 4 (deliberados de baixo valor para a banca).
+- **Must (já feito):** os 16 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 7 abertos.
+- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD), Tier 2 **concluído** — **TD-011 DAST** (PR #65), **TD-021 fencing do relay** (PR #66), **TD-022 OTel no relay** (PR #66) e **TD-023 proxy-headers** (PR #67) — e o Tier 3 **TD-005** (PR #68) fechado; resta só **TD-007** (Tier 3) e os deliberados do Tier 4.
+- **Provavelmente fora:** o restante do Tier 3 (TD-007, pureza DDD de baixo retorno) e Tier 4 (deliberados de baixo valor para a banca).
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
