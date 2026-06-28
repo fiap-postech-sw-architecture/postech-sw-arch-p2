@@ -64,3 +64,8 @@ docs/entrega/*.absolute-links.md
 # SBOM gerado (TD-012): artefato de build, muda a cada lockfile — o CI publica
 sbom.cdx.json
 sbom-requirements.txt
+
+# Relatorios do OWASP ZAP baseline (TD-011): artefatos de build gerados pelo
+# `make dast`/CI a cada run — o CI os publica como artefato `zap-dast-report`.
+# As regras (.zap/rules.tsv) sao versionadas; so os relatorios sao ignorados.
+.zap/zap-report.*

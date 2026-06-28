@@ -6,7 +6,7 @@
 
 ## Escopo
 
-Reexecução dos scans automatizados de segurança sobre o código da fase 2 (RF-020..024, RNF-017..024): análise estática (bandit), auditoria de dependências (pip-audit) e detecção de segredos (gitleaks, working tree + histórico completo). Trivy e OWASP ZAP não foram reexecutados nesta bateria — a imagem runtime e a superfície HTTP foram auditadas na fase 1 e os deltas da fase 2 (rotas novas, OTel opcional) estão cobertos pelos demais scans e pela suíte de testes.
+Reexecução dos scans automatizados de segurança sobre o código da fase 2 (RF-020..024, RNF-017..024): análise estática (bandit), auditoria de dependências (pip-audit) e detecção de segredos (gitleaks, working tree + histórico completo). Trivy não foi reexecutado nesta bateria — a imagem runtime foi auditada na fase 1 e os deltas da fase 2 (rotas novas, OTel opcional) estão cobertos pelos demais scans e pela suíte de testes. O **OWASP ZAP** deixou de ser scan manual de fechamento: a partir de [TD-011](../tech-debt/README.md) (PR #65) o baseline (DAST) roda **continuamente no CI** ([`full-test-ci`](../../.github/workflows/full-test-ci.yml)) contra o OpenAPI vivo da stack compose, com gate por `.zap/rules.tsv` (os 2 warnings aceitos da fase 1 ficam como IGNORE; achado novo reprova) e relatório publicado como artefato — paridade local via `make dast`.
 
 > **Nota:** o `relay/` e o `k8s/redis.yaml` (PRs [#56](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/56), [#62](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/62)) são posteriores a esta bateria de 12/06 e não foram cobertos por ela; o código do `relay/` segue coberto pelo gate `make security` (o bandit varre `src/ ui/ relay/`) no CI de cada PR.
 

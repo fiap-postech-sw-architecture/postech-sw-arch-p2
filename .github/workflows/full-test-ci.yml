@@ -97,6 +97,38 @@ jobs:
           ORCAMENTO_WEBHOOK_TOKEN: ci-webhook-orcamento-token
         run: PYTHONPATH=full-test uv run pytest full-test/tests/test_parallel_usage.py -m "slowest" -v
 
+      # DAST (TD-011 / ADR-011): roda o OWASP ZAP baseline (scan passivo) contra
+      # a MESMA stack compose que ja esta de pe e saudavel (steps acima). Alvo:
+      # o OpenAPI vivo (http://localhost:8000/openapi.json) — o mesmo alvo da
+      # evidencia de fase 1 (relatorio-vulnerabilidades.md). Roda SEM ``-I``,
+      # entao e um gate real: os 2 warnings aceitos da fase 1 (10049, 90004)
+      # estao como IGNORE em .zap/rules.tsv e qualquer achado NOVO falha o job.
+      # ``--network host`` da ao container do ZAP acesso a porta 8000 publicada
+      # pelo compose no runner. Relatorios saem em .zap/ (NUNCA sobrescreve os
+      # relatorios versionados da fase 1 em docs/seguranca/). ``mkdir -p .zap``
+      # garante a pasta escrivel para o mount; o ``chmod`` evita que o usuario
+      # do container (uid 1000 zap) esbarre em permissao ao escrever o relatorio.
+      - name: DAST — OWASP ZAP baseline
+        run: |
+          mkdir -p "${{ github.workspace }}/.zap"
+          chmod 777 "${{ github.workspace }}/.zap"
+          docker run --rm --network host \
+            -v "${{ github.workspace }}/.zap:/zap/wrk:rw" \
+            -t zaproxy/zap-stable zap-baseline.py \
+            -t http://localhost:8000/openapi.json \
+            -c rules.tsv \
+            -J zap-report.json \
+            -r zap-report.html \
+            -w zap-report.md
+
+      - name: Upload ZAP report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: zap-dast-report
+          path: .zap/zap-report.*
+          retention-days: 14
+
       - name: Upload reports
         if: always()
         uses: actions/upload-artifact@v4

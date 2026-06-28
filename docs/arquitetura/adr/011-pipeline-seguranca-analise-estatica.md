@@ -18,18 +18,18 @@ Adotar pipeline de segurança em três camadas complementares, distinguindo o qu
 - **mypy** (modo strict): verificação estática de tipos para prevenir erros em runtime. Roda no CI e via `make typecheck`
 - **import-linter** (`lint-imports`): contratos de dependência entre camadas (proíbe domínio → infraestrutura). Roda no CI e via `make lint-arch`
 
-**Camada 2 -- Segurança automatizada no CI (GitHub Actions, `.github/workflows/ci.yml`):**
+**Camada 2 -- Segurança automatizada no CI (GitHub Actions, `.github/workflows/ci.yml` e `full-test-ci.yml`):**
 - **bandit**: análise estática de segurança Python (SAST), detecta padrões inseguros como uso de `eval()`, `pickle`, SQL concatenado — job dedicado no CI (`--severity-level high`)
 - **SBOM CycloneDX** (`make sbom`): inventário de dependências da cadeia de suprimentos, publicado como artefato (ver [ADR-012](012-licenciamento-software-sbom.md))
+- **OWASP ZAP** (baseline / DAST): varredura dinâmica passiva contra a aplicação em execução (o OpenAPI vivo da stack compose que o `full-test-ci.yml` sobe), com gate por `.zap/rules.tsv` (sem `-I`: achado novo reprova; os 2 warnings aceitos da fase 1 ficam como IGNORE) e relatório publicado como artefato. Paridade local via `make dast` (ver [TD-011](../../tech-debt/README.md))
 - **CodeQL** (`make codeql-quality`, `.github/codeql/codeql-config.yml`, `scripts/codeql_quality.sh`): análise semântica de qualidade/segurança. Por ser pesado, é executado sob demanda (localmente ou em job manual), não em todo push
 
 **Camada 3 -- Scans manuais de fechamento (locais, evidência em `docs/seguranca/`):**
 - **pip-audit**: auditoria de dependências contra a base de CVEs conhecidas
 - **gitleaks**: detecção de segredos (API keys, senhas, tokens) no working tree e no histórico Git
 - **trivy**: scan de vulnerabilidades de filesystem e da imagem Docker (OS packages, bibliotecas)
-- **OWASP ZAP** (baseline): varredura dinâmica de superfície HTTP
 
-Esses scans rodam manualmente nas janelas de fechamento de fase e seus relatórios ficam versionados em `docs/seguranca/` — não são gates de PR. A integração de um quality gate centralizado (SonarQube) fica como evolução: existe `sonar-project.properties`, mas o scanner ainda não está acionado em CI.
+Esses scans rodam manualmente nas janelas de fechamento de fase e seus relatórios ficam versionados em `docs/seguranca/` — não são gates de PR. O OWASP ZAP (DAST) começou como scan manual de fechamento na fase 1 e foi **promovido à Camada 2** (gate contínuo no `full-test-ci`) na fase 2 ([TD-011](../../tech-debt/README.md)). A integração de um quality gate centralizado (SonarQube) fica como evolução: existe `sonar-project.properties`, mas o scanner ainda não está acionado em CI.
 
 ## Alternativas Consideradas
 
@@ -77,12 +77,13 @@ Ferramentas especializadas cobrindo lint, SAST, dependências, segredos e imagem
 * Atendimento verificável ao RNF-010 (segurança como requisito), com evidências versionadas em `docs/seguranca/`
 * SBOM CycloneDX gerado e publicado como artefato a cada execução do CI (cadeia de suprimentos)
 * Detecção de segredos (gitleaks), auditoria de dependências (pip-audit) e scan de imagem/filesystem (trivy) cobertos pelos scans manuais de fechamento, com relatórios arquivados
+* DAST contínuo: o OWASP ZAP baseline roda no `full-test-ci` contra a stack de pé e falha em achado novo (gate por `.zap/rules.tsv`), deixando de depender de execução manual ([TD-011](../../tech-debt/README.md))
 * CodeQL disponível para análise semântica aprofundada quando necessário
 
 ### Negativas
 
-* Tempo de CI aumentado por bandit e SBOM (~1-2 minutos por execução)
-* Necessidade de manter configurações de bandit, CodeQL e dos scanners manuais (gitleaks, pip-audit, trivy, ZAP)
+* Tempo de CI aumentado por bandit, SBOM e pelo ZAP baseline (DAST roda só no `full-test-ci`, que já sobe a stack; ~1-2 minutos adicionais)
+* Necessidade de manter configurações de bandit, CodeQL, regras do ZAP (`.zap/rules.tsv`) e dos scanners manuais (gitleaks, pip-audit, trivy)
 * Scans manuais dependem de disciplina de processo: por não serem gates de PR, exigem que sejam efetivamente executados nas janelas de fechamento
 * Falsos positivos do bandit podem bloquear PRs temporariamente (necessidade de triagem)
 

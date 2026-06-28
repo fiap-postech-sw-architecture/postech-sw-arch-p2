@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
 
-> **Para a próxima IA/dev:** plano priorizado para atacar os 12 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
+> **Para a próxima IA/dev:** plano priorizado para atacar os 11 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
 
 ## Regras de execução (obrigatórias)
 
@@ -14,10 +14,10 @@
 
 ## Status
 
-- ✅ **Resolvidos: 11** — TD-001, TD-003, TD-008, TD-009, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020.
-- ⬜ **Abertos: 12** — TD-002, TD-004, TD-005, TD-006, TD-007, TD-010, TD-011, TD-013, TD-014, TD-021, TD-022, TD-023 — abaixo, por ordem de ataque.
+- ✅ **Resolvidos: 12** — TD-001, TD-003, TD-008, TD-009, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020.
+- ⬜ **Abertos: 11** — TD-002, TD-004, TD-005, TD-006, TD-007, TD-010, TD-013, TD-014, TD-021, TD-022, TD-023 — abaixo, por ordem de ataque.
 
-> Nenhum dos 12 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
+> Nenhum dos 11 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
 
 ## Ordem de ataque
 
@@ -25,7 +25,7 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
 
 ### Tier 1 — atacar primeiro (risco-prod = Sim; alinha HPA/CD)
 
-> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). A cabeça da fila aberta passa a ser o **TD-011 — DAST no CI** (Tier 2).
+> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). Tier 2 também avançou: **TD-011 — DAST no CI** fechado (PR #65). A cabeça da fila aberta passa a ser **TD-023** → **TD-022** → **TD-021**.
 
 - [x] **TD-016 — Rate limiter compartilhado (Redis)** — ✅ Fechado (PR #62)
   - **Por quê:** o slowapi conta in-memory por pod → sob HPA o limite efetivo é multiplicado pelo nº de réplicas (RNF-024). Risco de produção real; tema HPA direto.
@@ -41,9 +41,9 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
 
 ### Tier 2 — follow-ups fortes (valor de nota; fecham temas da fase)
 
-- [ ] **TD-011 — DAST no CI (OWASP ZAP)** *(cabeça da fila aberta, com o Tier 1 fechado)*
-  - **Como:** ZAP baseline scan contra o compose que o `full-test-ci` já sobe; publicar o relatório como artefato.
-  - **Docs no PR:** README; [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md); [relatório de segurança](../seguranca/relatorio-vulnerabilidades.md).
+- [x] **TD-011 — DAST no CI (OWASP ZAP)** — ✅ Fechado (PR #65)
+  - **Como (feito):** ZAP baseline scan contra a stack compose que o [`full-test-ci`](../../.github/workflows/full-test-ci.yml) já sobe e deixa saudável; roda SEM `-I` (gate real) com os 2 WARNs aceitos da fase 1 (10049, 90004) em IGNORE no [`.zap/rules.tsv`](../../.zap/rules.tsv) → achado novo reprova; relatório (`zap-report.{json,html,md}`) publicado como artefato `zap-dast-report`; alvo `make dast` para paridade local.
+  - **Docs no PR:** README; [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md); [scan-fase-2](../seguranca/scan-fase-2.md); [plano-seguranca](../seguranca/plano-seguranca.md).
   - **Esforço:** médio · **Valor:** médio-alto (maturidade de segurança).
 
 - [ ] **TD-023 — Rate-limit por cliente atrás de proxy (X-Forwarded-For confiável)**
@@ -92,8 +92,8 @@ Da tabela *Considerações de Complexidade Algorítmica* do [README.md](README.m
 
 ## O que entra na entrega (must vs nice)
 
-- **Must (já feito):** os 11 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 12 abertos.
-- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD); seguir pelo Tier 2 (TD-011 DAST à frente, depois TD-022, TD-021).
+- **Must (já feito):** os 12 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 11 abertos.
+- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD) e Tier 2 com **TD-011 DAST fechado** (PR #65); seguir pelo restante do Tier 2 (TD-023, TD-022, TD-021).
 - **Provavelmente fora:** Tier 3 (limpeza de baixo retorno) e Tier 4 (deliberados de baixo valor para a banca).
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)

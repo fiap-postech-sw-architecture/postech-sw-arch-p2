@@ -90,6 +90,46 @@ typecheck:
 security:
 	$(PY)bandit -r src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py -c pyproject.toml --severity-level high
 
+# DAST local (TD-011; ADR-011): paridade com o job "DAST — OWASP ZAP baseline"
+# do .github/workflows/full-test-ci.yml. Sobe a stack compose, aguarda
+# /api/v1/saude e roda o MESMO OWASP ZAP baseline contra o OpenAPI vivo, com as
+# mesmas regras (.zap/rules.tsv). Sem `-I`: e um gate (os 2 warnings aceitos da
+# fase 1 estao como IGNORE nas regras; achado NOVO falha). Relatorios em .zap/
+# (gitignorados; nunca tocam os relatorios versionados em docs/seguranca/).
+# FORA do agregado `check`: precisa de Docker e e lento. macOS+Colima exige
+# `export DOCKER_HOST=unix://$$HOME/.colima/default/docker.sock` antes.
+.PHONY: dast
+dast: .env.dev
+	@bash -c 'source scripts/docker-check.sh && \
+		echo ">> subindo stack (app + postgres) para o ZAP baseline..." && \
+		$(DOCKER_COMPOSE) up -d && \
+		APP_PORT_EFFECTIVE=$${APP_PORT:-8000} && \
+		echo ">> aguardando http://localhost:$${APP_PORT_EFFECTIVE}/api/v1/saude responder 200..." && \
+		for i in $$(seq 1 60); do \
+			if curl -fsS http://localhost:$${APP_PORT_EFFECTIVE}/api/v1/saude >/dev/null 2>&1; then \
+				echo ">> backend saudavel em $$i tentativa(s)."; break; \
+			fi; \
+			if [ $$i -eq 60 ]; then \
+				echo "!! backend nao respondeu em 120s — veja docker compose logs app"; exit 1; \
+			fi; \
+			sleep 2; \
+		done && \
+		mkdir -p .zap && \
+		echo ">> rodando OWASP ZAP baseline contra http://localhost:$${APP_PORT_EFFECTIVE}/openapi.json ..." && \
+		docker run --rm --network host \
+			-v "$$(pwd)/.zap:/zap/wrk:rw" \
+			-t zaproxy/zap-stable zap-baseline.py \
+			-t http://localhost:$${APP_PORT_EFFECTIVE}/openapi.json \
+			-c rules.tsv \
+			-J zap-report.json \
+			-r zap-report.html \
+			-w zap-report.md; \
+		rc=$$?; \
+		echo ">> resumo do ZAP (.zap/zap-report.md):"; \
+		[ -f .zap/zap-report.md ] && cat .zap/zap-report.md || echo "(sem report — o scan nao chegou a gravar)"; \
+		echo ">> relatorios em .zap/zap-report.{json,html,md}. Derrube a stack com '\''make down'\''."; \
+		exit $$rc'
+
 # Roda o CodeQL "Code Quality" suite localmente (mesmas queries do GitHub Code
 # Quality). On-demand: a 1a execucao baixa o bundle do CodeQL (~1GB); nao entra
 # em `check`/CI por ser pesado. Detalhes em scripts/codeql_quality.sh.
