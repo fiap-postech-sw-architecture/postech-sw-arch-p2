@@ -1,7 +1,8 @@
 # Deployment do relay da Transactional Outbox (RF-018 / TD-008). Mesma
 # imagem da API; sobrescreve o command para `python -m relay` (sem
-# uvicorn, sem migrations -- a API pod ja roda `alembic upgrade head` no
-# boot). replicas:1 por desenho: o relay processa a outbox ORDER BY id;
+# uvicorn, sem migrations -- a migracao roda no Job `pytstop-migrate`
+# antes do rollout, TD-015). replicas:1 por desenho: o relay processa a
+# outbox ORDER BY id;
 # `FOR UPDATE SKIP LOCKED` deixa N replicas seguras no futuro sem
 # reprocessar. SEM Service (nao atende trafego HTTP).
 apiVersion: apps/v1

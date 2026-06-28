@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
 
-> **Para a próxima IA/dev:** plano priorizado para atacar os 13 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
+> **Para a próxima IA/dev:** plano priorizado para atacar os 12 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
 
 ## Regras de execução (obrigatórias)
 
@@ -14,10 +14,10 @@
 
 ## Status
 
-- ✅ **Resolvidos: 10** — TD-001, TD-003, TD-008, TD-009, TD-012, TD-016, TD-017, TD-018, TD-019, TD-020.
-- ⬜ **Abertos: 13** — TD-002, TD-004, TD-005, TD-006, TD-007, TD-010, TD-011, TD-013, TD-014, TD-015, TD-021, TD-022, TD-023 — abaixo, por ordem de ataque.
+- ✅ **Resolvidos: 11** — TD-001, TD-003, TD-008, TD-009, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020.
+- ⬜ **Abertos: 12** — TD-002, TD-004, TD-005, TD-006, TD-007, TD-010, TD-011, TD-013, TD-014, TD-021, TD-022, TD-023 — abaixo, por ordem de ataque.
 
-> Nenhum dos 13 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
+> Nenhum dos 12 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
 
 ## Ordem de ataque
 
@@ -25,21 +25,23 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
 
 ### Tier 1 — atacar primeiro (risco-prod = Sim; alinha HPA/CD)
 
+> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). A cabeça da fila aberta passa a ser o **TD-011 — DAST no CI** (Tier 2).
+
 - [x] **TD-016 — Rate limiter compartilhado (Redis)** — ✅ Fechado (PR #62)
   - **Por quê:** o slowapi conta in-memory por pod → sob HPA o limite efetivo é multiplicado pelo nº de réplicas (RNF-024). Risco de produção real; tema HPA direto.
   - **Como:** subir um Redis pequeno no `k8s/` (Deployment + Service) e no compose; configurar o `Limiter` do slowapi com `storage_uri` (env `RATE_LIMIT_STORAGE_URI`), com fallback in-memory se ausente. **Teste:** limite consistente entre réplicas (carga no kind, como no TD-008).
   - **Docs no PR:** README; [gap-analysis (RNF-024)](../requisitos/fase2/gap-analysis-fase-2.md); [ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md) (Redis de rate limit).
   - **Esforço:** médio · **Valor:** alto · **Rastreado em:** #31.
 
-- [ ] **TD-015 — Migração em Job dedicado** *(cabeça do Tier 1 com o TD-016 fechado)*
-  - **Por quê:** o `entrypoint.sh` roda `alembic upgrade head` no boot; N réplicas subindo juntas disputam a migração. Risco-prod; tema CD.
-  - **Como:** tirar a migração do entrypoint; criar um k8s `Job` (ou initContainer único) que roda `alembic upgrade head` uma vez antes do rollout; o Deployment passa a depender dele. `RUN_MIGRATIONS_ON_STARTUP=false` no cluster.
-  - **Docs no PR:** README; [ADR-019](../arquitetura/adr/fase2/019-pipeline-cicd-deploy.md) (estratégia de migração); [RFC-002](../arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md).
+- [x] **TD-015 — Migração em Job dedicado** — ✅ Fechado (PR #64)
+  - **Por quê:** o `entrypoint.sh` rodava `alembic upgrade head` no boot; N réplicas subindo juntas disputavam a migração. Risco-prod; tema CD.
+  - **Como (feito):** migração tirada do entrypoint no cluster (`RUN_MIGRATIONS_ON_STARTUP=false`/`RUN_SEED_ON_STARTUP=false` no configmap); Job `pytstop-migrate` ([`k8s/jobs/migration-job.yaml`](../../k8s/jobs/migration-job.yaml)) roda `alembic upgrade head` + seed best-effort uma vez, aplicado pelo CD/`make k8s-up` com a tag SHA (sed) antes do rollout, com `kubectl wait --for=condition=complete`. O subdir `k8s/jobs/` fica fora do `kubectl apply -f k8s/`.
+  - **Docs no PR:** README; [ADR-019](../arquitetura/adr/fase2/019-pipeline-cicd-deploy.md) (estratégia de migração); [RFC-002](../arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md); [k8s/README](../../k8s/README.md).
   - **Esforço:** médio · **Valor:** alto · **Rastreado em:** #33.
 
 ### Tier 2 — follow-ups fortes (valor de nota; fecham temas da fase)
 
-- [ ] **TD-011 — DAST no CI (OWASP ZAP)**
+- [ ] **TD-011 — DAST no CI (OWASP ZAP)** *(cabeça da fila aberta, com o Tier 1 fechado)*
   - **Como:** ZAP baseline scan contra o compose que o `full-test-ci` já sobe; publicar o relatório como artefato.
   - **Docs no PR:** README; [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md); [relatório de segurança](../seguranca/relatorio-vulnerabilidades.md).
   - **Esforço:** médio · **Valor:** médio-alto (maturidade de segurança).
@@ -90,8 +92,8 @@ Da tabela *Considerações de Complexidade Algorítmica* do [README.md](README.m
 
 ## O que entra na entrega (must vs nice)
 
-- **Must (já feito):** os 10 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 13 abertos.
-- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 — agora só **TD-015** (TD-016 fechado, PR #62) — risco-prod + temas HPA/CD; depois Tier 2 (TD-011, TD-022, TD-021).
+- **Must (já feito):** os 11 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 12 abertos.
+- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD); seguir pelo Tier 2 (TD-011 DAST à frente, depois TD-022, TD-021).
 - **Provavelmente fora:** Tier 3 (limpeza de baixo retorno) e Tier 4 (deliberados de baixo valor para a banca).
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)

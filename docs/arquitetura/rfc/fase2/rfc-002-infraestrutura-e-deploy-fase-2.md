@@ -179,7 +179,7 @@ Parâmetros do HPA — **proposta baseline, a calibrar no plano da fase de imple
 
 | Parâmetro | Proposta baseline | Justificativa |
 |---|---|---|
-| `minReplicas` | 1 | coerente com o rollout inicial de réplica única exigido pelas migrações (seção 7) |
+| `minReplicas` | 1 | piso do HPA; a migração não exige mais réplica única (seção 7 — Job dedicado de migração) |
 | `maxReplicas` | 5 | teto alcançável na demo sem saturar a máquina local que hospeda o kind |
 | Alvo de CPU | 70% de utilização média | margem antes da saturação; segue o fluxo de validação ensinado (criar Deployment → criar HPA → carga → `kubectl get hpa`) |
 | Alvo de memória | 80% de utilização média | segunda linha de defesa: processos CPython raramente devolvem memória ao sistema, então o sinal serve mais para detectar saturação do que para scale-down |
@@ -225,15 +225,13 @@ Sem destino no cluster: `APP_PORT`/`DB_PORT`/`UI_PORT` (mapeamento de portas do 
 
 ## 7. Migrações no deploy
 
-O mecanismo é o **entrypoint existente** ([ADR-019](../../adr/fase2/019-pipeline-cicd-deploy.md)): o `entrypoint.sh` executa `alembic upgrade head` no boot quando `RUN_MIGRATIONS_ON_STARTUP=true` (padrão `false`), antes de subir o uvicorn — caminho que o `full-test-ci.yml` já exercita no compose. No cluster, a variável entra como `true` pelo ConfigMap.
+O mecanismo no cluster é um **Job dedicado, aplicado pós-`kubectl apply` e antes do rollout** (TD-015; [ADR-019](../../adr/fase2/019-pipeline-cicd-deploy.md)). O `entrypoint.sh` ainda executa `alembic upgrade head` no boot quando `RUN_MIGRATIONS_ON_STARTUP=true` — caminho que o `full-test-ci.yml` exercita no compose, onde o container é único —, mas **no cluster a variável entra como `false`** pelo ConfigMap, e o boot dos pods da API não toca o schema.
 
-Sequência no deploy: o `terraform apply` deixa o banco no ar; o `kubectl apply` cria o Deployment com **rollout inicial de réplica única**; o pod roda a migração e só então o uvicorn atende — a readiness probe passa com o schema já migrado. Quando o HPA escala, os pods novos executam o mesmo `alembic upgrade head`, que é no-op idempotente sobre schema já em head.
+Sequência no deploy: o `terraform apply` deixa o banco no ar; o `kubectl apply -f k8s/` cria os manifests (o Job vive em `k8s/jobs/`, fora desse apply não-recursivo, de propósito); o pipeline então aplica o Job `pytstop-migrate` ([`k8s/jobs/migration-job.yaml`](../../../../k8s/jobs/migration-job.yaml)) com a tag imutável do SHA (substituída por `sed`) e aguarda `kubectl wait --for=condition=complete` — o `alembic upgrade head` roda **uma única vez**, num pod só, e só com o schema em head o `set image`/rollout segue. Quando o HPA escala, os pods novos sobem sobre schema já migrado, sem disputar a migração.
 
-**Corrida documentada**: se duas ou mais réplicas partirem simultaneamente com migração pendente (rollout inicial com `replicas > 1`, ou atualização de versão com migração pendente num cluster vivo já escalado), há janela de corrida entre migrações concorrentes. Mitigação adotada: rollout inicial com réplica única — o HPA escala depois, sobre schema migrado; em atualização com migração pendente no cluster local vivo, reduzir para uma réplica antes do rollout.
+**Corrida resolvida**: a janela de corrida entre migrações concorrentes (duas ou mais réplicas partindo simultaneamente com migração pendente) deixou de existir — a migração é serializada no Job antes de qualquer réplica da API subir. O `replicas: 1` do Deployment passa a ser apenas o piso do HPA, não mais uma mitigação de corrida.
 
-**Evolução prevista**: Job dedicado de migração pós-apply, mais limpo para produção, **se a corrida se materializar** ([ADR-019](../../adr/fase2/019-pipeline-cicd-deploy.md)); initContainer foi rejeitado por duplicar a lógica do entrypoint.
-
-Seed: `RUN_SEED_ON_STARTUP=true` cria o admin inicial em modo best-effort (falha não bloqueia o boot — comportamento do `entrypoint.sh`), com credenciais via Secret (seção 6). A política de seed de dados de demonstração no cluster (migrations no pipeline vs imagem seedada) fica deferida ao plano ([ADR-017](../../adr/fase2/017-provisionamento-banco.md)).
+Seed: o mesmo Job cria o admin inicial em modo best-effort (`python scripts/seed_admin.py || ...` — falha não reprova o Job), com credenciais via Secret (seção 6); no cluster `RUN_SEED_ON_STARTUP=false`, então o boot dos pods não semeia. A política de seed de dados de demonstração no cluster (migrations no pipeline vs imagem seedada) fica deferida ao plano ([ADR-017](../../adr/fase2/017-provisionamento-banco.md)).
 
 ## 8. Evolução da API
 
@@ -256,7 +254,7 @@ O risco 3 do [gap analysis §5](../../../requisitos/fase2/gap-analysis-fase-2.md
 | # | Risco | Origem | Mitigação |
 |---|---|---|---|
 | 1 | Prazo: infra (K8s + Terraform + CI/CD + e-mail) somada à refatoração Clean é o maior risco da fase | gap §5 (risco 4) | sequenciar infra incremental (deploy manual → pipeline); onda OTel condicional e cortável por inteiro ([ADR-020](../../adr/fase2/020-observabilidade-opentelemetry.md)); cortar opcionais cedo — ex.: o rate limiter rodou como limite por-réplica documentado e ganhou storage compartilhado (Redis) numa onda posterior (RNF-024, [ADR-023](../../adr/fase2/023-rate-limiter-storage-compartilhado.md)) |
-| 2 | Corrida de migração com múltiplas réplicas partindo com migração pendente | [ADR-019](../../adr/fase2/019-pipeline-cicd-deploy.md) | rollout inicial com réplica única; evolução para Job dedicado se a corrida se materializar (seção 7) |
+| 2 | Corrida de migração com múltiplas réplicas partindo com migração pendente | [ADR-019](../../adr/fase2/019-pipeline-cicd-deploy.md) | **Resolvido** (TD-015, PR #64): migração no Job dedicado `pytstop-migrate` antes do rollout, com `kubectl wait --for=condition=complete` (seção 7) — schema serializado em head antes de qualquer réplica subir; `RUN_MIGRATIONS_ON_STARTUP=false` no cluster |
 | 3 | Provider Terraform do kind é comunitário (`tehcyx/kind`) | [ADR-016](../../adr/fase2/016-plataforma-kubernetes.md) | versão fixada em `required_providers`; superfície mínima (cluster + kubeconfig); manifests e HPA portáveis se o provider for trocado |
 | 4 | Encadeamento de providers num só apply: o provider `kubernetes` lê o kubeconfig gerado pelo recurso do cluster | [ADR-017](../../adr/fase2/017-provisionamento-banco.md) | se travar, separar cluster e banco em módulos/applies sequenciais documentados no README de `/infra` |
 | 5 | Demo de HPA poluída pelo rate limiter in-memory por réplica (429 inconsistentes sob carga distribuída) | gap §5 (risco 5); RNF-024 | **Resolvido**: rate limiter com storage compartilhado (Redis) via `storage_uri` ([ADR-023](../../adr/fase2/023-rate-limiter-storage-compartilhado.md), PR #62) — limite global correto sob HPA, sem 429 divergentes entre réplicas; carga validável com `full-test/` contra o cluster |

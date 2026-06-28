@@ -307,6 +307,11 @@ k8s-up:
 	@echo ">> aplicando manifests do app (k8s/)..."
 	$(KUBECTL) apply -f k8s/namespace.yaml
 	$(KUBECTL) apply -f k8s/
+	@echo ">> migracao via Job dedicado antes do rollout (TD-015)..."
+	# Migracao via Job dedicado antes do rollout (TD-015): resolve a corrida com N replicas
+	$(KUBECTL) -n $(K8S_NS) delete job pytstop-migrate --ignore-not-found
+	sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|$(K8S_TAG)|" k8s/jobs/migration-job.yaml | $(KUBECTL) -n $(K8S_NS) apply -f -
+	$(KUBECTL) -n $(K8S_NS) wait --for=condition=complete --timeout=180s job/pytstop-migrate || { echo ">> ERRO: migracao (pytstop-migrate) falhou ou expirou; abortando o deploy antes do rollout."; $(KUBECTL) -n $(K8S_NS) logs job/pytstop-migrate --tail=50 || true; exit 1; }
 	$(KUBECTL) -n $(K8S_NS) set image deployment/pytstop-api api=$(K8S_TAG)
 	$(KUBECTL) -n $(K8S_NS) rollout status deployment/pytstop-api --timeout=300s
 	$(KUBECTL) -n $(K8S_NS) set image deployment/pytstop-relay relay=$(K8S_TAG)

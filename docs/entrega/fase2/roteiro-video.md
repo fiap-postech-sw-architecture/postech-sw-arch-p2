@@ -36,8 +36,10 @@ Narrar os estágios enquanto rolam (são os mesmos do CD — paridade local × p
 1. `terraform apply` — cluster kind `pytstop` + namespace `pytstop-infra` + PostgreSQL StatefulSet (RNF-021);
 2. build da imagem com tag por SHA + `kind load` (sem pull de registry);
 3. metrics-server (pré-requisito do HPA);
-4. `kubectl apply -f k8s/` + rollout da API (migração Alembic no boot, réplica única inicial);
-5. smoke test: `GET /api/v1/saude` → `{"status":"ok"}` na porta 18000.
+4. `kubectl apply -f k8s/` — manifests do app;
+5. Job `pytstop-migrate` (`alembic upgrade head` + seed) + `kubectl wait --for=condition=complete` — gate do schema antes do rollout (TD-015);
+6. `set image` + rollout da API e do relay (sobem sobre o schema já migrado);
+7. smoke test: `GET /api/v1/saude` → `{"status":"ok"}` na porta 18000.
 
 Com o `cd-local` concluído:
 
