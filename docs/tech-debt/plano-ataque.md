@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
 
-> **Para a próxima IA/dev:** plano priorizado para atacar os 11 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
+> **Para a próxima IA/dev:** plano priorizado para atacar os 9 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
 
 ## Regras de execução (obrigatórias)
 
@@ -14,10 +14,10 @@
 
 ## Status
 
-- ✅ **Resolvidos: 12** — TD-001, TD-003, TD-008, TD-009, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020.
-- ⬜ **Abertos: 11** — TD-002, TD-004, TD-005, TD-006, TD-007, TD-010, TD-013, TD-014, TD-021, TD-022, TD-023 — abaixo, por ordem de ataque.
+- ✅ **Resolvidos: 14** — TD-001, TD-003, TD-008, TD-009, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022.
+- ⬜ **Abertos: 9** — TD-002, TD-004, TD-005, TD-006, TD-007, TD-010, TD-013, TD-014, TD-023 — abaixo, por ordem de ataque.
 
-> Nenhum dos 11 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
+> Nenhum dos 9 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
 
 ## Ordem de ataque
 
@@ -25,7 +25,7 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
 
 ### Tier 1 — atacar primeiro (risco-prod = Sim; alinha HPA/CD)
 
-> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). Tier 2 também avançou: **TD-011 — DAST no CI** fechado (PR #65). A cabeça da fila aberta passa a ser **TD-023** → **TD-022** → **TD-021**.
+> ✅ Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64). Tier 2 também avançou: **TD-011 — DAST no CI** (PR #65), **TD-021 — fencing de lease do relay** (PR #66) e **TD-022 — OTel no relay** (PR #66) fechados. A cabeça da fila aberta passa a ser **TD-023** (único item aberto com risco de produção).
 
 - [x] **TD-016 — Rate limiter compartilhado (Redis)** — ✅ Fechado (PR #62)
   - **Por quê:** o slowapi conta in-memory por pod → sob HPA o limite efetivo é multiplicado pelo nº de réplicas (RNF-024). Risco de produção real; tema HPA direto.
@@ -52,15 +52,15 @@ Critério: **risco de produção × valor para a avaliação** (temas da fase: H
   - **Docs no PR:** README; [ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md); [gap-analysis (RNF-024)](../requisitos/fase2/gap-analysis-fase-2.md).
   - **Esforço:** médio (precisa de ingress + proxy-headers) · **Valor:** médio (correção de segurança).
 
-- [ ] **TD-022 — OTel no relay**
-  - **Como:** estender o OTel da API ([ADR-020](../arquitetura/adr/fase2/020-observabilidade-opentelemetry.md)) ao processo do relay; emitir métricas (profundidade da outbox, tamanho da DLQ, retries) via OTLP. Valor pleno pede um backend de métricas (Prometheus) — avaliar escopo mínimo.
-  - **Docs no PR:** README; [ADR-022](../arquitetura/adr/fase2/022-transactional-outbox-relay.md) e/ou ADR-020.
+- [x] **TD-022 — OTel no relay** — ✅ Fechado (PR #66)
+  - **Como (feito):** OTel da API ([ADR-020](../arquitetura/adr/fase2/020-observabilidade-opentelemetry.md)) estendido ao processo do relay com backend Prometheus — `MeterProvider` + `PrometheusMetricReader` ([relay/metrics.py](../../relay/metrics.py)) servem `/metrics` (porta 9100), scrapeado pelo [`k8s/prometheus.yaml`](../../k8s/prometheus.yaml) (Service `pytstop-relay-metrics`): gauges de profundidade (pendentes/idade/dead, mesma query do gauge structlog) + contadores entregue/falha/dead/retry.
+  - **Docs no PR:** README; [ADR-024](../arquitetura/adr/fase2/024-metricas-prometheus.md) e [ADR-022](../arquitetura/adr/fase2/022-transactional-outbox-relay.md)/ADR-020.
   - **Esforço:** médio · **Valor:** médio (tema observabilidade).
 
-- [ ] **TD-021 — Fencing de lease do relay (`replicas>1`)**
-  - **Como:** re-checar lease/owner dentro da transação por-linha e pular se o lease foi roubado; só então permitir `replicas>1`. Completa a história HA do outbox.
-  - **Docs no PR:** README; [ADR-022](../arquitetura/adr/fase2/022-transactional-outbox-relay.md) (atualiza a seção de consequências/HA).
-  - **Esforço:** médio-alto (delicado — exige teste de roubo de lease) · **Valor:** médio · **Latente hoje** (relay roda `replicas:1`).
+- [x] **TD-021 — Fencing de lease do relay (`replicas>1`)** — ✅ Fechado (PR #66)
+  - **Como (feito):** fencing na entrega — `bloquear_para_entrega` re-adquire o lock da linha (`SELECT ... WHERE id=:id AND status='pendente' FOR UPDATE SKIP LOCKED`) no INÍCIO da tx por-linha de [relay/processador.py](../../relay/processador.py); falso → outra réplica detém a entrega ou a linha já não está `pendente` → pula. O lock vive até o fim da tx (handler + marcação), serializando réplicas concorrentes sem duplicar entrega; sem mudança de schema. Coberto por teste unitário de short-circuit e por dois testes de integração deterministas (duas conexões competindo + duas réplicas entregando 1 linha exatamente uma vez).
+  - **Docs no PR:** README; [ADR-022](../arquitetura/adr/fase2/022-transactional-outbox-relay.md) (consequências/HA); [k8s/relay.yaml](../../k8s/relay.yaml) (comentário: `replicas>1` agora seguro).
+  - **Esforço:** médio-alto · **Valor:** médio · Completa a história HA do outbox (`replicas:1` segue como default conservador).
 
 ### Tier 3 — quick wins (baixo esforço)
 
@@ -92,8 +92,8 @@ Da tabela *Considerações de Complexidade Algorítmica* do [README.md](README.m
 
 ## O que entra na entrega (must vs nice)
 
-- **Must (já feito):** os 12 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 11 abertos.
-- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD) e Tier 2 com **TD-011 DAST fechado** (PR #65); seguir pelo restante do Tier 2 (TD-023, TD-022, TD-021).
+- **Must (já feito):** os 14 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 9 abertos.
+- **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD) e Tier 2 com **TD-011 DAST** (PR #65), **TD-021 fencing do relay** (PR #66) e **TD-022 OTel no relay** (PR #66) fechados; seguir pelo restante do Tier 2 (TD-023).
 - **Provavelmente fora:** Tier 3 (limpeza de baixo retorno) e Tier 4 (deliberados de baixo valor para a banca).
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)

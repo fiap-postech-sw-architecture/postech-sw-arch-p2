@@ -19,7 +19,11 @@ from uuid import UUID, uuid4
 import pytest
 from sqlalchemy import text
 
-from relay.processador import emitir_profundidade, processar_ciclo
+from relay.processador import (
+    ConexaoOutboxSQL,
+    emitir_profundidade,
+    processar_ciclo,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy import Engine
@@ -211,6 +215,105 @@ def test_skip_locked_nao_duplica_em_concorrencia(engine: Engine) -> None:
 
     # SKIP LOCKED garante que cada linha foi entregue no maximo 1x.
     assert len(entregues) == len(set(entregues)) == 20
+
+
+def test_fencing_serializa_duas_replicas_na_entrega(engine: Engine) -> None:
+    # TD-021 (deterministico, sem timing): o fencing `bloquear_para_entrega`
+    # (re-lock `FOR UPDATE SKIP LOCKED` na tx por-linha) serializa duas
+    # replicas competindo pela MESMA linha. Prova as duas pontas:
+    #   1. enquanto A detem o lock, B falha o re-lock (SKIP LOCKED) -> so A
+    #      entrega -> sem e-mail duplicado mesmo com o lease vencido;
+    #   2. apos A marcar `entregue` e comitar, um novo re-lock falha (status
+    #      != pendente) -> sem re-entrega da linha ja concluida.
+    outbox_id = _inserir_pendente(engine)
+
+    # Conexao A: re-locka a linha e MANTEM a tx aberta (simula a replica que
+    # esta entregando agora). Conexao B: tenta re-lockar em paralelo.
+    conn_a = engine.connect()
+    conn_b = engine.connect()
+    try:
+        conn_a.begin()
+        fachada_a = ConexaoOutboxSQL(conn_a, _agora())
+        # A trava a linha (e dona da entrega nesta tx).
+        assert fachada_a.bloquear_para_entrega(outbox_id) is True
+
+        conn_b.begin()
+        fachada_b = ConexaoOutboxSQL(conn_b, _agora())
+        # B nao consegue: SKIP LOCKED pula a linha travada por A -> nao
+        # entrega em paralelo (sem duplicacao).
+        assert fachada_b.bloquear_para_entrega(outbox_id) is False
+        conn_b.rollback()
+
+        # A conclui a entrega e comita -> libera o lock e muda o status.
+        fachada_a.marcar_entregue(outbox_id)
+        conn_a.commit()
+    finally:
+        conn_a.close()
+        conn_b.close()
+
+    assert _status(engine, outbox_id) == ("entregue", 0)
+
+    # Numa conexao nova, o re-lock falha agora pelo status (nao mais
+    # `pendente`): nenhuma replica re-entrega a linha ja concluida.
+    conn_c = engine.connect()
+    try:
+        conn_c.begin()
+        fachada_c = ConexaoOutboxSQL(conn_c, _agora())
+        assert fachada_c.bloquear_para_entrega(outbox_id) is False
+        conn_c.rollback()
+    finally:
+        conn_c.close()
+
+
+def test_duas_replicas_concorrentes_entregam_linha_exatamente_uma_vez(
+    engine: Engine,
+) -> None:
+    # Smoke de exactly-once sob dois workers `processar_ciclo` concorrentes
+    # sobre UMA linha (handler lento, ~0,3s, segura a tx por-linha). O que
+    # impede a duplicacao AQUI e o CLAIM: `reivindicar_lote` reivindica a linha
+    # com `FOR UPDATE OF o SKIP LOCKED` e crava o lease de 60s numa tx
+    # COMITADA, ANTES da entrega. So um worker reivindica; quando o handler
+    # lento roda (fase DELIVER), a linha ja foi serializada no claim e o lease
+    # esta longe de vencer. O fencing de entrega (`bloquear_para_entrega`) NAO
+    # e exercitado aqui — sua prova determinista, sem timing, esta em
+    # `test_fencing_serializa_duas_replicas_na_entrega` (segura o lock da
+    # replica A e mostra que o re-lock de B retorna vazio + status != pendente
+    # apos o commit). Este teste vale como smoke de exactly-once concorrente
+    # via claim; NAO cobre a corrida de lease-vencido-no-meio-da-entrega.
+    import time
+
+    outbox_id = _inserir_pendente(engine)
+    entregues: list[str] = []
+    lock = threading.Lock()
+
+    def handler(payload: dict[str, Any]) -> None:
+        # Segura a tx por-linha aberta tempo suficiente para a outra replica
+        # tentar (e falhar) o re-lock concorrentemente.
+        time.sleep(0.3)
+        with lock:
+            entregues.append(payload["agregado_id"])
+
+    def worker() -> None:
+        processar_ciclo(
+            engine,
+            handlers={"DiagnosticoIniciadoEvent": handler},
+            nome_handler="email",
+            limite=10,
+            lease=_LEASE,
+            relogio=_agora,
+        )
+
+    threads = [threading.Thread(target=worker) for _ in range(2)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+
+    # Exactly-once: a linha foi entregue por exatamente uma replica (o claim
+    # com SKIP LOCKED + lease serializou; o fencing de entrega nao entra aqui).
+    assert entregues == [entregues[0]]
+    assert len(entregues) == 1
+    assert _status(engine, outbox_id) == ("entregue", 0)
 
 
 def test_crash_redeliver_e_idempotente(engine: Engine) -> None:

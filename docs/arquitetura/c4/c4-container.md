@@ -27,7 +27,7 @@ C4Container
 
 ## Diagrama — Fase 2
 
-Topologia de deploy em cluster Kubernetes (kind), espelhando a [RFC-002 §3](../rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md). Mantém a mesma API (monolito modular, agora nas camadas da Clean Architecture — [ADR-015](../adr/fase2/015-arquitetura-alvo-fase-2.md)) e introduz containers de apoio: relay de eventos da Transactional Outbox ([ADR-022](../adr/fase2/022-transactional-outbox-relay.md)), Redis para o rate limiter compartilhado ([ADR-023](../adr/fase2/023-rate-limiter-storage-compartilhado.md)), Mailpit para notificação por e-mail ([ADR-018](../adr/fase2/018-notificacao-email.md)) e Jaeger condicional para traces ([ADR-020](../adr/fase2/020-observabilidade-opentelemetry.md)).
+Topologia de deploy em cluster Kubernetes (kind), espelhando a [RFC-002 §3](../rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md). Mantém a mesma API (monolito modular, agora nas camadas da Clean Architecture — [ADR-015](../adr/fase2/015-arquitetura-alvo-fase-2.md)) e introduz containers de apoio: relay de eventos da Transactional Outbox ([ADR-022](../adr/fase2/022-transactional-outbox-relay.md)), Redis para o rate limiter compartilhado ([ADR-023](../adr/fase2/023-rate-limiter-storage-compartilhado.md)), Mailpit para notificação por e-mail ([ADR-018](../adr/fase2/018-notificacao-email.md)), Jaeger condicional para traces ([ADR-020](../adr/fase2/020-observabilidade-opentelemetry.md)) e Prometheus para as métricas do relay ([ADR-024](../adr/fase2/024-metricas-prometheus.md)).
 
 ```mermaid
 C4Container
@@ -42,6 +42,7 @@ C4Container
         Container(redis, "Redis", "Redis", "Storage compartilhado do rate<br/>limiter sob HPA (ADR-023).")
         Container(mailpit, "Mailpit", "SMTP de demo", "Recebe os e-mails de notificacao<br/>de status (ADR-018).")
         Container(jaeger, "Jaeger", "all-in-one, OTLP", "Backend de traces — onda final<br/>condicional (ADR-020).")
+        Container(prometheus, "Prometheus", "Deployment + Service", "Coleta as metricas do relay via<br/>scrape do /metrics (ADR-024).")
     }
 
     Rel(admin, api, "Gerencia OS, clientes,<br/>estoque e catalogo", "HTTPS / JWT / JSON")
@@ -50,6 +51,7 @@ C4Container
     Rel(api, jaeger, "Traces (condicional)", "OTLP")
     Rel(relay, db, "LISTEN/NOTIFY +<br/>claim outbox", "SQLAlchemy 2.0")
     Rel(relay, mailpit, "Envia e-mail", "SMTP")
+    Rel(prometheus, relay, "Scrape /metrics", "HTTP")
 ```
 
 ## Containers

@@ -14,12 +14,15 @@ SMTP e duplicar ate o lote inteiro num crash):
    agregado tenha uma predecessora (``id`` menor) NAO-terminal — ou seja,
    um evento em backoff segura os sucessores do MESMO agregado. ``dead`` NAO
    bloqueia (gap aceito; ver F4).
-3. DELIVER (fora de transacao): ``processar_linha`` entrega UMA linha por
-   vez, em ordem de ``id``, cada uma com idempotencia (``processed_events``)
-   -> handler -> ``entregue`` / retry / ``dead``, gravada numa TX CURTA
-   PROPRIA POR LINHA. Assim um erro de DB numa linha tardia nunca reverte o
-   ``entregue`` de uma linha anterior, e um crash duplica no MAXIMO 1 e-mail
-   (a linha em voo), nao o lote.
+3. DELIVER (fora da tx de claim): ``processar_linha`` entrega UMA linha por
+   vez, em ordem de ``id``, cada uma na sua TX CURTA PROPRIA. A tx abre com um
+   FENCING DE LEASE (``bloquear_para_entrega`` = re-lock ``FOR UPDATE SKIP
+   LOCKED`` + status ``pendente``, TD-021) -> idempotencia
+   (``processed_events``) -> handler -> ``entregue`` / retry / ``dead``. O
+   fencing serializa replicas concorrentes (a que falha o re-lock pula a
+   linha), tornando ``replicas>1`` seguro sem duplicar a entrega. Um erro de
+   DB numa linha tardia nunca reverte o ``entregue`` de uma anterior, e um
+   crash duplica no MAXIMO 1 e-mail (a linha em voo), nao o lote.
 
 A logica de transicao (``processar_linha``) e desacoplada do banco por uma
 fachada (``ConexaoOutbox``) para teste unitario sem Postgres; a
@@ -36,6 +39,7 @@ import structlog
 from sqlalchemy import text
 
 from relay.backoff import calcular_proxima_tentativa, deve_ir_para_dlq
+from relay.metrics import metricas
 from src.compartilhado.infraestrutura.logging import redigir_pii_erro
 
 if TYPE_CHECKING:
@@ -63,6 +67,9 @@ class ConexaoOutbox(Protocol):
     """Fachada dos efeitos sobre a outbox (permite fake em teste)."""
 
     # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
+    def bloquear_para_entrega(self, outbox_id: int) -> bool:
+        pass
+
     def ja_processado(self, outbox_id: int, handler: str) -> bool:
         pass
 
@@ -97,7 +104,21 @@ def processar_linha(
     incrementa ``tentativas``; ao atingir o maximo, ``dead``. ``marcar_dead``
     recebe o valor EXPLICITO de ``tentativas`` (F5) — fonte unica de
     verdade, identica a ``agendar_retry``.
+
+    FENCING DE LEASE (TD-021, ``replicas>1``): a primeira coisa e re-adquirir
+    o lock da linha DENTRO desta tx (``bloquear_para_entrega`` =
+    ``FOR UPDATE SKIP LOCKED`` + status ``pendente``). O lock do claim ja foi
+    solto no commit da tx de reivindicacao; sem este re-lock, se o lease
+    vencesse no meio de uma entrega lenta uma 2a replica re-reivindicaria a
+    MESMA linha e o e-mail duplicaria. O re-lock e mantido por toda a tx
+    (handler + marcacao), serializando as replicas: a que falha o lock pula a
+    linha. Falso -> ou outra replica detem a entrega, ou a linha ja nao esta
+    ``pendente`` (entregue/dead) -> nada a fazer.
     """
+    if not conn.bloquear_para_entrega(linha.id):
+        _log.info("entrega_pulada_fencing", outbox_id=linha.id)
+        return
+
     handler = handlers.get(linha.tipo)
     if handler is None:
         _log.error(
@@ -108,6 +129,7 @@ def processar_linha(
         conn.marcar_dead(
             linha.id, linha.tentativas, f"sem handler para tipo {linha.tipo}"
         )
+        metricas.dead()
         _alertar_dead_com_sucessores(conn, linha)
         return
 
@@ -125,10 +147,14 @@ def processar_linha(
     try:
         handler(linha.payload)
     except Exception as exc:  # noqa: BLE001 — falha de handler vira retry/DLQ, nunca derruba o relay
+        # Toda excecao de handler e uma falha de entrega (TD-022): conta uma vez
+        # aqui, independente de virar retry ou DLQ.
+        metricas.falha()
         tentativas = linha.tentativas + 1
         erro = redigir_pii_erro(f"{type(exc).__name__}: {exc}")
         if deve_ir_para_dlq(tentativas):
             conn.marcar_dead(linha.id, tentativas, erro)
+            metricas.dead()
             _log.error(
                 "outbox: entrega falhou no maximo de tentativas; DLQ",
                 outbox_id=linha.id,
@@ -138,6 +164,7 @@ def processar_linha(
             _alertar_dead_com_sucessores(conn, linha)
         else:
             conn.agendar_retry(linha.id, tentativas, erro)
+            metricas.retry()
             _log.warning(
                 "outbox: entrega falhou; reagendada com backoff",
                 outbox_id=linha.id,
@@ -148,6 +175,7 @@ def processar_linha(
 
     conn.registrar_processed(linha.id, nome_handler)
     conn.marcar_entregue(linha.id)
+    metricas.entregue()
     _log.info(
         "outbox: evento entregue",
         outbox_id=linha.id,
@@ -179,6 +207,23 @@ class ConexaoOutboxSQL:
     def __init__(self, conn: Connection, agora: datetime) -> None:
         self._conn = conn
         self._agora = agora
+
+    def bloquear_para_entrega(self, outbox_id: int) -> bool:
+        # Fencing de lease (TD-021): re-adquire o lock da linha NESTA tx e so
+        # entrega se ela ainda esta `pendente`. `FOR UPDATE SKIP LOCKED` torna
+        # a checagem NAO-bloqueante — se outra replica detem a linha, retorna
+        # vazio (False) em vez de esperar. O lock vive ate o fim da tx
+        # por-linha (handler + marcacao), entao nenhuma outra replica entrega
+        # a mesma linha em paralelo. Retorna True sse esta replica travou a
+        # linha (= e dona desta entrega), False caso contrario.
+        linha = self._conn.execute(
+            text(
+                "SELECT 1 FROM outbox WHERE id = :id AND status = 'pendente' "
+                "FOR UPDATE SKIP LOCKED"
+            ),
+            {"id": outbox_id},
+        ).first()
+        return linha is not None
 
     def ja_processado(self, outbox_id: int, handler: str) -> bool:
         linha = self._conn.execute(
@@ -302,34 +347,64 @@ def reivindicar_lote(
     return reivindicadas
 
 
-def emitir_profundidade(engine: Engine) -> None:
-    """Loga um gauge ``info`` da profundidade da outbox (design §7).
-
-    Uma unica query por chamada (barata; os indices de ``status`` ja existem):
-    quantos eventos ``pendente``, ha quanto tempo o mais antigo espera
-    (segundos) e quantos estao em ``dead`` (DLQ). Emitido uma vez por ciclo de
-    drain (em ``_drenar``), nao por entrega — observabilidade de fila sem
-    inflar o volume de logs por evento.
+@dataclass(frozen=True, slots=True)
+class ProfundidadeOutbox:
+    """Snapshot da profundidade da outbox (design §7).
 
     ``idade_mais_antigo_s`` e ``None`` quando nao ha pendentes (o
-    ``min(... ) FILTER`` retorna NULL); o caller registra como tal.
+    ``min(...) FILTER`` retorna NULL).
+    """
+
+    pendentes: int
+    idade_mais_antigo_s: float | None
+    dead: int
+
+
+# Uma unica query (barata; os indices de `status` ja existem): quantos eventos
+# `pendente`, ha quanto tempo o mais antigo espera (segundos) e quantos estao em
+# `dead` (DLQ). Fonte UNICA de SQL — o gauge structlog (`emitir_profundidade`) e
+# o ObservableGauge OTel (`relay/metrics.py`, TD-022) consomem o mesmo helper.
+_SQL_PROFUNDIDADE = (
+    "SELECT count(*) FILTER (WHERE status = 'pendente') AS pendentes, "
+    "EXTRACT(EPOCH FROM (now() - min(criado_em) "
+    "  FILTER (WHERE status = 'pendente'))) AS idade_mais_antigo_s, "
+    "count(*) FILTER (WHERE status = 'dead') AS dead "
+    "FROM outbox"
+)
+
+
+def consultar_profundidade(engine: Engine) -> ProfundidadeOutbox:
+    """Le a profundidade da outbox numa unica query (design §7).
+
+    Helper compartilhado: tanto o gauge structlog (``emitir_profundidade``,
+    emitido por ciclo de drain) quanto o ObservableGauge OTel
+    (``relay/metrics.py``, scrapeado pelo Prometheus) o usam — SQL nao
+    duplicado (TD-022/ADR-024).
     """
     with engine.begin() as conn:
-        row = conn.execute(
-            text(
-                "SELECT count(*) FILTER (WHERE status = 'pendente') AS pendentes, "
-                "EXTRACT(EPOCH FROM (now() - min(criado_em) "
-                "  FILTER (WHERE status = 'pendente'))) AS idade_mais_antigo_s, "
-                "count(*) FILTER (WHERE status = 'dead') AS dead "
-                "FROM outbox"
-            )
-        ).one()
+        row = conn.execute(text(_SQL_PROFUNDIDADE)).one()
     idade = row.idade_mais_antigo_s
-    _log.info(
-        "outbox_profundidade",
+    return ProfundidadeOutbox(
         pendentes=int(row.pendentes),
         idade_mais_antigo_s=float(idade) if idade is not None else None,
         dead=int(row.dead),
+    )
+
+
+def emitir_profundidade(engine: Engine) -> None:
+    """Loga um gauge ``info`` da profundidade da outbox (design §7).
+
+    Reusa ``consultar_profundidade`` (mesma query do gauge OTel). Emitido uma
+    vez por ciclo de drain (em ``_drenar``), nao por entrega — observabilidade
+    de fila sem inflar o volume de logs por evento. ``idade_mais_antigo_s`` e
+    ``None`` quando nao ha pendentes.
+    """
+    profundidade = consultar_profundidade(engine)
+    _log.info(
+        "outbox_profundidade",
+        pendentes=profundidade.pendentes,
+        idade_mais_antigo_s=profundidade.idade_mais_antigo_s,
+        dead=profundidade.dead,
     )
 
 
@@ -351,15 +426,17 @@ def processar_ciclo(
        numa linha nao reverte o ``entregue`` das anteriores; crash duplica no
        maximo a linha em voo (F3).
 
-    INVARIANTE DO LEASE (HA / N replicas): o lease (visibility timeout
-    aplicado em ``reivindicar_lote``) precisa exceder a latencia de pior caso
-    de UMA chamada de handler — limitada pelo timeout do SMTP do adapter. O
-    drain e SEQUENCIAL e em ``replicas:1`` so existe um worker, entao a linha
-    em voo nunca volta a ser elegivel durante a entrega: seguro. Escalar para
-    ``replicas>1`` exige que essa invariante se mantenha (ou uma checagem de
-    fencing no momento da entrega); se o lease vencer no meio de uma entrega
-    lenta, uma segunda replica re-reivindica a MESMA linha e o e-mail
-    duplica. A configuracao shipada e ``replicas:1`` deliberadamente.
+    FENCING DE LEASE -> ``replicas>1`` SEGURO (TD-021): o lease (visibility
+    timeout de ``reivindicar_lote``) atrasa a re-elegibilidade, mas nao e a
+    unica defesa contra duplicacao em HA. Cada entrega comeca re-adquirindo o
+    lock da linha na sua propria tx (``processar_linha`` ->
+    ``bloquear_para_entrega`` = ``FOR UPDATE SKIP LOCKED`` + status
+    ``pendente``): se duas replicas reivindicam a MESMA linha (porque o lease
+    venceu no meio de uma entrega lenta), so a que vence o re-lock entrega; a
+    outra pula. O lock vive por toda a tx por-linha (handler + marcacao),
+    serializando as replicas. Assim ``replicas>1`` NAO duplica o e-mail. A
+    configuracao shipada e ``replicas:1`` como default conservador (ver
+    ``k8s/relay.yaml``), mas e seguro escalar.
     """
     agora = relogio()
     with engine.begin() as conn:

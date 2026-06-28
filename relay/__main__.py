@@ -8,8 +8,14 @@ migrations (a API pod executa ``alembic upgrade head`` no boot).
 
 from __future__ import annotations
 
+import logging
 import os
+import sys
 from datetime import UTC, datetime
+
+import structlog
+
+_log = structlog.get_logger(__name__)
 
 
 def _bootstrap_mappings() -> None:
@@ -41,9 +47,21 @@ def _bootstrap_mappings() -> None:
 def main() -> None:
     from relay.handlers import NOME_HANDLER_EMAIL, construir_mapa_handlers
     from relay.listener import executar_relay
+    from relay.metrics import configurar_metricas
     from src.compartilhado.infraestrutura.database import criar_engine
     from src.compartilhado.infraestrutura.logging import configurar_logging
 
+    # O relay e um daemon standalone (`python -m relay`): ao contrario da API,
+    # NAO sobe uvicorn, que e quem instala um handler no root logger do stdlib.
+    # `configurar_logging` roteia o structlog pelo stdlib (LoggerFactory), entao
+    # sem um handler no root os eventos INFO do relay (outbox_profundidade,
+    # entrega_pulada_fencing, entregas) ficariam no nivel WARNING-default e nao
+    # chegariam ao stdout / `kubectl logs`. Instala um StreamHandler em INFO no
+    # stdout (idempotente: so age se o root ainda nao tem handler) ANTES de
+    # configurar o structlog. Processo isolado da API — nao afeta nem duplica o
+    # logging do uvicorn (entrypoint/outro processo).
+    if not logging.getLogger().handlers:
+        logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="%(message)s")
     configurar_logging()
     git_sha = os.environ.get("PYTSTOP_GIT_SHA", "unknown")[:12]
     git_date = os.environ.get("PYTSTOP_GIT_DATE", "unknown")
@@ -56,6 +74,13 @@ def main() -> None:
         msg = "DATABASE_URL obrigatoria para o relay."
         raise RuntimeError(msg)
     engine = criar_engine(database_url)
+    # Metricas OTel via Prometheus (TD-022/ADR-024): gated por
+    # RELAY_METRICS_ENABLED (default off), igual a API liga o OTel pelo
+    # OTEL_ENABLED. Sobe /metrics ANTES do loop para que o Prometheus ja
+    # encontre o alvo no primeiro scrape.
+    metricas_ativas = configurar_metricas(engine)
+    if not metricas_ativas:
+        _log.info("relay sem metricas OTel (RELAY_METRICS_ENABLED desligado)")
     try:
         executar_relay(
             engine,
