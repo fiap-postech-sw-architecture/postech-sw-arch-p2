@@ -23,4 +23,10 @@ else
   echo "Skipping admin seed. Set RUN_SEED_ON_STARTUP=true to create the initial admin user."
 fi
 
-exec uvicorn src.main:app --host 0.0.0.0 --port 8000
+# --no-proxy-headers: a app gerencia o trust de X-Forwarded-For explicitamente
+# via TRUSTED_PROXIES (ProxyHeadersMiddleware proprio, testado). Esta flag
+# desliga a camada implicita do uvicorn (proxy_headers=True +
+# forwarded_allow_ips="127.0.0.1" por padrao desde 0.44 — confiaria no XFF de
+# peers loopback), para o comportamento em runtime casar com os testes e o
+# default documentado (XFF ignorado quando TRUSTED_PROXIES vazio).
+exec uvicorn src.main:app --host 0.0.0.0 --port 8000 --no-proxy-headers

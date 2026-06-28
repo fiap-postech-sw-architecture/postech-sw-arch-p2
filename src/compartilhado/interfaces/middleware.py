@@ -99,6 +99,13 @@ def configurar_proxy_headers(app: FastAPI) -> None:
     do cliente, e nao o IP do proxy/ingress (TD-023). Vazio (default) -> nao
     instala -> comportamento atual preservado (XFF ignorado, sem spoof).
 
+    O servidor uvicorn roda com ``--no-proxy-headers`` (``entrypoint.sh``), o
+    que DESLIGA o proxy-headers embutido dele (ligado por padrao com
+    ``forwarded_allow_ips="127.0.0.1"``, que confiaria no XFF de peers
+    loopback). Assim ``TRUSTED_PROXIES`` -- via este middleware -- e o UNICO
+    controle de confianca no ``X-Forwarded-For``, e o default vazio ignora o
+    XFF de TODOS os peers (inclusive loopback), batendo com os testes.
+
     ORDEM (Starlette: o ULTIMO middleware adicionado e o MAIS EXTERNO e roda
     PRIMEIRO no request). Este precisa rodar ANTES do ``SlowAPIMiddleware``
     para que o ``client`` ja esteja reescrito quando o limiter ler
