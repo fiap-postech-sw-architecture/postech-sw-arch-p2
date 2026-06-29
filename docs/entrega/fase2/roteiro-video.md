@@ -130,7 +130,7 @@ Abrir **http://localhost:16686** → serviço `pytstop-api` → *Find Traces* �
 ### 7. Encerramento (30 s)
 
 - Qualidade sustentada na evolução: cobertura **95,3%** com gate de 95% na CI, contratos de camadas verificados por **import-linter** (Clean Architecture — ADR-015), scans de segurança herdados da fase 1 (bandit na CI; bateria completa em `docs/seguranca/`).
-- Decisões registradas: ADRs 015–023 + RFC-002; rastreabilidade completa em [entrega-fase-2.md](entrega-fase-2.md).
+- Decisões registradas: ADRs 015–024 + RFC-002; rastreabilidade completa em [entrega-fase-2.md](entrega-fase-2.md).
 - Repositório privado compartilhado com `soat-architecture`.
 
 ## Notas de Produção

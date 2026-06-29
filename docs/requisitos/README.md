@@ -2,9 +2,9 @@
 
 > [↑ Raiz do projeto](../../README.md)
 
-> **Versão**: 1.0 — Fase 1 MVP.
+> **Versão**: 1.1 — Junho/2026 (inclui os documentos de requisitos da fase 2).
 
-Documentação de requisitos do projeto, desde o desafio original até o refinamento técnico e critérios de qualidade.
+Documentação de requisitos do projeto, desde o desafio original até o refinamento técnico e critérios de qualidade. Os documentos da fase 2 estão em [`fase2/`](fase2/).
 
 ## Documentos
 
@@ -17,6 +17,14 @@ Documentação de requisitos do projeto, desde o desafio original até o refinam
 | [refinamento-tecnico.md](refinamento-tecnico.md) | Refinamento técnico com estimativas e considerações por etapa |
 | [glossario.md](glossario.md) | Glossário da linguagem ubíqua — termos de domínio padronizados |
 | [dor-dod.md](dor-dod.md) | Definition of Ready e Definition of Done por user story e por entregável |
+| [matriz-rastreabilidade.md](matriz-rastreabilidade.md) | Matriz de rastreabilidade RF/RNF/RN → critério de teste → ADR (fases 1 e 2) |
+
+### Fase 2
+
+| Arquivo | Descrição |
+|---------|-----------|
+| [fase2/desafio-tech-fase-2.md](fase2/desafio-tech-fase-2.md) | Enunciado original do Tech Challenge Fase 2 |
+| [fase2/gap-analysis-fase-2.md](fase2/gap-analysis-fase-2.md) | Gap analysis challenge × código da fase 1 — RF-020–024, RNF-017–024, RN-018–020 com rastreabilidade requisito → PR → evidência |
 
 ## Relação com Outros Documentos
 
