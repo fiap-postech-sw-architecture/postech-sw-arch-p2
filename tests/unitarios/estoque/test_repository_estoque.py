@@ -2,9 +2,27 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock
 
+import pytest
+
 from src.estoque.infraestrutura.repository import (
     ItemEstoqueSQLAlchemyRepository,
 )
+
+
+@pytest.fixture(autouse=True)
+def _mapeamento_estoque_registrado() -> None:
+    """Registra o mapeamento imperativo de ``ItemEstoque`` (idempotente).
+
+    ``listar``/``obter_por_ids`` montam ``select(ItemEstoque)``, o que exige a
+    classe MAPEADA. Sem registrar aqui, esses testes so passariam por efeito
+    colateral da ordem de coleta da suite (outro modulo chamando
+    ``iniciar_mapeamentos`` antes) e quebrariam ao rodar este arquivo isolado
+    com ``ArgumentError``. ``iniciar_mapeamentos`` e init-once, entao chamar
+    sempre e seguro.
+    """
+    from src.estoque.infraestrutura.mapping import iniciar_mapeamentos
+
+    iniciar_mapeamentos()
 
 
 class TestRepositoryEstoque:
