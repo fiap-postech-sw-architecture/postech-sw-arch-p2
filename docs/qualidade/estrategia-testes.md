@@ -17,7 +17,7 @@ Pirâmide de testes adaptada para DDD com Onion Architecture (evoluída para Cle
 
 ```
         /\
-       /  \        E2E / BDD (poucos)
+       /  \        E2E / BDD (planejado — ver Seção 7)
       /    \       Feature files Gherkin, fluxos completos
      /------\
     /        \     Integracao (medio)
@@ -27,11 +27,13 @@ Pirâmide de testes adaptada para DDD com Onion Architecture (evoluída para Cle
 /________________\ Value Objects, Entities, Aggregates, Services
 ```
 
-| Nível       | Proporção | Tempo de execução | Infraestrutura       | Ferramentas                   |
-|-------------|-----------|-------------------|----------------------|-------------------------------|
-| Unitários   | ~70%      | Milissegundos     | Nenhuma              | pytest, polyfactory           |
-| Integração  | ~20%      | Segundos/minutos  | Docker (testcontainers) | pytest, testcontainers, FastAPI TestClient |
-| E2E / BDD   | ~10%      | Minutos           | Docker + aplicação   | pytest-bdd, Gherkin           |
+A distribuição **atual** da suíte é fortemente concentrada em testes unitários, com integração cobrindo as fronteiras de infraestrutura e a camada E2E/BDD ainda não implementada (apenas um smoke test de saúde em `tests/e2e/`):
+
+| Nível       | Proporção atual | Tempo de execução | Infraestrutura       | Ferramentas                   |
+|-------------|-----------------|-------------------|----------------------|-------------------------------|
+| Unitários   | ~91%            | Milissegundos     | Nenhuma              | pytest, polyfactory           |
+| Integração  | ~9%             | Segundos/minutos  | Docker (testcontainers) | pytest, testcontainers, FastAPI TestClient |
+| E2E / BDD   | ~0% (planejado) | Minutos           | Docker + aplicação   | pytest-bdd, Gherkin (planejado — [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md), TD-013) |
 
 ## 3. Test-Driven Development (TDD)
 
@@ -146,68 +148,47 @@ FastAPI TestClient com testcontainers para PostgreSQL real.
 - Validar que adapters implementam corretamente as interfaces definidas pelos ports
 - Testar comunicação entre bounded contexts via ports
 
-## 7. Testes E2E / BDD
+## 7. Testes E2E / BDD (planejado)
 
-Testes end-to-end com pytest-bdd e feature files Gherkin em português (ADR-013).
+> **Status: planejado, não entregue.** Esta seção descreve o *roadmap* da camada E2E/BDD, não o estado atual do código. A decisão está registrada em [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md), ainda com Status **"Proposta"**, e o débito correspondente é o [TD-013](../tech-debt/README.md) (deliberadamente adiado para depois do MVP). Hoje `tests/e2e/` contém apenas um smoke test de saúde (`test_saude.py`); **não há** `pytest-bdd` no `pyproject.toml` nem arquivos `.feature`. Promover esta camada a entregue exige uma issue própria (adicionar a dependência, escrever os feature files/steps e promover a ADR-013 a "Aceita").
 
-### Organizacao
+### Abordagem proposta
 
-Feature files organizados por bounded context:
+Testes end-to-end com pytest-bdd e feature files Gherkin em português, organizados por bounded context. O objetivo é fornecer documentação viva dos fluxos de negócio (Given-When-Then) aproveitando a linguagem ubíqua em português ([ADR-009](../arquitetura/adr/009-decisao-de-idioma.md)).
 
-```
-tests/e2e/features/
-  ordem_de_servico/
-    ciclo_de_vida_os.feature
-    orcamento.feature
-  cliente_veiculo/
-    cadastro_cliente.feature
-  estoque/
-    reserva_pecas.feature
-```
-
-### Cenarios e rastreabilidade
-
-Cada cenário mapeia para uma ou mais user stories / requisitos funcionais:
-
-| Feature file              | Cenários                        | Requisitos       |
-|---------------------------|---------------------------------|------------------|
-| ciclo_de_vida_os.feature  | Criar OS, avançar diagnóstico   | RF-007, RF-008   |
-| orcamento.feature         | Aprovar/rejeitar orçamento      | RF-009           |
-| cadastro_cliente.feature  | Cadastrar cliente com CPF       | RF-001           |
-| reserva_pecas.feature     | Reservar peças para OS          | RF-006           |
-
-### Linguagem
-
-Feature files escritos em português (`# language: pt`). Steps reutilizáveis entre cenários.
+A estrutura de diretórios prevista e o mapeamento de cenários para requisitos estão detalhados na [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md). Feature files seriam escritos em português (`# language: pt`), com steps reutilizáveis entre cenários.
 
 ## 8. Perfis de Execucao
 
-Três perfis via pytest markers:
+Os perfis são separados por **diretório** (e, quando aplicável, por marker — os markers reais estão em `pyproject.toml`, `[tool.pytest.ini_options]`):
 
 ```bash
 # Unitarios: rapido, sem infraestrutura
-pytest -m unit
+make test                 # == pytest tests/unitarios/ -m "not lento"
 
 # Integracao: requer Docker (testcontainers)
-pytest -m integration
+make test-integ           # == pytest tests/integracao/
 
-# E2E: fluxos completos com BDD
-pytest -m e2e
+# Toda a suite (exceto os marcados como lento)
+make test-all             # == pytest tests/ -m "not lento"
 
-# Todos os perfis
-pytest
+# Equivalentes diretos via pytest
+pytest tests/unitarios
+pytest tests/integracao
 ```
+
+> A camada E2E/BDD (`pytest -m e2e`) está **planejada** (Seção 7): hoje o marker `e2e` cobre apenas o smoke test de saúde.
 
 ### Estratégia por ambiente
 
-| Ambiente            | Perfis executados           | Trigger                       |
-|---------------------|-----------------------------|-------------------------------|
-| Desenvolvimento     | unit                        | Cada alteração de código      |
-| Pre-push            | unit + integration          | Antes de push para remote     |
-| CI pipeline         | unit + integration + e2e    | Push / merge request          |
-| Pre-merge           | Todos + cobertura + mutação | Aprovação de merge request    |
+| Ambiente            | Perfis executados                       | Trigger                       |
+|---------------------|-----------------------------------------|-------------------------------|
+| Desenvolvimento     | Unitários                               | Cada alteração de código      |
+| Pre-push            | Unitários + integração                  | Antes de push para remote     |
+| CI pipeline         | Unitários + integração                  | Push / merge request          |
+| Pre-merge           | Toda a suíte + cobertura + mutação      | Aprovação de merge request    |
 
-CI executa em sequência (`unit` → `integration` → `e2e`). Falha em qualquer perfil interrompe o pipeline.
+CI executa unitários e integração; falha em qualquer etapa interrompe o pipeline. A etapa E2E/BDD entra no pipeline quando a camada da Seção 7 for entregue.
 
 ## 9. Qualidade de Codigo
 
@@ -217,16 +198,17 @@ Análise estática no desenvolvimento e CI:
 |------------|-------------------------------------|-----------------------|
 | ruff       | Lint + formatação                            | `pyproject.toml` [tool.ruff] |
 | mypy       | Verificação de tipos (modo strict)  | `pyproject.toml` [tool.mypy]  |
-| bandit     | Vulnerabilidades de segurança (ADR-011) | `.bandit.yml`     |
+| bandit     | Vulnerabilidades de segurança (ADR-011) | `pyproject.toml` [tool.bandit] |
 | SonarQube  | Análise estática/qualidade — scan **manual** de fechamento (não é gate de CI, ver TD-010) | `sonar-project.properties` |
 
 Execução local:
 
 ```bash
-ruff check src/                # Lint
-ruff format --check src/       # Formatacao
-mypy src/                      # Tipos
-bandit -r src/ -c .bandit.yml  # Seguranca
+ruff check src/                          # Lint
+ruff format --check src/                 # Formatacao
+mypy src/                                # Tipos
+bandit -r src/ -c pyproject.toml         # Seguranca (config em [tool.bandit])
+make security                            # Gate de seguranca completo (src/ ui/ relay/ scripts/, severity high)
 ```
 
 ## 10. Metas de Cobertura
@@ -241,16 +223,16 @@ Conforme ADR-005, diferenciadas por criticidade:
 
 ### Testes de mutacao
 
-mutmut com meta de 70%+ de mutantes mortos. Meta indicativa, não bloqueante (TD-006).
+Planejado (TD-006, débito deliberado): testes de mutação com meta indicativa de ~70% de mutantes mortos (ex.: mutmut), não bloqueante. Sem tooling instalado nesta fase.
 
 ## 11. Relatórios
 
-| Ferramenta   | Tipo de relatório           | Comando                           |
-|-------------|-----------------------------|------------------------------------|
-| pytest-cov  | Cobertura de código         | `make test-coverage`                |
-| pytest-html | Relatório de execução       | `pytest --html=report.html`        |
-| mutmut      | Relatório de mutação        | `mutmut run && mutmut html`        |
-| schemathesis | Relatório de contrato      | `st run --app=src.main:app`        |
+| Ferramenta   | Tipo de relatório           | Comando                           | Status |
+|-------------|-----------------------------|------------------------------------|--------|
+| pytest-cov  | Cobertura de código         | `make test-coverage`               | Entregue |
+| pytest-html | Relatório de execução       | `pytest --html=report.html`        | Planejado (não instalado) |
+| mutmut      | Relatório de mutação        | `mutmut run && mutmut html`        | Planejado (TD-006) |
+| schemathesis | Relatório de contrato      | `st run --app=src.main:app`       | Planejado (não instalado) |
 
 Evolução futura: Allure como framework de relatórios (TD-014).
 
@@ -272,7 +254,7 @@ Métricas finais da implementação (16/04/2026):
 
 Todas as metas de cobertura atingidas. Testes de integração usam testcontainers com PostgreSQL real e isolamento via SAVEPOINT.
 
-> **Fase 2:** a suíte cresceu para **1426 unitários + 136 de integração** e o gate de cobertura passou a **95%** (`.coveragerc`, `fail_under = 95`), aplicado na CI. Os testes de integração com testcontainers agora também sobem **Redis** (storage do rate limiter — [ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md)), além do PostgreSQL. Os números da fase 1 acima permanecem como registro histórico.
+> **Fase 2:** a suíte cresceu para **~1480 unitários + ~140 de integração** e o gate de cobertura passou a **95%** (`.coveragerc`, `fail_under = 95`), aplicado na CI. Os testes de integração com testcontainers agora também sobem **Redis** (storage do rate limiter — [ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md)), além do PostgreSQL. Os números da fase 1 acima permanecem como registro histórico.
 
 ## 13. Referências
 
