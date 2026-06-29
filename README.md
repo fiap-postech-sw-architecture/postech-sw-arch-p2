@@ -23,7 +23,9 @@ Sistema de gestão de ordens de serviço de uma oficina mecânica de médio port
 - **Infraestrutura como código**: Terraform provisiona cluster kind + PostgreSQL num único apply em [`infra/`](infra/README.md) ([ADR-017](docs/arquitetura/adr/fase2/017-provisionamento-banco.md));
 - **CD real**: push na main publica imagem por SHA no GHCR e implanta do zero em cluster efêmero com smoke test ([ADR-019](docs/arquitetura/adr/fase2/019-pipeline-cicd-deploy.md));
 - **Evolução da API**: abertura de OS com serviços e peças, situação no vocabulário do challenge, decisão externa de orçamento, listagem ordenada por prioridade e notificação de status por e-mail ([ADR-018](docs/arquitetura/adr/fase2/018-notificacao-email.md), [ADR-021](docs/arquitetura/adr/fase2/021-aprovacao-externa-orcamento.md));
-- **Observabilidade mínima**: traces OpenTelemetry (FastAPI + SQLAlchemy) no Jaeger ([ADR-020](docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md)).
+- **Observabilidade**: traces OpenTelemetry (FastAPI + SQLAlchemy) no Jaeger ([ADR-020](docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md)) e métricas do relay no Prometheus ([ADR-024](docs/arquitetura/adr/fase2/024-metricas-prometheus.md)).
+
+Como qualidade além do escopo, o grupo amortizou parte da dívida técnica: entrega de eventos por **Transactional Outbox + relay** ([ADR-022](docs/arquitetura/adr/fase2/022-transactional-outbox-relay.md)) e rate limiter com **storage compartilhado (Redis)** sob HPA ([ADR-023](docs/arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md)).
 
 O desenho integrado está na [RFC-002](docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md); o índice da entrega, em [`docs/entrega/fase2/`](docs/entrega/fase2/README.md).
 
@@ -61,6 +63,9 @@ flowchart TB
             hpa["HPA — CPU e memória"]
             mailpit["Mailpit (ADR-018)<br/>Deployment + Service ClusterIP"]
             jaeger["Jaeger all-in-one (ADR-020)<br/>onda final condicional"]
+            relay["Relay de eventos (ADR-022)<br/>Deployment — outbox→SMTP"]
+            redis["Redis (ADR-023)<br/>Deployment + Service — rate limit"]
+            prometheus["Prometheus (ADR-024)<br/>Deployment + Service — métricas do relay"]
         end
     end
 
@@ -69,8 +74,12 @@ flowchart TB
     hpa -->|"escala réplicas"| app
     ms -.->|"métricas de CPU e memória"| hpa
     app -->|"SQL via DATABASE_URL"| pg
-    app -->|"SMTP"| mailpit
+    app -->|"grava outbox + NOTIFY"| pg
+    relay -->|"LISTEN/NOTIFY + claim outbox"| pg
+    relay -->|"SMTP"| mailpit
+    app -.->|"rate limit"| redis
     app -.->|"traces OTLP"| jaeger
+    prometheus -.->|"scrape /metrics"| relay
 ```
 
 A aplicação é um monolito modular: cada contexto delimitado segue as camadas da Clean Architecture (Entidades, Casos de Uso, Adaptadores de Interface, Frameworks & Drivers), mapeadas sobre as pastas `dominio/`, `aplicacao/`, `interfaces/` e `infraestrutura/` de cada módulo. A regra de dependência é verificada em todo build por `make lint-arch` (import-linter). Convenção de idioma híbrida ([ADR-009](docs/arquitetura/adr/009-decisao-de-idioma.md)): termos de negócio em português, padrões técnicos em inglês.
@@ -152,9 +161,10 @@ Passo a passo manual equivalente (provisionar, carregar imagem, aplicar manifest
 kubectl --context kind-pytstop -n pytstop port-forward svc/pytstop-api 18000:8000   # Swagger: http://localhost:18000/docs
 kubectl --context kind-pytstop -n pytstop port-forward svc/mailpit 8025:8025        # Mailpit UI
 kubectl --context kind-pytstop -n pytstop port-forward svc/jaeger 16686:16686       # Jaeger UI
+kubectl --context kind-pytstop -n pytstop port-forward svc/prometheus 9090:9090     # Prometheus UI (métricas do relay)
 ```
 
-Admin de demo do cluster (seed no boot): `admin@pytstop.local` / `pytstop-admin-demo-2026` (valores de demonstração comitados — [`k8s/secret.yaml`](k8s/secret.yaml)).
+Admin de demo do cluster (seed no boot): `admin@pytstop.dev` / `pytstop-admin-demo-2026` (valores de demonstração comitados — [`k8s/secret.yaml`](k8s/secret.yaml)).
 
 ## Provisionamento com Terraform
 
@@ -234,6 +244,11 @@ de simulação é sandbox integrado. Guia completo: [`ui/README.md`](ui/README.m
 | ORCAMENTO_WEBHOOK_TOKEN | Token do canal externo de decisão de orçamento (RF-022) | valor de demo no compose e no cluster |
 | OTEL_ENABLED | Liga a instrumentação OpenTelemetry (ADR-020) | false (true no cluster de demo) |
 | OTEL_EXPORTER_OTLP_ENDPOINT | Endpoint OTLP/gRPC do backend de traces | http://jaeger:4317 |
+| RATE_LIMIT_STORAGE_URI | Store compartilhado do rate limiter sob HPA (ADR-023); ausente, cai para `memory://` | memory:// local / redis://redis:6379 no cluster |
+| OUTBOX_POLL_SEGUNDOS / OUTBOX_LOTE / OUTBOX_LEASE_SEGUNDOS | Poll de segurança, tamanho do lote e lease do relay da Transactional Outbox (ADR-022) | 5 / 10 / 60 |
+| RELAY_HEARTBEAT | Caminho do arquivo de heartbeat do relay (liveness) | /tmp/relay-heartbeat |
+| RELAY_METRICS_ENABLED / RELAY_METRICS_PORT | Liga o `/metrics` do relay para o Prometheus scrapear (ADR-024) | false / 9100 (true no cluster de demo) |
+| DB_POOL_SIZE / DB_MAX_OVERFLOW | Pool de conexões por réplica, dimensionado para o pior caso do HPA (RNF-024) | 5 / 10 |
 | BACKEND_URL | URL do backend consumida pela UI | http://localhost:8001 local / http://app:8000 docker |
 | UI_PORT | Porta da UI NiceGUI | 8080 |
 
@@ -247,7 +262,9 @@ Mapa completo variável → ConfigMap/Secret no cluster: [RFC-002 §6](docs/arqu
 - **ORM**: SQLAlchemy 2.0 (mapeamento imperativo)
 - **Autenticação**: JWT (HS256)
 - **E-mail**: adapter SMTP + Mailpit (demo)
-- **Observabilidade**: OpenTelemetry (FastAPI + SQLAlchemy) + Jaeger
+- **Mensageria/eventos**: Transactional Outbox + processo relay (LISTEN/NOTIFY)
+- **Rate limiting**: slowapi com storage compartilhado em Redis (sob HPA)
+- **Observabilidade**: OpenTelemetry — traces (FastAPI + SQLAlchemy) no Jaeger + métricas do relay no Prometheus
 - **Testes**: pytest, testcontainers, polyfactory
 - **Linting**: ruff, mypy (strict), import-linter, bandit
 - **Containerização**: Docker, Docker Compose
@@ -264,7 +281,7 @@ make test-all       # tudo (unitarios + integracao + e2e)
 make lint-arch      # contratos de camadas Clean (import-linter, ADR-015)
 ```
 
-Cobertura atual na main: **97,5%** (gate de 95%). Detalhes do workflow de dev
+Cobertura atual na main: **95,34%** (gate de 95%, [run 28299121351](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/28299121351)). Detalhes do workflow de dev
 (lint, mypy, bandit, atualizar dependências): [`docs/desenvolvimento.md`](docs/desenvolvimento.md).
 
 ## Code review automatizado pelo Claude
@@ -334,7 +351,7 @@ gh workflow run claude-on-demand.yml \
 
 | Artefato | Título | Status |
 |---|---|---|
-| [RFC-002](docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md) | Infraestrutura e deploy da fase 2 (desenho integrado) | Proposta |
+| [RFC-002](docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md) | Infraestrutura e deploy da fase 2 (desenho integrado) | Aceita |
 | [ADR-015](docs/arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md) | Clean Architecture como arquitetura alvo | Aceita |
 | [ADR-016](docs/arquitetura/adr/fase2/016-plataforma-kubernetes.md) | kind como plataforma Kubernetes | Aceita |
 | [ADR-017](docs/arquitetura/adr/fase2/017-provisionamento-banco.md) | PostgreSQL StatefulSet via Terraform | Aceita |
@@ -342,6 +359,9 @@ gh workflow run claude-on-demand.yml \
 | [ADR-019](docs/arquitetura/adr/fase2/019-pipeline-cicd-deploy.md) | Pipeline de CI/CD com deploy em kind efêmero | Aceita |
 | [ADR-020](docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md) | Observabilidade OpenTelemetry mínima | Aceita |
 | [ADR-021](docs/arquitetura/adr/fase2/021-aprovacao-externa-orcamento.md) | Aprovação/recusa externa de orçamento | Aceita |
+| [ADR-022](docs/arquitetura/adr/fase2/022-transactional-outbox-relay.md) | Transactional Outbox + relay para entrega de eventos de integração | Aceita |
+| [ADR-023](docs/arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md) | Rate limiter com storage compartilhado (Redis) sob HPA | Aceita |
+| [ADR-024](docs/arquitetura/adr/fase2/024-metricas-prometheus.md) | Métricas de observabilidade com Prometheus e OpenTelemetry no relay | Aceita |
 
 ### Fase 1
 
