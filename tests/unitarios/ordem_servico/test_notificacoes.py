@@ -57,7 +57,10 @@ class StubRepo:
         self._ordem = ordem
         self.consultas = 0
 
-    def obter_por_id(self, ordem_id: UUID) -> OrdemDeServico | None:
+    def obter_por_id(
+        self, ordem_id: UUID, *, com_lock: bool = False
+    ) -> OrdemDeServico | None:
+        del com_lock  # stub in-memory: FOR UPDATE e no-op
         self.consultas += 1
         if self._ordem is not None and self._ordem.id == ordem_id:
             return self._ordem

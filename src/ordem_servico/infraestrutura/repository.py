@@ -75,9 +75,30 @@ class OrdemDeServicoSQLAlchemyRepository:
     def __init__(self, session: Session) -> None:
         self._session = session
 
-    def obter_por_id(self, ordem_id: UUID) -> OrdemDeServico | None:
-        """Retorna a ordem pelo id, ou ``None`` se nao existir."""
-        return self._session.get(OrdemDeServico, ordem_id)
+    def obter_por_id(
+        self, ordem_id: UUID, *, com_lock: bool = False
+    ) -> OrdemDeServico | None:
+        """Retorna a ordem pelo id, ou ``None`` se nao existir.
+
+        ``com_lock=True`` aplica ``SELECT ... FOR UPDATE`` para serializar
+        as transicoes concorrentes da MESMA ordem (issue #82): sem o lock,
+        N requisicoes simultaneas leem o estado stale, todas validam a
+        transicao como legal e todas commitam -> N eventos/e-mails. Com o
+        lock, a 2a transacao bloqueia ate a 1a commitar, re-le o estado
+        pos-commit e a maquina de status rejeita a transicao agora ilegal
+        (espelha o ``com_lock`` do repositorio de Estoque). ``com_lock=False``
+        (default) preserva o caminho de LEITURA sem overhead de lock — os
+        caminhos read-only (consulta de status, listagem, acompanhamento
+        publico) NUNCA devem travar a linha.
+        """
+        if not com_lock:
+            return self._session.get(OrdemDeServico, ordem_id)
+        stmt = (
+            select(OrdemDeServico)
+            .where(ordens_de_servico_table.c.id == ordem_id)
+            .with_for_update(nowait=False)
+        )
+        return self._session.scalars(stmt).one_or_none()
 
     def salvar(self, ordem: OrdemDeServico) -> None:
         """Persiste a ordem (insert ou update) e faz flush imediato."""
