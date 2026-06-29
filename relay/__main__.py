@@ -3,7 +3,9 @@
 Espelha o bootstrap do app (logging + imperative mappings + engine) sem
 subir FastAPI. Roda na MESMA imagem da API; o manifesto ``pytstop-relay``
 apenas sobrescreve ``command`` para ``["python","-m","relay"]``. NAO roda
-migrations (a API pod executa ``alembic upgrade head`` no boot).
+migrations: no cluster quem aplica ``alembic upgrade head`` e o Job dedicado
+``pytstop-migrate`` antes do rollout (TD-015; ``RUN_MIGRATIONS_ON_STARTUP``
+fica ``false`` no ``k8s/configmap.yaml``).
 """
 
 from __future__ import annotations

@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../../../README.md) · [↑ Arquitetura](../../README.md)
 
-* Status: Aceita
+* Status: Aceita — parcialmente substituída pela [ADR-024](024-metricas-prometheus.md) na parte de **métricas** (Prometheus + relay instrumentado); os **traces** (Jaeger) permanecem como decididos aqui
 * Data: 2026-06-10
 
 ## Contexto e Problema
@@ -68,7 +68,7 @@ Do outro lado da balança, o escopo obrigatório da fase já é grande — o gap
 * Métricas e logs ficam de fora: perguntas de tendência (latência p95, taxa de erro) seguem sem resposta na fase 2 — a métrica existente é a do metrics-server do HPA, mecanismo independente
   * _Nota posterior:_ a parte de **métricas**, excluída aqui de propósito, foi adicionada depois pela [ADR-024](024-metricas-prometheus.md) — Prometheus no cluster + o relay instrumentado com OTel (profundidade da outbox, idade do pendente mais antigo, DLQ, contadores de entrega/falha/retry). Os traces seguem como decididos nesta ADR; esta consequência reflete o escopo no momento desta decisão (mantida como registro histórico)
 * A ausência do Collector pode ser notada por avaliador que siga o material à risca — mitigada por este ADR registrar a divergência e o motivo
-* Por desenho, a onda pode ser cortada: o ADR pode terminar a fase como Proposta sem implementação — preferível a comprometer obrigatórios
+* Por desenho, a onda podia ser cortada (o ADR terminaria a fase como Proposta, sem implementação) — preferível a comprometer obrigatórios. Na prática a condição foi satisfeita e a onda foi executada: os traces foram implementados ([PR #22](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/22)) e o ADR foi aceito
 
 ### Neutras
 
@@ -88,6 +88,6 @@ Do outro lado da balança, o escopo obrigatório da fase já é grande — o gap
 
 * Fonte das evidências: fichamento da disciplina OpenTelemetry (Aulas 01–05) da fase 2 (FIAP Pos Tech). As citações "(Disciplina, Aula NN)" referem-se ao material oficial
 * Sem requisito formal: nenhum RF/RNF do [gap-analysis-fase-2.md](../../../requisitos/fase2/gap-analysis-fase-2.md) cobre observabilidade — decisão de diferencial; o peso vem de o challenge englobar todas as disciplinas da fase ([desafio-tech-fase-2.md](../../../requisitos/fase2/desafio-tech-fase-2.md), "Sobre o Tech Challenge")
-* Gatilhos de revisão: corte da onda por prazo (o ADR permanece Proposta, sem implementação) ou exigência de escopo maior pela banca (reabre pela alternativa de stack completa)
+* Gatilhos de revisão (registro histórico): corte da onda por prazo (o ADR teria permanecido Proposta, sem implementação) ou exigência de escopo maior (reabre pela alternativa de stack completa). Desfecho: a onda dos traces foi executada (ADR aceito) e a reabertura aconteceu **pela parte de métricas** — a [ADR-024](024-metricas-prometheus.md) adicionou Prometheus + relay, substituindo parcialmente esta ADR nessa parte
 
 > [↑ Raiz do projeto](../../../../README.md) · [↑ Arquitetura](../../README.md)

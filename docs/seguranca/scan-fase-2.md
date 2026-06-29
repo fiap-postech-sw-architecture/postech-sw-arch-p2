@@ -50,7 +50,7 @@ uv run --with pip-audit pip-audit
 | idna | 3.11 | CVE-2026-45409 | **3.18** | Transitiva. DoS por entradas longas em `idna.encode()`; entradas do app são limitadas por validação Pydantic. |
 | mako | 1.3.11 | CVE-2026-44307 | **1.3.12** | Transitiva (Alembic). Path traversal de templates apenas em Windows; runtime é container Linux e templates não são controlados por usuário. |
 
-**Re-scan pós-upgrade**: `No known vulnerabilities found` (o pacote local `pytstop` é pulado por não estar no PyPI — esperado). Suíte completa verde após o bump (1426 testes unitários + 136 de integração), validando que os upgrades não regrediram comportamento.
+**Re-scan pós-upgrade**: `No known vulnerabilities found` (o pacote local `pytstop` é pulado por não estar no PyPI — esperado). Suíte completa verde após o bump (1483 testes unitários + 143 de integração — contagem coletada via `pytest --collect-only`), validando que os upgrades não regrediram comportamento.
 
 ## Detecção de Segredos (gitleaks)
 
