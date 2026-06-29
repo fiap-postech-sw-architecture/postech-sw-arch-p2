@@ -345,3 +345,83 @@ class TestMain:
 
         with pytest.raises(RuntimeError, match="DATABASE_URL obrigatoria"):
             asyncio.run(_run())
+
+    def test_lifespan_chama_validar_segredos(self) -> None:
+        """O lifespan exerce a guarda de segredos (issue #74) no startup.
+
+        Em dev a guarda e no-op, mas precisa ser CHAMADA -- senao em producao a
+        validacao nunca roda. Verifica a chamada por patch da funcao no modulo
+        onde o lifespan a referencia.
+        """
+        app = FastAPI()
+
+        async def _run() -> None:
+            with (
+                patch("src.compartilhado.infraestrutura.logging.configurar_logging"),
+                patch("src.cliente_veiculo.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch(
+                    "src.catalogo_servicos.infraestrutura.mapping.iniciar_mapeamentos"
+                ),
+                patch("src.estoque.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.ordem_servico.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.autenticacao.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_engine"
+                ) as mock_engine,
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_session_factory"
+                ),
+                patch(
+                    "src.compartilhado.interfaces.dependencies.configurar_session_factory"
+                ),
+                patch("src.main.validar_segredos_no_startup") as mock_validar,
+                patch.dict(
+                    os.environ,
+                    {"DATABASE_URL": "postgresql://x:x@localhost:5432/x"},
+                    clear=False,
+                ),
+            ):
+                mock_engine.return_value.dispose = lambda: None
+                async with lifespan(app):
+                    pass
+                mock_validar.assert_called_once()
+
+        asyncio.run(_run())
+
+    def test_lifespan_aborta_com_segredos_demo_em_producao(self) -> None:
+        """Boot em producao falha se um segredo de demonstracao esta em uso.
+
+        Prova a integracao ponta-a-ponta: o lifespan (sem mockar a guarda)
+        aborta antes de aceitar requisicoes quando JWT_SECRET e o literal demo.
+        DATABASE_URL valida e setada para isolar a falha na guarda de segredos.
+        """
+        app = FastAPI()
+        env = dict(os.environ)
+        env["ENVIRONMENT"] = "production"
+        env["DATABASE_URL"] = "postgresql://x:x@localhost:5432/x"
+        env["JWT_SECRET"] = "demo-jwt-secret-pytstop-fase2-no-minimo-32-bytes"
+
+        async def _run() -> None:
+            with (
+                patch("src.compartilhado.infraestrutura.logging.configurar_logging"),
+                patch("src.cliente_veiculo.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch(
+                    "src.catalogo_servicos.infraestrutura.mapping.iniciar_mapeamentos"
+                ),
+                patch("src.estoque.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.ordem_servico.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.autenticacao.infraestrutura.mapping.iniciar_mapeamentos"),
+                patch("src.compartilhado.infraestrutura.database.criar_engine"),
+                patch(
+                    "src.compartilhado.infraestrutura.database.criar_session_factory"
+                ),
+                patch(
+                    "src.compartilhado.interfaces.dependencies.configurar_session_factory"
+                ),
+                patch.dict(os.environ, env, clear=True),
+            ):
+                async with lifespan(app):
+                    pass
+
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            asyncio.run(_run())

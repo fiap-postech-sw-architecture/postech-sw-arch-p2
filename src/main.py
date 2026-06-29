@@ -15,6 +15,7 @@ from src.compartilhado.interfaces.middleware import (
     configurar_cors,
     configurar_proxy_headers,
     configurar_rate_limiting,
+    validar_segredos_no_startup,
 )
 from src.compartilhado.interfaces.router_publico import router as router_publico
 
@@ -118,6 +119,13 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     # fica hardcoded no codigo.
     environment = os.environ.get("ENVIRONMENT", "development").lower()
     database_url = _obter_database_url(environment)
+
+    # Guarda de segredos (issue #74): em producao, aborta o boot se JWT_SECRET
+    # for fraco (< 32 bytes) ou se qualquer segredo de demonstracao publico
+    # estiver em uso. No-op em dev/test. Espelha o fail-fast do `configurar_cors`
+    # e roda antes de criar o engine e aceitar requisicoes.
+    validar_segredos_no_startup()
+
     engine = criar_engine(database_url)
     configurar_session_factory(criar_session_factory(engine))
 

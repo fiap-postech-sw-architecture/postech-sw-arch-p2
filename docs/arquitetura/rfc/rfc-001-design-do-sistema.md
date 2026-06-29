@@ -242,7 +242,7 @@ total = Σ (item.preco_unitario × item.quantidade)
 |---|---|
 | Algoritmo | HS256 com `algorithms=["HS256"]` explícito no decode |
 | Lifespan | 15 min (configurável via `JWT_ACCESS_TOKEN_EXPIRE_MINUTES`) |
-| Segredo | `openssl rand -hex 32`, variável de ambiente, >= 32 chars, validado no startup |
+| Segredo | `openssl rand -hex 32`, variável de ambiente, >= 32 bytes, validado no startup em produção (issue #74; a guarda também rejeita segredos demo) |
 | Claims | `sub` (user_id), `papel` (Enum: Admin), `exp`, `iat`, `jti` (UUID, usado para revogação) |
 | Entrega | Somente header `Authorization: Bearer` — sem cookies |
 | Revogação | Tabela `tokens_revogados` com JTI. Verificação no middleware. Logout revoga token corrente (RF-012, Could Have). |

@@ -45,6 +45,84 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
         return response
 
 
+# Ambientes que NAO exercem a guarda de segredos (issue #74): dev local,
+# docker-compose e a suite de testes sobem deliberadamente com segredos de
+# demonstracao. Qualquer outro valor de ENVIRONMENT (notadamente "production")
+# e tratado como producao e dispara a validacao -- mesma postura de
+# `_obter_database_url` em src/main.py.
+_AMBIENTES_SEM_VALIDACAO_DE_SEGREDOS = frozenset({"development", "test"})
+
+# HS256 exige uma chave com no minimo 32 bytes; abaixo disso o segredo e
+# trivialmente forjavel (k8s/secret.yaml fala em BYTES -- medimos byte length).
+_JWT_SECRET_MIN_BYTES = 32
+
+# Literais de segredo de DEMONSTRACAO publicos no git -- proibidos em producao.
+# Fonte de cada valor (paridade dev x cluster):
+#   k8s/secret.yaml (JWT_SECRET, ENCRYPTION_KEY, ORCAMENTO_WEBHOOK_TOKEN)
+#   .env.dev / .env.dev.example (JWT_SECRET, ENCRYPTION_KEY, ORCAMENTO_WEBHOOK_TOKEN)
+#   docker-compose.yml (ORCAMENTO_WEBHOOK_TOKEN)
+# Mantenha em sincronia se algum desses defaults de demo mudar.
+_SEGREDOS_DEMO_PROIBIDOS = frozenset(
+    {
+        # JWT_SECRET demo: k8s/secret.yaml e .env.dev*, respectivamente.
+        "demo-jwt-secret-pytstop-fase2-no-minimo-32-bytes",
+        "dev-secret-change-me-this-is-at-least-32-bytes-long-for-hs256",
+        # ENCRYPTION_KEY demo (chaves Fernet): k8s/secret.yaml e .env.dev*.
+        # `gitleaks:allow` -- base64 de 44 chars dispara o generic-api-key.
+        "C9I0jOzZ9kJBTY0akV3TvBO2wa1JcuAdR-Wctnzee6I=",  # gitleaks:allow
+        "o2PanCXdqDQ87JA2AOA1oNazx5bGwSdUZrHY1rvHnx0=",  # gitleaks:allow
+        # ORCAMENTO_WEBHOOK_TOKEN demo (k8s/secret.yaml == docker-compose == .env.dev*).
+        "demo-webhook-orcamento-nao-usar-em-producao",
+    }
+)
+
+
+def validar_segredos_no_startup() -> None:
+    """Valida os segredos sensiveis no startup; aborta o boot em producao.
+
+    Fecha dois controles de seguranca que a documentacao (k8s/secret.yaml,
+    RFC-001 e RFC-002) afirma existir (issue #74). EM PRODUCAO (qualquer
+    ENVIRONMENT que nao seja `development`/`test`):
+
+    1. ``JWT_SECRET`` ausente ou com menos de 32 BYTES -> aborta. HS256 com
+       chave curta e trivialmente forjavel.
+    2. ``JWT_SECRET`` / ``ENCRYPTION_KEY`` / ``ORCAMENTO_WEBHOOK_TOKEN`` iguais
+       a um literal de demonstracao publico no git -> aborta.
+
+    Espelha o `configurar_cors`: falha o boot (``raise``), nao apenas avisa --
+    uma pre-condicao de seguranca nao satisfeita NUNCA deve subir aceitando
+    requisicoes. Fora de producao a funcao retorna cedo (no-op), entao dev,
+    docker-compose e a suite de testes seguem subindo com os segredos de demo.
+    """
+    environment = os.environ.get("ENVIRONMENT", "development").lower()
+    if environment in _AMBIENTES_SEM_VALIDACAO_DE_SEGREDOS:
+        return
+
+    jwt_secret = os.environ.get("JWT_SECRET")
+    if not jwt_secret:
+        msg = (
+            "JWT_SECRET nao configurado em producao. HS256 exige uma chave de "
+            f">= {_JWT_SECRET_MIN_BYTES} bytes; defina um segredo forte via Secret."
+        )
+        raise RuntimeError(msg)
+    if len(jwt_secret.encode("utf-8")) < _JWT_SECRET_MIN_BYTES:
+        msg = (
+            f"JWT_SECRET tem menos de {_JWT_SECRET_MIN_BYTES} bytes. HS256 exige "
+            f">= {_JWT_SECRET_MIN_BYTES} bytes; gere um segredo forte "
+            "(ex.: openssl rand -hex 32)."
+        )
+        raise RuntimeError(msg)
+
+    for nome in ("JWT_SECRET", "ENCRYPTION_KEY", "ORCAMENTO_WEBHOOK_TOKEN"):
+        valor = os.environ.get(nome)
+        if valor and valor in _SEGREDOS_DEMO_PROIBIDOS:
+            msg = (
+                f"{nome} usa um segredo de demonstracao publico no git -- proibido "
+                "em producao. Injete um segredo real via Secret (RFC-002 §6)."
+            )
+            raise RuntimeError(msg)
+
+
 def configurar_cors(app: FastAPI) -> None:
     """Configura CORS a partir da variavel CORS_ORIGINS (lista separada por virgulas).
 
