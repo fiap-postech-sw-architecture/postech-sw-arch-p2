@@ -75,8 +75,14 @@ class FakeOrdemDeServicoRepository:
     def __init__(self) -> None:
         self._ordens: dict[UUID, OrdemDeServico] = {}
         self._placa_documento: dict[tuple[str, str], list[OrdemDeServico]] = {}
+        self.chamadas_obter_por_id: list[tuple[UUID, bool]] = []
 
-    def obter_por_id(self, ordem_id: UUID) -> OrdemDeServico | None:
+    def obter_por_id(
+        self, ordem_id: UUID, *, com_lock: bool = False
+    ) -> OrdemDeServico | None:
+        # Registra cada chamada (id, com_lock) para os testes afirmarem que o
+        # caminho de transicao trava (com_lock=True) e o de leitura nao.
+        self.chamadas_obter_por_id.append((ordem_id, com_lock))
         return self._ordens.get(ordem_id)
 
     def salvar(self, ordem: OrdemDeServico) -> None:
@@ -779,6 +785,66 @@ class TestObterOrdem:
             uc.executar(uuid4())
 
 
+class TestLockPessimistaNasTransicoes:
+    """Contrato de lock (issue #82): transicoes travam, leituras nao.
+
+    Afere o flag ``com_lock`` repassado ao repositorio (instrumentado pelo
+    fake) em vez do efeito SQL — o FOR UPDATE real e provado na suite de
+    integracao (``test_concorrencia_lock.py``). Aqui garantimos que NENHUMA
+    transicao perca o lock por engano e que o caminho de LEITURA jamais o
+    adquira.
+    """
+
+    def test_iniciar_diagnostico_carrega_com_lock(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        ordem = _criar_ordem_com_item(repo)
+        repo.chamadas_obter_por_id.clear()
+        IniciarDiagnostico(repo=repo, uow=uow).executar(ordem.id)
+        assert repo.chamadas_obter_por_id == [(ordem.id, True)]
+
+    def test_aprovar_orcamento_carrega_com_lock(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        estoque = StubEstoquePort()
+        ordem = OrdemDeServico.criar(uuid4(), uuid4())
+        ordem.adicionar_item(
+            ItemDaOrdem(
+                _servico_catalogo_id=uuid4(),
+                _item_estoque_id=uuid4(),
+                _descricao="Filtro",
+                _quantidade=2,
+                _preco_unitario=Dinheiro(valor=Decimal("50.00")),
+            )
+        )
+        ordem.iniciar_diagnostico()
+        ordem.gerar_orcamento()
+        ordem.limpar_eventos()
+        repo.salvar(ordem)
+        repo.chamadas_obter_por_id.clear()
+        AprovarOrcamento(repo=repo, uow=uow, estoque_port=estoque).executar(ordem.id)
+        assert repo.chamadas_obter_por_id == [(ordem.id, True)]
+
+    def test_cancelar_ordem_carrega_com_lock(self) -> None:
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        estoque = StubEstoquePort()
+        ordem = _criar_ordem_com_item(repo)
+        repo.chamadas_obter_por_id.clear()
+        CancelarOrdem(repo=repo, uow=uow, estoque_port=estoque).executar(
+            ordem.id, CancelarOrdemDTO(motivo="Desistiu")
+        )
+        assert repo.chamadas_obter_por_id == [(ordem.id, True)]
+
+    def test_obter_ordem_nao_trava_a_linha(self) -> None:
+        # Caminho read-only compartilha _obter_ordem -> deve usar com_lock=False.
+        repo = FakeOrdemDeServicoRepository()
+        ordem = _criar_ordem_com_item(repo)
+        repo.chamadas_obter_por_id.clear()
+        ObterOrdem(repo=repo).executar(ordem.id)
+        assert repo.chamadas_obter_por_id == [(ordem.id, False)]
+
+
 class TestObterMetricas:
     def test_metricas(self) -> None:
         repo = FakeOrdemDeServicoRepository()
@@ -1202,6 +1268,21 @@ class TestDecidirOrcamento:
         # Delegou a AprovarOrcamento: reserva de estoque aconteceu.
         assert len(estoque.reservas) == 1
         assert uow.committed is True
+
+    def test_guard_le_sem_lock_e_delegada_le_com_lock(self) -> None:
+        # Issue #82: o guard de estado de DecidirOrcamento e uma LEITURA (sem
+        # lock); a transicao real (AprovarOrcamento delegada) re-le com lock.
+        # Esperado: 1a chamada com_lock=False (guard), 2a com_lock=True (delega).
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        estoque = StubEstoquePort()
+        ordem = self._ordem_aguardando_aprovacao(repo, com_estoque=True)
+        uc = self._montar_uc(repo, uow, estoque)
+        repo.chamadas_obter_por_id.clear()
+
+        uc.executar(ordem.id, decisao="aprovada")
+
+        assert repo.chamadas_obter_por_id == [(ordem.id, False), (ordem.id, True)]
 
     def test_aprovada_em_complementar_usa_caminho_complementar(self) -> None:
         repo = FakeOrdemDeServicoRepository()

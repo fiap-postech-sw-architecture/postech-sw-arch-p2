@@ -132,12 +132,42 @@ def _ordem_resumo(os: OrdemDeServico) -> OrdemResumoDTO:
     )
 
 
-def _obter_ordem(repo: OrdemDeServicoRepository, ordem_id: UUID) -> OrdemDeServico:
-    """Busca a ordem ou levanta ``OrdemNaoEncontradaException``."""
-    ordem = repo.obter_por_id(ordem_id)
+def _obter_ordem(
+    repo: OrdemDeServicoRepository, ordem_id: UUID, *, com_lock: bool = False
+) -> OrdemDeServico:
+    """Busca a ordem ou levanta ``OrdemNaoEncontradaException``.
+
+    ``com_lock=True`` carrega a ordem com ``SELECT ... FOR UPDATE`` (issue
+    #82): os casos de uso de MUTACAO/TRANSICAO passam ``True`` para que a
+    linha fique travada durante toda a transacao da transicao — a 2a
+    requisicao concorrente bloqueia no lock, re-le o estado pos-commit e a
+    maquina de status rejeita a transicao agora ilegal (1 evento, nao N).
+    Os caminhos de LEITURA (``ObterOrdem`` e o guard de ``DecidirOrcamento``)
+    usam o default ``False``: nunca devem adquirir lock pessimista.
+    """
+    ordem = repo.obter_por_id(ordem_id, com_lock=com_lock)
     if ordem is None:
         raise OrdemNaoEncontradaException()
     return ordem
+
+
+def _reservas_de_estoque_ordenadas(ordem: OrdemDeServico) -> list[tuple[UUID, int]]:
+    """``(item_estoque_id, quantidade)`` das pecas, em ordem de ``id``.
+
+    Reserva/liberacao de varios itens numa transacao deve adquirir os locks
+    pessimistas (``FOR UPDATE``) sempre na MESMA ordem global de id (issue
+    #83) — espelha o ``order_by(id)`` de ``obter_por_ids`` do repositorio de
+    Estoque. Sem isso, duas aprovacoes que tocam os mesmos itens em ordens
+    de insercao diferentes poderiam cruzar locks e deadlockar. Itens de mao
+    de obra (``item_estoque_id is None``) ficam de fora — nao reservam; o
+    filtro tambem estreita o tipo para ``UUID`` (nao ``UUID | None``).
+    """
+    pares = [
+        (item.item_estoque_id, item.quantidade)
+        for item in ordem.itens
+        if item.item_estoque_id is not None
+    ]
+    return sorted(pares, key=lambda par: par[0])
 
 
 def _despachar_pos_commit(
@@ -325,7 +355,7 @@ class AdicionarItem:
             ViolacaoRegraDeNegocioException: servico inativo, servico/peca
                 inexistente.
         """
-        ordem = _obter_ordem(self._repo, ordem_id)
+        ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         item = _montar_item(self._catalogo_port, self._estoque_port, dto)
         ordem.adicionar_item(item)
         with self._uow:
@@ -348,7 +378,7 @@ class RemoverItem:
             OrdemNaoEncontradaException: ordem inexistente.
             ViolacaoRegraDeNegocioException: item inexistente ou status invalido.
         """
-        ordem = _obter_ordem(self._repo, ordem_id)
+        ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         ordem.remover_item(item_id)
         with self._uow:
             self._repo.salvar(ordem)
@@ -376,7 +406,7 @@ class IniciarDiagnostico:
             OrdemNaoEncontradaException: ordem inexistente.
             TransicaoStatusInvalidaException: status atual nao permite iniciar.
         """
-        ordem = _obter_ordem(self._repo, ordem_id)
+        ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         ordem.iniciar_diagnostico()
         with self._uow:
             self._repo.salvar(ordem)
@@ -406,7 +436,7 @@ class GerarOrcamento:
             TransicaoStatusInvalidaException: status atual invalido.
             ViolacaoRegraDeNegocioException: ordem sem itens.
         """
-        ordem = _obter_ordem(self._repo, ordem_id)
+        ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         ordem.gerar_orcamento()
         with self._uow:
             self._repo.salvar(ordem)
@@ -442,11 +472,15 @@ class AprovarOrcamento:
             TransicaoStatusInvalidaException: status atual invalido.
             EntidadeNaoEncontradaException: item de estoque inexistente.
         """
-        ordem = _obter_ordem(self._repo, ordem_id)
+        # com_lock=True trava a OS ANTES de reservar estoque: define a ordem
+        # global de aquisicao de locks OS -> Estoque (issue #82 + #83), o que
+        # evita deadlock cruzado com outros caminhos que tocam os dois
+        # agregados. O lock e retido ate o commit da UoW (mesma session/tx).
+        ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         with self._uow:
-            for item in ordem.itens:
-                if item.item_estoque_id is not None:
-                    self._estoque_port.reservar(item.item_estoque_id, item.quantidade)
+            # Ordem determinista de id ao reservar varios itens (anti-deadlock).
+            for item_estoque_id, quantidade in _reservas_de_estoque_ordenadas(ordem):
+                self._estoque_port.reservar(item_estoque_id, quantidade)
             ordem.aprovar_orcamento()
             self._repo.salvar(ordem)
             self._uow.commit()
@@ -474,7 +508,7 @@ class FinalizarServico:
             OrdemNaoEncontradaException: ordem inexistente.
             TransicaoStatusInvalidaException: status atual invalido.
         """
-        ordem = _obter_ordem(self._repo, ordem_id)
+        ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         ordem.finalizar_servico()
         with self._uow:
             self._repo.salvar(ordem)
@@ -503,7 +537,7 @@ class RegistrarEntrega:
             OrdemNaoEncontradaException: ordem inexistente.
             TransicaoStatusInvalidaException: status atual invalido.
         """
-        ordem = _obter_ordem(self._repo, ordem_id)
+        ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         ordem.registrar_entrega()
         with self._uow:
             self._repo.salvar(ordem)
@@ -543,7 +577,10 @@ class CancelarOrdem:
             ViolacaoRegraDeNegocioException: motivo vazio.
             EntidadeNaoEncontradaException: item de estoque inexistente.
         """
-        ordem = _obter_ordem(self._repo, ordem_id)
+        # com_lock=True: mesma ordem de aquisicao OS -> Estoque de
+        # AprovarOrcamento (a liberacao de reservas trava os itens depois da
+        # OS), retido ate o commit da UoW.
+        ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         # Liberacao de reservas e cancelamento devem compartilhar o mesmo
         # escopo transacional (consistencia com AprovarOrcamento): se o
         # cancelamento falhar apos a liberacao, a UoW faz rollback das
@@ -553,11 +590,12 @@ class CancelarOrdem:
                 StatusOrdem.EM_EXECUCAO,
                 StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR,
             }:
-                for item in ordem.itens:
-                    if item.item_estoque_id is not None:
-                        self._estoque_port.liberar(
-                            item.item_estoque_id, item.quantidade
-                        )
+                # Ordem determinista de id ao liberar (anti-deadlock, igual
+                # ao caminho de reserva de AprovarOrcamento).
+                for item_estoque_id, quantidade in _reservas_de_estoque_ordenadas(
+                    ordem
+                ):
+                    self._estoque_port.liberar(item_estoque_id, quantidade)
             ordem.cancelar(dto.motivo)
             self._repo.salvar(ordem)
             self._uow.commit()
@@ -586,7 +624,7 @@ class GerarOrcamentoComplementar:
             TransicaoStatusInvalidaException: status atual invalido.
             ViolacaoRegraDeNegocioException: ordem sem itens.
         """
-        ordem = _obter_ordem(self._repo, ordem_id)
+        ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         ordem.gerar_orcamento_complementar()
         with self._uow:
             self._repo.salvar(ordem)
@@ -615,7 +653,7 @@ class AprovarOrcamentoComplementar:
             OrdemNaoEncontradaException: ordem inexistente.
             TransicaoStatusInvalidaException: status atual invalido.
         """
-        ordem = _obter_ordem(self._repo, ordem_id)
+        ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         ordem.aprovar_orcamento_complementar()
         with self._uow:
             self._repo.salvar(ordem)
@@ -644,7 +682,7 @@ class RejeitarOrcamentoComplementar:
             OrdemNaoEncontradaException: ordem inexistente.
             TransicaoStatusInvalidaException: status atual invalido.
         """
-        ordem = _obter_ordem(self._repo, ordem_id)
+        ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         ordem.rejeitar_orcamento_complementar()
         with self._uow:
             self._repo.salvar(ordem)
@@ -703,6 +741,9 @@ class DecidirOrcamento:
                 f"decisao invalida: {decisao!r}; "
                 f"use {DECISAO_APROVADA!r} ou {DECISAO_RECUSADA!r}"
             )
+        # Leitura de GUARD sem lock (issue #82): aqui so checamos o estado de
+        # espera; a transicao real (e o FOR UPDATE) acontece dentro do caso de
+        # uso delegado abaixo, que re-le a ordem com_lock=True.
         ordem = _obter_ordem(self._repo, ordem_id)
         if ordem.status not in self._ESTADOS_DE_ESPERA:
             validos = sorted(s.value for s in self._ESTADOS_DE_ESPERA)

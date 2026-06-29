@@ -25,6 +25,12 @@ if TYPE_CHECKING:
 
     from sqlalchemy.orm import Session
 
+    # Import sob TYPE_CHECKING (nao em load-time): a anotacao de retorno de
+    # ``_obter_item_com_lock`` e uma string (``from __future__ import
+    # annotations``), entao nao acopla o grafo de imports do vizinho em
+    # runtime — coerente com os imports locais dentro dos metodos.
+    from src.estoque.dominio.item_estoque import ItemEstoque
+
 
 class EstoqueSQLAlchemyAdapter:
     """Implementa ``EstoquePort`` acessando o agregado ``ItemEstoque`` via Session."""
@@ -35,32 +41,52 @@ class EstoqueSQLAlchemyAdapter:
     def reservar(self, item_estoque_id: UUID, quantidade: int) -> None:
         """Reserva ``quantidade`` do item informado; delega a ``ItemEstoque.reservar``.
 
+        Carrega o item com ``com_lock=True`` (``SELECT ... FOR UPDATE``) via
+        o repositorio de Estoque para serializar reservas/ajustes
+        concorrentes do MESMO item (issue #83): sem o lock, duas aprovacoes
+        simultaneas leem o saldo stale e gravam por cima uma da outra
+        (lost-update -> sobre-venda). O lock e retido ate o commit da UoW
+        compartilhada. Mesma protecao que ``AjustarQuantidade`` ja aplica.
+
         Raises:
             EntidadeNaoEncontradaException: item de estoque nao existe.
         """
-        from src.estoque.dominio.item_estoque import ItemEstoque
-
-        item = self._session.get(ItemEstoque, item_estoque_id)
-        if item is None:
-            raise EntidadeNaoEncontradaException(
-                mensagem="Item de estoque nao encontrado"
-            )
+        item = self._obter_item_com_lock(item_estoque_id)
         item.reservar(quantidade)
 
     def liberar(self, item_estoque_id: UUID, quantidade: int) -> None:
         """Libera ``quantidade`` do item informado; delega a ``ItemEstoque.liberar``.
 
+        Carrega o item ``com_lock=True`` (``SELECT ... FOR UPDATE``) pelo
+        mesmo motivo de ``reservar`` (issue #83): serializa a leitura-
+        modificacao-escrita do saldo para nao perder atualizacoes
+        concorrentes. Lock retido ate o commit da UoW.
+
         Raises:
             EntidadeNaoEncontradaException: item de estoque nao existe.
         """
-        from src.estoque.dominio.item_estoque import ItemEstoque
+        item = self._obter_item_com_lock(item_estoque_id)
+        item.liberar(quantidade)
 
-        item = self._session.get(ItemEstoque, item_estoque_id)
+    def _obter_item_com_lock(self, item_estoque_id: UUID) -> ItemEstoque:
+        """Carrega o ``ItemEstoque`` com ``FOR UPDATE`` ou levanta se ausente.
+
+        Reusa ``ItemEstoqueSQLAlchemyRepository.obter_por_id(com_lock=True)``
+        — a UNICA fonte da query de lock pessimista do contexto Estoque
+        (``with_for_update``), em vez de duplicar o SELECT aqui. Mantem o
+        adapter como ACL: nao reimplementa a regra de lock do vizinho.
+        """
+        from src.estoque.infraestrutura.repository import (
+            ItemEstoqueSQLAlchemyRepository,
+        )
+
+        repo = ItemEstoqueSQLAlchemyRepository(session=self._session)
+        item = repo.obter_por_id(item_estoque_id, com_lock=True)
         if item is None:
             raise EntidadeNaoEncontradaException(
                 mensagem="Item de estoque nao encontrado"
             )
-        item.liberar(quantidade)
+        return item
 
     def obter_item(self, item_estoque_id: UUID) -> ItemEstoqueDTO | None:
         """Retorna ``ItemEstoqueDTO`` ou ``None`` se nao existe.

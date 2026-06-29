@@ -19,8 +19,18 @@ class OrdemDeServicoRepository(Protocol):
     """
 
     # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
-    def obter_por_id(self, ordem_id: UUID) -> OrdemDeServico | None:
-        """Retorna a ordem pelo id, ou ``None`` se nao existir."""
+    def obter_por_id(
+        self, ordem_id: UUID, *, com_lock: bool = False
+    ) -> OrdemDeServico | None:
+        """Retorna a ordem pelo id, ou ``None`` se nao existir.
+
+        ``com_lock=True`` carrega a linha com ``SELECT ... FOR UPDATE``
+        (lock pessimista) para serializar transicoes concorrentes da mesma
+        ordem (issue #82). Opcao de infraestrutura exposta no contrato sem
+        vazar SQL para o dominio: o helper ``_obter_ordem`` da aplicacao a
+        repassa apenas no caminho de MUTACAO/transicao; os caminhos de
+        leitura usam o default ``False`` (sem lock).
+        """
         pass
 
     def salvar(self, ordem: OrdemDeServico) -> None:
