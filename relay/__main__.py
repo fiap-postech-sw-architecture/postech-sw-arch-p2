@@ -10,9 +10,7 @@ fica ``false`` no ``k8s/configmap.yaml``).
 
 from __future__ import annotations
 
-import logging
 import os
-import sys
 from datetime import UTC, datetime
 
 import structlog
@@ -55,15 +53,12 @@ def main() -> None:
 
     # O relay e um daemon standalone (`python -m relay`): ao contrario da API,
     # NAO sobe uvicorn, que e quem instala um handler no root logger do stdlib.
-    # `configurar_logging` roteia o structlog pelo stdlib (LoggerFactory), entao
-    # sem um handler no root os eventos INFO do relay (outbox_profundidade,
-    # entrega_pulada_fencing, entregas) ficariam no nivel WARNING-default e nao
-    # chegariam ao stdout / `kubectl logs`. Instala um StreamHandler em INFO no
-    # stdout (idempotente: so age se o root ainda nao tem handler) ANTES de
-    # configurar o structlog. Processo isolado da API — nao afeta nem duplica o
-    # logging do uvicorn (entrypoint/outro processo).
-    if not logging.getLogger().handlers:
-        logging.basicConfig(level=logging.INFO, stream=sys.stdout, format="%(message)s")
+    # `configurar_logging` (issue #86) agora instala ELE PROPRIO um StreamHandler
+    # em INFO no stdout no root logger -- com o `ProcessorFormatter` que mascara
+    # PII/segredos tambem nos logs stdlib. Isso cobre a visibilidade que antes
+    # exigia um `basicConfig` aqui (eventos INFO do relay: outbox_profundidade,
+    # entrega_pulada_fencing, entregas) E garante que nenhum log saia sem passar
+    # pelo scrubber. Processo isolado da API -- nao afeta nem duplica o uvicorn.
     configurar_logging()
     git_sha = os.environ.get("PYTSTOP_GIT_SHA", "unknown")[:12]
     git_date = os.environ.get("PYTSTOP_GIT_DATE", "unknown")

@@ -1,6 +1,11 @@
 from __future__ import annotations
 
+import io
+import logging
+from typing import TYPE_CHECKING
+
 import pytest
+import structlog
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -13,7 +18,11 @@ from src.compartilhado.dominio.exceptions import (
     TransicaoStatusInvalidaException,
     ViolacaoRegraDeNegocioException,
 )
+from src.compartilhado.infraestrutura.logging import configurar_logging
 from src.compartilhado.interfaces.error_handler import registrar_error_handlers
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 
 def _criar_app_com_excecao(exc: Exception) -> TestClient:
@@ -97,3 +106,50 @@ def test_request_id_fallback_quando_ausente() -> None:
     resp = client.get("/test")
     body = resp.json()
     assert body["erro"]["id_requisicao"] == "desconhecido"
+
+
+@pytest.fixture
+def pipeline_buffer() -> Iterator[io.StringIO]:
+    """Configura o pipeline real e captura o stdout do root logger.
+
+    O handler 500 usa `logging` stdlib; com o ProcessorFormatter no root
+    o log flui para este buffer ja scrubado. Restaura o estado no teardown.
+    """
+    root = logging.getLogger()
+    handlers_anteriores = root.handlers[:]
+    nivel_anterior = root.level
+    config_anterior = structlog.get_config()
+
+    buffer = io.StringIO()
+    configurar_logging(stream=buffer)
+    try:
+        yield buffer
+    finally:
+        root.handlers = handlers_anteriores
+        root.setLevel(nivel_anterior)
+        structlog.configure(**config_anterior)
+
+
+def test_handler_500_mascara_pii_no_traceback(pipeline_buffer: io.StringIO) -> None:
+    # Regressao da issue #86: o handler 500 loga o traceback via stdlib; com o
+    # ProcessorFormatter no root o traceback sai mascarado em vez de cru.
+    client = _criar_app_com_excecao(
+        RuntimeError("falha com CPF 123.456.789-00 e email cliente@example.com")
+    )
+    resp = client.get("/test")
+    assert resp.status_code == 500
+
+    saida = pipeline_buffer.getvalue()
+    assert saida, "handler 500 nao emitiu log"
+    assert "123.456.789-00" not in saida
+    assert "cliente@example.com" not in saida
+
+
+def test_handler_422_value_error_mascara_pii(pipeline_buffer: io.StringIO) -> None:
+    # _value_error_handler tambem loga com exc_info via stdlib (error_handler:82).
+    client = _criar_app_com_excecao(ValueError("CPF invalido 987.654.321-00"))
+    resp = client.get("/test")
+    assert resp.status_code == 422
+
+    saida = pipeline_buffer.getvalue()
+    assert "987.654.321-00" not in saida
