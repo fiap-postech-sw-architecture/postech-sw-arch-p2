@@ -18,6 +18,12 @@ metadata:
 data:
   # `production` desabilitaria /docs e /redoc (src/main.py); o cluster da
   # fase 2 e ambiente de demo e a banca valida pela UI do Swagger.
+  # MANTIDO `development` DE PROPOSITO: este cluster usa os segredos de
+  # demonstracao de secret.yaml. Trocar para `production` faria a guarda de
+  # startup (issue #74; src/compartilhado/interfaces/middleware.py
+  # validar_segredos_no_startup) ABORTAR o boot -- producao real exige injetar
+  # JWT_SECRET/ENCRYPTION_KEY/ORCAMENTO_WEBHOOK_TOKEN fortes e nao-demo via
+  # SealedSecrets/External Secrets (RFC-002 §6), nao os literais commitados.
   ENVIRONMENT: "development"
   CORS_ORIGINS: "http://localhost:3000"
   JWT_EXPIRATION_MINUTES: "30"

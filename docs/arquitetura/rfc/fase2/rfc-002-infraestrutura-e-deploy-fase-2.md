@@ -207,7 +207,7 @@ Mapa das variáveis de ambiente atuais (`docker-compose.yml` + `.env.dev.example
 | `JWT_EXPIRATION_MINUTES` | ConfigMap | TTL do token — o segredo é outra variável |
 | `RUN_MIGRATIONS_ON_STARTUP` | ConfigMap | `true` no cluster ([ADR-019](../../adr/fase2/019-pipeline-cicd-deploy.md); seção 7) |
 | `RUN_SEED_ON_STARTUP` | ConfigMap | seed best-effort do admin inicial (seção 7) |
-| `JWT_SECRET` | **Secret** | >= 32 bytes, validado no startup |
+| `JWT_SECRET` | **Secret** | >= 32 bytes, validado no startup em produção (issue #74; a guarda também rejeita segredos demo) |
 | `ENCRYPTION_KEY` | **Secret** | chave Fernet da PII em repouso; precisa ser estável entre réplicas e restarts (seção 5) |
 | `DATABASE_URL` | **Secret** | embute credenciais; aponta para o Service do banco no cluster |
 | `POSTGRES_DB` / `POSTGRES_USER` / `POSTGRES_PASSWORD` | **Secret** (em `/infra`) | credenciais do StatefulSet, declaradas pelo Terraform ([ADR-017](../../adr/fase2/017-provisionamento-banco.md)) |

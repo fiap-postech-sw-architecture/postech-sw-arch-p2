@@ -51,6 +51,7 @@ from src.compartilhado.infraestrutura.logging import scrub_pii
 from src.compartilhado.interfaces.middleware import (
     SecurityHeadersMiddleware,
     configurar_cors,
+    validar_segredos_no_startup,
 )
 from src.ordem_servico.interfaces.schemas import (
     AdicionarItemRequest,
@@ -884,3 +885,228 @@ class TestRBACRouteDeclarations:
         assert self._route_has_auth_dependency(registrar_routes[0])
         papeis = self._get_route_papeis(registrar_routes[0])
         assert papeis == {"admin"}
+
+
+# ===========================================================================
+# 9. Startup Secret Validation Tests (issue #74)
+# ===========================================================================
+
+
+# Segredo forte hipotetico: >= 32 bytes e fora do denylist de demo. Usado nos
+# casos que devem PASSAR para provar que a guarda so barra fraco/demo, nao tudo.
+_SEGREDO_FORTE = "x9Qx7!aZ_kP3#wL2$mN8vR1tY6uB4eC0sD-producao-only"
+# Literais de demonstracao publicos no git (k8s/secret.yaml, docker-compose.yml,
+# .env.dev*) -- a guarda os rejeita em producao.
+_DEMO_JWT_SECRET_K8S = "demo-jwt-secret-pytstop-fase2-no-minimo-32-bytes"
+_DEMO_JWT_SECRET_ENV = "dev-secret-change-me-this-is-at-least-32-bytes-long-for-hs256"
+# Chaves Fernet de demo (k8s/secret.yaml e .env.dev*). `gitleaks:allow` --
+# base64 de 44 chars dispara o generic-api-key do scanner.
+_DEMO_ENC_KEY_K8S = "C9I0jOzZ9kJBTY0akV3TvBO2wa1JcuAdR-Wctnzee6I="  # gitleaks:allow
+_DEMO_ENC_KEY_ENV = "o2PanCXdqDQ87JA2AOA1oNazx5bGwSdUZrHY1rvHnx0="  # gitleaks:allow
+_DEMO_WEBHOOK_TOKEN = "demo-webhook-orcamento-nao-usar-em-producao"
+# ADMIN_PASSWORD de demo (so em k8s/secret.yaml; .env.dev* deixa em branco).
+_DEMO_ADMIN_PASSWORD = "pytstop-admin-demo-2026"  # gitleaks:allow
+
+
+def _set_segredos_validos(monkeypatch: pytest.MonkeyPatch) -> None:
+    """Define um conjunto de segredos fortes/nao-demo no ambiente.
+
+    Base para os testes que querem isolar a falha de UM segredo: parte de um
+    ambiente valido e so entao corrompe o segredo sob teste.
+    """
+    monkeypatch.setenv("JWT_SECRET", _SEGREDO_FORTE)
+    monkeypatch.setenv("ENCRYPTION_KEY", _SEGREDO_FORTE + "-enc")
+    monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", _SEGREDO_FORTE + "-hook")
+
+
+class TestValidarSegredosNoStartupProducao:
+    """Em producao a guarda aborta o boot para segredo fraco ou de demo."""
+
+    def test_jwt_secret_curto_em_producao_levanta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.setenv("JWT_SECRET", "curto")  # 5 bytes < 32
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            validar_segredos_no_startup()
+
+    def test_jwt_secret_31_bytes_em_producao_levanta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Limite inferior: 31 bytes ainda e fraco para HS256 (secret.yaml: bytes)."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.setenv("JWT_SECRET", "a" * 31)
+        with pytest.raises(RuntimeError, match="32"):
+            validar_segredos_no_startup()
+
+    def test_jwt_secret_32_bytes_em_producao_passa(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Exatamente 32 bytes satisfaz o minimo do HS256 e nao e demo."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.setenv("JWT_SECRET", "a" * 32)
+        validar_segredos_no_startup()  # nao deve levantar
+
+    def test_jwt_secret_conta_bytes_nao_caracteres(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """secret.yaml fala em BYTES: 16 chars multibyte (>= 32 bytes UTF-8) passam."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        # "ç" = 2 bytes em UTF-8; 16 chars => 32 bytes, < 32 caracteres.
+        monkeypatch.setenv("JWT_SECRET", "ç" * 16)
+        validar_segredos_no_startup()  # 32 bytes -> passa
+
+    def test_jwt_secret_demo_k8s_em_producao_levanta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.setenv("JWT_SECRET", _DEMO_JWT_SECRET_K8S)
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            validar_segredos_no_startup()
+
+    def test_jwt_secret_demo_env_em_producao_levanta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.setenv("JWT_SECRET", _DEMO_JWT_SECRET_ENV)
+        with pytest.raises(RuntimeError, match="demonstracao"):
+            validar_segredos_no_startup()
+
+    def test_encryption_key_demo_k8s_em_producao_levanta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.setenv("ENCRYPTION_KEY", _DEMO_ENC_KEY_K8S)
+        with pytest.raises(RuntimeError, match="ENCRYPTION_KEY"):
+            validar_segredos_no_startup()
+
+    def test_encryption_key_demo_env_em_producao_levanta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.setenv("ENCRYPTION_KEY", _DEMO_ENC_KEY_ENV)
+        with pytest.raises(RuntimeError, match="ENCRYPTION_KEY"):
+            validar_segredos_no_startup()
+
+    def test_webhook_token_demo_em_producao_levanta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", _DEMO_WEBHOOK_TOKEN)
+        with pytest.raises(RuntimeError, match="ORCAMENTO_WEBHOOK_TOKEN"):
+            validar_segredos_no_startup()
+
+    def test_admin_password_demo_em_producao_levanta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ADMIN_PASSWORD = literal demo do k8s/secret.yaml -> aborta em producao."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.setenv("ADMIN_PASSWORD", _DEMO_ADMIN_PASSWORD)
+        with pytest.raises(RuntimeError, match="ADMIN_PASSWORD"):
+            validar_segredos_no_startup()
+
+    def test_admin_password_forte_em_producao_passa(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ADMIN_PASSWORD forte/nao-demo nao e barrada (a guarda so veta o demo)."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.setenv("ADMIN_PASSWORD", _SEGREDO_FORTE + "-admin")
+        validar_segredos_no_startup()  # nao deve levantar
+
+    def test_admin_password_ausente_em_producao_passa(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ADMIN_PASSWORD ausente nao e barrada aqui (mantem 'ausente -> ignora').
+
+        O seed do admin so roda quando RUN_SEED_ON_STARTUP=true; a guarda foca em
+        NAO deixar o literal publico de demo chegar a producao, nao em exigir a
+        variavel sempre.
+        """
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.delenv("ADMIN_PASSWORD", raising=False)
+        validar_segredos_no_startup()  # nao deve levantar
+
+    def test_segredos_fortes_nao_demo_em_producao_passa(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        validar_segredos_no_startup()  # nao deve levantar
+
+    def test_jwt_secret_ausente_em_producao_levanta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """JWT_SECRET ausente em producao aborta o boot com mensagem clara."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setenv("ENCRYPTION_KEY", _SEGREDO_FORTE + "-enc")
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", _SEGREDO_FORTE + "-hook")
+        monkeypatch.delenv("JWT_SECRET", raising=False)
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            validar_segredos_no_startup()
+
+    def test_encryption_key_ausente_em_producao_passa(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ENCRYPTION_KEY ausente nao e barrada aqui (so o uso de literal demo).
+
+        A ausencia da chave Fernet ja e tratada em outro ponto (encryption.py
+        gera efemera); a guarda foca em NAO usar o literal publico de demo.
+        """
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setenv("JWT_SECRET", _SEGREDO_FORTE)
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", _SEGREDO_FORTE + "-hook")
+        monkeypatch.delenv("ENCRYPTION_KEY", raising=False)
+        validar_segredos_no_startup()  # nao deve levantar
+
+    def test_webhook_token_ausente_em_producao_passa(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Webhook ausente = canal externo desabilitado (router_publico responde
+        503); nao e o literal demo, entao a guarda nao barra."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        monkeypatch.setenv("JWT_SECRET", _SEGREDO_FORTE)
+        monkeypatch.setenv("ENCRYPTION_KEY", _SEGREDO_FORTE + "-enc")
+        monkeypatch.delenv("ORCAMENTO_WEBHOOK_TOKEN", raising=False)
+        validar_segredos_no_startup()  # nao deve levantar
+
+
+class TestValidarSegredosNoStartupGatePorAmbiente:
+    """Fora de producao a guarda e no-op (dev/compose/testes sobem com demo)."""
+
+    @pytest.mark.parametrize("ambiente", ["development", "test"])
+    def test_demo_e_curto_em_dev_ou_test_passa(
+        self, monkeypatch: pytest.MonkeyPatch, ambiente: str
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", ambiente)
+        monkeypatch.setenv("JWT_SECRET", "x")  # 1 byte, demo-like
+        monkeypatch.setenv("ENCRYPTION_KEY", _DEMO_ENC_KEY_K8S)
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", _DEMO_WEBHOOK_TOKEN)
+        monkeypatch.setenv("ADMIN_PASSWORD", _DEMO_ADMIN_PASSWORD)
+        validar_segredos_no_startup()  # gated -> nao levanta
+
+    def test_default_ausente_e_dev_passa(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        """ENVIRONMENT ausente cai no default 'development' -> guarda no-op."""
+        monkeypatch.delenv("ENVIRONMENT", raising=False)
+        monkeypatch.setenv("JWT_SECRET", "x")
+        validar_segredos_no_startup()  # nao levanta
+
+    def test_case_insensitive_production_levanta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """A deteccao de ambiente normaliza caixa: 'Production' tambem dispara."""
+        monkeypatch.setenv("ENVIRONMENT", "Production")
+        monkeypatch.setenv("JWT_SECRET", "curto")
+        with pytest.raises(RuntimeError, match="JWT_SECRET"):
+            validar_segredos_no_startup()
