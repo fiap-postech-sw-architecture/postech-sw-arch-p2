@@ -53,11 +53,18 @@ class TestMappingEstoque:
 def engine_sqlite() -> Generator[Engine]:
     iniciar_mapeamentos()
     engine = create_engine("sqlite:///:memory:")
-    metadata.create_all(engine)
+    # Cria apenas `itens_estoque`, nao o metadata compartilhado inteiro.
+    # Rodando so o dir de estoque, importar o adapter de estoque
+    # (em test_adapters_estoque.py) registra `ordens_de_servico` no metadata
+    # compartilhado — cuja FK aponta para `clientes`/`veiculos`, que nunca sao
+    # importadas nesse subconjunto — e um `create_all` cru falharia com
+    # NoReferencedTableError. `itens_estoque` nao tem FKs, entao limitar o
+    # create/drop a ela mantem este teste hermetico e imune a ordem de coleta.
+    metadata.create_all(engine, tables=[itens_estoque_table])
     try:
         yield engine
     finally:
-        metadata.drop_all(engine)
+        metadata.drop_all(engine, tables=[itens_estoque_table])
         engine.dispose()
 
 
