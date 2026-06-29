@@ -43,8 +43,22 @@ router = APIRouter(tags=["publico"])
 
 
 @router.get("/api/v1/saude", summary="Health probe")
+@limiter.exempt  # type: ignore[untyped-decorator]  # slowapi 0.1.9 nao tem stubs
 def saude() -> dict[str, str]:
-    """Health probe para Kubernetes/load balancer. Retorna 200 quando o app sobe."""
+    """Health probe para Kubernetes/load balancer. Retorna 200 quando o app sobe.
+
+    ISENTA do rate limit global (issue #81). As probes de liveness E readiness
+    do kubelet batem nesta rota, e TODAS saem de um unico IP (o no), que e a
+    chave do limiter (``key_func=get_remote_address``). Sob HPA, com varios
+    pods, o agregado de probes do mesmo IP estouraria o limite global
+    (``60/minute``) -> o kubelet receberia 429 no health check -> o pod seria
+    morto e reiniciado (restart storm auto-reforcante: escalar piora, o que
+    derrota o proprio HPA). ``@limiter.exempt`` registra esta rota no
+    ``_exempt_routes`` do limiter; o ``SlowAPIMiddleware`` (``_should_exempt``)
+    entao a deixa passar SEM aplicar os ``default_limits``. A isencao e
+    CIRURGICA: so a saude e isenta — as rotas reais de API seguem com o limite
+    (proprio ``@limiter.limit`` ou o default global).
+    """
     return {"status": "ok"}
 
 
