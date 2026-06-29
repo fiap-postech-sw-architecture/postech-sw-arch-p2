@@ -514,15 +514,25 @@ class TestCriarAppRealOrdemProxyHeadersSlowAPI:
         # por um Limiter de limite BAIXO (2/minute) ANTES de criar_app: o
         # composition root le ``mw.limiter`` em ``configurar_rate_limiting`` e o
         # mesmo objeto vira ``app.state.limiter`` lido pelo SlowAPIMiddleware,
-        # entao a troca propaga de ponta a ponta. ``/api/v1/saude`` nao tem
-        # ``@limiter.limit`` proprio -> e governado SO por estes default_limits,
-        # exatamente o caminho do limiter de middleware keyed por
-        # ``get_remote_address``.
+        # entao a troca propaga de ponta a ponta.
+        #
+        # ROTA usada: ``/x-proxy`` — adicionada DEPOIS de criar_app no app real
+        # (rotas registradas apos a montagem do middleware ainda atravessam toda
+        # a pilha, SlowAPI incluso). Sem ``@limiter.limit`` proprio e sem
+        # ``@limiter.exempt`` e sem tocar dependencia alguma, logo governada SO
+        # pelos ``default_limits`` — o caminho do limiter de middleware keyed por
+        # ``get_remote_address``, isolado de DB/JWT. ``/api/v1/saude`` NAO serve
+        # mais aqui: ela e isenta do rate limit (issue #81), entao nunca daria o
+        # 429 que esta regressao de ORDEM precisa observar.
         import src.compartilhado.interfaces.middleware as mw
 
         limiter_baixo = Limiter(
             key_func=get_remote_address, default_limits=["2/minute"]
         )
+        # ``saude`` segue isenta com o limiter de teste (reusa o registro do
+        # singleton real, preenchido pelo decorator ``@limiter.exempt`` no
+        # import de ``router_publico``).
+        limiter_baixo._exempt_routes = mw.limiter._exempt_routes
         monkeypatch.setattr(mw, "limiter", limiter_baixo)
 
         # Importa criar_app DEPOIS dos patches (env + singleton) para que a
@@ -534,15 +544,21 @@ class TestCriarAppRealOrdemProxyHeadersSlowAPI:
         # instancia que os decorators e o middleware compartilham).
         assert app.state.limiter is limiter_baixo
 
+        rota = "/x-proxy"
+
+        @app.get(rota)
+        def _x_proxy() -> dict[str, str]:
+            return {"status": "ok"}
+
         # Peer = proxy confiavel; o XFF carrega o IP do cliente real.
         client = TestClient(app, client=(_PEER_PROXY, 12345))
         cliente_a = {"X-Forwarded-For": "198.51.100.7"}
         cliente_b = {"X-Forwarded-For": "198.51.100.8"}
 
         # Cliente A gasta o limite (2/minute) e e barrado no 3o.
-        assert client.get("/api/v1/saude", headers=cliente_a).status_code == 200
-        assert client.get("/api/v1/saude", headers=cliente_a).status_code == 200
-        assert client.get("/api/v1/saude", headers=cliente_a).status_code == 429
+        assert client.get(rota, headers=cliente_a).status_code == 200
+        assert client.get(rota, headers=cliente_a).status_code == 200
+        assert client.get(rota, headers=cliente_a).status_code == 429
 
         # Cliente B, atras do MESMO proxy confiavel, cai em bucket SEPARADO ->
         # 200, 200. Isso so e possivel se o ProxyHeadersMiddleware ja reescreveu
@@ -552,8 +568,8 @@ class TestCriarAppRealOrdemProxyHeadersSlowAPI:
         # rodar DEPOIS do SlowAPI), a chave volta a ser o IP do peer, A e B
         # compartilham o bucket do peer e o cliente B ja viria 429 aqui ->
         # ESTE TESTE FALHA, capturando a regressao.
-        assert client.get("/api/v1/saude", headers=cliente_b).status_code == 200
-        assert client.get("/api/v1/saude", headers=cliente_b).status_code == 200
+        assert client.get(rota, headers=cliente_b).status_code == 200
+        assert client.get(rota, headers=cliente_b).status_code == 200
 
     def test_criar_app_real_sem_trusted_proxies_nao_instala_proxyheaders(
         self, monkeypatch: pytest.MonkeyPatch
@@ -569,3 +585,99 @@ class TestCriarAppRealOrdemProxyHeadersSlowAPI:
         assert "ProxyHeadersMiddleware" not in nomes
         # SlowAPI segue presente: o rate limiting nao depende do proxy-headers.
         assert "SlowAPIMiddleware" in nomes
+
+
+class TestSaudeIsentaDeRateLimit:
+    """Issue #81: ``/api/v1/saude`` (probe de liveness E readiness do kubelet)
+    DEVE estar isenta do rate limit global.
+
+    Todas as probes do kubelet saem de um unico IP (o no), que e a chave do
+    limiter (``key_func=get_remote_address``). Sob HPA, com varios pods, o
+    agregado de probes do mesmo IP estouraria o limite global (``60/minute``)
+    -> o kubelet receberia 429 no health check -> o pod seria morto e
+    reiniciado (restart storm auto-reforcante, confirmado ao vivo com 5 pods).
+
+    A prova exercita o ``criar_app`` REAL com um limite default BAIXO e bate em
+    ``/api/v1/saude`` MUITAS vezes (bem alem do limite) do MESMO cliente: tudo
+    200, nunca 429. O contraste (rota governada pelos mesmos ``default_limits``
+    AINDA toma 429) garante que o limiter segue ATIVO — a isencao e cirurgica,
+    so para a saude.
+    """
+
+    _ROTA_CONTROLE = "/x-rate-limited"
+
+    def _criar_app_limite_baixo(
+        self, monkeypatch: pytest.MonkeyPatch, *, limite: str = "3/minute"
+    ) -> FastAPI:
+        """``criar_app`` REAL com ``default_limits`` baixo + uma rota de
+        CONTROLE (``/x-rate-limited``) governada por esses defaults.
+
+        O singleton ``limiter`` do modulo congela seu default em tempo de import
+        (60/minute), inviavel para um teste deterministico. Troca-se por um
+        Limiter de limite BAIXO ANTES de criar_app: o composition root le
+        ``mw.limiter`` em ``configurar_rate_limiting`` e o mesmo objeto vira
+        ``app.state.limiter`` lido pelo SlowAPIMiddleware. O ``@limiter.exempt``
+        em ``saude()`` registra a rota no ``_exempt_routes`` do singleton REAL
+        (o decorator roda no import de ``router_publico``, ja importado); o
+        ``_exempt_routes`` e reaproveitado no limiter de teste para a isencao
+        seguir valendo.
+
+        A rota de controle e adicionada DEPOIS de ``criar_app`` (no app real):
+        rotas registradas apos a montagem do middleware ainda atravessam toda a
+        pilha (SlowAPIMiddleware incluso). Ela nao tem ``@limiter.limit`` proprio
+        nem ``@limiter.exempt`` e nao toca dependencia alguma (sem DB/JWT), logo
+        e governada SO pelos ``default_limits`` — o caminho exato do limiter de
+        middleware keyed por ``get_remote_address``, isolado de side effects.
+        """
+        monkeypatch.delenv("TRUSTED_PROXIES", raising=False)
+        import src.compartilhado.interfaces.middleware as mw
+
+        limiter_baixo = Limiter(key_func=get_remote_address, default_limits=[limite])
+        limiter_baixo._exempt_routes = mw.limiter._exempt_routes
+        monkeypatch.setattr(mw, "limiter", limiter_baixo)
+
+        from src.main import criar_app
+
+        app = criar_app()
+        assert app.state.limiter is limiter_baixo
+
+        @app.get(self._ROTA_CONTROLE)
+        def _x_rate_limited() -> dict[str, str]:
+            return {"status": "ok"}
+
+        return app
+
+    def test_saude_isenta_nunca_retorna_429_do_mesmo_ip(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        limite = 3
+        app = self._criar_app_limite_baixo(monkeypatch, limite=f"{limite}/minute")
+        # Cliente unico (mesmo IP, como o kubelet de um no): todas as probes
+        # compartilham a chave do limiter.
+        client = TestClient(app, client=("10.244.0.1", 51000))
+
+        # Bate bem alem do limite (limite + 5). Sem a isencao, a partir da
+        # (limite+1)-esima request viria 429 (o que matava o pod).
+        for _ in range(limite + 5):
+            resp = client.get("/api/v1/saude")
+            assert resp.status_code == 200, (
+                f"esperado 200 em /api/v1/saude (isenta), obtido {resp.status_code}"
+            )
+            assert resp.json() == {"status": "ok"}
+
+    def test_rota_nao_isenta_ainda_rate_limita_provando_limiter_ativo(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # CONTRASTE: uma rota governada pelos MESMOS ``default_limits`` (sem
+        # ``@limiter.limit`` proprio e sem ``@limiter.exempt``) AINDA toma 429
+        # passado o limite. Isso prova que o limiter esta ATIVO na pilha real e
+        # que a isencao de ``/saude`` e cirurgica, nao um desligamento global.
+        limite = 3
+        app = self._criar_app_limite_baixo(monkeypatch, limite=f"{limite}/minute")
+        client = TestClient(app, client=("10.244.0.1", 51000))
+
+        # As primeiras ``limite`` requests passam (200);
+        for _ in range(limite):
+            assert client.get(self._ROTA_CONTROLE).status_code == 200
+        # a (limite+1)-esima estoura o default -> 429 (limiter ativo).
+        assert client.get(self._ROTA_CONTROLE).status_code == 429
