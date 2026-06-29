@@ -1,13 +1,16 @@
 from __future__ import annotations
 
+import logging
 import os
 import re
+import sys
 from typing import TYPE_CHECKING, Any
 
 import structlog
 
 if TYPE_CHECKING:
     from collections.abc import MutableMapping
+    from typing import TextIO
 
 # git_sha/git_date sao injetadas em build args -> ENV pelas pipelines
 # (Makefile + Dockerfiles). Lidas uma vez no import e adicionadas a todo
@@ -32,6 +35,42 @@ def adicionar_versao_imagem(
 _CPF_PATTERN = re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b")
 _CNPJ_PATTERN = re.compile(r"\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b")
 _EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
+
+# Telefone BR FORMATADO: exige separador estrutural (hifen no bloco local
+# 4-4/5-4) + DDD (2 digitos, com ou sem parenteses, com prefixo +55 opcional).
+# So casa numeros com a FORMA de telefone -- precos (`1500.00`), ids (`12345`),
+# anos (`2026`) e portas (`8000`) nao tem o split `\d{4,5}-\d{4}` e ficam
+# intactos (guard contra falso-positivo; conjunto LGPD inclui telefone).
+_TELEFONE_PATTERN = re.compile(
+    r"(?<!\d)"  # nao precedido de digito (evita capturar parte de numero maior)
+    r"(?:\+55\s?)?"  # codigo do pais opcional
+    r"(?:\(\d{2}\)|\d{2})"  # DDD com ou sem parenteses
+    r"\s"  # separador obrigatorio entre DDD e numero
+    r"9?\d{4}-\d{4}"  # 8 ou 9 digitos com hifen 4-4/5-4
+    r"(?!\d)"  # nao seguido de digito
+)
+
+# Denylist de chaves: quando o NOME do campo indica segredo, o valor inteiro e
+# mascarado -- independente de casar regex de PII. Cobre credenciais que nao tem
+# forma fixa (tokens, segredos) e que nao devem aparecer em log algum.
+_CHAVES_SENSIVEIS = frozenset(
+    {
+        "password",
+        "senha",
+        "token",
+        "secret",
+        "authorization",
+        "refresh_token",
+        "access_token",
+        "api_key",
+    }
+)
+
+_MASCARA = "***"
+
+# Loggers que o uvicorn configura com handler proprio + `propagate=False`.
+# `configurar_logging` os religa ao root para passarem pelo scrubber (issue #86).
+_LOGGERS_UVICORN = ("uvicorn", "uvicorn.error", "uvicorn.access")
 
 # Cap on recursion depth when scrubbing nested structures. Guards against
 # pathological or cyclic structured log payloads without sacrificing coverage
@@ -59,7 +98,12 @@ def _mask_email(match: re.Match[str]) -> str:
 def _mask_string(value: str) -> str:
     value = _CPF_PATTERN.sub(_mask_cpf, value)
     value = _CNPJ_PATTERN.sub(_mask_cnpj, value)
-    return _EMAIL_PATTERN.sub(_mask_email, value)
+    value = _EMAIL_PATTERN.sub(_mask_email, value)
+    return _TELEFONE_PATTERN.sub(_MASCARA, value)
+
+
+def _chave_sensivel(key: Any) -> bool:  # noqa: ANN401  # chaves podem nao ser str
+    return isinstance(key, str) and key.lower() in _CHAVES_SENSIVEIS
 
 
 def _scrub_value(value: Any, depth: int) -> Any:  # noqa: ANN401
@@ -70,7 +114,11 @@ def _scrub_value(value: Any, depth: int) -> Any:  # noqa: ANN401
     if isinstance(value, str):
         return _mask_string(value)
     if isinstance(value, dict):
-        return {k: _scrub_value(v, depth + 1) for k, v in value.items()}
+        # Mascara o valor inteiro quando a chave esta na denylist; senao desce.
+        return {
+            k: (_MASCARA if _chave_sensivel(k) else _scrub_value(v, depth + 1))
+            for k, v in value.items()
+        }
     if isinstance(value, list):
         return [_scrub_value(item, depth + 1) for item in value]
     if isinstance(value, tuple):
@@ -83,14 +131,18 @@ def scrub_pii(
     _method_name: str,
     event_dict: MutableMapping[str, Any],
 ) -> MutableMapping[str, Any]:
-    """Structlog processor que mascara CPF, CNPJ e email em todo o event_dict.
+    """Structlog processor que mascara PII e segredos em todo o event_dict.
 
-    Percorre recursivamente strings, dicts, listas e tuplas ate `_MAX_SCRUB_DEPTH`
-    para pegar PII em payloads estruturados. Aplicado automaticamente pelo pipeline
-    de logging para impedir vazamento de PII em logs (LGPD).
+    Mascara CPF, CNPJ, email e telefone BR formatado por regex de VALOR; e mascara
+    o valor inteiro quando o NOME do campo esta na denylist `_CHAVES_SENSIVEIS`
+    (password/token/secret/...). Percorre recursivamente strings, dicts, listas e
+    tuplas ate `_MAX_SCRUB_DEPTH` para pegar PII em payloads estruturados. Aplicado
+    automaticamente pelo pipeline de logging (inclusive na chave `exception` do
+    traceback, que `format_exc_info` monta ANTES deste processor) para impedir
+    vazamento de PII em logs -- structlog e stdlib (LGPD).
     """
     for key, value in event_dict.items():
-        event_dict[key] = _scrub_value(value, depth=0)
+        event_dict[key] = _MASCARA if _chave_sensivel(key) else _scrub_value(value, 0)
     return event_dict
 
 
@@ -115,22 +167,82 @@ def redigir_pii_erro(erro: str) -> str:
     return redacted
 
 
-def configurar_logging() -> None:
-    """Configura structlog: JSON output, timestamps ISO e scrub automatico de PII."""
+# Cadeia COMPARTILHADA entre logs structlog e logs stdlib estrangeiros (uvicorn,
+# bibliotecas, handler 500). ORDEM CRITICA (issue #86): `format_exc_info` monta a
+# chave `exception` a partir do `exc_info` e DEVE vir ANTES de `scrub_pii`, senao
+# o traceback (com possivel PII no repr da excecao) escapa do mascaramento.
+# `StackInfoRenderer` (stack_info -> string) tambem precede o scrub, que entao
+# mascara ambas as strings. Nenhum renderer final aqui: o `ProcessorFormatter`
+# (abaixo) renderiza para JSON tanto os logs structlog quanto os stdlib.
+def _cadeia_compartilhada() -> list[Any]:
+    return [
+        structlog.contextvars.merge_contextvars,
+        adicionar_versao_imagem,
+        structlog.stdlib.add_log_level,
+        structlog.stdlib.add_logger_name,
+        structlog.processors.TimeStamper(fmt="iso"),
+        structlog.processors.StackInfoRenderer(),
+        structlog.processors.format_exc_info,
+        scrub_pii,
+    ]
+
+
+def configurar_logging(stream: TextIO | None = None) -> None:
+    """Configura structlog + roteia o logging stdlib pelo mesmo scrubber de PII.
+
+    JSON output, timestamps ISO e scrub automatico de PII/segredos. O
+    ``ProcessorFormatter`` instalado no root logger faz com que TODO log stdlib
+    (handler 500 em ``error_handler.py``, ``exc_info`` do ValueError handler,
+    access/error logs do uvicorn, logs de bibliotecas) passe pela
+    ``_cadeia_compartilhada`` -- inclusive ``scrub_pii`` -- via ``foreign_pre_chain``,
+    sem reprocessar os logs ja-structlog (estes pulam o pre-chain). Fecha a brecha
+    LGPD da issue #86: traceback cru com PII fora do pipeline do structlog.
+
+    ``stream`` permite direcionar a saida (default ``sys.stdout``); usado em testes
+    para capturar o output renderizado.
+    """
+    compartilhada = _cadeia_compartilhada()
     structlog.configure(
         processors=[
-            structlog.contextvars.merge_contextvars,
-            adicionar_versao_imagem,
-            structlog.stdlib.add_log_level,
-            structlog.stdlib.add_logger_name,
-            structlog.processors.TimeStamper(fmt="iso"),
-            structlog.processors.StackInfoRenderer(),
-            scrub_pii,
-            structlog.processors.format_exc_info,
-            structlog.processors.JSONRenderer(),
+            *compartilhada,
+            # Handoff para o ProcessorFormatter do root handler (nao renderiza aqui).
+            structlog.stdlib.ProcessorFormatter.wrap_for_formatter,
         ],
         wrapper_class=structlog.stdlib.BoundLogger,
         context_class=dict,
         logger_factory=structlog.stdlib.LoggerFactory(),
         cache_logger_on_first_use=True,
     )
+
+    formatter = structlog.stdlib.ProcessorFormatter(
+        # Logs estrangeiros (stdlib) passam por esta cadeia ANTES da renderizacao;
+        # logs ja-structlog ja a percorreram e a pulam (sem duplo processamento).
+        foreign_pre_chain=compartilhada,
+        processors=[
+            structlog.stdlib.ProcessorFormatter.remove_processors_meta,
+            structlog.processors.JSONRenderer(),
+        ],
+    )
+
+    handler = logging.StreamHandler(stream or sys.stdout)
+    handler.setFormatter(formatter)
+
+    root = logging.getLogger()
+    # Substitui handlers existentes (ex.: o basicConfig do relay ou um handler
+    # de uma chamada anterior) para garantir que o scrubber seja o unico caminho
+    # de saida -- idempotente em warm restarts/testes e sem handler cru remanescente.
+    root.handlers = [handler]
+    if root.level == logging.NOTSET or root.level > logging.INFO:
+        root.setLevel(logging.INFO)
+
+    # uvicorn (lancado por CLI no container) instala os PROPRIOS handlers nos
+    # loggers `uvicorn`/`uvicorn.access` com `propagate=False` -- seus logs (inclui
+    # access logs, que podem trazer PII em path/query) NAO chegariam ao handler de
+    # scrub do root. `configurar_logging` roda no lifespan startup, DEPOIS de
+    # uvicorn montar seus loggers; aqui removemos os handlers crus de uvicorn e
+    # religamos `propagate=True` para que tudo flua pelo ProcessorFormatter do root
+    # (scrubado, JSON unico). Idempotente. Issue #86.
+    for nome in _LOGGERS_UVICORN:
+        uvlog = logging.getLogger(nome)
+        uvlog.handlers = []
+        uvlog.propagate = True
