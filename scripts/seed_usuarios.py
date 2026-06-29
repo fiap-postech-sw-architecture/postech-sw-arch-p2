@@ -3,8 +3,9 @@
 Complementa ``scripts/seed_admin.py``: enquanto aquele cria o admin inicial
 via env vars para bootstrap de producao, este popula os 3 papeis com
 credenciais FIXAS em ``ui/config.py`` para uso exclusivo da UI de simulacao
-em dev. Escreve direto no banco porque o endpoint ``/registrar`` do backend
-nao aceita ``papel`` como parametro (cria sempre com papel default).
+em dev. Escreve direto no banco para bootstrap idempotente sem depender da
+API (o endpoint ``/registrar`` aceita ``papel`` desde a issue #84, mas exige
+um admin ja autenticado — circular para o seed inicial).
 
 Uso:
     make seed-users                            # local (envs vem de .env)

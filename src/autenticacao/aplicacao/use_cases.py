@@ -37,7 +37,7 @@ class Registrar:
         if self._repo.email_existe(dto.email):
             raise EmailDuplicadoException()
         senha_hash = self._password_hasher.hash_senha(dto.senha)
-        usuario = Usuario.criar(email=dto.email, senha_hash=senha_hash)
+        usuario = Usuario.criar(email=dto.email, senha_hash=senha_hash, papel=dto.papel)
         with self._uow:
             self._repo.salvar(usuario)
             self._uow.commit()

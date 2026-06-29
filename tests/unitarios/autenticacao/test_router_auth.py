@@ -7,6 +7,7 @@ from uuid import uuid4
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.autenticacao.dominio.papel import Papel
 from src.autenticacao.interfaces.middleware import obter_usuario_atual
 from src.autenticacao.interfaces.router import router
 from src.compartilhado.interfaces.dependencies import obter_session
@@ -67,12 +68,36 @@ class TestAuthRouter:
             client = TestClient(app)
             resp = client.post(
                 "/api/v1/autenticacao/registrar",
-                json={"email": "new@test.com", "senha": "senhaforte123"},
+                json={
+                    "email": "new@test.com",
+                    "senha": "senhaforte123",
+                    "papel": "mecanico",
+                },
             )
             assert resp.status_code == 201
             data = resp.json()
             assert data["email"] == "user@test.com"
             assert data["papel"] == "admin"
+            # O router deve propagar o papel do request ate o DTO (#84).
+            dto = mock_uc.executar.call_args.args[0]
+            assert dto.papel is Papel.MECANICO
+
+    def test_registrar_sem_papel_retorna_422(self) -> None:
+        # Omitir papel nao pode criar usuario (e muito menos um ADMIN): 422.
+        app = _criar_app()
+        with patch(
+            "src.autenticacao.interfaces.router.obter_registrar"
+        ) as mock_factory:
+            mock_uc = MagicMock()
+            mock_factory.return_value = mock_uc
+
+            client = TestClient(app)
+            resp = client.post(
+                "/api/v1/autenticacao/registrar",
+                json={"email": "new@test.com", "senha": "senhaforte123"},
+            )
+            assert resp.status_code == 422
+            mock_uc.executar.assert_not_called()
 
     def test_logout(self) -> None:
         app = _criar_app()

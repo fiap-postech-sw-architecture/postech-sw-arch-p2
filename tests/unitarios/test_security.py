@@ -26,6 +26,7 @@ from src.autenticacao.dominio.exceptions import (
     TokenExpiradoException,
     TokenInvalidoException,
 )
+from src.autenticacao.dominio.papel import Papel
 from src.autenticacao.infraestrutura.jwt_service import JWTService
 from src.autenticacao.infraestrutura.password_hasher import (
     hash_senha,
@@ -561,24 +562,47 @@ class TestLoginRequestValidation:
 
 
 class TestRegistrarRequestValidation:
-    """RegistrarRequest must reject passwords < 12 chars and extra fields."""
+    """RegistrarRequest exige email, senha (>=12), papel valido; rejeita extras.
+
+    Regressao do #84: papel e OBRIGATORIO (sem default ADMIN silencioso) e
+    validado contra o enum Papel (valores em minusculo: admin/mecanico/atendente).
+    """
 
     def test_rejects_password_too_short(self) -> None:
         with pytest.raises(ValidationError):
-            RegistrarRequest(email="a@b.com", senha="short11char")
+            RegistrarRequest(email="a@b.com", senha="short11char", papel=Papel.ADMIN)
 
     def test_rejects_extra_fields(self) -> None:
         with pytest.raises(ValidationError) as exc:
             RegistrarRequest(
                 email="a@b.com",
                 senha="password12chars",
-                papel="admin",  # type: ignore[call-arg]
+                papel=Papel.ADMIN,
+                superuser=True,  # type: ignore[call-arg]
             )
         assert "extra" in str(exc.value).lower()
 
-    def test_accepts_valid_request(self) -> None:
-        req = RegistrarRequest(email="a@b.com", senha="password12chars")
+    def test_papel_obrigatorio(self) -> None:
+        # Omitir papel deve falhar (422), nunca cair num default ADMIN.
+        with pytest.raises(ValidationError) as exc:
+            RegistrarRequest(email="a@b.com", senha="password12chars")  # type: ignore[call-arg]
+        erro = str(exc.value).lower()
+        assert "papel" in erro
+        assert "required" in erro or "missing" in erro
+
+    def test_rejects_papel_invalido(self) -> None:
+        with pytest.raises(ValidationError):
+            RegistrarRequest(
+                email="a@b.com",
+                senha="password12chars",
+                papel="superuser",  # type: ignore[arg-type]
+            )
+
+    @pytest.mark.parametrize("papel", [Papel.ADMIN, Papel.MECANICO, Papel.ATENDENTE])
+    def test_accepts_cada_papel_valido(self, papel: Papel) -> None:
+        req = RegistrarRequest(email="a@b.com", senha="password12chars", papel=papel)
         assert req.email == "a@b.com"
+        assert req.papel is papel
 
 
 class TestRefreshRequestValidation:

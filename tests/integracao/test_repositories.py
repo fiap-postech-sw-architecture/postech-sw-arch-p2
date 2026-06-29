@@ -205,6 +205,7 @@ class TestUsuarioRepository:
         usuario = Usuario.criar(
             email="check@pytstop.com",
             senha_hash="hashed_password_789",
+            papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
 
@@ -222,12 +223,14 @@ class TestUsuarioRepository:
         usuario1 = Usuario.criar(
             email="duplicado@pytstop.com",
             senha_hash="hash_a",
+            papel=Papel.ADMIN,
         )
         repo.salvar(usuario1)
 
         usuario2 = Usuario.criar(
             email="duplicado@pytstop.com",
             senha_hash="hash_b",
+            papel=Papel.ADMIN,
         )
         with pytest.raises(IntegrityError):
             repo.salvar(usuario2)
