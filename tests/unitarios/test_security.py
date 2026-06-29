@@ -904,6 +904,8 @@ _DEMO_JWT_SECRET_ENV = "dev-secret-change-me-this-is-at-least-32-bytes-long-for-
 _DEMO_ENC_KEY_K8S = "C9I0jOzZ9kJBTY0akV3TvBO2wa1JcuAdR-Wctnzee6I="  # gitleaks:allow
 _DEMO_ENC_KEY_ENV = "o2PanCXdqDQ87JA2AOA1oNazx5bGwSdUZrHY1rvHnx0="  # gitleaks:allow
 _DEMO_WEBHOOK_TOKEN = "demo-webhook-orcamento-nao-usar-em-producao"
+# ADMIN_PASSWORD de demo (so em k8s/secret.yaml; .env.dev* deixa em branco).
+_DEMO_ADMIN_PASSWORD = "pytstop-admin-demo-2026"  # gitleaks:allow
 
 
 def _set_segredos_validos(monkeypatch: pytest.MonkeyPatch) -> None:
@@ -1003,6 +1005,39 @@ class TestValidarSegredosNoStartupProducao:
         with pytest.raises(RuntimeError, match="ORCAMENTO_WEBHOOK_TOKEN"):
             validar_segredos_no_startup()
 
+    def test_admin_password_demo_em_producao_levanta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ADMIN_PASSWORD = literal demo do k8s/secret.yaml -> aborta em producao."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.setenv("ADMIN_PASSWORD", _DEMO_ADMIN_PASSWORD)
+        with pytest.raises(RuntimeError, match="ADMIN_PASSWORD"):
+            validar_segredos_no_startup()
+
+    def test_admin_password_forte_em_producao_passa(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ADMIN_PASSWORD forte/nao-demo nao e barrada (a guarda so veta o demo)."""
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.setenv("ADMIN_PASSWORD", _SEGREDO_FORTE + "-admin")
+        validar_segredos_no_startup()  # nao deve levantar
+
+    def test_admin_password_ausente_em_producao_passa(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """ADMIN_PASSWORD ausente nao e barrada aqui (mantem 'ausente -> ignora').
+
+        O seed do admin so roda quando RUN_SEED_ON_STARTUP=true; a guarda foca em
+        NAO deixar o literal publico de demo chegar a producao, nao em exigir a
+        variavel sempre.
+        """
+        monkeypatch.setenv("ENVIRONMENT", "production")
+        _set_segredos_validos(monkeypatch)
+        monkeypatch.delenv("ADMIN_PASSWORD", raising=False)
+        validar_segredos_no_startup()  # nao deve levantar
+
     def test_segredos_fortes_nao_demo_em_producao_passa(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
@@ -1058,6 +1093,7 @@ class TestValidarSegredosNoStartupGatePorAmbiente:
         monkeypatch.setenv("JWT_SECRET", "x")  # 1 byte, demo-like
         monkeypatch.setenv("ENCRYPTION_KEY", _DEMO_ENC_KEY_K8S)
         monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", _DEMO_WEBHOOK_TOKEN)
+        monkeypatch.setenv("ADMIN_PASSWORD", _DEMO_ADMIN_PASSWORD)
         validar_segredos_no_startup()  # gated -> nao levanta
 
     def test_default_ausente_e_dev_passa(self, monkeypatch: pytest.MonkeyPatch) -> None:

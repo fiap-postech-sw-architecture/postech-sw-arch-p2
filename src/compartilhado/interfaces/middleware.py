@@ -58,7 +58,8 @@ _JWT_SECRET_MIN_BYTES = 32
 
 # Literais de segredo de DEMONSTRACAO publicos no git -- proibidos em producao.
 # Fonte de cada valor (paridade dev x cluster):
-#   k8s/secret.yaml (JWT_SECRET, ENCRYPTION_KEY, ORCAMENTO_WEBHOOK_TOKEN)
+#   k8s/secret.yaml (JWT_SECRET, ENCRYPTION_KEY, ORCAMENTO_WEBHOOK_TOKEN,
+#     ADMIN_PASSWORD)
 #   .env.dev / .env.dev.example (JWT_SECRET, ENCRYPTION_KEY, ORCAMENTO_WEBHOOK_TOKEN)
 #   docker-compose.yml (ORCAMENTO_WEBHOOK_TOKEN)
 # Mantenha em sincronia se algum desses defaults de demo mudar.
@@ -73,6 +74,9 @@ _SEGREDOS_DEMO_PROIBIDOS = frozenset(
         "o2PanCXdqDQ87JA2AOA1oNazx5bGwSdUZrHY1rvHnx0=",  # gitleaks:allow
         # ORCAMENTO_WEBHOOK_TOKEN demo (k8s/secret.yaml == docker-compose == .env.dev*).
         "demo-webhook-orcamento-nao-usar-em-producao",
+        # ADMIN_PASSWORD demo: so em k8s/secret.yaml (.env.dev* deixa em branco;
+        # docker-compose.yml nao define ADMIN_PASSWORD).
+        "pytstop-admin-demo-2026",  # gitleaks:allow
     }
 )
 
@@ -86,8 +90,9 @@ def validar_segredos_no_startup() -> None:
 
     1. ``JWT_SECRET`` ausente ou com menos de 32 BYTES -> aborta. HS256 com
        chave curta e trivialmente forjavel.
-    2. ``JWT_SECRET`` / ``ENCRYPTION_KEY`` / ``ORCAMENTO_WEBHOOK_TOKEN`` iguais
-       a um literal de demonstracao publico no git -> aborta.
+    2. ``JWT_SECRET`` / ``ENCRYPTION_KEY`` / ``ORCAMENTO_WEBHOOK_TOKEN`` /
+       ``ADMIN_PASSWORD`` iguais a um literal de demonstracao publico no git ->
+       aborta. Cada um e validado apenas quando presente (ausente -> ignorado).
 
     Espelha o `configurar_cors`: falha o boot (``raise``), nao apenas avisa --
     uma pre-condicao de seguranca nao satisfeita NUNCA deve subir aceitando
@@ -113,7 +118,12 @@ def validar_segredos_no_startup() -> None:
         )
         raise RuntimeError(msg)
 
-    for nome in ("JWT_SECRET", "ENCRYPTION_KEY", "ORCAMENTO_WEBHOOK_TOKEN"):
+    for nome in (
+        "JWT_SECRET",
+        "ENCRYPTION_KEY",
+        "ORCAMENTO_WEBHOOK_TOKEN",
+        "ADMIN_PASSWORD",
+    ):
         valor = os.environ.get(nome)
         if valor and valor in _SEGREDOS_DEMO_PROIBIDOS:
             msg = (
