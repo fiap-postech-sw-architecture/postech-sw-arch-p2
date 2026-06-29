@@ -15,17 +15,23 @@ from src.autenticacao.infraestrutura.password_hasher import (
 class TestUsuario:
     def test_criar_armazena_hash(self) -> None:
         senha_hash = hash_senha("senhaforte1234")
-        u = Usuario.criar(email="test@test.com", senha_hash=senha_hash)
+        u = Usuario.criar(
+            email="test@test.com", senha_hash=senha_hash, papel=Papel.ADMIN
+        )
         assert u.senha_hash == senha_hash
 
     def test_verificar_senha_correta(self) -> None:
         senha_hash = hash_senha("senhaforte1234")
-        u = Usuario.criar(email="test@test.com", senha_hash=senha_hash)
+        u = Usuario.criar(
+            email="test@test.com", senha_hash=senha_hash, papel=Papel.ADMIN
+        )
         assert verificar_senha("senhaforte1234", u.senha_hash) is True
 
     def test_verificar_senha_incorreta(self) -> None:
         senha_hash = hash_senha("senhaforte1234")
-        u = Usuario.criar(email="test@test.com", senha_hash=senha_hash)
+        u = Usuario.criar(
+            email="test@test.com", senha_hash=senha_hash, papel=Papel.ADMIN
+        )
         assert verificar_senha("outrasenha1234", u.senha_hash) is False
 
     def test_email_invalido(self) -> None:
@@ -38,7 +44,9 @@ class TestUsuario:
 
     def test_propriedades(self) -> None:
         senha_hash = hash_senha("senhaforte1234")
-        u = Usuario.criar(email="test@test.com", senha_hash=senha_hash)
+        u = Usuario.criar(
+            email="test@test.com", senha_hash=senha_hash, papel=Papel.ADMIN
+        )
         assert u.email == "test@test.com"
         assert u.papel == Papel.ADMIN
 

@@ -58,7 +58,7 @@ def registrar(
     session: Session = Depends(obter_session),
 ) -> UsuarioResponse:
     uc = obter_registrar(session)
-    dto = RegistrarDTO(email=body.email, senha=body.senha)
+    dto = RegistrarDTO(email=body.email, senha=body.senha, papel=body.papel)
     result = uc.executar(dto)
     return UsuarioResponse(id=result.id, email=result.email, papel=result.papel)
 

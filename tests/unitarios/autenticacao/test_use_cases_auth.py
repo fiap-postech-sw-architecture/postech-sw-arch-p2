@@ -12,6 +12,7 @@ from src.autenticacao.dominio.exceptions import (
     TokenInvalidoException,
     TokenRevogadoException,
 )
+from src.autenticacao.dominio.papel import Papel
 from src.autenticacao.dominio.usuario import Usuario
 from src.autenticacao.infraestrutura.jwt_service import JWTService
 from src.autenticacao.infraestrutura.password_hasher import PasswordHasher, hash_senha
@@ -103,16 +104,51 @@ class TestRegistrar:
         repo = FakeUsuarioRepository()
         uow = FakeUnitOfWork()
         uc = Registrar(repo=repo, uow=uow, password_hasher=PasswordHasher())
-        dto = RegistrarDTO(email="test@test.com", senha="senhaforte1234")
+        dto = RegistrarDTO(
+            email="test@test.com", senha="senhaforte1234", papel=Papel.ADMIN
+        )
         result = uc.executar(dto)
         assert result.email == "test@test.com"
         assert result.papel == "admin"
+
+    @pytest.mark.parametrize("papel", [Papel.ADMIN, Papel.MECANICO, Papel.ATENDENTE])
+    def test_persiste_papel_informado(self, papel: Papel) -> None:
+        # Regressao do bug #84: o papel informado no DTO deve ser o papel
+        # persistido — NAO o antigo default ADMIN da factory.
+        repo = FakeUsuarioRepository()
+        uow = FakeUnitOfWork()
+        uc = Registrar(repo=repo, uow=uow, password_hasher=PasswordHasher())
+        dto = RegistrarDTO(
+            email=f"{papel.value}@test.com", senha="senhaforte1234", papel=papel
+        )
+        result = uc.executar(dto)
+        assert result.papel == papel.value
+        persistido = repo.obter_por_email(f"{papel.value}@test.com")
+        assert persistido is not None
+        assert persistido.papel is papel
+
+    def test_registrar_mecanico_nao_vira_admin(self) -> None:
+        # Guarda nuclear do #84: criar um MECANICO nao pode resultar em ADMIN.
+        repo = FakeUsuarioRepository()
+        uow = FakeUnitOfWork()
+        uc = Registrar(repo=repo, uow=uow, password_hasher=PasswordHasher())
+        uc.executar(
+            RegistrarDTO(
+                email="mec@test.com", senha="senhaforte1234", papel=Papel.MECANICO
+            )
+        )
+        persistido = repo.obter_por_email("mec@test.com")
+        assert persistido is not None
+        assert persistido.papel is Papel.MECANICO
+        assert persistido.papel is not Papel.ADMIN
 
     def test_email_duplicado(self) -> None:
         repo = FakeUsuarioRepository()
         uow = FakeUnitOfWork()
         uc = Registrar(repo=repo, uow=uow, password_hasher=PasswordHasher())
-        dto = RegistrarDTO(email="test@test.com", senha="senhaforte1234")
+        dto = RegistrarDTO(
+            email="test@test.com", senha="senhaforte1234", papel=Papel.ATENDENTE
+        )
         uc.executar(dto)
         with pytest.raises(EmailDuplicadoException):
             uc.executar(dto)
@@ -124,7 +160,9 @@ class TestRegistrar:
         uow = FakeUnitOfWork()
         hasher = FakePasswordHasher()
         uc = Registrar(repo=repo, uow=uow, password_hasher=hasher)
-        uc.executar(RegistrarDTO(email="a@b.com", senha="senhaforte1234"))
+        uc.executar(
+            RegistrarDTO(email="a@b.com", senha="senhaforte1234", papel=Papel.ADMIN)
+        )
         assert hasher.hashed == ["senhaforte1234"]
         usuario = repo.obter_por_email("a@b.com")
         assert usuario is not None
@@ -135,7 +173,9 @@ class TestLogin:
     def test_sucesso(self) -> None:
         repo = FakeUsuarioRepository()
         usuario = Usuario.criar(
-            email="test@test.com", senha_hash=hash_senha("senhaforte1234")
+            email="test@test.com",
+            senha_hash=hash_senha("senhaforte1234"),
+            papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
         jwt_svc = JWTService(chave_secreta="test-secret")
@@ -149,7 +189,9 @@ class TestLogin:
     def test_retorna_access_e_refresh(self) -> None:
         repo = FakeUsuarioRepository()
         usuario = Usuario.criar(
-            email="test@test.com", senha_hash=hash_senha("senhaforte1234")
+            email="test@test.com",
+            senha_hash=hash_senha("senhaforte1234"),
+            papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
         jwt_svc = JWTService(chave_secreta="test-secret")
@@ -171,7 +213,9 @@ class TestLogin:
     def test_senha_incorreta(self) -> None:
         repo = FakeUsuarioRepository()
         usuario = Usuario.criar(
-            email="test@test.com", senha_hash=hash_senha("senhaforte1234")
+            email="test@test.com",
+            senha_hash=hash_senha("senhaforte1234"),
+            papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
         jwt_svc = JWTService(chave_secreta="test-secret")
@@ -185,7 +229,11 @@ class TestLogin:
         # sem acoplar a infraestrutura. Com hasher real o senha_hash "hashed::.."
         # nem validaria; com JWT real os tokens nao seriam "fake-*".
         repo = FakeUsuarioRepository()
-        usuario = Usuario.criar(email="a@b.com", senha_hash="hashed::senhaforte1234")
+        usuario = Usuario.criar(
+            email="a@b.com",
+            senha_hash="hashed::senhaforte1234",
+            papel=Papel.ADMIN,
+        )
         repo.salvar(usuario)
         hasher = FakePasswordHasher()
         jwt = FakeJWTService()
@@ -227,7 +275,9 @@ class TestRefreshToken:
     def test_rotacao_sucesso(self) -> None:
         repo = FakeUsuarioRepository()
         usuario = Usuario.criar(
-            email="test@test.com", senha_hash=hash_senha("senhaforte1234")
+            email="test@test.com",
+            senha_hash=hash_senha("senhaforte1234"),
+            papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
         jwt_svc = JWTService(chave_secreta="test-secret")
@@ -249,7 +299,9 @@ class TestRefreshToken:
     def test_rejeita_access_token_como_refresh(self) -> None:
         repo = FakeUsuarioRepository()
         usuario = Usuario.criar(
-            email="test@test.com", senha_hash=hash_senha("senhaforte1234")
+            email="test@test.com",
+            senha_hash=hash_senha("senhaforte1234"),
+            papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
         jwt_svc = JWTService(chave_secreta="test-secret")
@@ -268,7 +320,9 @@ class TestRefreshToken:
     def test_rejeita_token_ja_revogado(self) -> None:
         repo = FakeUsuarioRepository()
         usuario = Usuario.criar(
-            email="test@test.com", senha_hash=hash_senha("senhaforte1234")
+            email="test@test.com",
+            senha_hash=hash_senha("senhaforte1234"),
+            papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
         jwt_svc = JWTService(chave_secreta="test-secret")
