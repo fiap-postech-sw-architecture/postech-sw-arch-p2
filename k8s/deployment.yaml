@@ -25,6 +25,15 @@ spec:
       labels:
         app: pytstop-api
     spec:
+      # Hardening de pod (TD-024): roda como nao-root com UID/GID numericos
+      # (casam o Dockerfile), seccomp default e fsGroup para a montagem /tmp.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: api
           # O CD troca esta tag pela tag imutavel do SHA do commit
@@ -68,3 +77,18 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          # Hardening de container (TD-024): sem escalonamento de privilegio,
+          # root FS somente-leitura, todas as capabilities dropadas. O /tmp e um
+          # emptyDir gravavel (uvicorn/libs podem escrever temporarios).
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
