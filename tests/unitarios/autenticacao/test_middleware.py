@@ -66,6 +66,27 @@ class TestObterUsuarioAtual:
             payload = obter_usuario_atual(credentials=creds, session=_MOCK_SESSION)  # type: ignore[arg-type]
         assert payload["sub"] == str(uid)
 
+    def test_refresh_token_rejeitado_como_access(self) -> None:
+        """TD-029: refresh token nao passa no gate de acesso (type != access -> 401).
+
+        Espelha o check `type == refresh` do fluxo de refresh; defense-in-depth
+        para qualquer rota futura apenas-autenticada (hoje so o RBAC contem).
+        """
+        svc = JWTService(chave_secreta=_CHAVE)
+        token = svc.gerar_refresh_token(uuid4())
+        creds = _FakeCredentials(token=token)
+        fake_repo = MagicMock()
+        fake_repo.esta_revogado = MagicMock(return_value=False)
+        with (
+            patch(
+                "src.autenticacao.infraestrutura.token_revogado_repository.TokenRevogadoSQLAlchemyRepository",
+                return_value=fake_repo,
+            ),
+            pytest.raises(HTTPException) as exc,
+        ):
+            obter_usuario_atual(credentials=creds, session=_MOCK_SESSION)  # type: ignore[arg-type]
+        assert exc.value.status_code == 401
+
     def test_token_revogado_retorna_401(self) -> None:
         svc = JWTService(chave_secreta=_CHAVE)
         uid = uuid4()
