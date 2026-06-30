@@ -31,10 +31,18 @@ if TYPE_CHECKING:
 
     from src.ordem_servico.dominio.item_da_ordem import ItemDaOrdem
 
-# Itens so podem ser adicionados/removidos antes do orcamento ser gerado.
-_ESTADOS_PERMITE_ITENS: Final[frozenset[StatusOrdem]] = frozenset(
+# Remocao de item: so antes do orcamento original ser aprovado -- preserva o
+# escopo ja aprovado pelo cliente.
+_ESTADOS_PERMITE_REMOCAO: Final[frozenset[StatusOrdem]] = frozenset(
     {StatusOrdem.RECEBIDA, StatusOrdem.EM_DIAGNOSTICO}
 )
+# Adicao de item: tambem em EM_EXECUCAO, para registrar trabalho extra detectado
+# durante a execucao -> entra no orcamento complementar, reaprovado pelo cliente
+# (#80 / RF-022). NAO se permite remocao em EM_EXECUCAO: itens ja aprovados nao
+# saem do escopo sem reaprovacao.
+_ESTADOS_PERMITE_ADICAO: Final[frozenset[StatusOrdem]] = _ESTADOS_PERMITE_REMOCAO | {
+    StatusOrdem.EM_EXECUCAO
+}
 # MaquinaDeStatus e stateless (apenas le _TRANSICOES); compartilhar a
 # instancia entre todos os agregados e seguro e evita realocacoes.
 _maquina: Final[MaquinaDeStatus] = MaquinaDeStatus()
@@ -145,31 +153,42 @@ class OrdemDeServico(AggregateRoot):
         self._validar_transicao(novo_status)
         self._aplicar_transicao(novo_status)
 
-    def _validar_modificacao_itens(self) -> None:
-        if self._status not in _ESTADOS_PERMITE_ITENS:
-            permitidos = sorted(s.value for s in _ESTADOS_PERMITE_ITENS)
+    def _validar_estado_para_itens(
+        self, permitidos: frozenset[StatusOrdem], acao: str
+    ) -> None:
+        if self._status not in permitidos:
+            estados = sorted(s.value for s in permitidos)
             raise ViolacaoRegraDeNegocioException(
                 mensagem=(
-                    f"Itens so podem ser modificados nos estados {permitidos}; "
+                    f"Itens so podem ser {acao} nos estados {estados}; "
                     f"estado atual: {self._status.value}"
                 )
             )
 
     def adicionar_item(self, item: ItemDaOrdem) -> None:
-        """Adiciona um item; valido apenas em RECEBIDA ou EM_DIAGNOSTICO."""
+        """Adiciona um item; valido em RECEBIDA, EM_DIAGNOSTICO ou EM_EXECUCAO.
+
+        Em EM_EXECUCAO o item e trabalho extra detectado na execucao e entra no
+        orcamento complementar (#80); a reserva de estoque do item novo e feita
+        pela camada de aplicacao (``AdicionarItem``).
+        """
         if item is None:
             msg = "item e obrigatorio em adicionar_item (recebido: None)"
             raise ValueError(msg)
-        self._validar_modificacao_itens()
+        self._validar_estado_para_itens(_ESTADOS_PERMITE_ADICAO, "adicionados")
         self._itens.append(item)
         self._marcar_atualizado()
 
     def remover_item(self, item_id: UUID) -> None:
-        """Remove um item por id; valido apenas em RECEBIDA ou EM_DIAGNOSTICO."""
+        """Remove um item por id; valido apenas em RECEBIDA ou EM_DIAGNOSTICO.
+
+        Itens ja aprovados (EM_EXECUCAO em diante) nao saem do escopo sem
+        reaprovacao, entao a remocao continua restrita aos estados pre-orcamento.
+        """
         if item_id is None:
             msg = "item_id e obrigatorio em remover_item (recebido: None)"
             raise ValueError(msg)
-        self._validar_modificacao_itens()
+        self._validar_estado_para_itens(_ESTADOS_PERMITE_REMOCAO, "removidos")
         for i, item in enumerate(self._itens):
             if item.id == item_id:
                 self._itens.pop(i)

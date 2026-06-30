@@ -240,6 +240,27 @@ def _criar_ordem_com_item(
     return ordem
 
 
+def _criar_ordem_em_execucao(
+    repo: FakeOrdemDeServicoRepository,
+) -> OrdemDeServico:
+    """OS aprovada e EM_EXECUCAO (transicoes de dominio, sem reserva real)."""
+    ordem = OrdemDeServico.criar(cliente_id=uuid4(), veiculo_id=uuid4())
+    ordem.adicionar_item(
+        ItemDaOrdem(
+            _servico_catalogo_id=uuid4(),
+            _descricao="Servico original",
+            _quantidade=1,
+            _preco_unitario=Dinheiro(valor=Decimal("100.00")),
+        )
+    )
+    ordem.iniciar_diagnostico()
+    ordem.gerar_orcamento()
+    ordem.aprovar_orcamento()
+    ordem.limpar_eventos()
+    repo.salvar(ordem)
+    return ordem
+
+
 class TestCriarOrdem:
     def test_sucesso(self) -> None:
         repo = FakeOrdemDeServicoRepository()
@@ -482,6 +503,56 @@ class TestAdicionarItem:
         )
         result = uc.executar(ordem.id, dto)
         assert len(result.itens) == 2
+
+    def test_em_execucao_reserva_estoque_do_item_novo(self) -> None:
+        """#80: adicionar peca em EM_EXECUCAO reserva o estoque do item novo."""
+        from src.ordem_servico.aplicacao.ports import ItemEstoqueDTO
+
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        servico = _servico_dto()
+        cp = StubCatalogoPort(servico=servico)
+        peca = ItemEstoqueDTO(
+            id=uuid4(),
+            nome="Filtro extra",
+            preco_unitario=Dinheiro(valor=Decimal("35.00")),
+        )
+        ep = StubEstoquePort(item=peca)
+        ordem = _criar_ordem_em_execucao(repo)
+        uc = AdicionarItem(repo=repo, uow=uow, catalogo_port=cp, estoque_port=ep)
+        dto = AdicionarItemDTO(
+            servico_catalogo_id=servico.id,
+            item_estoque_id=peca.id,
+            descricao="Filtro extra",
+            quantidade=2,
+        )
+        uc.executar(ordem.id, dto)
+        assert ep.reservas == [(peca.id, 2)]
+
+    def test_pre_execucao_nao_reserva_estoque_no_add(self) -> None:
+        """Antes de EM_EXECUCAO o add NAO reserva (a reserva e na aprovacao)."""
+        from src.ordem_servico.aplicacao.ports import ItemEstoqueDTO
+
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        servico = _servico_dto()
+        cp = StubCatalogoPort(servico=servico)
+        peca = ItemEstoqueDTO(
+            id=uuid4(),
+            nome="Filtro",
+            preco_unitario=Dinheiro(valor=Decimal("35.00")),
+        )
+        ep = StubEstoquePort(item=peca)
+        ordem = _criar_ordem_com_item(repo)  # RECEBIDA
+        uc = AdicionarItem(repo=repo, uow=uow, catalogo_port=cp, estoque_port=ep)
+        dto = AdicionarItemDTO(
+            servico_catalogo_id=servico.id,
+            item_estoque_id=peca.id,
+            descricao="Filtro",
+            quantidade=2,
+        )
+        uc.executar(ordem.id, dto)
+        assert ep.reservas == []
 
     def test_servico_nao_encontrado(self) -> None:
         repo = FakeOrdemDeServicoRepository()

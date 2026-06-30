@@ -76,12 +76,16 @@ _CORES_STATUS: dict[str, str] = {
     "cancelada": "bg-red-600",
 }
 
-# Espelho da regra de dominio em ``OrdemDeServico._validar_modificacao_itens``:
-# items so podem ser adicionados/removidos antes do orcamento. Em qualquer
-# outro estado o backend retorna 409. A UI esconde os botoes pra evitar essa
-# falha — o caminho correto pra alterar uma OS apos o orcamento e via
-# /orcamento-complementar (so disponivel em EM_EXECUCAO).
-_ESTADOS_PERMITE_ITENS: frozenset[str] = frozenset({"recebida", "em_diagnostico"})
+# Espelho das regras de dominio do agregado ``OrdemDeServico`` (#80):
+# - ADICAO: tambem em EM_EXECUCAO -> registra trabalho extra que vai pro
+#   orcamento complementar (reaprovado pelo cliente).
+# - REMOCAO: so antes do orcamento ser aprovado -> preserva o escopo aprovado.
+# Em qualquer outro estado o backend retorna 409; a UI esconde cada botao
+# conforme o estado. Drift-check casa estes conjuntos com os do dominio.
+_ESTADOS_PERMITE_ADICAO: frozenset[str] = frozenset(
+    {"recebida", "em_diagnostico", "em_execucao"}
+)
+_ESTADOS_PERMITE_REMOCAO: frozenset[str] = frozenset({"recebida", "em_diagnostico"})
 
 
 def _situacao_para_exibir(ordem: dict[str, Any]) -> str:
@@ -515,26 +519,35 @@ def _renderizar_itens(
     status: str,
     on_refresh: Callable[[], None],
 ) -> None:
-    permite_itens = status in _ESTADOS_PERMITE_ITENS
+    permite_adicao = status in _ESTADOS_PERMITE_ADICAO
+    permite_remocao = status in _ESTADOS_PERMITE_REMOCAO
     itens_raw = ordem.get("itens", [])
     grupos = _agrupar_itens_por_servico(itens_raw)
 
     with ui.card().classes("w-full"):
         with ui.row().classes("items-center w-full"):
             ui.label("Servicos").classes("font-bold flex-1")
-            if permite_itens:
+            if permite_adicao:
                 ui.button(
                     "Adicionar servico",
                     icon="add",
                     on_click=lambda: _dialog_adicionar_servico(ordem_id, on_refresh),
                 ).props("flat dense")
-        if not permite_itens:
-            # Em estados pos-orcamento o backend bloqueia mudanca de itens
-            # (regra _ESTADOS_PERMITE_ITENS no agregado). Nota inline explica
-            # o caminho oficial — orcamento complementar em EM_EXECUCAO.
+        if status == "em_execucao":
+            # Em EM_EXECUCAO adicionar item registra trabalho extra; gere o
+            # orcamento complementar (transicao /orcamento-complementar) para
+            # cobrar o cliente. Remocao de item ja aprovado fica travada.
             ui.label(
-                f"Itens travados em {status}. Para alterar, gere orcamento "
-                "complementar em EM_EXECUCAO (transicao /orcamento-complementar)."
+                "Itens adicionados aqui entram no orcamento complementar "
+                "(reaprovado pelo cliente)."
+            ).classes("text-xs text-gray-500 italic")
+        elif not permite_adicao:
+            # Estados pos-orcamento (ex.: aguardando_aprovacao): o backend bloqueia
+            # mudanca de itens (409). Caminho oficial: aprovar e, em EM_EXECUCAO,
+            # gerar orcamento complementar.
+            ui.label(
+                f"Itens travados em {status}. Para alterar, avance ate EM_EXECUCAO "
+                "e gere orcamento complementar (transicao /orcamento-complementar)."
             ).classes("text-xs text-gray-500 italic")
         if not grupos:
             ui.label("Nenhum servico ainda.").classes("text-gray-500 italic")
@@ -546,7 +559,8 @@ def _renderizar_itens(
                 servico_nome,
                 itens_grupo,
                 on_refresh,
-                permite_itens=permite_itens,
+                permite_adicao=permite_adicao,
+                permite_remocao=permite_remocao,
             )
 
 
@@ -557,7 +571,8 @@ def _renderizar_grupo_servico(  # noqa: PLR0913  # render coeso de grupo de OS
     itens_grupo: list[dict[str, Any]],
     on_refresh: Callable[[], None],
     *,
-    permite_itens: bool,
+    permite_adicao: bool,
+    permite_remocao: bool,
 ) -> None:
     """Renderiza um grupo: header com nome do servico + subtotal, sublinhas
     com cada item de estoque consumido + botao opcional pra adicionar mais
@@ -570,7 +585,7 @@ def _renderizar_grupo_servico(  # noqa: PLR0913  # render coeso de grupo de OS
             ui.label(_centavos_para_reais_label(subtotal_grupo)).classes(
                 "text-green-700 font-bold"
             )
-            if permite_itens:
+            if permite_adicao:
                 ui.button(
                     icon="add",
                     on_click=lambda sid=servico_id, snome=servico_nome: (
@@ -581,7 +596,7 @@ def _renderizar_grupo_servico(  # noqa: PLR0913  # render coeso de grupo de OS
                 ).props("flat dense round").tooltip("Adicionar item ao servico")
         for item in itens_grupo:
             _renderizar_linha_item(
-                ordem_id, item, on_refresh, permite_itens=permite_itens
+                ordem_id, item, on_refresh, permite_remocao=permite_remocao
             )
 
 
@@ -590,7 +605,7 @@ def _renderizar_linha_item(
     item: dict[str, Any],
     on_refresh: Callable[[], None],
     *,
-    permite_itens: bool,
+    permite_remocao: bool,
 ) -> None:
     """Renderiza uma linha de item dentro do grupo de servico.
 
@@ -623,7 +638,7 @@ def _renderizar_linha_item(
         ui.label(
             _centavos_para_reais_label(item.get("subtotal_centavos"), prefixo="= R$ ")
         ).classes("font-bold")
-        if permite_itens:
+        if permite_remocao:
             ui.button(
                 icon="delete",
                 on_click=lambda i=item: _remover_item(ordem_id, i["id"], on_refresh),

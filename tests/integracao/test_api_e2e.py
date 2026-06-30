@@ -714,6 +714,81 @@ class TestCriacaoOsComItens:
         ).json()
         assert detalhe["status"] == "aguardando_aprovacao"
 
+    def test_orcamento_complementar_cobra_item_extra_em_execucao(
+        self, api_client: TestClient, admin_user: Usuario
+    ) -> None:
+        """#80 e2e: em EM_EXECUCAO adicionar peca extra reserva estoque e o
+        orcamento complementar cobra o trabalho extra (total > original)."""
+        headers = _headers_admin(api_client, admin_user)
+        cliente_id, veiculo_id = self._setup_cliente_veiculo(
+            api_client, headers, documento="93214407473"
+        )
+        troca = _criar_servico(api_client, headers, nome="Troca", preco="100.00")
+        filtro = _criar_item_estoque(
+            api_client, headers, nome="Filtro", quantidade=10, preco_unitario="35.00"
+        )
+        vela = _criar_item_estoque(
+            api_client, headers, nome="Vela", quantidade=5, preco_unitario="20.00"
+        )
+        ordem_id = api_client.post(
+            "/api/v1/ordens-de-servico/",
+            headers=headers,
+            json={
+                "cliente_id": cliente_id,
+                "veiculo_id": veiculo_id,
+                "pecas": [
+                    {
+                        "servico_catalogo_id": troca["id"],
+                        "item_estoque_id": filtro["id"],
+                        "quantidade": 2,
+                    }
+                ],
+            },
+        ).json()["id"]
+        api_client.post(
+            f"/api/v1/ordens-de-servico/{ordem_id}/diagnostico", headers=headers
+        )
+        api_client.post(
+            f"/api/v1/ordens-de-servico/{ordem_id}/orcamento", headers=headers
+        )
+        total_original = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        ).json()["orcamento"]["total_centavos"]
+        assert (
+            api_client.post(
+                f"/api/v1/ordens-de-servico/{ordem_id}/aprovacao", headers=headers
+            ).status_code
+            == 200
+        )
+        # EM_EXECUCAO: adicionar a vela extra retorna 201 (antes era 409) e
+        # reserva 1 unidade na hora (saldo 5 -> 4).
+        r_add = api_client.post(
+            f"/api/v1/ordens-de-servico/{ordem_id}/itens",
+            headers=headers,
+            json={
+                "servico_catalogo_id": troca["id"],
+                "item_estoque_id": vela["id"],
+                "descricao": "Vela extra",
+                "quantidade": 1,
+            },
+        )
+        assert r_add.status_code == 201
+        saldo_vela = api_client.get(
+            f"/api/v1/estoque/{vela['id']}", headers=headers
+        ).json()["quantidade"]
+        assert saldo_vela == 4
+        # O orcamento complementar cobra o item extra: total cresce.
+        r_comp = api_client.post(
+            f"/api/v1/ordens-de-servico/{ordem_id}/orcamento-complementar",
+            headers=headers,
+        )
+        assert r_comp.status_code == 200
+        detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        ).json()
+        assert detalhe["status"] == "aguardando_aprovacao_complementar"
+        assert detalhe["orcamento"]["total_centavos"] > total_original
+
 
 class TestDecisaoExternaOrcamento:
     """RF-022 (ADR-021): decisao externa de orcamento contra Postgres real.
