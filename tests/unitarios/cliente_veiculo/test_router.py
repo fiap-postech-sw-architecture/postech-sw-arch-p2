@@ -375,26 +375,32 @@ class TestLgpdAuditoriaEAutorizacao:
     def test_export_falho_nao_emite_auditoria(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Use case que levanta (cliente inexistente) NAO gera audit."""
+        """Cliente inexistente -> 404 e NAO gera audit (so o efeito real audita)."""
         import structlog.testing
 
         from src.cliente_veiculo.dominio.exceptions import (
             ClienteNaoEncontradoException,
         )
         from src.cliente_veiculo.interfaces import router as router_mod
+        from src.compartilhado.interfaces.error_handler import (
+            registrar_error_handlers,
+        )
 
         monkeypatch.setattr(
             router_mod, "_log", structlog.get_logger("test_lgpd"), raising=False
         )
         app = self._app_com_papel("admin")
+        # Registra os handlers para a ClienteNaoEncontradoException virar 404 real
+        # (o app de teste bare nao os tem) -- prova o invariante "404 nao audita".
+        registrar_error_handlers(app)
         with patch("src.cliente_veiculo.interfaces.router.obter_exportar_dados") as m:
             m.return_value = MagicMock(
                 executar=MagicMock(side_effect=ClienteNaoEncontradoException())
             )
-            client = TestClient(app, raise_server_exceptions=False)
+            client = TestClient(app)
             with structlog.testing.capture_logs() as logs:
                 resp = client.get(f"/api/v1/clientes/{_ID}/dados-pessoais/exportar")
-        assert resp.status_code >= 400
+        assert resp.status_code == 404
         assert not [
             e for e in logs if e["event"] == "dados_pessoais_exportados_via_admin"
         ]
