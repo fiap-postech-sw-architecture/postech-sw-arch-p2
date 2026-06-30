@@ -4,6 +4,7 @@ import dataclasses
 from typing import TYPE_CHECKING
 from uuid import UUID  # noqa: TC003
 
+import structlog
 from fastapi import APIRouter, Depends, Query, status
 
 from src.autenticacao.interfaces.middleware import exigir_papel
@@ -38,12 +39,14 @@ from src.cliente_veiculo.interfaces.schemas import (
     DadosPessoaisResponse,
     VeiculoResponse,
 )
+from src.compartilhado.interfaces.auditoria import ator_de
 from src.compartilhado.interfaces.dependencies import obter_session
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 router = APIRouter(prefix="/api/v1/clientes", tags=["clientes"])
+_log = structlog.get_logger(__name__)
 
 
 @router.post("/", status_code=status.HTTP_201_CREATED)
@@ -166,6 +169,13 @@ def obter_dados_pessoais(
 ) -> DadosPessoaisResponse:
     uc = obter_exportar_dados(session)
     result = uc.executar(cliente_id)
+    # Auditoria LGPD (#76): export de PII registra ator + alvo APOS o efeito.
+    _log.info(
+        "dados_pessoais_exportados_via_admin",
+        cliente_id=str(cliente_id),
+        ator=ator_de(usuario),
+        via="obter",
+    )
     return DadosPessoaisResponse(**dataclasses.asdict(result))
 
 
@@ -177,6 +187,13 @@ def exportar_dados_pessoais(
 ) -> DadosPessoaisResponse:
     uc = obter_exportar_dados(session)
     result = uc.executar(cliente_id)
+    # Auditoria LGPD (#76): export de PII registra ator + alvo APOS o efeito.
+    _log.info(
+        "dados_pessoais_exportados_via_admin",
+        cliente_id=str(cliente_id),
+        ator=ator_de(usuario),
+        via="exportar",
+    )
     return DadosPessoaisResponse(**dataclasses.asdict(result))
 
 
@@ -186,11 +203,18 @@ def exportar_dados_pessoais(
 )
 def excluir_dados_pessoais(
     cliente_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel("admin", "atendente")),
+    usuario: dict[str, object] = Depends(exigir_papel("admin")),
     session: Session = Depends(obter_session),
 ) -> None:
     uc = obter_excluir_dados(session)
     uc.executar(cliente_id)
+    # Auditoria LGPD (#76): erasure (destrutivo, admin-only) registra ator +
+    # alvo APOS o efeito. ClienteNaoEncontrado levanta antes, entao 404 nao audita.
+    _log.info(
+        "dados_pessoais_excluidos_via_admin",
+        cliente_id=str(cliente_id),
+        ator=ator_de(usuario),
+    )
 
 
 @router.post(

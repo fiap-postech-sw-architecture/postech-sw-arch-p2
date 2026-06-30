@@ -4,6 +4,7 @@ import datetime
 from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -274,3 +275,126 @@ class TestRouter:
             client = TestClient(app)
             resp = client.delete(f"/api/v1/clientes/{_ID}/consentimento?tipo=marketing")
             assert resp.status_code == 204
+
+
+class TestLgpdAuditoriaEAutorizacao:
+    """#76: erasure admin-only + trilha de auditoria em export/erasure de PII."""
+
+    @staticmethod
+    def _app_com_papel(papel: str) -> FastAPI:
+        app = _criar_app()
+        app.dependency_overrides[obter_usuario_atual] = lambda: {
+            "sub": "ator-123",
+            "papel": papel,
+        }
+        return app
+
+    def test_excluir_dados_pessoais_negado_para_atendente(self) -> None:
+        """Erasure e destrutivo -> admin-only: atendente recebe 403 e nao executa."""
+        app = self._app_com_papel("atendente")
+        with patch("src.cliente_veiculo.interfaces.router.obter_excluir_dados") as m:
+            uc = MagicMock()
+            m.return_value = uc
+            client = TestClient(app)
+            resp = client.delete(f"/api/v1/clientes/{_ID}/dados-pessoais")
+        assert resp.status_code == 403
+        uc.executar.assert_not_called()
+
+    def test_excluir_dados_pessoais_admin_emite_auditoria(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Erasure por admin emite audit com ator + cliente_id apos o efeito."""
+        import structlog.testing
+
+        from src.cliente_veiculo.interfaces import router as router_mod
+
+        monkeypatch.setattr(
+            router_mod, "_log", structlog.get_logger("test_lgpd"), raising=False
+        )
+        app = self._app_com_papel("admin")
+        with patch("src.cliente_veiculo.interfaces.router.obter_excluir_dados") as m:
+            m.return_value = MagicMock(executar=MagicMock(return_value=None))
+            client = TestClient(app)
+            with structlog.testing.capture_logs() as logs:
+                resp = client.delete(f"/api/v1/clientes/{_ID}/dados-pessoais")
+        assert resp.status_code == 204
+        evento = next(
+            e for e in logs if e["event"] == "dados_pessoais_excluidos_via_admin"
+        )
+        assert evento["cliente_id"] == str(_ID)
+        assert evento["ator"] == "ator-123"
+
+    def test_exportar_dados_pessoais_emite_auditoria(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Export de PII (atendente permitido) emite audit com ator + cliente_id."""
+        import structlog.testing
+
+        from src.cliente_veiculo.interfaces import router as router_mod
+
+        monkeypatch.setattr(
+            router_mod, "_log", structlog.get_logger("test_lgpd"), raising=False
+        )
+        app = self._app_com_papel("atendente")
+        with patch("src.cliente_veiculo.interfaces.router.obter_exportar_dados") as m:
+            m.return_value = MagicMock(
+                executar=MagicMock(return_value=_DADOS_PESSOAIS_DTO)
+            )
+            client = TestClient(app)
+            with structlog.testing.capture_logs() as logs:
+                resp = client.get(f"/api/v1/clientes/{_ID}/dados-pessoais/exportar")
+        assert resp.status_code == 200
+        evento = next(
+            e for e in logs if e["event"] == "dados_pessoais_exportados_via_admin"
+        )
+        assert evento["cliente_id"] == str(_ID)
+        assert evento["ator"] == "ator-123"
+
+    def test_obter_dados_pessoais_emite_auditoria(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """O GET /dados-pessoais tambem expoe PII -> tambem audita."""
+        import structlog.testing
+
+        from src.cliente_veiculo.interfaces import router as router_mod
+
+        monkeypatch.setattr(
+            router_mod, "_log", structlog.get_logger("test_lgpd"), raising=False
+        )
+        app = self._app_com_papel("admin")
+        with patch("src.cliente_veiculo.interfaces.router.obter_exportar_dados") as m:
+            m.return_value = MagicMock(
+                executar=MagicMock(return_value=_DADOS_PESSOAIS_DTO)
+            )
+            client = TestClient(app)
+            with structlog.testing.capture_logs() as logs:
+                resp = client.get(f"/api/v1/clientes/{_ID}/dados-pessoais")
+        assert resp.status_code == 200
+        assert any(e["event"] == "dados_pessoais_exportados_via_admin" for e in logs)
+
+    def test_export_falho_nao_emite_auditoria(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Use case que levanta (cliente inexistente) NAO gera audit."""
+        import structlog.testing
+
+        from src.cliente_veiculo.dominio.exceptions import (
+            ClienteNaoEncontradoException,
+        )
+        from src.cliente_veiculo.interfaces import router as router_mod
+
+        monkeypatch.setattr(
+            router_mod, "_log", structlog.get_logger("test_lgpd"), raising=False
+        )
+        app = self._app_com_papel("admin")
+        with patch("src.cliente_veiculo.interfaces.router.obter_exportar_dados") as m:
+            m.return_value = MagicMock(
+                executar=MagicMock(side_effect=ClienteNaoEncontradoException())
+            )
+            client = TestClient(app, raise_server_exceptions=False)
+            with structlog.testing.capture_logs() as logs:
+                resp = client.get(f"/api/v1/clientes/{_ID}/dados-pessoais/exportar")
+        assert resp.status_code >= 400
+        assert not [
+            e for e in logs if e["event"] == "dados_pessoais_exportados_via_admin"
+        ]

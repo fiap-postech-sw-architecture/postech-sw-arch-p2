@@ -23,6 +23,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from src.autenticacao.interfaces.middleware import exigir_papel
 from src.compartilhado.infraestrutura.database import criar_engine
 from src.compartilhado.infraestrutura.outbox_dlq import listar_dead, reenfileirar
+from src.compartilhado.interfaces.auditoria import ator_de as _ator_de
 
 if TYPE_CHECKING:
     from sqlalchemy import Engine
@@ -62,20 +63,6 @@ def encerrar_engine_admin() -> None:
 def listar_dlq() -> list[dict[str, Any]]:
     """Lista as linhas da outbox em ``dead`` (DLQ)."""
     return listar_dead(_engine())
-
-
-def _ator_de(usuario: dict[str, object]) -> str | None:
-    """Extrai um identificador do admin autenticado para o log de auditoria.
-
-    Usa o ``sub`` do JWT (id do usuario); cai para ``email`` se presente. None
-    quando nenhum identificador esta disponivel — o evento de auditoria ainda
-    e emitido (com o ``outbox_id``), so sem o ator.
-    """
-    for chave in ("sub", "email"):
-        valor = usuario.get(chave)
-        if isinstance(valor, str) and valor:
-            return valor
-    return None
 
 
 @router.post("/dead/{outbox_id}/reenfileirar")
