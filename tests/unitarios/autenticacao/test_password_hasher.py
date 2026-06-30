@@ -35,3 +35,14 @@ class TestPasswordHasher:
         senha = "senhaforte1234"
         legado = _hasher.hash(senha)  # esquema pre-TD-028: bcrypt sobre a senha crua
         assert verificar_senha(senha, legado)
+
+    def test_senha_maior_que_72b_contra_hash_legado_retorna_false(self) -> None:
+        """Guard _BCRYPT_MAX_BYTES: senha > 72b -> fallback pulado, False sem raise.
+
+        Sem o guard, o fallback legado chamaria o bcrypt com > 72 bytes e
+        levantaria ValueError. Tambem prova que o vetor de colisao do TD-028 NAO
+        reabre via fallback: um candidato > 72 bytes nunca casa um hash legado
+        (so existe p/ senha <= 72b -- bcrypt rejeita o hash de > 72b).
+        """
+        legado_curto = _hasher.hash("A" * 72)  # maior senha que o bcrypt aceita
+        assert verificar_senha("A" * 72 + "sufixo-divergente", legado_curto) is False

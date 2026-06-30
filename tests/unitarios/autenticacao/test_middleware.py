@@ -75,15 +75,9 @@ class TestObterUsuarioAtual:
         svc = JWTService(chave_secreta=_CHAVE)
         token = svc.gerar_refresh_token(uuid4())
         creds = _FakeCredentials(token=token)
-        fake_repo = MagicMock()
-        fake_repo.esta_revogado = MagicMock(return_value=False)
-        with (
-            patch(
-                "src.autenticacao.infraestrutura.token_revogado_repository.TokenRevogadoSQLAlchemyRepository",
-                return_value=fake_repo,
-            ),
-            pytest.raises(HTTPException) as exc,
-        ):
+        # Sem mock do repo de revogacao: o check `type != access` ocorre ANTES da
+        # consulta de revogacao, entao o 401 vem do gate de tipo (nao da revogacao).
+        with pytest.raises(HTTPException) as exc:
             obter_usuario_atual(credentials=creds, session=_MOCK_SESSION)  # type: ignore[arg-type]
         assert exc.value.status_code == 401
 

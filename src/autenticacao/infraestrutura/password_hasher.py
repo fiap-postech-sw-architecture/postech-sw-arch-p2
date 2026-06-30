@@ -37,7 +37,10 @@ def hash_senha(senha: str) -> str:
 
 
 def verificar_senha(senha_plana: str, senha_hash: str) -> bool:
-    # Esquema atual (TD-028): pre-hash sha256 antes do bcrypt.
+    # Esquema atual (TD-028): pre-hash sha256 antes do bcrypt. Uma falha aqui cai
+    # para o esquema legado abaixo -- ate dois bcrypt verify no pior caso, custo
+    # dominado pelo proprio bcrypt; a janela existe so ate o reseed dos hashes no
+    # deploy, que extingue os hashes legados.
     if _hasher.verify(_pre_hash(senha_plana), senha_hash):
         return True
     # Compat de migracao: hashes gerados antes do TD-028 foram computados sobre
