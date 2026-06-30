@@ -14,8 +14,8 @@
 
 ## Status
 
-- ✅ **Resolvidos: 18** — TD-001, TD-003, TD-005, TD-007, TD-008, TD-009, TD-010, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023.
-- ⬜ **Abertos: 13** — TD-002, TD-004, TD-006, TD-013, TD-014 (originais) + TD-024, TD-025, TD-026, TD-027, TD-028, TD-029, TD-030, TD-031 (auditoria pré-entrega) — abaixo, por ordem de ataque.
+- ✅ **Resolvidos: 25** — TD-001, TD-003, TD-005, TD-007, TD-008, TD-009, TD-010, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023 + TD-024, TD-025, TD-026, TD-028, TD-029, TD-030, TD-031 (campanha Tier 4, jun/2026).
+- ⬜ **Abertos: 6** — TD-002, TD-004, TD-006, TD-013, TD-014 (originais) + TD-027 (webhook HMAC, **deferido** — ripple no caller/postman às vésperas da entrega).
 
 > Nenhum dos 13 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
 
@@ -87,14 +87,14 @@ Débitos deliberados, justificados, sem risco de produção. Atacar apenas com f
 
 Da auditoria pré-entrega ([auditoria-pre-entrega-fase2.md](auditoria-pre-entrega-fase2.md)) — compromissos aceitos, *aceitar-ou-evoluir*:
 
-- [ ] **TD-024** — `securityContext` nos workloads k8s (`runAsNonRoot` / `allowPrivilegeEscalation:false` / `capabilities.drop:[ALL]` / `readOnlyRootFilesystem`; relay precisa de `emptyDir` em `/tmp`) **ou** documentar a decisão. Esforço médio.
-- [ ] **TD-025** — índice B-tree em `itens_da_ordem.item_estoque_id` (migração nova reversível; remove o seq scan do `DesativarItemEstoque`). Esforço baixo.
-- [ ] **TD-026** — auto-enforçar migração-antes-do-rollout (initContainer / Helm hook / sync-wave) **ou** documentar "deploy fora do pipeline não-suportado". Esforço médio.
-- [ ] **TD-027** — assinatura HMAC-SHA256 no webhook de orçamento (`ordem_id` + `timestamp` + body, janela ±5min) sobre o segredo estático atual. Esforço médio.
-- [ ] **TD-028** — pré-hash `base64(sha256(senha))` antes do bcrypt **ou** Argon2 (remove o truncamento em 72 bytes). Esforço baixo.
-- [ ] **TD-029** — validar `type == "access"` em `obter_usuario_atual` (`if type != "access": 401`), espelhando o check do fluxo de refresh. Esforço baixo.
-- [ ] **TD-030** — documentar os eventos de domínio órfãos como "intenção de modelagem, sem consumidor na fase 2" (doc) **ou** wire dos handlers + promover a `IntegrationEvent` os que precisarem de durabilidade. Esforço baixo (doc) / médio (handlers).
-- [ ] **TD-031** — explicitar `--cov-fail-under=95` no step de cobertura de `src/` (hoje implícito via `.coveragerc`). Esforço baixo.
+- [x] **TD-024** (PR #108) — `securityContext` (`runAsNonRoot` / `allowPrivilegeEscalation:false` / `capabilities.drop:[ALL]` / `readOnlyRootFilesystem` / seccomp) + `emptyDir` `/tmp` nos 3 workloads próprios; UID 1001 pinado no Dockerfile. Teste de mesa kind.
+- [x] **TD-025** (PR #107) — índice B-tree `ix_itens_da_ordem_item_estoque_id` via migração 005 reversível; `EXPLAIN` confirma `Index Scan`.
+- [x] **TD-026** (decisão) — documentado em `k8s/README.md`: deploy fora do pipeline (`cd.yml`/`make k8s-up`) é não-suportado; auto-enforce fica para um eventual GitOps.
+- [ ] **TD-027** (**deferido**) — assinatura HMAC-SHA256 no webhook de orçamento. Esquema atual é MVP documentado (ADR-021); a evolução exige ripple no caller (e2e + **postman da entrega** + ADR) — risco alto às vésperas da entrega. Esforço médio.
+- [x] **TD-028** (PR #105) — pré-hash `base64(sha256(senha))` antes do bcrypt; fallback legado só para senha ≤72 bytes.
+- [x] **TD-029** (PR #105) — `obter_usuario_atual` valida `type == "access"` (`if type != "access": 401`).
+- [x] **TD-030** (decisão) — eventos órfãos documentados em `docs/arquitetura/eventos-de-dominio.md` (intenção de modelagem, sem consumidor na fase 2).
+- [x] **TD-031** (PR #106) — `--cov-fail-under=95` explícito no step de cobertura de `src/` no `ci.yml`.
 
 ## Notas de complexidade — o que dá para fazer
 
