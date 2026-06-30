@@ -1080,19 +1080,21 @@ class TestValidarSegredosNoStartupProducao:
         with pytest.raises(RuntimeError, match="JWT_SECRET"):
             validar_segredos_no_startup()
 
-    def test_encryption_key_ausente_em_producao_passa(
+    def test_encryption_key_ausente_em_producao_levanta(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """ENCRYPTION_KEY ausente nao e barrada aqui (so o uso de literal demo).
+        """ENCRYPTION_KEY ausente em producao aborta o boot (issue #73).
 
-        A ausencia da chave Fernet ja e tratada em outro ponto (encryption.py
-        gera efemera); a guarda foca em NAO usar o literal publico de demo.
+        Sem a chave Fernet o app usaria uma chave efemera em memoria -> dados
+        cifrados irrecuperaveis apos restart + documento_hash divergente entre
+        replicas. O guard fecha esse caminho em producao.
         """
         monkeypatch.setenv("ENVIRONMENT", "production")
         monkeypatch.setenv("JWT_SECRET", _SEGREDO_FORTE)
         monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", _SEGREDO_FORTE + "-hook")
         monkeypatch.delenv("ENCRYPTION_KEY", raising=False)
-        validar_segredos_no_startup()  # nao deve levantar
+        with pytest.raises(RuntimeError, match="ENCRYPTION_KEY"):
+            validar_segredos_no_startup()
 
     def test_webhook_token_ausente_em_producao_passa(
         self, monkeypatch: pytest.MonkeyPatch

@@ -93,6 +93,9 @@ def validar_segredos_no_startup() -> None:
     2. ``JWT_SECRET`` / ``ENCRYPTION_KEY`` / ``ORCAMENTO_WEBHOOK_TOKEN`` /
        ``ADMIN_PASSWORD`` iguais a um literal de demonstracao publico no git ->
        aborta. Cada um e validado apenas quando presente (ausente -> ignorado).
+    3. ``ENCRYPTION_KEY`` ausente -> aborta (issue #73). A chave efemera de
+       fallback tornaria os dados cifrados irrecuperaveis apos restart e
+       divergiria o ``documento_hash`` entre replicas.
 
     Espelha o `configurar_cors`: falha o boot (``raise``), nao apenas avisa --
     uma pre-condicao de seguranca nao satisfeita NUNCA deve subir aceitando
@@ -115,6 +118,16 @@ def validar_segredos_no_startup() -> None:
             f"JWT_SECRET tem menos de {_JWT_SECRET_MIN_BYTES} bytes. HS256 exige "
             f">= {_JWT_SECRET_MIN_BYTES} bytes; gere um segredo forte "
             "(ex.: openssl rand -hex 32)."
+        )
+        raise RuntimeError(msg)
+
+    if not os.environ.get("ENCRYPTION_KEY"):
+        msg = (
+            "ENCRYPTION_KEY nao configurada em producao (issue #73). Sem ela o "
+            "app sobe com uma chave Fernet efemera -> dados cifrados ficam "
+            "irrecuperaveis apos restart e o documento_hash diverge entre "
+            "replicas. Injete uma chave real via Secret (gere com "
+            "cryptography.fernet.Fernet.generate_key())."
         )
         raise RuntimeError(msg)
 

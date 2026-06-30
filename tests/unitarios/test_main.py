@@ -400,6 +400,9 @@ class TestMain:
         env["ENVIRONMENT"] = "production"
         env["DATABASE_URL"] = "postgresql://x:x@localhost:5432/x"
         env["JWT_SECRET"] = "demo-jwt-secret-pytstop-fase2-no-minimo-32-bytes"
+        # ENCRYPTION_KEY presente e nao-demo isola a falha no JWT_SECRET demo:
+        # sem ela, a guarda do #73 abortaria antes por ENCRYPTION_KEY ausente.
+        env["ENCRYPTION_KEY"] = "chave-encryption-forte-de-producao-nao-demo-1234"
 
         async def _run() -> None:
             with (

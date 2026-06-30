@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+import pytest
+from cryptography.fernet import InvalidToken
+
 from src.compartilhado.infraestrutura.encryption import EncryptionService
 
 
@@ -59,3 +62,31 @@ class TestEncryptionService:
         enc._fernet = None
         resultado = enc.decrypt("cifrado")
         assert resultado == "cifrado"
+
+    def test_decrypt_token_corrompido_levanta(self) -> None:
+        """Token COM prefixo Fernet que falha integridade -> raise (issue #73).
+
+        Garante que o ``decrypt`` NAO faz fail-open: um token cifrado que nao
+        decifra (chave errada / corrompido) propaga ``InvalidToken`` em vez de
+        devolver o ciphertext como se fosse o valor decifrado.
+        """
+        enc = EncryptionService()
+        token = enc.encrypt("12345678901")
+        assert token.startswith("gAAAAA")
+        # Corrompe 1 caractere na posicao 20: cai no IV/corpo, FORA do header
+        # (versao + timestamp), entao o HMAC do Fernet falha de forma
+        # deterministica. Troca por outro char A-Z mantendo base64 valido.
+        pos = 20
+        char_novo = "X" if token[pos] != "X" else "Y"
+        corrompido = token[:pos] + char_novo + token[pos + 1 :]
+        with pytest.raises(InvalidToken):
+            enc.decrypt(corrompido)
+
+    def test_decrypt_legado_sem_prefixo_nao_levanta(self) -> None:
+        """Valor SEM o prefixo Fernet (legado) -> devolvido como esta (#73)."""
+        enc = EncryptionService()
+        # O sentinela LGPD e valores legados em texto plano nao tem prefixo gAAAAA.
+        assert enc.decrypt("anonimizado@anonimizado.local") == (
+            "anonimizado@anonimizado.local"
+        )
+        assert enc.decrypt("12345678901") == "12345678901"

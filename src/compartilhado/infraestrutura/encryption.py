@@ -9,14 +9,22 @@ from cryptography.fernet import Fernet, InvalidToken
 
 _logger = logging.getLogger(__name__)
 
+# Prefixo dos tokens Fernet (versao 0x80 + timestamp, base64url) -- distingue um
+# valor cifrado de um valor legado em texto plano. Mesma heuristica de mapping.py.
+# Os 6 chars sao estaveis enquanto o timestamp couber em < 2^40s (ano ~36000);
+# alem disso o 6o char muda. Garantido na pratica para qualquer dado real.
+_PREFIXO_FERNET = "gAAAAA"
+
 
 class EncryptionService:
     """Singleton de criptografia simetrica (Fernet) e hash deterministico (HMAC-SHA256).
 
     A chave vem de ENCRYPTION_KEY. Se ausente, uma chave e gerada em memoria com
-    aviso no log (valido apenas para desenvolvimento/teste). Em producao
-    multi-replica isso causa inconsistencia entre instancias: ENCRYPTION_KEY deve
-    ser definida explicitamente antes do startup.
+    aviso no log -- caminho **somente de desenvolvimento/teste**. Em producao o
+    boot e abortado por `validar_segredos_no_startup` (issue #73) quando
+    ENCRYPTION_KEY esta ausente, justamente porque a chave efemera tornaria os
+    dados cifrados irrecuperaveis apos restart e divergiria o `documento_hash`
+    entre replicas. Portanto este fallback so e alcancavel fora de producao.
     """
 
     _instance: EncryptionService | None = None
@@ -50,21 +58,28 @@ class EncryptionService:
         return self._fernet.encrypt(plaintext.encode()).decode()
 
     def decrypt(self, ciphertext: str) -> str:
-        """Decifra um token Fernet; retorna o texto original se o token nao e valido.
+        """Decifra um token Fernet, distinguindo dado legado de falha real (issue #73).
 
-        O retorno do texto original e parte do contrato (suporte a valores legados
-        ainda nao migrados), entao o fallback e registrado em nivel `debug` para
-        evitar ruido em fluxos normais de migracao.
+        Um valor SEM o prefixo Fernet (`gAAAAA`) e tratado como legado em texto
+        plano ainda nao cifrado e devolvido como esta (compat de migracao -- a
+        mesma heuristica que `mapping.py` usa antes de chamar este metodo). Um
+        valor COM o prefixo que falha a decifragem e uma quebra REAL de
+        integridade/chave -> levanta `InvalidToken`. NAO faz fail-open devolvendo
+        o ciphertext: isso mascararia a falha e exporia o token como se fosse o
+        valor decifrado.
         """
         if not self._fernet:
+            return ciphertext
+        if not ciphertext.startswith(_PREFIXO_FERNET):
             return ciphertext
         try:
             return self._fernet.decrypt(ciphertext.encode()).decode()
         except InvalidToken:
-            _logger.debug(
-                "Valor nao cifrado ou com chave diferente; retornando original."
+            _logger.error(
+                "Falha ao decifrar um token Fernet (chave incorreta ou dado "
+                "corrompido); propagando o erro em vez de fazer fail-open."
             )
-            return ciphertext
+            raise
 
     def hash_deterministic(self, plaintext: str) -> str:
         """HMAC-SHA256 para busca deterministica sem expor o valor original."""
