@@ -7,8 +7,9 @@ Contem endpoints que precisam ficar FORA do middleware de auth:
   com rate limiting (10/minute por IP) para mitigar enumeration
 - ``/api/v1/publico/ordens-de-servico/{id}/decisao-orcamento`` — canal
   externo de aprovacao/recusa de orcamento (RF-022), autenticado por
-  token estatico dedicado em ``X-Webhook-Token`` (ADR-021), fora do
-  RBAC/JWT interno, com o mesmo rate limiting
+  assinatura HMAC por requisicao (``X-Webhook-Signature`` +
+  ``X-Webhook-Timestamp``, TD-027; evolui o token estatico da ADR-021),
+  fora do RBAC/JWT interno, com o mesmo rate limiting
 
 Os endpoints de OS delegam aos use cases via factories lazy-importadas
 do contexto Ordem de Servico. As factories em
@@ -21,14 +22,19 @@ load).
 
 from __future__ import annotations
 
+import hmac
 import os
-import secrets
+import time
 from typing import TYPE_CHECKING
 from uuid import UUID  # noqa: TC003
 
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from starlette.requests import Request  # noqa: TC002
 
+from src.compartilhado.infraestrutura.webhook_signature import (
+    JANELA_ANTI_REPLAY_SEGUNDOS,
+    assinar_payload_webhook,
+)
 from src.compartilhado.interfaces.dependencies import obter_session
 from src.compartilhado.interfaces.middleware import limiter
 from src.ordem_servico.interfaces.schemas import (
@@ -110,38 +116,67 @@ def acompanhamento(
     return AcompanhamentoResponse.model_validate(resultado)
 
 
-def validar_token_webhook(
-    x_webhook_token: str | None = Header(
+async def validar_assinatura_webhook(
+    request: Request,
+    ordem_id: UUID,
+    x_webhook_timestamp: str | None = Header(
         default=None,
-        description="Token estatico do canal externo de decisao (ADR-021).",
+        description="Unix epoch (segundos) incluido no material assinado (TD-027).",
+    ),
+    x_webhook_signature: str | None = Header(
+        default=None,
+        description="HMAC-SHA256 hex de {ordem_id}.{timestamp}. + body (TD-027).",
     ),
 ) -> None:
-    """Valida o token estatico do canal externo de decisao de orcamento.
+    """Valida a assinatura HMAC do canal externo de decisao (TD-027 / RF-022).
 
-    Regras (ADR-021):
+    Evolui o token estatico estilo bearer (ADR-021) para uma assinatura por
+    requisicao: a chave continua sendo ``ORCAMENTO_WEBHOOK_TOKEN``, mas agora ela
+    NAO trafega -- o chamador envia ``X-Webhook-Signature`` (HMAC sobre
+    ``{ordem_id}.{timestamp}.`` + body) e ``X-Webhook-Timestamp``. Isso fecha
+    **replay** (a janela de timestamp expira a assinatura capturada) e
+    **adulteracao** do corpo, sem expor o segredo.
 
-    - ``ORCAMENTO_WEBHOOK_TOKEN`` ausente/vazia no servidor -> 503: canal
-      desabilitado e indisponibilidade configurada do servidor, nao erro
-      de credencial do chamador — e nunca canal aberto sem credencial.
-    - Header ausente ou divergente -> 401. Comparacao em tempo constante
-      (``secrets.compare_digest`` sobre bytes) para nao vazar prefixos do
-      token por timing.
+    Regras:
+    - ``ORCAMENTO_WEBHOOK_TOKEN`` ausente/vazia no servidor -> 503 (canal
+      desabilitado; nunca canal aberto sem credencial).
+    - timestamp/assinatura ausente -> 401.
+    - timestamp nao-numerico ou fora de +/- ``JANELA_ANTI_REPLAY_SEGUNDOS`` -> 401.
+    - assinatura divergente -> 401 (comparacao em tempo constante).
 
-    A env var e lida a cada request (mesmo padrao do ``JWT_SECRET`` em
-    ``autenticacao/interfaces/dependencies.py``), permitindo rotacao do
-    Secret sem rebuild e simplificando testes.
+    A env var e lida a cada request (rotacao do Secret sem rebuild).
     """
-    esperado = os.environ.get("ORCAMENTO_WEBHOOK_TOKEN", "")
-    if not esperado:
+    segredo = os.environ.get("ORCAMENTO_WEBHOOK_TOKEN", "")
+    if not segredo:
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Canal externo de decisao de orcamento desabilitado",
         )
-    recebido = x_webhook_token or ""
-    if not secrets.compare_digest(recebido.encode(), esperado.encode()):
+    if not x_webhook_timestamp or not x_webhook_signature:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token de webhook ausente ou invalido",
+            detail="Assinatura do webhook ausente (X-Webhook-Timestamp/Signature)",
+        )
+    try:
+        ts = int(x_webhook_timestamp)
+    except ValueError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="X-Webhook-Timestamp invalido",
+        ) from None
+    if abs(int(time.time()) - ts) > JANELA_ANTI_REPLAY_SEGUNDOS:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="X-Webhook-Timestamp fora da janela anti-replay",
+        )
+    body = await request.body()
+    esperado = assinar_payload_webhook(
+        segredo, str(ordem_id), x_webhook_timestamp, body
+    )
+    if not hmac.compare_digest(esperado, x_webhook_signature):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Assinatura do webhook invalida",
         )
 
 
@@ -149,9 +184,14 @@ def validar_token_webhook(
     "/api/v1/publico/ordens-de-servico/{ordem_id}/decisao-orcamento",
     summary="Decisao externa (aprovacao/recusa) do orcamento",
     response_model=AcompanhamentoResponse,
-    dependencies=[Depends(validar_token_webhook)],
+    dependencies=[Depends(validar_assinatura_webhook)],
     responses={
-        401: {"description": "Header X-Webhook-Token ausente ou divergente."},
+        401: {
+            "description": (
+                "Assinatura HMAC ausente/invalida ou timestamp fora da "
+                "janela anti-replay (X-Webhook-Timestamp/Signature)."
+            )
+        },
         404: {"description": "Ordem nao encontrada."},
         409: {
             "description": (
