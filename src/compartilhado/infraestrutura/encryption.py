@@ -11,6 +11,8 @@ _logger = logging.getLogger(__name__)
 
 # Prefixo dos tokens Fernet (versao 0x80 + timestamp, base64url) -- distingue um
 # valor cifrado de um valor legado em texto plano. Mesma heuristica de mapping.py.
+# Os 6 chars sao estaveis enquanto o timestamp couber em < 2^40s (ano ~36000);
+# alem disso o 6o char muda. Garantido na pratica para qualquer dado real.
 _PREFIXO_FERNET = "gAAAAA"
 
 

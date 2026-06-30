@@ -73,8 +73,9 @@ class TestEncryptionService:
         enc = EncryptionService()
         token = enc.encrypt("12345678901")
         assert token.startswith("gAAAAA")
-        # Corrompe um caractere do corpo (mantendo o prefixo e base64 valido) ->
-        # o HMAC do Fernet falha.
+        # Corrompe 1 caractere na posicao 20: cai no IV/corpo, FORA do header
+        # (versao + timestamp), entao o HMAC do Fernet falha de forma
+        # deterministica. Troca por outro char A-Z mantendo base64 valido.
         pos = 20
         char_novo = "X" if token[pos] != "X" else "Y"
         corrompido = token[:pos] + char_novo + token[pos + 1 :]
