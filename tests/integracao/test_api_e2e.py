@@ -788,6 +788,23 @@ class TestCriacaoOsComItens:
         ).json()
         assert detalhe["status"] == "aguardando_aprovacao_complementar"
         assert detalhe["orcamento"]["total_centavos"] > total_original
+        # Aprovar o complementar volta a EM_EXECUCAO e NAO re-reserva o estoque
+        # (anti-dupla-reserva): a vela continua em saldo 4, nao cai para 3.
+        assert (
+            api_client.post(
+                f"/api/v1/ordens-de-servico/{ordem_id}/aprovacao-complementar",
+                headers=headers,
+            ).status_code
+            == 200
+        )
+        detalhe_final = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        ).json()
+        assert detalhe_final["status"] == "em_execucao"
+        saldo_vela_final = api_client.get(
+            f"/api/v1/estoque/{vela['id']}", headers=headers
+        ).json()["quantidade"]
+        assert saldo_vela_final == 4
 
 
 class TestDecisaoExternaOrcamento:
