@@ -133,9 +133,10 @@ async def validar_assinatura_webhook(
     Evolui o token estatico estilo bearer (ADR-021) para uma assinatura por
     requisicao: a chave continua sendo ``ORCAMENTO_WEBHOOK_TOKEN``, mas agora ela
     NAO trafega -- o chamador envia ``X-Webhook-Signature`` (HMAC sobre
-    ``{ordem_id}.{timestamp}.`` + body) e ``X-Webhook-Timestamp``. Isso fecha
-    **replay** (a janela de timestamp expira a assinatura capturada) e
-    **adulteracao** do corpo, sem expor o segredo.
+    ``{ordem_id}.{timestamp}.`` + body) e ``X-Webhook-Timestamp``. Isso **limita**
+    **replay** (a janela de timestamp expira a assinatura capturada; replay
+    residual dentro da janela e aceito -- TLS + rate-limit mitigam, nonce-store
+    fora de escopo) e fecha **adulteracao** do corpo, sem expor o segredo.
 
     Regras:
     - ``ORCAMENTO_WEBHOOK_TOKEN`` ausente/vazia no servidor -> 503 (canal

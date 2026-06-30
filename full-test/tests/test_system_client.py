@@ -417,16 +417,29 @@ def test_listar_ordens_default_nao_inclui_encerradas() -> None:
         client.listar_ordens()
 
 
-def test_decidir_orcamento_webhook_envia_header_e_body() -> None:
+def test_decidir_orcamento_webhook_assina_e_envia_body() -> None:
     ordem_id = uuid.uuid4()
 
     def handler(request: httpx.Request) -> httpx.Response:
         import json as _json
 
+        from src.compartilhado.infraestrutura.webhook_signature import (
+            assinar_payload_webhook,
+        )
+
         assert request.url.path == (
             f"/api/v1/publico/ordens-de-servico/{ordem_id}/decisao-orcamento"
         )
-        assert request.headers.get("X-Webhook-Token") == "tok-secreto"
+        # Assinatura HMAC (TD-027): o cliente assina {ordem_id}.{ts}. + body com
+        # o webhook_token (chave); o header antigo X-Webhook-Token sumiu.
+        ts = request.headers.get("X-Webhook-Timestamp")
+        sig = request.headers.get("X-Webhook-Signature")
+        assert ts is not None
+        assert sig is not None
+        assert "x-webhook-token" not in {k.lower() for k in request.headers}
+        assert sig == assinar_payload_webhook(
+            "tok-secreto", str(ordem_id), ts, request.content
+        )
         # Endpoint publico: NAO deve receber Authorization
         assert "authorization" not in {k.lower() for k in request.headers}
         body = _json.loads(request.content)

@@ -169,9 +169,7 @@ class TestDecisaoOrcamentoExterna:
         uc = MagicMock(executar=MagicMock(return_value=self._dto("em_execucao")))
         with patch(self._FACTORY) as factory:
             factory.return_value = uc
-            resp = self._post(
-                app, ordem_id, {"decisao": "aprovada"}, token_configurado
-            )
+            resp = self._post(app, ordem_id, {"decisao": "aprovada"}, token_configurado)
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "em_execucao"
@@ -213,9 +211,7 @@ class TestDecisaoOrcamentoExterna:
         assert resp.status_code == 401
         factory.assert_not_called()
 
-    def test_timestamp_fora_da_janela_retorna_401(
-        self, token_configurado: str
-    ) -> None:
+    def test_timestamp_fora_da_janela_retorna_401(self, token_configurado: str) -> None:
         import json
 
         app = _criar_app()
@@ -232,9 +228,7 @@ class TestDecisaoOrcamentoExterna:
         assert resp.status_code == 401
         factory.assert_not_called()
 
-    def test_timestamp_nao_numerico_retorna_401(
-        self, token_configurado: str
-    ) -> None:
+    def test_timestamp_nao_numerico_retorna_401(self, token_configurado: str) -> None:
         import json
 
         app = _criar_app()

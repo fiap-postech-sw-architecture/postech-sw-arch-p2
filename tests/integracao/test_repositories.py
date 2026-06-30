@@ -615,9 +615,7 @@ class TestClienteRepository:
         assert isinstance(b.veiculos[0].placa, PlacaAnonimizada)
         assert a.veiculos[0].placa != b.veiculos[0].placa
 
-    def test_projecao_de_os_mascara_placa_anonimizada(
-        self, session: Session
-    ) -> None:
+    def test_projecao_de_os_mascara_placa_anonimizada(self, session: Session) -> None:
         """#72: a projecao de OS (``obter_veiculos_em_lote``) NAO vaza o tombstone
         bruto -> devolve o sentinela limpo ``"ANONIMIZADO"``, igual ao agregado."""
         from src.cliente_veiculo.dominio.placa import Placa

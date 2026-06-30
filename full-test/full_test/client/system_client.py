@@ -129,19 +129,28 @@ class SystemClient:
         path: str,
         *,
         json: Mapping[str, object] | None = None,
+        content: bytes | None = None,
         params: Mapping[str, str | int | float | bool | None] | None = None,
         authenticated: bool = True,
         extra_headers: Mapping[str, str] | None = None,
     ) -> httpx.Response:
         headers = self._headers(authenticated=authenticated)
         if extra_headers:
-            # Headers extras (ex.: X-Webhook-Token do RF-022) sobrescrevem os
-            # calculados — o caller e dono do que injeta aqui.
+            # Headers extras (ex.: a assinatura HMAC do webhook, RF-022/TD-027)
+            # sobrescrevem os calculados — o caller e dono do que injeta aqui.
             headers.update(extra_headers)
         response: httpx.Response | None = None
         for tentativa in range(_MAX_RETRIES_ON_429 + 1):
-            response = self._client.request(
-                method, path, json=json, params=params, headers=headers
+            # ``content`` (bytes crus) e ``json`` sao exclusivos no httpx; o
+            # webhook assinado usa ``content`` para byte-match com a assinatura.
+            response = (
+                self._client.request(
+                    method, path, content=content, params=params, headers=headers
+                )
+                if content is not None
+                else self._client.request(
+                    method, path, json=json, params=params, headers=headers
+                )
             )
             if response.status_code != 429:
                 break
@@ -651,20 +660,38 @@ class SystemClient:
         decisao: str,
         webhook_token: str,
     ) -> models.AcompanhamentoResponse:
-        """Decisao de orcamento via canal externo (RF-022 / ADR-021).
+        """Decisao de orcamento via canal externo (RF-022 / TD-027).
 
-        Endpoint publico autenticado por ``X-Webhook-Token`` em vez de Bearer.
+        Endpoint publico autenticado por assinatura HMAC por requisicao (TD-027):
+        assina ``{ordem_id}.{timestamp}.`` + body com ``webhook_token`` (a chave
+        HMAC) e envia ``X-Webhook-Signature`` + ``X-Webhook-Timestamp``.
         ``decisao`` e ``"aprovada"`` (-> em_execucao) ou ``"recusada"``
-        (-> cancelada). O servidor responde com um payload em formato de
-        acompanhamento. Erros possiveis: 503 (token nao configurado no
-        servidor), 401 (token diverge), 409 (OS fora de aguardando_aprovacao).
+        (-> cancelada). Erros possiveis: 503 (segredo nao configurado no
+        servidor), 401 (assinatura/timestamp invalido), 409 (OS fora de
+        aguardando_aprovacao).
         """
+        import json as _json
+        import time as _time
+
+        from src.compartilhado.infraestrutura.webhook_signature import (
+            assinar_payload_webhook,
+        )
+
+        corpo = _json.dumps({"decisao": decisao}).encode("utf-8")
+        timestamp = str(int(_time.time()))
+        assinatura = assinar_payload_webhook(
+            webhook_token, str(ordem_id), timestamp, corpo
+        )
         resp = self._request(
             "POST",
             f"/api/v1/publico/ordens-de-servico/{ordem_id}/decisao-orcamento",
-            json={"decisao": decisao},
+            content=corpo,
             authenticated=False,
-            extra_headers={"X-Webhook-Token": webhook_token},
+            extra_headers={
+                "Content-Type": "application/json",
+                "X-Webhook-Timestamp": timestamp,
+                "X-Webhook-Signature": assinatura,
+            },
         )
         return models.AcompanhamentoResponse._parse(resp.json())
 

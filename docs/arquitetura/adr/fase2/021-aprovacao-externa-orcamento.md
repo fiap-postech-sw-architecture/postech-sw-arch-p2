@@ -10,8 +10,10 @@
 > para **assinatura HMAC por requisição**: o chamador envia `X-Webhook-Signature`
 > (HMAC-SHA256 de `{ordem_id}.{timestamp}.` + body) e `X-Webhook-Timestamp`. O
 > `ORCAMENTO_WEBHOOK_TOKEN` passa a ser a **chave HMAC** (não trafega mais). Isso
-> fecha **replay** (a janela de ±5 min expira a assinatura capturada) e
-> **adulteração** do corpo — exatamente a "Assinatura HMAC por request" listada
+> **limita** **replay** (a janela de ±5 min expira a assinatura capturada;
+> replay residual dentro da janela é aceito — TLS + rate-limit mitigam, um
+> nonce-store fica fora de escopo do MVP) e fecha **adulteração** do corpo —
+> exatamente a "Assinatura HMAC por request" listada
 > abaixo como alternativa, agora adotada. Implementação:
 > `webhook_signature.assinar_payload_webhook` +
 > `router_publico.validar_assinatura_webhook`. O comportamento 503 (canal

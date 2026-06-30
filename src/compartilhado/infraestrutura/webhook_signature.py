@@ -3,8 +3,10 @@
 Funcao pura usada nos DOIS lados: o servidor calcula a assinatura esperada e o
 chamador (sistema externo / testes / collection do Postman) assina a requisicao.
 Substitui o token estatico estilo bearer (ADR-021) por uma assinatura por
-requisicao sobre ``{ordem_id}.{timestamp}.`` + body, fechando replay (a janela de
-timestamp e validada no servidor) e adulteracao do corpo.
+requisicao sobre ``{ordem_id}.{timestamp}.`` + body, **limitando** replay (a
+janela de timestamp validada no servidor expira a assinatura capturada) e
+fechando adulteracao do corpo. Replay residual DENTRO da janela e aceito --
+mitigado por TLS + rate-limit; um nonce-store esta fora de escopo do MVP.
 """
 
 from __future__ import annotations
