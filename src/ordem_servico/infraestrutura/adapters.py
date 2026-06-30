@@ -274,9 +274,7 @@ class ClienteSQLAlchemyAdapter:
             row.id: VeiculoResumoDTO(
                 id=row.id,
                 placa=(
-                    "ANONIMIZADO"
-                    if row.placa.startswith("ANONIMIZADO")
-                    else row.placa
+                    "ANONIMIZADO" if row.placa.startswith("ANONIMIZADO") else row.placa
                 ),
             )
             for row in rows

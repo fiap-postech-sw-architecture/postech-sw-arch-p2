@@ -126,7 +126,8 @@ class CancelarOrdemRequest(BaseModel):
 class DecisaoOrcamentoRequest(BaseModel):
     """Request body do endpoint externo de decisao de orcamento (RF-022).
 
-    Canal publico autenticado por ``X-Webhook-Token`` (ADR-021). O
+    Canal publico autenticado por assinatura HMAC por requisicao
+    (``X-Webhook-Signature``/``X-Webhook-Timestamp``, TD-027). O
     contrato e binario por design: ``recusada`` significa desistencia do
     cliente (OS cancelada com motivo fixo); a rejeicao parcial do
     orcamento complementar continua exclusiva do endpoint interno.

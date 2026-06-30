@@ -14,6 +14,7 @@ from uuid import uuid4
 
 import pytest
 from fastapi.testclient import TestClient
+from httpx import Response
 
 from src.autenticacao.dominio.papel import Papel
 from src.autenticacao.dominio.usuario import Usuario
@@ -811,13 +812,45 @@ class TestDecisaoExternaOrcamento:
     """RF-022 (ADR-021): decisao externa de orcamento contra Postgres real.
 
     Cobre as quatro transicoes do canal externo (aprovada/recusada x
-    inicial/complementar), a autenticacao por ``X-Webhook-Token`` e os
-    erros padrao (401, 404, 409, 422, 503). O token e lido do ambiente a
-    cada request, entao ``monkeypatch.setenv`` depois do app criado vale.
+    inicial/complementar), a autenticacao por assinatura HMAC
+    (X-Webhook-Signature/Timestamp, TD-027) e os erros padrao
+    (401, 404, 409, 422, 503). O token e lido do ambiente a cada request,
+    entao ``monkeypatch.setenv`` depois do app criado vale.
     """
 
     def _rota(self, ordem_id: object) -> str:
         return f"/api/v1/publico/ordens-de-servico/{ordem_id}/decisao-orcamento"
+
+    def _post_assinado(
+        self,
+        api_client: TestClient,
+        ordem_id: object,
+        body: dict[str, object],
+        segredo: str,
+        *,
+        timestamp: str | None = None,
+    ) -> Response:
+        """POST assinado (TD-027): assina exatamente os bytes enviados via
+        ``content=`` (byte-match com o ``await request.body()`` do servidor)."""
+        import json
+        import time
+
+        from src.compartilhado.infraestrutura.webhook_signature import (
+            assinar_payload_webhook,
+        )
+
+        corpo = json.dumps(body).encode("utf-8")
+        ts = timestamp if timestamp is not None else str(int(time.time()))
+        assinatura = assinar_payload_webhook(segredo, str(ordem_id), ts, corpo)
+        return api_client.post(
+            self._rota(ordem_id),
+            content=corpo,
+            headers={
+                "Content-Type": "application/json",
+                "X-Webhook-Timestamp": ts,
+                "X-Webhook-Signature": assinatura,
+            },
+        )
 
     def _criar_os_aguardando_aprovacao(
         self,
@@ -885,10 +918,8 @@ class TestDecisaoExternaOrcamento:
             api_client, headers, documento="21249722519", placa="RFB0022"
         )
 
-        resposta = api_client.post(
-            self._rota(ordem_id),
-            json={"decisao": "aprovada"},
-            headers={"X-Webhook-Token": credencial},
+        resposta = self._post_assinado(
+            api_client, ordem_id, {"decisao": "aprovada"}, credencial
         )
 
         assert resposta.status_code == 200
@@ -916,10 +947,8 @@ class TestDecisaoExternaOrcamento:
             api_client, headers, documento="57648016648", placa="RFC0022"
         )
 
-        resposta = api_client.post(
-            self._rota(ordem_id),
-            json={"decisao": "recusada"},
-            headers={"X-Webhook-Token": credencial},
+        resposta = self._post_assinado(
+            api_client, ordem_id, {"decisao": "recusada"}, credencial
         )
 
         assert resposta.status_code == 200
@@ -957,10 +986,8 @@ class TestDecisaoExternaOrcamento:
         assert resposta_compl.status_code == 200
         assert resposta_compl.json()["status"] == "aguardando_aprovacao_complementar"
 
-        resposta = api_client.post(
-            self._rota(ordem_id),
-            json={"decisao": "aprovada"},
-            headers={"X-Webhook-Token": credencial},
+        resposta = self._post_assinado(
+            api_client, ordem_id, {"decisao": "aprovada"}, credencial
         )
 
         assert resposta.status_code == 200
@@ -1013,10 +1040,8 @@ class TestDecisaoExternaOrcamento:
             == 200
         )
 
-        resposta = api_client.post(
-            self._rota(ordem_id),
-            json={"decisao": "recusada"},
-            headers={"X-Webhook-Token": credencial},
+        resposta = self._post_assinado(
+            api_client, ordem_id, {"decisao": "recusada"}, credencial
         )
 
         assert resposta.status_code == 200
@@ -1025,6 +1050,107 @@ class TestDecisaoExternaOrcamento:
             f"/api/v1/estoque/{filtro['id']}", headers=headers
         ).json()["quantidade"]
         assert saldo_final == 10
+
+    def test_timestamp_fora_da_janela_retorna_401(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """TD-027: assinatura valida mas timestamp antigo (1h) cai fora da
+        janela anti-replay -> 401, sem transitar a OS."""
+        import time
+
+        credencial = "e2e-webhook-ts"
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", credencial)
+        headers = _headers_admin(api_client, admin_user)
+        ordem_id = self._criar_os_aguardando_aprovacao(
+            api_client, headers, documento="21249722519", placa="RFH0022"
+        )
+
+        resposta = self._post_assinado(
+            api_client,
+            ordem_id,
+            {"decisao": "aprovada"},
+            credencial,
+            timestamp=str(int(time.time()) - 3600),
+        )
+
+        assert resposta.status_code == 401
+        detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        ).json()
+        assert detalhe["status"] == "aguardando_aprovacao"
+
+    def test_corpo_adulterado_retorna_401(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """TD-027: assinatura calculada sobre um corpo, mas outro corpo e
+        enviado -> HMAC do servidor diverge -> 401 (anti-adulteracao)."""
+        import json
+        import time
+
+        from src.compartilhado.infraestrutura.webhook_signature import (
+            assinar_payload_webhook,
+        )
+
+        credencial = "e2e-webhook-adulterado"
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", credencial)
+        headers = _headers_admin(api_client, admin_user)
+        ordem_id = self._criar_os_aguardando_aprovacao(
+            api_client, headers, documento="57648016648", placa="RFI0022"
+        )
+
+        ts = str(int(time.time()))
+        corpo_assinado = json.dumps({"decisao": "aprovada"}).encode("utf-8")
+        assinatura = assinar_payload_webhook(
+            credencial, str(ordem_id), ts, corpo_assinado
+        )
+        corpo_adulterado = json.dumps({"decisao": "recusada"}).encode("utf-8")
+
+        resposta = api_client.post(
+            self._rota(ordem_id),
+            content=corpo_adulterado,
+            headers={
+                "Content-Type": "application/json",
+                "X-Webhook-Timestamp": ts,
+                "X-Webhook-Signature": assinatura,
+            },
+        )
+
+        assert resposta.status_code == 401
+        detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        ).json()
+        assert detalhe["status"] == "aguardando_aprovacao"
+
+    def test_assinatura_ausente_retorna_401(
+        self,
+        api_client: TestClient,
+        admin_user: Usuario,
+        monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """TD-027: request sem os headers de assinatura -> 401."""
+        credencial = "e2e-webhook-sem-assinatura"
+        monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", credencial)
+        headers = _headers_admin(api_client, admin_user)
+        ordem_id = self._criar_os_aguardando_aprovacao(
+            api_client, headers, documento="93214407473", placa="RFJ0022"
+        )
+
+        resposta = api_client.post(
+            self._rota(ordem_id),
+            json={"decisao": "aprovada"},
+        )
+
+        assert resposta.status_code == 401
+        detalhe = api_client.get(
+            f"/api/v1/ordens-de-servico/{ordem_id}", headers=headers
+        ).json()
+        assert detalhe["status"] == "aguardando_aprovacao"
 
     def test_token_errado_retorna_401_e_nao_transita(
         self,
@@ -1038,10 +1164,8 @@ class TestDecisaoExternaOrcamento:
             api_client, headers, documento="57648016648", placa="RFF0022"
         )
 
-        resposta = api_client.post(
-            self._rota(ordem_id),
-            json={"decisao": "aprovada"},
-            headers={"X-Webhook-Token": "valor-errado"},
+        resposta = self._post_assinado(
+            api_client, ordem_id, {"decisao": "aprovada"}, "valor-errado"
         )
 
         assert resposta.status_code == 401
@@ -1057,10 +1181,8 @@ class TestDecisaoExternaOrcamento:
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("ORCAMENTO_WEBHOOK_TOKEN", raising=False)
-        resposta = api_client.post(
-            self._rota(uuid4()),
-            json={"decisao": "aprovada"},
-            headers={"X-Webhook-Token": "qualquer"},
+        resposta = self._post_assinado(
+            api_client, uuid4(), {"decisao": "aprovada"}, "qualquer"
         )
         assert resposta.status_code == 503
 
@@ -1072,10 +1194,8 @@ class TestDecisaoExternaOrcamento:
     ) -> None:
         credencial = "e2e-webhook-404"
         monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", credencial)
-        resposta = api_client.post(
-            self._rota(uuid4()),
-            json={"decisao": "aprovada"},
-            headers={"X-Webhook-Token": credencial},
+        resposta = self._post_assinado(
+            api_client, uuid4(), {"decisao": "aprovada"}, credencial
         )
         assert resposta.status_code == 404
         assert "erro" in resposta.json()
@@ -1088,10 +1208,8 @@ class TestDecisaoExternaOrcamento:
     ) -> None:
         credencial = "e2e-webhook-422"
         monkeypatch.setenv("ORCAMENTO_WEBHOOK_TOKEN", credencial)
-        resposta = api_client.post(
-            self._rota(uuid4()),
-            json={"decisao": "talvez"},
-            headers={"X-Webhook-Token": credencial},
+        resposta = self._post_assinado(
+            api_client, uuid4(), {"decisao": "talvez"}, credencial
         )
         assert resposta.status_code == 422
 
@@ -1120,10 +1238,8 @@ class TestDecisaoExternaOrcamento:
         assert resposta_criar.status_code == 201
         ordem_id = resposta_criar.json()["id"]
 
-        resposta = api_client.post(
-            self._rota(ordem_id),
-            json={"decisao": "recusada"},
-            headers={"X-Webhook-Token": credencial},
+        resposta = self._post_assinado(
+            api_client, ordem_id, {"decisao": "recusada"}, credencial
         )
 
         assert resposta.status_code == 409

@@ -199,7 +199,7 @@ Documentação interativa no Swagger UI: `http://localhost:8000/docs` no compose
 | Estoque | /api/v1/estoque | CRUD + ajuste de quantidade |
 | Ordens de Serviço | /api/v1/ordens-de-servico | Criação com serviços e peças (RF-020), listagem ordenada (RF-023), ciclo completo da OS |
 | Autenticação | /api/v1/autenticacao | Login, registro, refresh, logout |
-| Público | /api/v1/acompanhamento · /api/v1/publico/.../decisao-orcamento | Acompanhamento por placa + documento (RF-021) e decisão externa de orçamento via `X-Webhook-Token` (RF-022) |
+| Público | /api/v1/acompanhamento · /api/v1/publico/.../decisao-orcamento | Acompanhamento por placa + documento (RF-021) e decisão externa de orçamento via assinatura HMAC (`X-Webhook-Signature`, TD-027/RF-022) |
 | Saúde | /api/v1/saude | Health check (probes do Kubernetes) |
 
 ## Vídeo de demonstração

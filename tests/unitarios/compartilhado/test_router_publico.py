@@ -102,11 +102,12 @@ class TestRouterPublico:
 
 
 class TestDecisaoOrcamentoExterna:
-    """RF-022 (ADR-021): endpoint externo de decisao do orcamento.
+    """RF-022 (TD-027): endpoint externo de decisao do orcamento.
 
-    Autenticacao por token estatico dedicado (header ``X-Webhook-Token``)
-    validada ANTES de tocar o caso de uso — os cenarios 401/503 afirmam
-    que a factory nem chega a ser invocada (non-effect).
+    Autenticacao por assinatura HMAC por requisicao (``X-Webhook-Signature`` +
+    ``X-Webhook-Timestamp``, TD-027 -- evolui o token estatico da ADR-021)
+    validada ANTES de tocar o caso de uso -- os cenarios 401/503 afirmam que a
+    factory nem chega a ser invocada (non-effect).
     """
 
     _ROTA = "/api/v1/publico/ordens-de-servico/{oid}/decisao-orcamento"
@@ -125,7 +126,42 @@ class TestDecisaoOrcamentoExterna:
             atualizado_em=datetime(2026, 6, 12, 15, 30, tzinfo=UTC),
         )
 
-    def test_aprovada_com_token_correto_retorna_situacao_nova(
+    @staticmethod
+    def _headers_assinados(
+        ordem_id: object,
+        segredo: str,
+        corpo: bytes,
+        *,
+        timestamp: str | None = None,
+    ) -> dict[str, str]:
+        import time
+
+        from src.compartilhado.infraestrutura.webhook_signature import (
+            assinar_payload_webhook,
+        )
+
+        ts = timestamp if timestamp is not None else str(int(time.time()))
+        return {
+            "Content-Type": "application/json",
+            "X-Webhook-Timestamp": ts,
+            "X-Webhook-Signature": assinar_payload_webhook(
+                segredo, str(ordem_id), ts, corpo
+            ),
+        }
+
+    def _post(
+        self, app: FastAPI, ordem_id: object, body: dict[str, object], segredo: str
+    ) -> object:
+        import json
+
+        corpo = json.dumps(body).encode("utf-8")
+        return TestClient(app).post(
+            self._ROTA.format(oid=ordem_id),
+            content=corpo,
+            headers=self._headers_assinados(ordem_id, segredo, corpo),
+        )
+
+    def test_aprovada_com_assinatura_valida_retorna_situacao_nova(
         self, token_configurado: str
     ) -> None:
         app = _criar_app()
@@ -133,35 +169,27 @@ class TestDecisaoOrcamentoExterna:
         uc = MagicMock(executar=MagicMock(return_value=self._dto("em_execucao")))
         with patch(self._FACTORY) as factory:
             factory.return_value = uc
-            resp = TestClient(app).post(
-                self._ROTA.format(oid=ordem_id),
-                json={"decisao": "aprovada"},
-                headers={"X-Webhook-Token": token_configurado},
-            )
+            resp = self._post(app, ordem_id, {"decisao": "aprovada"}, token_configurado)
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "em_execucao"
         assert body["situacao"] == "Em execução"
         uc.executar.assert_called_once_with(ordem_id, decisao="aprovada")
 
-    def test_recusada_com_token_correto_retorna_cancelada(
+    def test_recusada_com_assinatura_valida_retorna_cancelada(
         self, token_configurado: str
     ) -> None:
         app = _criar_app()
         uc = MagicMock(executar=MagicMock(return_value=self._dto("cancelada")))
         with patch(self._FACTORY) as factory:
             factory.return_value = uc
-            resp = TestClient(app).post(
-                self._ROTA.format(oid=uuid4()),
-                json={"decisao": "recusada"},
-                headers={"X-Webhook-Token": token_configurado},
-            )
+            resp = self._post(app, uuid4(), {"decisao": "recusada"}, token_configurado)
         assert resp.status_code == 200
         body = resp.json()
         assert body["status"] == "cancelada"
         assert body["situacao"] == "Cancelada"
 
-    def test_sem_header_retorna_401_sem_tocar_use_case(
+    def test_sem_assinatura_retorna_401_sem_tocar_use_case(
         self, token_configurado: str
     ) -> None:
         app = _criar_app()
@@ -173,58 +201,77 @@ class TestDecisaoOrcamentoExterna:
         assert resp.status_code == 401
         factory.assert_not_called()
 
-    def test_token_errado_retorna_401_sem_tocar_use_case(
+    def test_assinatura_com_segredo_errado_retorna_401(
         self, token_configurado: str
     ) -> None:
         app = _criar_app()
         with patch(self._FACTORY) as factory:
+            # Assina com segredo diferente do configurado no servidor.
+            resp = self._post(app, uuid4(), {"decisao": "aprovada"}, "outro-valor")
+        assert resp.status_code == 401
+        factory.assert_not_called()
+
+    def test_timestamp_fora_da_janela_retorna_401(self, token_configurado: str) -> None:
+        import json
+
+        app = _criar_app()
+        ordem_id = uuid4()
+        corpo = json.dumps({"decisao": "aprovada"}).encode("utf-8")
+        with patch(self._FACTORY) as factory:
             resp = TestClient(app).post(
-                self._ROTA.format(oid=uuid4()),
-                json={"decisao": "aprovada"},
-                headers={"X-Webhook-Token": "outro-valor"},
+                self._ROTA.format(oid=ordem_id),
+                content=corpo,
+                headers=self._headers_assinados(
+                    ordem_id, token_configurado, corpo, timestamp="1000000000"
+                ),
             )
         assert resp.status_code == 401
         factory.assert_not_called()
 
-    def test_token_nao_configurado_no_servidor_retorna_503(
+    def test_timestamp_nao_numerico_retorna_401(self, token_configurado: str) -> None:
+        import json
+
+        app = _criar_app()
+        ordem_id = uuid4()
+        corpo = json.dumps({"decisao": "aprovada"}).encode("utf-8")
+        with patch(self._FACTORY) as factory:
+            resp = TestClient(app).post(
+                self._ROTA.format(oid=ordem_id),
+                content=corpo,
+                headers={
+                    "Content-Type": "application/json",
+                    "X-Webhook-Timestamp": "nao-numerico",
+                    "X-Webhook-Signature": "deadbeef",
+                },
+            )
+        assert resp.status_code == 401
+        factory.assert_not_called()
+
+    def test_segredo_nao_configurado_no_servidor_retorna_503(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        # ADR-021: ausencia de configuracao = canal externo desabilitado
-        # (503), nunca canal aberto sem credencial.
+        # Ausencia de configuracao = canal externo desabilitado (503), nunca
+        # canal aberto sem credencial.
         monkeypatch.delenv("ORCAMENTO_WEBHOOK_TOKEN", raising=False)
         app = _criar_app()
         with patch(self._FACTORY) as factory:
-            resp = TestClient(app).post(
-                self._ROTA.format(oid=uuid4()),
-                json={"decisao": "aprovada"},
-                headers={"X-Webhook-Token": "qualquer"},
-            )
+            resp = self._post(app, uuid4(), {"decisao": "aprovada"}, "qualquer")
         assert resp.status_code == 503
         factory.assert_not_called()
 
     def test_decisao_invalida_retorna_422(self, token_configurado: str) -> None:
         app = _criar_app()
-        resp = TestClient(app).post(
-            self._ROTA.format(oid=uuid4()),
-            json={"decisao": "talvez"},
-            headers={"X-Webhook-Token": token_configurado},
-        )
+        resp = self._post(app, uuid4(), {"decisao": "talvez"}, token_configurado)
         assert resp.status_code == 422
 
     def test_payload_com_campo_extra_retorna_422(self, token_configurado: str) -> None:
         app = _criar_app()
-        resp = TestClient(app).post(
-            self._ROTA.format(oid=uuid4()),
-            json={"decisao": "aprovada", "motivo": "x"},
-            headers={"X-Webhook-Token": token_configurado},
+        resp = self._post(
+            app, uuid4(), {"decisao": "aprovada", "motivo": "x"}, token_configurado
         )
         assert resp.status_code == 422
 
     def test_ordem_id_nao_uuid_retorna_422(self, token_configurado: str) -> None:
         app = _criar_app()
-        resp = TestClient(app).post(
-            self._ROTA.format(oid="nao-e-uuid"),
-            json={"decisao": "aprovada"},
-            headers={"X-Webhook-Token": token_configurado},
-        )
+        resp = self._post(app, "nao-e-uuid", {"decisao": "aprovada"}, token_configurado)
         assert resp.status_code == 422

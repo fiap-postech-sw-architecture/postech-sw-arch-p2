@@ -83,10 +83,14 @@ Sequência gravada:
 4. **RF-022 — decisão externa de orçamento** (avançar a OS nova até `aguardando_aprovacao`: diagnóstico → orçamento). No terminal:
 
    ```bash
-   curl -s -X POST "http://localhost:18000/api/v1/publico/ordens-de-servico/<OS_ID>/decisao-orcamento" \
-     -H "X-Webhook-Token: demo-webhook-orcamento-nao-usar-em-producao" \
+   # Assinatura HMAC por requisicao (TD-027): assina {OS_ID}.{timestamp}. + body.
+   OS_ID="<OS_ID>"; TS=$(date +%s); BODY='{"decisao": "aprovada"}'
+   SECRET="demo-webhook-orcamento-nao-usar-em-producao"
+   SIG=$(printf '%s' "${OS_ID}.${TS}.${BODY}" | openssl dgst -sha256 -hmac "$SECRET" | awk '{print $NF}')
+   curl -s -X POST "http://localhost:18000/api/v1/publico/ordens-de-servico/${OS_ID}/decisao-orcamento" \
+     -H "X-Webhook-Timestamp: $TS" -H "X-Webhook-Signature: $SIG" \
      -H "Content-Type: application/json" \
-     -d '{"decisao": "aprovada"}'
+     -d "$BODY"
    ```
 
    → situação vira "Em execução" (estoque reservado). Re-rodar a listagem: a OS aprovada agora abre a lista (prioridade máxima). Repetir na OS preparada em aguardando aprovação com `{"decisao": "recusada"}` → "Cancelada". Mostrar que sem o header o retorno é **401** (token dedicado, fora do RBAC interno — ADR-021).
