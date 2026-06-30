@@ -100,6 +100,14 @@ itens_da_ordem_table = Table(
     Column("preco_unitario_moeda", String(3), nullable=False, default="BRL"),
 )
 
+# Indice em item_estoque_id (TD-025, migration 005): a query cross-context
+# existe_ativa_com_item_estoque filtra por esta coluna ao desativar um item de
+# estoque. A FK nao cria indice; sem ele o Postgres faz seq scan.
+Index(
+    "ix_itens_da_ordem_item_estoque_id",
+    itens_da_ordem_table.c.item_estoque_id,
+)
+
 _mapeamento_iniciado = False
 
 
