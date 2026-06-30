@@ -70,6 +70,29 @@ def _indice_existe(url: str) -> bool:
         engine.dispose()
 
 
+def _indice_cobre_item_estoque_id(url: str) -> bool:
+    """Confirma que o indice e sobre a coluna ``item_estoque_id`` (nao so o nome).
+
+    Trava contra uma regressao onde a migration seja editada para indexar outra
+    coluna mantendo o mesmo nome de indice.
+    """
+    engine = create_engine(url)
+    try:
+        with engine.connect() as conn:
+            return bool(
+                conn.execute(
+                    text(
+                        "SELECT EXISTS (SELECT 1 FROM pg_indexes "
+                        "WHERE indexname = :nome "
+                        "AND indexdef LIKE '%item_estoque_id%')"
+                    ),
+                    {"nome": _INDICE},
+                ).scalar_one()
+            )
+    finally:
+        engine.dispose()
+
+
 def test_upgrade_cria_indice_e_downgrade_remove(postgres_url: str) -> None:
     from alembic import command
 
@@ -78,9 +101,10 @@ def test_upgrade_cria_indice_e_downgrade_remove(postgres_url: str) -> None:
     # Estado limpo (caso o banco seja reusado).
     command.downgrade(cfg, "base")
 
-    # upgrade head: a cadeia chega ao 005 e o indice e criado.
+    # upgrade head: a cadeia chega ao 005 e o indice e criado sobre a coluna certa.
     command.upgrade(cfg, "head")
     assert _indice_existe(postgres_url) is True
+    assert _indice_cobre_item_estoque_id(postgres_url) is True
 
     # downgrade para 004: so o 005 e revertido -> indice removido.
     command.downgrade(cfg, "004")
