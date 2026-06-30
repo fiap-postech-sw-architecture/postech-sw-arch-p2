@@ -14,8 +14,8 @@
 
 ## Status
 
-- ✅ **Resolvidos: 25** — TD-001, TD-003, TD-005, TD-007, TD-008, TD-009, TD-010, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023 + TD-024, TD-025, TD-026, TD-028, TD-029, TD-030, TD-031 (campanha Tier 4, jun/2026).
-- ⬜ **Abertos: 6** — TD-002, TD-004, TD-006, TD-013, TD-014 (originais) + TD-027 (webhook HMAC, **deferido** — ripple no caller/postman às vésperas da entrega).
+- ✅ **Resolvidos: 26** — TD-001, TD-003, TD-005, TD-007, TD-008, TD-009, TD-010, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023 + TD-024, TD-025, TD-026, TD-028, TD-029, TD-030, TD-031, **TD-027** (campanha Tier 4, jun/2026).
+- ⬜ **Abertos: 5** — TD-002, TD-004, TD-006, TD-013, TD-014 (originais da fase 1; débito deliberado/aceito).
 
 > Nenhum dos 13 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
 
@@ -90,7 +90,7 @@ Da auditoria pré-entrega ([auditoria-pre-entrega-fase2.md](auditoria-pre-entreg
 - [x] **TD-024** (PR #108) — `securityContext` (`runAsNonRoot` / `allowPrivilegeEscalation:false` / `capabilities.drop:[ALL]` / `readOnlyRootFilesystem` / seccomp) + `emptyDir` `/tmp` nos 3 workloads próprios; UID 1001 pinado no Dockerfile. Teste de mesa kind.
 - [x] **TD-025** (PR #107) — índice B-tree `ix_itens_da_ordem_item_estoque_id` via migração 005 reversível; `EXPLAIN` confirma `Index Scan`.
 - [x] **TD-026** (decisão) — documentado em `k8s/README.md`: deploy fora do pipeline (`cd.yml`/`make k8s-up`) é não-suportado; auto-enforce fica para um eventual GitOps.
-- [ ] **TD-027** (**deferido**) — assinatura HMAC-SHA256 no webhook de orçamento. Esquema atual é MVP documentado (ADR-021); a evolução exige ripple no caller (e2e + **postman da entrega** + ADR) — risco alto às vésperas da entrega. Esforço médio.
+- [x] **TD-027** (PR #114) — assinatura HMAC-SHA256 por requisição no webhook de orçamento (`X-Webhook-Signature` + `X-Webhook-Timestamp`, chave = `ORCAMENTO_WEBHOOK_TOKEN`, janela ±5min). Helper `webhook_signature` + ADR-021 emendada + harness full-test migrado. Postman → follow-up #113.
 - [x] **TD-028** (PR #105) — pré-hash `base64(sha256(senha))` antes do bcrypt; fallback legado só para senha ≤72 bytes.
 - [x] **TD-029** (PR #105) — `obter_usuario_atual` valida `type == "access"` (`if type != "access": 401`).
 - [x] **TD-030** (decisão) — eventos órfãos documentados em `docs/arquitetura/eventos-de-dominio.md` (intenção de modelagem, sem consumidor na fase 2).

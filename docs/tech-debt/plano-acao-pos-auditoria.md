@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
 
-> **Versão**: 1.2 (2026-06-30) — **Tier 3 e Tier 4 fechados**: Tier 3 #73 (PR #103) + #76 (PR #104), #72 deferido; Tier 4 TD-024/025/026/028/029/030/031 (PRs #105–#108 + 2 decisões), TD-027 deferido. Cada mudança de código com gate local completo + review single-shot (prompt do CI) + teste de mesa na imagem final, merge via `--admin` (CI travado no billing). Versão 1.1 (2026-06-29) — Tier 0-2 **fechado** (8 PRs; merge via `--admin` por causa do CI travado no billing); **#75 deferido**; 6 achados novos rastreados como issues. Plano de ataque unificado e **resumível entre sessões** para os achados da auditoria pré-entrega da fase 2. Dirigido a checkbox: marque o item quando o PR mergear. Fontes: [auditoria-pre-entrega-fase2.md](auditoria-pre-entrega-fase2.md) (achados), as GitHub issues #72–#86 (bugs/docs/feature) e o ledger TD-024..031 ([README.md](README.md)). A ordem segue **impacto na nota** (delivery-facing + refutável pela banca) **>** severidade do bug confirmado **>** ROI.
+> **Versão**: 1.3 (2026-06-30) — **deferidos fechados**: #72 (PR #112 — cascade LGPD pra veículos), #80 (PR #110 — orçamento complementar) e TD-027 (PR #114 — webhook HMAC). **Resta só #75** (gates CI + Dependabot, espera o billing). Follow-ups #111 (rejeição complementar) e #113 (postman HMAC). Versão 1.2 (2026-06-30) — **Tier 3 e Tier 4 fechados**: Tier 3 #73 (PR #103) + #76 (PR #104), #72 deferido; Tier 4 TD-024/025/026/028/029/030/031 (PRs #105–#108 + 2 decisões), TD-027 deferido. Cada mudança de código com gate local completo + review single-shot (prompt do CI) + teste de mesa na imagem final, merge via `--admin` (CI travado no billing). Versão 1.1 (2026-06-29) — Tier 0-2 **fechado** (8 PRs; merge via `--admin` por causa do CI travado no billing); **#75 deferido**; 6 achados novos rastreados como issues. Plano de ataque unificado e **resumível entre sessões** para os achados da auditoria pré-entrega da fase 2. Dirigido a checkbox: marque o item quando o PR mergear. Fontes: [auditoria-pre-entrega-fase2.md](auditoria-pre-entrega-fase2.md) (achados), as GitHub issues #72–#86 (bugs/docs/feature) e o ledger TD-024..031 ([README.md](README.md)). A ordem segue **impacto na nota** (delivery-facing + refutável pela banca) **>** severidade do bug confirmado **>** ROI.
 
 Plano priorizado e resumível dos achados da auditoria de fechamento da fase 2. Consolida, num único roteiro acionável, os três rastreadores que hoje vivem separados — o relatório de auditoria, as issues do GitHub e o ledger de dívida técnica — sem duplicar a fonte da verdade de cada um.
 
@@ -36,7 +36,7 @@ O que a fase 2 **não exige** (e portanto não vale nota por si só):
 
 ## Progresso
 
-> **Progresso: 11/14 issues fechados + 7/8 TDs** (2026-06-30). Tier 0 (5/5) + Tier 1 (#84, #86) + Tier 2 (#82+#83) **fechados**; **Tier 3** #73 (PR #103) + #76 (PR #104) **fechados**, #72 **deferido** (migração+sentinela); **Tier 4** TD-024/025/026/028/029/030/031 **fechados** (PRs #105–#108 + 2 decisões), **TD-027 deferido** (webhook HMAC — ripple no caller). Restam: **#75** (CI billing) + **#72** (deferido) + **TD-027** (deferido) + Tier 5 **#80** (não-requisito). (As 14 issues são #72–#86; #85 é controle/meta. Os 8 TDs são TD-024..TD-031.)
+> **Progresso: 13/14 issues fechados + 8/8 TDs** (2026-06-30). Tier 0 (5/5) + Tier 1 (#84, #86) + Tier 2 (#82+#83) **fechados**; **Tier 3** #73 (PR #103) + #76 (PR #104) + **#72 (PR #112)** **fechados**; **Tier 4** TD-024..TD-031 **TODOS fechados** (PRs #105–#108 + 2 decisões + **TD-027 PR #114**); **Tier 5 #80 (PR #110)** fechado. **Resta só #75** (gates CI + Dependabot — espera o desbloqueio do billing). Follow-ups abertos: **#111** (rejeição do complementar), **#113** (postman HMAC). (As 14 issues são #72–#86; #85 é controle/meta. Os 8 TDs são TD-024..TD-031.)
 
 > ⚠️ **CI travado no billing.** O GitHub Actions está bloqueado (pagamento/spending limit da conta) — todos os jobs falham em 2-3s. Enquanto isso, cada item foi merjado via **`gh pr merge --admin`** após o **CI rodado localmente na íntegra** (lock·ruff·import-linter·mypy·bandit·sbom·unit·integ·codeql) **+ review canônico com o prompt do CI** (`.github/claude-prompts/code-review.md`) **+ teste de mesa na kind**. Destravar (Settings → Billing & plans) restaura o CI real e o #75.
 
@@ -110,8 +110,8 @@ Robustez sem exposição direta na entrega, mas com risco real — e um bundle L
 - [x] **[#73](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/73)** — guard de `ENCRYPTION_KEY` — **bug-seg** · prioridade **média** · esforço **🟢 baixo** · **Status: ✅ fechado (PR #103)**
   - **Resolução:** `validar_segredos_no_startup` aborta o boot em produção sem `ENCRYPTION_KEY`; `decrypt` distingue legado (sem prefixo `gAAAAA` → devolve) de falha real (prefixo + `InvalidToken` → levanta), sem fail-open. Teste de mesa na imagem final.
 
-- [ ] **[#72](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/72)** — LGPD: erasure não cascateia para veículos — **bug-seg** · prioridade **média** · esforço **🟡 médio** · **Status: ⏸️ deferido (plano na issue)**
-  - **Deferido:** `placa` é `String(7)` unique (tombstone longo não cabe) e `ordens_de_servico.veiculo_id` é FK NOT NULL (delete quebra histórico) → exige **migração** (alargar a coluna) + **sentinela de domínio** + tratamento no read-path. Plano investigado registrado na issue; mais complexo que os demais, fica para uma sessão focada.
+- [x] **[#72](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/72)** — LGPD: erasure não cascateia para veículos — **bug-seg** · **Status: ✅ fechado (PR #112)**
+  - **Resolução:** migração 006 alarga `veiculos.placa` String(7)→String(64); `anonimizar_dados` cascateia na mesma tx (tombstone único `ANONIMIZADO:{veiculo_id}` + marca/modelo); `PlacaAnonimizada` VO (read-path load+refresh, sem expor PII; projeção de OS também mascarada). `cliente_id`/`veiculo_id` mantidos → FK de OS intacta. Teste de mesa em Postgres real.
 
 - [x] **[#76](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/76)** — LGPD: erasure/export sem restrição nem auditoria — **bug-seg** · prioridade **média** · esforço **🟢 baixo** · **Status: ✅ fechado (PR #104)**
   - **Resolução:** erasure restrito a **admin**; export e delete emitem evento de auditoria structlog (ator do JWT + `cliente_id`) após confirmar o efeito (404 não audita); `_ator_de` extraído para `compartilhado/interfaces/auditoria.py`. Teste de mesa na chain real: ator preservado, zero PII no log.
@@ -128,15 +128,15 @@ Compromissos **aceitos/justificados** no ledger ([README.md](README.md)) — nã
 - [x] **TD-025** · **TD-031** · **TD-029** · **TD-028** — quick-wins (⚡/🟢) — **Status: ✅ fechados**
   - **Resolução:** **TD-025** (PR #107) índice B-tree `ix_itens_da_ordem_item_estoque_id` (migração 005; EXPLAIN confirma Index Scan); **TD-031** (PR #106) `--cov-fail-under=95` explícito no `ci.yml`; **TD-029** (PR #105) `obter_usuario_atual` exige `type == "access"`; **TD-028** (PR #105) pré-hash `base64(sha256(senha))` antes do bcrypt + fallback legado ≤72 bytes.
 
-- [~] **TD-027** · **TD-026** · **TD-030** — médios (🟡) — **Status: TD-026/TD-030 ✅ (decisão) · TD-027 ⏸️ deferido**
-  - **Resolução:** **TD-026** documentado em `k8s/README.md` (deploy fora do pipeline não-suportado); **TD-030** documentado em `docs/arquitetura/eventos-de-dominio.md` (8 eventos órfãos = intenção de modelagem). **TD-027** (webhook HMAC) **deferido**: o esquema atual é MVP documentado (ADR-021) e a evolução exige ripple no caller (e2e + postman da entrega + ADR) — risco alto às vésperas da entrega.
+- [x] **TD-027** · **TD-026** · **TD-030** — médios (🟡) — **Status: ✅ todos fechados**
+  - **Resolução:** **TD-026** documentado em `k8s/README.md` (deploy fora do pipeline não-suportado); **TD-030** documentado em `docs/arquitetura/eventos-de-dominio.md` (8 eventos órfãos = intenção de modelagem); **TD-027** (PR #114) webhook assinado por HMAC (`X-Webhook-Signature`/`X-Webhook-Timestamp`, chave = `ORCAMENTO_WEBHOOK_TOKEN`, janela ±5min) — harness full-test migrado, pre-request script do postman → #113.
 
 ---
 
 ## ✨ Tier 5 — Feature / aceitar
 
-- [ ] **[#80](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/80)** — orçamento complementar — **feature** · prioridade **BAIXA** · **Status: aberto**
-  - **Detalhes iniciais:** ⚠️ **Confirmado no PDF oficial: NÃO é requisito do desafio** — o enunciado pede **6 status** e nenhum re-orçamento; a RN-007 (sem novos itens em `EM_EXECUCAO`) é **by-design**. Não é bug de RF. O reframe correto é **claim-vs-código**: ou **corrigir** o `prd`/`glossario` que prometem o complemento, **ou** relaxar a RN-007 — uma decisão de produto, não uma correção de requisito. *Ponto de partida; ver o comentário na issue para a decisão de escopo.*
+- [x] **[#80](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/80)** — orçamento complementar — **feature** · **Status: ✅ fechado (PR #110)**
+  - **Resolução:** por decisão do mantenedor (não é requisito — 6 status no enunciado), **relaxou a RN-007**: adicionar item passou a ser permitido em `EM_EXECUCAO` (split `_ESTADOS_PERMITE_ADICAO`/`_REMOCAO`), o complementar reflete o trabalho extra (total > original), e o `AdicionarItem` reserva o estoque do item novo na hora (sem dupla reserva). UI/drift-check + e2e em DB real. Follow-up #111 (semântica de rejeição).
 
 - **Aceitar, não atacar** (débito deliberado, valor marginal): **TD-002** · **TD-004** · **TD-006** · **TD-013** · **TD-014**. Permanecem no ledger ([README.md](README.md)) como simplificações justificadas; não há ação planejada para a fase 2.
 
