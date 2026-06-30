@@ -89,7 +89,7 @@ class ClienteSQLAlchemyRepository:
         return self._session.get(Cliente, cliente_id)
 
     def anonimizar_dados(self, cliente_id: UUID) -> None:
-        from sqlalchemy import update
+        from sqlalchemy import select, update
 
         # Bypass SQLAlchemy ORM event listeners via raw UPDATE.
         # The before_update listener recalculates _documento_numero and
@@ -113,6 +113,34 @@ class ClienteSQLAlchemyRepository:
             )
         )
         self._session.execute(stmt)
+
+        # #72: cascateia para os veiculos do cliente na MESMA transacao. A placa
+        # e PII; o tombstone ``ANONIMIZADO:{veiculo_id}`` a neutraliza preservando
+        # o UNIQUE (varios veiculos anonimizados). marca/modelo viram ANONIMIZADO.
+        # O ``cliente_id`` e mantido -- aponta para o cliente ja anonimizado, nao
+        # re-identifica -- e a FK ``ordens_de_servico.veiculo_id`` fica intacta,
+        # preservando o historico de OS. Tombstone por-id via SELECT + UPDATE
+        # (f-string, como no cliente) para nao depender de concat SQL (sqlite).
+        veiculo_ids = (
+            self._session.execute(
+                select(veiculos_table.c.id).where(
+                    veiculos_table.c.cliente_id == cliente_id
+                )
+            )
+            .scalars()
+            .all()
+        )
+        for veiculo_id in veiculo_ids:
+            self._session.execute(
+                update(veiculos_table)
+                .where(veiculos_table.c.id == veiculo_id)
+                .values(
+                    placa=f"ANONIMIZADO:{veiculo_id}",
+                    marca="ANONIMIZADO",
+                    modelo="ANONIMIZADO",
+                )
+            )
+
         # Expire cached ORM state so subsequent reads reflect the change.
         cliente = self._session.get(Cliente, cliente_id)
         if cliente is not None:
