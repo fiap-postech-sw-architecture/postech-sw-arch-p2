@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
 
-> **Versão**: 1.1 (2026-06-29) — Tier 0-2 **fechado** (8 PRs; merge via `--admin` por causa do CI travado no billing); **#75 deferido**; 6 achados novos rastreados como issues. Plano de ataque unificado e **resumível entre sessões** para os achados da auditoria pré-entrega da fase 2. Dirigido a checkbox: marque o item quando o PR mergear. Fontes: [auditoria-pre-entrega-fase2.md](auditoria-pre-entrega-fase2.md) (achados), as GitHub issues #72–#86 (bugs/docs/feature) e o ledger TD-024..031 ([README.md](README.md)). A ordem segue **impacto na nota** (delivery-facing + refutável pela banca) **>** severidade do bug confirmado **>** ROI.
+> **Versão**: 1.2 (2026-06-30) — **Tier 3 e Tier 4 fechados**: Tier 3 #73 (PR #103) + #76 (PR #104), #72 deferido; Tier 4 TD-024/025/026/028/029/030/031 (PRs #105–#108 + 2 decisões), TD-027 deferido. Cada mudança de código com gate local completo + review single-shot (prompt do CI) + teste de mesa na imagem final, merge via `--admin` (CI travado no billing). Versão 1.1 (2026-06-29) — Tier 0-2 **fechado** (8 PRs; merge via `--admin` por causa do CI travado no billing); **#75 deferido**; 6 achados novos rastreados como issues. Plano de ataque unificado e **resumível entre sessões** para os achados da auditoria pré-entrega da fase 2. Dirigido a checkbox: marque o item quando o PR mergear. Fontes: [auditoria-pre-entrega-fase2.md](auditoria-pre-entrega-fase2.md) (achados), as GitHub issues #72–#86 (bugs/docs/feature) e o ledger TD-024..031 ([README.md](README.md)). A ordem segue **impacto na nota** (delivery-facing + refutável pela banca) **>** severidade do bug confirmado **>** ROI.
 
 Plano priorizado e resumível dos achados da auditoria de fechamento da fase 2. Consolida, num único roteiro acionável, os três rastreadores que hoje vivem separados — o relatório de auditoria, as issues do GitHub e o ledger de dívida técnica — sem duplicar a fonte da verdade de cada um.
 
@@ -36,7 +36,7 @@ O que a fase 2 **não exige** (e portanto não vale nota por si só):
 
 ## Progresso
 
-> **Progresso: 9/14 issues fechados + 0/8 TDs** (2026-06-29). Tier 0 (5/5) + Tier 1 (#84, #86) + Tier 2 (#82+#83) **fechados**; **#75 DEFERIDO** (CI billing). Restam: #75 + Tier 3 (#73, #72, #76) + Tier 4 (TD-024..031) + Tier 5 (#80). (As 14 issues são #72–#86; #85 é controle/meta. Os 8 TDs são TD-024..TD-031.)
+> **Progresso: 11/14 issues fechados + 7/8 TDs** (2026-06-30). Tier 0 (5/5) + Tier 1 (#84, #86) + Tier 2 (#82+#83) **fechados**; **Tier 3** #73 (PR #103) + #76 (PR #104) **fechados**, #72 **deferido** (migração+sentinela); **Tier 4** TD-024/025/026/028/029/030/031 **fechados** (PRs #105–#108 + 2 decisões), **TD-027 deferido** (webhook HMAC — ripple no caller). Restam: **#75** (CI billing) + **#72** (deferido) + **TD-027** (deferido) + Tier 5 **#80** (não-requisito). (As 14 issues são #72–#86; #85 é controle/meta. Os 8 TDs são TD-024..TD-031.)
 
 > ⚠️ **CI travado no billing.** O GitHub Actions está bloqueado (pagamento/spending limit da conta) — todos os jobs falham em 2-3s. Enquanto isso, cada item foi merjado via **`gh pr merge --admin`** após o **CI rodado localmente na íntegra** (lock·ruff·import-linter·mypy·bandit·sbom·unit·integ·codeql) **+ review canônico com o prompt do CI** (`.github/claude-prompts/code-review.md`) **+ teste de mesa na kind**. Destravar (Settings → Billing & plans) restaura o CI real e o #75.
 
@@ -107,14 +107,14 @@ Correções de concorrência acopladas — mesma classe (load sem lock) e uma j�
 
 Robustez sem exposição direta na entrega, mas com risco real — e um bundle LGPD (erasure que não cascateia + erasure sem controle/auditoria) que conta como uma narrativa só de conformidade.
 
-- [ ] **[#73](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/73)** — guard de `ENCRYPTION_KEY` — **bug-seg** · prioridade **média** · esforço **🟢 baixo** · **Status: aberto**
-  - **Detalhes iniciais:** `ENCRYPTION_KEY` ausente cai num **fallback efêmero silencioso** e o `decrypt` é **fail-open** ([`../../src/compartilhado/infraestrutura/encryption.py:33-67`](../../src/compartilhado/infraestrutura/encryption.py)) → em produção sem a chave, os dados ficam **irrecuperáveis** após restart e o `documento_hash` **diverge** entre réplicas. **Abortar o boot** em produção sem a chave e fazer o `decrypt` **distinguir dado legado de falha de integridade** (não fail-open). *Ponto de partida; ver a issue para a estratégia de migração de dado legado.*
+- [x] **[#73](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/73)** — guard de `ENCRYPTION_KEY` — **bug-seg** · prioridade **média** · esforço **🟢 baixo** · **Status: ✅ fechado (PR #103)**
+  - **Resolução:** `validar_segredos_no_startup` aborta o boot em produção sem `ENCRYPTION_KEY`; `decrypt` distingue legado (sem prefixo `gAAAAA` → devolve) de falha real (prefixo + `InvalidToken` → levanta), sem fail-open. Teste de mesa na imagem final.
 
-- [ ] **[#72](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/72)** — LGPD: erasure não cascateia para veículos — **bug-seg** · prioridade **média** · esforço **🟡 médio** · **Status: aberto**
-  - **Detalhes iniciais:** `anonimizar_dados` ([`../../src/cliente_veiculo/infraestrutura/repository.py:104`](../../src/cliente_veiculo/infraestrutura/repository.py)) só toca a tabela `clientes` → a **placa** (PII) e o `cliente_id` sobrevivem nos veículos. **Anonimizar os veículos na mesma transação. Bundle LGPD com #76.** *Ponto de partida; ver a issue para confirmar todas as colunas PII no agregado veículo.*
+- [ ] **[#72](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/72)** — LGPD: erasure não cascateia para veículos — **bug-seg** · prioridade **média** · esforço **🟡 médio** · **Status: ⏸️ deferido (plano na issue)**
+  - **Deferido:** `placa` é `String(7)` unique (tombstone longo não cabe) e `ordens_de_servico.veiculo_id` é FK NOT NULL (delete quebra histórico) → exige **migração** (alargar a coluna) + **sentinela de domínio** + tratamento no read-path. Plano investigado registrado na issue; mais complexo que os demais, fica para uma sessão focada.
 
-- [ ] **[#76](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/76)** — LGPD: erasure/export sem restrição nem auditoria — **bug-seg** · prioridade **média** · esforço **🟢 baixo** · **Status: aberto**
-  - **Detalhes iniciais:** hoje um atendente apaga/exporta **qualquer** cliente, sem trilha ([`../../src/cliente_veiculo/interfaces/router.py:161-193`](../../src/cliente_veiculo/interfaces/router.py)). Restringir o erasure a **admin** + registrar **log de auditoria** (como o admin de outbox já faz). **Bundle LGPD com #72.** *Ponto de partida; ver a issue para o formato do registro de auditoria reusado do outbox.*
+- [x] **[#76](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/76)** — LGPD: erasure/export sem restrição nem auditoria — **bug-seg** · prioridade **média** · esforço **🟢 baixo** · **Status: ✅ fechado (PR #104)**
+  - **Resolução:** erasure restrito a **admin**; export e delete emitem evento de auditoria structlog (ator do JWT + `cliente_id`) após confirmar o efeito (404 não audita); `_ator_de` extraído para `compartilhado/interfaces/auditoria.py`. Teste de mesa na chain real: ator preservado, zero PII no log.
 
 ---
 
@@ -122,14 +122,14 @@ Robustez sem exposição direta na entrega, mas com risco real — e um bundle L
 
 Compromissos **aceitos/justificados** no ledger ([README.md](README.md)) — não são bugs. Atacar por valor-de-nota e ROI; nenhum é exigido pela fase 2.
 
-- [ ] **TD-024** — `securityContext` nos workloads k8s — esforço **médio** · **Status: aberto**
-  - **Detalhes iniciais:** `runAsNonRoot` / `allowPrivilegeEscalation:false` / `capabilities.drop:[ALL]` / `readOnlyRootFilesystem` (o relay precisa de um `emptyDir` em `/tmp`). É o **melhor valor-de-nota dos TDs** — hardening de k8s é o mais esperado da **Aula 05** e imagens de terceiros rodam como root hoje. **Se quiser o sinal de maturidade de k8s no vídeo, este sobe de tier.** *Ponto de partida; ver o ledger ([README.md](README.md)) para a alternativa "documentar a decisão".*
+- [x] **TD-024** — `securityContext` nos workloads k8s — esforço **médio** · **Status: ✅ fechado (PR #108)**
+  - **Resolução:** pod+container `securityContext` (`runAsNonRoot`, `runAsUser/fsGroup 1001`, seccomp, `allowPrivilegeEscalation:false`, `readOnlyRootFilesystem`, `capabilities.drop:[ALL]`) + `emptyDir` `/tmp` nos 3 workloads próprios; UID 1001 pinado no Dockerfile. Teste de mesa kind: pods Running, `/saude` 200, heartbeat em `/tmp`.
 
-- [ ] **TD-025** · **TD-031** · **TD-029** · **TD-028** — quick-wins (⚡/🟢) — **Status: aberto**
-  - **Detalhes iniciais:** **TD-025** índice B-tree em `itens_da_ordem.item_estoque_id` (migração reversível; remove o seq scan do `DesativarItemEstoque`); **TD-031** explicitar `--cov-fail-under=95` no step de cobertura de `src/` (hoje implícito via `.coveragerc`); **TD-029** validar `type == "access"` em `obter_usuario_atual` (`if type != "access": 401`, espelhando o fluxo de refresh); **TD-028** pré-hash `base64(sha256(senha))` antes do bcrypt **ou** Argon2 (remove o truncamento em 72 bytes). Baixo esforço, baixo risco — bons para uma rodada de limpeza única. *Ponto de partida; ver o ledger ([README.md](README.md)) para o detalhe de cada um.*
+- [x] **TD-025** · **TD-031** · **TD-029** · **TD-028** — quick-wins (⚡/🟢) — **Status: ✅ fechados**
+  - **Resolução:** **TD-025** (PR #107) índice B-tree `ix_itens_da_ordem_item_estoque_id` (migração 005; EXPLAIN confirma Index Scan); **TD-031** (PR #106) `--cov-fail-under=95` explícito no `ci.yml`; **TD-029** (PR #105) `obter_usuario_atual` exige `type == "access"`; **TD-028** (PR #105) pré-hash `base64(sha256(senha))` antes do bcrypt + fallback legado ≤72 bytes.
 
-- [ ] **TD-027** · **TD-026** · **TD-030** — médios (🟡) — **Status: aberto**
-  - **Detalhes iniciais:** **TD-027** assinatura **HMAC-SHA256** no webhook de orçamento (`ordem_id` + `timestamp` + body, janela anti-replay ±5min) sobre o segredo estático atual; **TD-026** auto-enforçar a ordenação **migração-antes-do-rollout** (initContainer / Helm hook / sync-wave) **ou** documentar "deploy fora do pipeline não-suportado"; **TD-030** **documentar** os eventos de domínio órfãos como "intenção de modelagem, sem consumidor na fase 2" (para a banca não ler como bug) **ou** ligar os handlers. *Ponto de partida; ver o ledger ([README.md](README.md)) para as duas saídas de cada item.*
+- [~] **TD-027** · **TD-026** · **TD-030** — médios (🟡) — **Status: TD-026/TD-030 ✅ (decisão) · TD-027 ⏸️ deferido**
+  - **Resolução:** **TD-026** documentado em `k8s/README.md` (deploy fora do pipeline não-suportado); **TD-030** documentado em `docs/arquitetura/eventos-de-dominio.md` (8 eventos órfãos = intenção de modelagem). **TD-027** (webhook HMAC) **deferido**: o esquema atual é MVP documentado (ADR-021) e a evolução exige ripple no caller (e2e + postman da entrega + ADR) — risco alto às vésperas da entrega.
 
 ---
 

@@ -20,6 +20,8 @@ Manifests da aplicação PytStop para o cluster kind da fase 2 (RNF-020): Deploy
 
 > O `jobs/migration-job.yaml` fica num **subdir** de propósito: `kubectl apply -f k8s/` não é recursivo, então o Job **não** entra no apply do diretório. Ele é aplicado separadamente, com a tag do SHA substituída, **antes do rollout** (seção [Aplicar](#aplicar)) — resolve a corrida de migração com N réplicas (TD-015; [ADR-019](../docs/arquitetura/adr/fase2/019-pipeline-cicd-deploy.md)).
 
+> ⚠️ **Deploy fora do pipeline não é suportado (TD-026).** A ordem _migração → rollout_ é garantida **apenas** pelo caminho imperativo (`make cd-local` / `make k8s-up` / [`cd.yml`](../.github/workflows/cd.yml)), que aplica o Job `pytstop-migrate` e espera `kubectl wait --for=condition=complete` **antes** do `kubectl set image`. Um `kubectl apply -f k8s/` seguido de `set image` manual — ou um fluxo GitOps puro (Argo/Flux) sem hook/sync-wave — **pula esse gate**: código novo pode subir contra um schema antigo. Não há initContainer / Helm hook que auto-force a ordem (decisão aceita para o MVP — o cluster é descartável e o deploy é sempre via pipeline). Se um dia o deploy migrar para GitOps, mover a migração para um **sync-wave / hook** anterior ao rollout.
+
 A infraestrutura-base (cluster kind e PostgreSQL no namespace `pytstop-infra`) é provisionada pelo Terraform de `/infra` (RNF-021); o **metrics-server** (pré-requisito do HPA) é instalado pelo fluxo integrado abaixo — fronteira descrita na RFC-002 §2.
 
 ## Fluxo integrado (`make cd-local` / CD na main)
