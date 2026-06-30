@@ -30,6 +30,15 @@ spec:
       labels:
         app: pytstop-relay
     spec:
+      # Hardening de pod (TD-024): nao-root com UID/GID numericos (casam o
+      # Dockerfile), seccomp default e fsGroup para a montagem /tmp (heartbeat).
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: relay
           # O CD troca esta tag pela tag imutavel do SHA do commit
@@ -82,6 +91,21 @@ spec:
             limits:
               cpu: 250m
               memory: 256Mi
+          # Hardening de container (TD-024): sem priv-esc, root FS read-only,
+          # capabilities dropadas. O relay escreve o heartbeat em /tmp, que e um
+          # emptyDir gravavel (RELAY_HEARTBEAT=/tmp/relay-heartbeat).
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}
 ---
 # Service so do /metrics (TD-022/ADR-024): da um nome DNS estavel
 # (`pytstop-relay-metrics:9100`) para o Prometheus scrapear o relay. NAO

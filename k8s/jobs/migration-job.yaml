@@ -34,6 +34,15 @@ spec:
       # Job de tarefa única: sem reinício do container no mesmo pod — uma
       # falha conta para o backoffLimit e cria um pod novo.
       restartPolicy: Never
+      # Hardening de pod (TD-024): nao-root com UID/GID numericos + seccomp,
+      # paridade com a API e o relay.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: migrate
           # Placeholder `dev`: o CD/`make k8s-up` substitui pela tag imutavel
@@ -64,3 +73,18 @@ spec:
             limits:
               cpu: 500m
               memory: 512Mi
+          # Hardening de container (TD-024): sem priv-esc, root FS read-only,
+          # capabilities dropadas. bash/alembic podem escrever temporarios em
+          # /tmp, montado como emptyDir gravavel.
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir: {}

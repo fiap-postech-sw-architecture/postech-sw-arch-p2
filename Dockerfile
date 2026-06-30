@@ -39,7 +39,11 @@ LABEL org.opencontainers.image.title="postech-sw-arch-p2 app" \
       org.opencontainers.image.revision="${GIT_SHA}" \
       org.opencontainers.image.created="${GIT_DATE}"
 
-RUN groupadd -r pytstop && useradd -r -g pytstop pytstop
+# UID/GID fixos (1001): o securityContext do k8s (TD-024) usa runAsUser/fsGroup
+# numericos, e o kubelet so consegue verificar runAsNonRoot com um UID numerico
+# (um USER por nome nao e resolvivel no admission). Pinar aqui mantem o dono dos
+# arquivos (/app) igual ao runAsUser, compativel com readOnlyRootFilesystem.
+RUN groupadd -r -g 1001 pytstop && useradd -r -u 1001 -g pytstop pytstop
 
 WORKDIR /app
 
