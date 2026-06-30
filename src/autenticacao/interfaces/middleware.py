@@ -34,6 +34,14 @@ def obter_usuario_atual(
     try:
         jwt_service = obter_jwt_service()
         payload = jwt_service.validar_token(credentials.credentials)
+        # TD-029: o gate de acesso so aceita access tokens; um refresh token
+        # (type="refresh") nao pode autenticar uma requisicao -- espelha o check
+        # `type == refresh` do fluxo de refresh. Defense-in-depth alem do RBAC.
+        if payload.get("type") != "access":
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token nao e do tipo access",
+            )
         jti = payload.get("jti")
         if jti is not None:
             from src.autenticacao.infraestrutura.token_revogado_repository import (
