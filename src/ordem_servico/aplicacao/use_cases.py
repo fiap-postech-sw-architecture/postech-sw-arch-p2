@@ -359,6 +359,16 @@ class AdicionarItem:
         item = _montar_item(self._catalogo_port, self._estoque_port, dto)
         ordem.adicionar_item(item)
         with self._uow:
+            # Em EM_EXECUCAO o item e trabalho extra (orcamento complementar,
+            # #80): reserva o estoque na hora. Os itens do orcamento original ja
+            # foram reservados na aprovacao -> reservar so o novo evita dupla
+            # reserva. A OS ja esta travada (com_lock), preservando a ordem de
+            # lock OS -> Estoque (anti-deadlock, #82/#83).
+            if (
+                ordem.status == StatusOrdem.EM_EXECUCAO
+                and item.item_estoque_id is not None
+            ):
+                self._estoque_port.reservar(item.item_estoque_id, item.quantidade)
             self._repo.salvar(ordem)
             self._uow.commit()
         return _ordem_dto(ordem)

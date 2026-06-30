@@ -2,21 +2,27 @@
 
 Cobre dois espelhos:
 - ``TRANSICOES_POR_STATUS`` (UI) deve cobrir todos os ``StatusOrdem``.
-- ``_ESTADOS_PERMITE_ITENS`` (UI) deve casar valor-a-valor com o do dominio,
-  porque a UI esconde botoes "Adicionar item" baseado nessa lista. Sem
-  drift-check, ampliar a regra no agregado faria a UI mostrar botoes que
-  retornam 409 silenciosamente.
+- ``_ESTADOS_PERMITE_ADICAO``/``_REMOCAO`` (UI) devem casar valor-a-valor com
+  os do dominio, porque a UI esconde os botoes "Adicionar"/"remover item"
+  baseado neles. Sem drift-check, ampliar/restringir a regra no agregado faria
+  a UI mostrar botoes que retornam 409 silenciosamente.
 """
 
 from __future__ import annotations
 
 from src.ordem_servico.dominio.ordem_de_servico import (
-    _ESTADOS_PERMITE_ITENS as ESTADOS_PERMITE_ITENS_BACKEND,
+    _ESTADOS_PERMITE_ADICAO as ESTADOS_PERMITE_ADICAO_BACKEND,
+)
+from src.ordem_servico.dominio.ordem_de_servico import (
+    _ESTADOS_PERMITE_REMOCAO as ESTADOS_PERMITE_REMOCAO_BACKEND,
 )
 from src.ordem_servico.dominio.status import StatusOrdem
 from ui.componentes.maquina_estados import TRANSICOES_POR_STATUS
 from ui.paginas.ordens_servico import (
-    _ESTADOS_PERMITE_ITENS as ESTADOS_PERMITE_ITENS_UI,
+    _ESTADOS_PERMITE_ADICAO as ESTADOS_PERMITE_ADICAO_UI,
+)
+from ui.paginas.ordens_servico import (
+    _ESTADOS_PERMITE_REMOCAO as ESTADOS_PERMITE_REMOCAO_UI,
 )
 
 
@@ -41,18 +47,21 @@ def test_ui_nao_tem_estados_que_o_backend_nao_conhece() -> None:
 
 
 def test_estados_permite_itens_ui_casa_com_backend() -> None:
-    """``ui.paginas.ordens_servico._ESTADOS_PERMITE_ITENS`` espelha a regra
-    em ``src.ordem_servico.dominio.ordem_de_servico._ESTADOS_PERMITE_ITENS``.
+    """A UI espelha ``_ESTADOS_PERMITE_ADICAO``/``_REMOCAO`` do agregado (#80).
 
-    A UI armazena strings (porque le do response API) e o backend usa o
-    enum ``StatusOrdem``; comparamos pelos ``.value``. Se o agregado
-    ampliar a regra (ex.: permitir item em ``aguardando_aprovacao``) e a
-    UI nao acompanhar, este teste quebra antes do drift virar bug 409.
+    A UI armazena strings (le do response API) e o backend usa o enum
+    ``StatusOrdem``; comparamos pelos ``.value``. Adicao permite EM_EXECUCAO
+    (trabalho extra -> orcamento complementar); remocao nao. Se o agregado
+    ampliar/restringir e a UI nao acompanhar, este teste quebra antes do drift
+    virar botao que retorna 409.
     """
-    valores_backend = {s.value for s in ESTADOS_PERMITE_ITENS_BACKEND}
-    assert valores_backend == ESTADOS_PERMITE_ITENS_UI, (
-        f"Drift detectado em _ESTADOS_PERMITE_ITENS:\n"
-        f"  backend ({ESTADOS_PERMITE_ITENS_BACKEND}): {valores_backend}\n"
-        f"  ui:      {ESTADOS_PERMITE_ITENS_UI}\n"
-        f"Sincronize ui/paginas/ordens_servico.py."
+    adicao_backend = {s.value for s in ESTADOS_PERMITE_ADICAO_BACKEND}
+    assert adicao_backend == ESTADOS_PERMITE_ADICAO_UI, (
+        f"Drift em _ESTADOS_PERMITE_ADICAO: backend {adicao_backend} != "
+        f"ui {ESTADOS_PERMITE_ADICAO_UI}. Sincronize ui/paginas/ordens_servico.py."
+    )
+    remocao_backend = {s.value for s in ESTADOS_PERMITE_REMOCAO_BACKEND}
+    assert remocao_backend == ESTADOS_PERMITE_REMOCAO_UI, (
+        f"Drift em _ESTADOS_PERMITE_REMOCAO: backend {remocao_backend} != "
+        f"ui {ESTADOS_PERMITE_REMOCAO_UI}. Sincronize ui/paginas/ordens_servico.py."
     )

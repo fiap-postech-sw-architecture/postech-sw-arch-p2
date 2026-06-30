@@ -194,13 +194,27 @@ class TestItens:
         os.adicionar_item(_criar_item())
         assert len(os.itens) == 2
 
-    def test_adicionar_item_em_execucao_bloqueado(self) -> None:
+    def test_adicionar_item_em_execucao_permitido(self) -> None:
+        """#80: trabalho extra na execucao -> adicionar item em EM_EXECUCAO."""
         os = _criar_os_com_item()
         os.iniciar_diagnostico()
         os.gerar_orcamento()
         os.aprovar_orcamento()
-        with pytest.raises(ViolacaoRegraDeNegocioException):
-            os.adicionar_item(_criar_item())
+        assert os.status == StatusOrdem.EM_EXECUCAO
+        os.adicionar_item(_criar_item())
+        assert len(os.itens) == 2
+
+    def test_orcamento_complementar_reflete_item_novo(self) -> None:
+        """#80: o complementar cobra o item extra (total > original, nao identico)."""
+        os = _criar_os_com_item()
+        os.iniciar_diagnostico()
+        os.gerar_orcamento()
+        total_original = os.orcamento.total.valor  # type: ignore[union-attr]
+        os.aprovar_orcamento()
+        os.adicionar_item(_criar_item())
+        os.gerar_orcamento_complementar()
+        assert os.status == StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR
+        assert os.orcamento.total.valor > total_original  # type: ignore[union-attr]
 
     def test_remover_item(self) -> None:
         os = OrdemDeServico.criar(cliente_id=uuid4(), veiculo_id=uuid4())
