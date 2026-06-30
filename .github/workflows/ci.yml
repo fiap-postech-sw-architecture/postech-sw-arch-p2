@@ -92,6 +92,7 @@ jobs:
           uv run pytest tests/unitarios/ \
             --no-lint \
             --cov=src \
+            --cov-fail-under=95 \
             --cov-report=term-missing \
             --cov-report=xml:coverage.xml \
             -x \
