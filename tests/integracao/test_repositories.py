@@ -615,6 +615,35 @@ class TestClienteRepository:
         assert isinstance(b.veiculos[0].placa, PlacaAnonimizada)
         assert a.veiculos[0].placa != b.veiculos[0].placa
 
+    def test_projecao_de_os_mascara_placa_anonimizada(
+        self, session: Session
+    ) -> None:
+        """#72: a projecao de OS (``obter_veiculos_em_lote``) NAO vaza o tombstone
+        bruto -> devolve o sentinela limpo ``"ANONIMIZADO"``, igual ao agregado."""
+        from src.cliente_veiculo.dominio.placa import Placa
+        from src.cliente_veiculo.infraestrutura.repository import (
+            ClienteSQLAlchemyRepository,
+        )
+        from src.ordem_servico.infraestrutura.adapters import (
+            ClienteSQLAlchemyAdapter,
+        )
+
+        repo = ClienteSQLAlchemyRepository(session=session)
+        cliente = _criar_cliente_cpf(session, cpf_numero="93214407473")
+        cliente.adicionar_veiculo(
+            placa=Placa(valor="XYZ9876"), marca="Fiat", modelo="Uno", ano=2020
+        )
+        repo.salvar(cliente)
+        veiculo_id = cliente.veiculos[0].id
+
+        repo.anonimizar_dados(cliente.id)
+        session.expire_all()
+
+        adapter = ClienteSQLAlchemyAdapter(session=session)
+        veiculos = adapter.obter_veiculos_em_lote({veiculo_id})
+        # Sentinela limpo, sem o sufixo ``:{veiculo_id}`` do tombstone bruto.
+        assert veiculos[veiculo_id].placa == "ANONIMIZADO"
+
     def test_listar_com_paginacao(self, session: Session) -> None:
         from src.cliente_veiculo.infraestrutura.repository import (
             ClienteSQLAlchemyRepository,

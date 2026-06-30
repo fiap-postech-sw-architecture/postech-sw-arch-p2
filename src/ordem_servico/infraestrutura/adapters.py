@@ -252,9 +252,11 @@ class ClienteSQLAlchemyAdapter:
     ) -> dict[UUID, VeiculoResumoDTO]:
         """Carrega varios veiculos em uma unica consulta ``IN (...)``.
 
-        Le ``id`` + ``placa`` direto da tabela; a placa e armazenada como
-        string sem mascara (VO ``Placa`` so reidrata se carregar via
-        agregado), entao o valor em ``veiculos_table.c.placa`` ja serve.
+        Le ``id`` + ``placa`` direto da tabela (sem reidratar o agregado). Um
+        veiculo anonimizado (#72) guarda na coluna ``placa`` o tombstone
+        ``ANONIMIZADO:{veiculo_id}``; mascaramos para o sentinela limpo
+        ``"ANONIMIZADO"`` aqui para a projecao de OS bater com o read-path do
+        agregado (``PlacaAnonimizada.valor``) e nao vazar o formato do tombstone.
         """
         if not veiculo_ids:
             return {}
@@ -268,7 +270,17 @@ class ClienteSQLAlchemyAdapter:
                 veiculos_table.c.id.in_(veiculo_ids)
             )
         ).all()
-        return {row.id: VeiculoResumoDTO(id=row.id, placa=row.placa) for row in rows}
+        return {
+            row.id: VeiculoResumoDTO(
+                id=row.id,
+                placa=(
+                    "ANONIMIZADO"
+                    if row.placa.startswith("ANONIMIZADO")
+                    else row.placa
+                ),
+            )
+            for row in rows
+        }
 
     def obter_contato(self, cliente_id: UUID) -> ClienteContatoDTO | None:
         """Le ``nome`` + ``contato`` direto da tabela (RF-024).
