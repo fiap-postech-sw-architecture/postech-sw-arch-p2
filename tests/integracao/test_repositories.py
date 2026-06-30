@@ -546,6 +546,104 @@ class TestClienteRepository:
         assert isinstance(b.documento, DocumentoAnonimizado)
         assert a.documento != b.documento
 
+    def test_anonimizar_cascateia_para_veiculos_neutraliza_placa(
+        self, session: Session
+    ) -> None:
+        """#72: a anonimizacao neutraliza a placa (PII) dos veiculos do cliente e
+        preserva a linha/FK (historico de OS por veiculo_id intacto)."""
+        from src.cliente_veiculo.dominio.placa import Placa
+        from src.cliente_veiculo.dominio.placa_anonimizada import PlacaAnonimizada
+        from src.cliente_veiculo.infraestrutura.repository import (
+            ClienteSQLAlchemyRepository,
+        )
+
+        repo = ClienteSQLAlchemyRepository(session=session)
+        cliente = _criar_cliente_cpf(session, cpf_numero="93214407473")
+        cliente.adicionar_veiculo(
+            placa=Placa(valor="ABC1234"), marca="Fiat", modelo="Uno", ano=2020
+        )
+        repo.salvar(cliente)
+        veiculo_id = cliente.veiculos[0].id
+
+        repo.anonimizar_dados(cliente.id)
+        session.expire_all()
+
+        resultado = repo.obter_por_id(cliente.id)
+        assert resultado is not None
+        veiculo = resultado.veiculos[0]
+        # Placa (PII) neutralizada -> PlacaAnonimizada, sem expor a placa real.
+        assert isinstance(veiculo.placa, PlacaAnonimizada)
+        assert veiculo.placa.valor == "ANONIMIZADO"
+        assert veiculo.marca == "ANONIMIZADO"
+        assert veiculo.modelo == "ANONIMIZADO"
+        # Linha preservada (id intacto) -> FK ordens_de_servico.veiculo_id valida.
+        assert veiculo.id == veiculo_id
+
+    def test_anonimizar_dois_veiculos_preserva_unique_placa(
+        self, session: Session
+    ) -> None:
+        """#72: o tombstone por-veiculo (ANONIMIZADO:{id}) mantem a UNIQUE da
+        placa quando dois veiculos (de clientes distintos) sao anonimizados."""
+        from src.cliente_veiculo.dominio.placa import Placa
+        from src.cliente_veiculo.dominio.placa_anonimizada import PlacaAnonimizada
+        from src.cliente_veiculo.infraestrutura.repository import (
+            ClienteSQLAlchemyRepository,
+        )
+
+        repo = ClienteSQLAlchemyRepository(session=session)
+        cliente_a = _criar_cliente_cpf(session, cpf_numero="21249722519")
+        cliente_a.adicionar_veiculo(
+            placa=Placa(valor="AAA1111"), marca="Fiat", modelo="Uno", ano=2020
+        )
+        repo.salvar(cliente_a)
+        cliente_b = _criar_cliente_cnpj(session, cnpj_numero="11222333000181")
+        cliente_b.adicionar_veiculo(
+            placa=Placa(valor="BBB2222"), marca="VW", modelo="Gol", ano=2021
+        )
+        repo.salvar(cliente_b)
+
+        repo.anonimizar_dados(cliente_a.id)
+        repo.anonimizar_dados(cliente_b.id)
+        session.flush()  # tombstones distintos -> nao viola a UNIQUE da placa
+        session.expire_all()
+
+        a = repo.obter_por_id(cliente_a.id)
+        b = repo.obter_por_id(cliente_b.id)
+        assert a is not None
+        assert b is not None
+        assert isinstance(a.veiculos[0].placa, PlacaAnonimizada)
+        assert isinstance(b.veiculos[0].placa, PlacaAnonimizada)
+        assert a.veiculos[0].placa != b.veiculos[0].placa
+
+    def test_projecao_de_os_mascara_placa_anonimizada(
+        self, session: Session
+    ) -> None:
+        """#72: a projecao de OS (``obter_veiculos_em_lote``) NAO vaza o tombstone
+        bruto -> devolve o sentinela limpo ``"ANONIMIZADO"``, igual ao agregado."""
+        from src.cliente_veiculo.dominio.placa import Placa
+        from src.cliente_veiculo.infraestrutura.repository import (
+            ClienteSQLAlchemyRepository,
+        )
+        from src.ordem_servico.infraestrutura.adapters import (
+            ClienteSQLAlchemyAdapter,
+        )
+
+        repo = ClienteSQLAlchemyRepository(session=session)
+        cliente = _criar_cliente_cpf(session, cpf_numero="93214407473")
+        cliente.adicionar_veiculo(
+            placa=Placa(valor="XYZ9876"), marca="Fiat", modelo="Uno", ano=2020
+        )
+        repo.salvar(cliente)
+        veiculo_id = cliente.veiculos[0].id
+
+        repo.anonimizar_dados(cliente.id)
+        session.expire_all()
+
+        adapter = ClienteSQLAlchemyAdapter(session=session)
+        veiculos = adapter.obter_veiculos_em_lote({veiculo_id})
+        # Sentinela limpo, sem o sufixo ``:{veiculo_id}`` do tombstone bruto.
+        assert veiculos[veiculo_id].placa == "ANONIMIZADO"
+
     def test_listar_com_paginacao(self, session: Session) -> None:
         from src.cliente_veiculo.infraestrutura.repository import (
             ClienteSQLAlchemyRepository,

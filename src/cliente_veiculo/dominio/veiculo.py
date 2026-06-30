@@ -8,6 +8,7 @@ from src.compartilhado.dominio.entity import Entity
 
 if TYPE_CHECKING:
     from src.cliente_veiculo.dominio.placa import Placa
+    from src.cliente_veiculo.dominio.placa_anonimizada import PlacaAnonimizada
 
 _ANO_PRIMEIRO_CARRO = 1886
 _ANOS_FUTURO_PERMITIDO = 1  # veiculo pode ser de ate o proximo ano-modelo
@@ -29,7 +30,7 @@ class Veiculo(Entity):
 
     # Defaults sentinels: None/0 ficam nos campos apenas para permitir que o
     # dataclass aceite kwargs opcionais; `__post_init__` rejeita esses valores.
-    _placa: Placa | None = None  # validated in __post_init__
+    _placa: Placa | PlacaAnonimizada | None = None  # validated in __post_init__
     _marca: str = ""
     _modelo: str = ""
     _ano: int = 0
@@ -48,7 +49,7 @@ class Veiculo(Entity):
             raise ValueError(msg)
 
     @property
-    def placa(self) -> Placa:
+    def placa(self) -> Placa | PlacaAnonimizada:
         if self._placa is None:
             msg = "Placa do veiculo nao pode ser nula"
             raise ValueError(msg)

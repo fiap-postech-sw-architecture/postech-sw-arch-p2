@@ -20,6 +20,7 @@ from src.cliente_veiculo.dominio.contato import Contato
 from src.cliente_veiculo.dominio.cpf import CPF
 from src.cliente_veiculo.dominio.documento_anonimizado import DocumentoAnonimizado
 from src.cliente_veiculo.dominio.placa import Placa
+from src.cliente_veiculo.dominio.placa_anonimizada import PlacaAnonimizada
 from src.cliente_veiculo.dominio.veiculo import Veiculo
 from src.compartilhado.infraestrutura.database import metadata
 from src.compartilhado.infraestrutura.encryption import EncryptionService
@@ -40,7 +41,9 @@ veiculos_table = Table(
     "veiculos",
     metadata,
     Column("id", Uuid, primary_key=True),
-    Column("placa", String(7), nullable=False, unique=True),
+    # String(64) (nao 7): cabe o tombstone LGPD ``ANONIMIZADO:{veiculo_id}``
+    # escrito pela anonimizacao (#72). Placas reais tem 7 chars. UNIQUE mantido.
+    Column("placa", String(64), nullable=False, unique=True),
     Column("marca", String(100), nullable=False),
     Column("modelo", String(100), nullable=False),
     Column("ano", Integer, nullable=False),
@@ -116,11 +119,32 @@ def iniciar_mapeamentos() -> None:  # noqa: C901, PLR0915  # mapeamento declarat
         },
     )
 
-    @event.listens_for(Veiculo, "load")
-    def _reconstruir_placa(target: Veiculo, _context: object) -> None:
+    def _reidratar_placa(target: Veiculo) -> None:
         # object.__setattr__ for slots-safety and consistency with other listeners.
-        object.__setattr__(target, "_placa", Placa(valor=target._placa_valor))  # type: ignore[attr-defined]
+        valor: str = target._placa_valor  # type: ignore[attr-defined]
+        # Tombstone LGPD escrito por ``anonimizar_dados`` (raw UPDATE, #72):
+        # reidrata como VO de primeira classe, sem passar pela validacao de
+        # formato da ``Placa`` (mesmo padrao do ``DocumentoAnonimizado``).
+        placa: Placa | PlacaAnonimizada = (
+            PlacaAnonimizada(veiculo_id=target.id)
+            if valor.startswith("ANONIMIZADO")
+            else Placa(valor=valor)
+        )
+        object.__setattr__(target, "_placa", placa)
         object.__setattr__(target, "_id_atribuido", True)
+
+    @event.listens_for(Veiculo, "load")
+    def _reconstruir_placa_on_load(target: Veiculo, _context: object) -> None:
+        _reidratar_placa(target)
+
+    @event.listens_for(Veiculo, "refresh")
+    def _reconstruir_placa_on_refresh(
+        target: Veiculo, _context: object, _attrs: object
+    ) -> None:
+        # Necessario quando a mesma session expira o veiculo apos
+        # ``anonimizar_dados`` (raw UPDATE) e o re-le: o evento ``load`` so
+        # dispara no primeiro carregamento (espelha o Cliente).
+        _reidratar_placa(target)
 
     @event.listens_for(ConsentimentoCliente, "load")
     def _reconstruir_consentimento(
@@ -171,7 +195,14 @@ def iniciar_mapeamentos() -> None:  # noqa: C901, PLR0915  # mapeamento declarat
     @event.listens_for(Veiculo, "before_insert")
     @event.listens_for(Veiculo, "before_update")
     def _decompor_placa(_mapper: object, _connection: object, target: Veiculo) -> None:
-        target._placa_valor = target.placa.valor
+        placa = target.placa
+        # PlacaAnonimizada serializa para o tombstone unico (preserva o UNIQUE se
+        # um veiculo anonimizado for re-salvo via ORM); Placa real -> ``.valor``.
+        target._placa_valor = (
+            f"ANONIMIZADO:{target.id}"
+            if isinstance(placa, PlacaAnonimizada)
+            else placa.valor
+        )
 
     @event.listens_for(Cliente, "before_insert")
     @event.listens_for(Cliente, "before_update")
