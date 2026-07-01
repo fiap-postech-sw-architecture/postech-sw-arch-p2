@@ -1,10 +1,10 @@
 name: Security
 
 # Gates de segurança que faltavam (#75): pip-audit (CVE em deps), gitleaks
-# (segredos), trivy (CVE na imagem). Bandit (SAST) fica no ci.yml; CodeQL fica
-# como paridade local (`make codeql-quality`) — code scanning em repo privado
-# exige GitHub Advanced Security. Fecha a divergência doc↔código: os docs de
-# segurança afirmavam que estes scanners rodavam "no pipeline CI" — antes falso.
+# (segredos), trivy (CVE na imagem). Bandit (SAST) fica no ci.yml; CodeQL roda
+# pelo default setup do GitHub code scanning (config no repo, job "Analyze
+# (python)"). Fecha a divergência doc↔código: os docs de segurança afirmavam
+# que estes scanners rodavam "no pipeline CI" — antes deste workflow, falso.
 
 on:
   push:
