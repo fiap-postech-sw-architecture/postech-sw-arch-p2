@@ -20,7 +20,7 @@ Triagem: **todas as findings foram aceitas** — viraram issues, comentários pr
 ## 2. Estado atual (2026-07-01)
 
 - Requisitos obrigatórios do enunciado: **todos implementados** — as 5 APIs, Docker/compose, `/k8s` completo (Deploy/Svc/CM/Secret/HPA), `/infra` Terraform (cluster+banco+docs), CI/CD de ponta a ponta. Evidências na [entrega-fase-2.md](entrega-fase-2.md) §5.
-- Cobertura: 97,52% src + 98,48% ui na main (gate ≥95); 1544 unit + 149 integração verdes.
+- Cobertura na main: **95,34%** (gate ≥95, [run 28299121351](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/28299121351)); suíte pós-#116: 1571 unit + 138 UI + 158 integração. O pico de 12/06 (97,52% src) caiu porque o escopo do gate cresceu (relay/scripts + novos fluxos) — justificativa formal na [#124](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/124).
 - PR [#116](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/116) (gates de segurança + Dependabot): **merged em 2026-07-01** (`931d6aa`), #75 fechada — gates + upgrades de 5 CVEs na main.
 - Pendências exclusivamente humanas: vídeo, convite `soat-architecture` (hoje **404**, sem convite pendente), PDF final, portal.
 

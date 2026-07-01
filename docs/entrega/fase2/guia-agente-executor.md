@@ -34,7 +34,7 @@ Confirme o ambiente antes do primeiro PR: `cd ~/git/fiap/postech-sw-architecture
 5. **Code review pré-commit** (canonical `code-review.md`): single-shot 9 seções + Judge no diff; doc-only = seções 8+9. Aplicar ou rejeitar cada finding com 1 linha — nada ignorado em silêncio.
 6. **Push + PR**: `gh pr create` com resumo + test plan + `Closes #N`. **NUNCA `gh pr merge --auto`** — o usuário revisa e mergeia cada PR manualmente. Sua entrega termina no PR aberto + comentário de status.
 7. **Idioma (ADR-009)**: identificadores de domínio em PT sem acento; padrões técnicos em EN; docs em PT com acento.
-8. **Nunca**: commitar direto na `main`; mexer nos PRs #116/#55 (decisão do usuário); convidar colaboradores; `git add -A` (sempre `git add <paths>` explícito); tocar em arquivos fora do escopo do PR da vez.
+8. **Nunca**: commitar direto na `main`; mexer no PR #55 (decisão do usuário); convidar colaboradores; `git add -A` (sempre `git add <paths>` explícito); tocar em arquivos fora do escopo do PR da vez.
 9. **Task-end**: atualize o `MEMORY.md` do repo (add-only, topo da seção) com gotchas/decisões novas do PR, no mesmo commit.
 
 ## 3. Fluxo por PR (repita para cada linha da tabela)
@@ -98,7 +98,7 @@ Se um gate quebrar por causa alheia ao seu diff: pare, reporte no PR/issue, não
 - Commit: `fix(estoque): peca desativada nao entra em OS nem reserva (#120)`
 
 ### PR F — #113 collection Postman
-- Regenerar da stack viva: `make up` → exportar `openapi.json` → `npx -y openapi-to-postmanv2 -s openapi.json -p -O folderStrategy=Tags` → substituir `docs/entrega/fase2/postman_collection.json`.
+- Regenerar da stack viva: `make up` → `curl -s http://localhost:8000/openapi.json > openapi.json` → `npx -y openapi-to-postmanv2 -s openapi.json -p -O folderStrategy=Tags` → substituir `docs/entrega/fase2/postman_collection.json`.
 - Adicionar pre-request script HMAC no request `decisao-orcamento` (assinatura `X-Webhook-Signature` + `X-Webhook-Timestamp`, algoritmo em `src/compartilhado/infraestrutura/webhook_signature.py` — HMAC-SHA256 de `{ordem_id}.{timestamp}.` + body, chave `ORCAMENTO_WEBHOOK_TOKEN`).
 - Conferir 48 rotas presentes (incl. `GET /api/v1/admin/outbox/dead` e `POST .../reenfileirar`); variáveis `base_url`/token.
 - Validar com runner do Postman/newman contra a stack local; anexar evidência no PR.
