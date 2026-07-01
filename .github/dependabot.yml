@@ -1,0 +1,45 @@
+version: 2
+
+# Dependabot (#75): alertas de vulnerabilidade já existiam no repo, mas sem
+# atualização automatizada de dependências. Cobre as 3 superfícies: deps Python
+# (uv), as próprias GitHub Actions dos workflows e as imagens base do Docker.
+# Agrupado por semver para reduzir ruído de PR; security updates vêm à parte
+# (Dependabot abre PR de segurança fora do grupo automaticamente).
+
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      python-minor-patch:
+        update-types: ["minor", "patch"]
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    groups:
+      actions:
+        update-types: ["minor", "patch"]
+    labels:
+      - "dependencies"
+      - "ci"
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/"
+      - "/ui"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    open-pull-requests-limit: 5
+    labels:
+      - "dependencies"
+      - "docker"

@@ -161,7 +161,12 @@ test-lento:
 check: lint lint-arch typecheck security test
 	@echo "All checks passed"
 
-all: format check test-integ
+# `codeql-quality` entra no pipeline completo (não no `check` do inner-loop, por
+# ser pesado): é o SAST autoritativo do repo. O default setup do CodeQL no
+# GitHub NÃO aplica os filtros do .github/codeql/codeql-config.yml nem as
+# supressões `# codeql[...]`, então lá aparecem warnings que não dá pra desligar;
+# a política local (scripts/codeql_quality.py) trata os FPs e é o gate real.
+all: format check test-integ codeql-quality
 	@echo "Full pipeline passed"
 
 ui:

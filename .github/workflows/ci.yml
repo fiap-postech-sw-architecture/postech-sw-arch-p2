@@ -59,8 +59,10 @@ jobs:
           cache-dependency-glob: "uv.lock"
       - name: Install dependencies from lockfile
         run: uv sync --extra test --extra ui --frozen
+      # Escopo alinhado ao Makefile target `security` (#75): inclui relay/ e
+      # scripts/ — antes o CI varria só src/ ui/, deixando relay/scripts fora.
       - name: Bandit security scan
-        run: uv run bandit -r src/ ui/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py -c pyproject.toml --severity-level high
+        run: uv run bandit -r src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py -c pyproject.toml --severity-level high
 
   test:
     runs-on: ubuntu-latest

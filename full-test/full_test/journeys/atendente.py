@@ -12,7 +12,8 @@ Passos executados por uma instancia:
   7. revogar consentimento ``marketing``
   8. remover um veiculo
   9. listar veiculos do cliente e afirmar que restou apenas 1
- 10. excluir dados pessoais (direito ao esquecimento) e validar 404 posterior
+ 10. excluir dados pessoais via client admin (direito ao esquecimento; erasure
+     e admin-only desde o #76) e validar a anonimizacao via GET
 
 Nao toca em ordem de servico — esse fluxo e do step 9 (``MecanicoJourney``).
 
@@ -145,9 +146,22 @@ class AtendenteJourney(UserJourney):
                 f"veiculo removido {veiculo_removido.id} ainda aparece na lista"
             )
 
-        # 9. excluir dados pessoais (direito ao esquecimento)
-        with self.log.passo("lgpd-excluir-dados"):
-            self._client.excluir_dados_pessoais(self._cliente.id)
+        # 9. excluir dados pessoais (direito ao esquecimento). Erasure e
+        #    admin-only desde o #76 (destrutivo) — um atendente recebe 403. A
+        #    journey usa um client admin efemero so para este passo; o resto do
+        #    fluxo, inclusive a validacao pos-anonimizacao via GET, segue com o
+        #    client do atendente (que pode ler o cliente anonimizado).
+        with (
+            self.log.passo("lgpd-excluir-dados"),
+            SystemClient(
+                self._config.base_url, timeout=self._config.http_timeout
+            ) as admin_client,
+        ):
+            admin_client.login(
+                email=self._config.admin_email,
+                senha=self._config.admin_password,
+            )
+            admin_client.excluir_dados_pessoais(self._cliente.id)
 
         # 10. apos exclusao, valida que a ANONIMIZACAO aconteceu. Contrato
         #     LGPD deste app: DELETE /dados-pessoais nao apaga a linha; ela

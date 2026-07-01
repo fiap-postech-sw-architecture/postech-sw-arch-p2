@@ -165,9 +165,13 @@ RBAC_ESPERADO: dict[tuple[str, str], dict[Papel, int | frozenset[int]]] = {
         Papel.MECANICO: _PAPEL_INSUFICIENTE,
         Papel.ADMIN: frozenset({200, 404}),
     },
+    # Erasure LGPD e admin-only (#76, commit 064ef1f): destrutivo, exige
+    # ``exigir_papel("admin")``. Atendente -> 403 (diferente do GET/exportar,
+    # que atendente pode). Antes do #76 atendente conseguia apagar (204/404);
+    # a expectativa foi atualizada quando o CI voltou a rodar a journey.
     ("DELETE", "/api/v1/clientes/{id}/dados-pessoais"): {
         Papel.ANON: _AUTH_NECESSARIA,
-        Papel.ATENDENTE: frozenset({204, 404}),
+        Papel.ATENDENTE: _PAPEL_INSUFICIENTE,
         Papel.MECANICO: _PAPEL_INSUFICIENTE,
         Papel.ADMIN: frozenset({204, 404}),
     },
