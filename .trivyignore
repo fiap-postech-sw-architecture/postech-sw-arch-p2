@@ -1,0 +1,9 @@
+# CVEs de pacotes OS da imagem base aceitos como dívida (#113 / TD).
+# Ver docs/seguranca/relatorio-vulnerabilidades.md (seção "trivy image").
+# ncurses e systemd são puxados por dep transitiva da imagem base mas NÃO são
+# usados pelo runtime FastAPI/uvicorn (entrypoint é uvicorn direto, sem systemd).
+# Sem fix upstream — o `ignore-unfixed: true` do job já os descarta; listados
+# aqui de forma explícita para documentar o aceite e resistir a um fix futuro
+# ressurgir sem revisão. Mitigação (distroless/alpine/bump da base) na Fase 2.
+CVE-2025-69720
+CVE-2026-29111

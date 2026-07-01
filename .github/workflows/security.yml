@@ -1,0 +1,86 @@
+name: Security
+
+# Gates de segurança que faltavam (#75): pip-audit (CVE em deps), gitleaks
+# (segredos), trivy (CVE na imagem). Bandit (SAST) fica no ci.yml e CodeQL no
+# codeql.yml. Fecha a divergência doc↔código: os docs de segurança afirmavam
+# que estes scanners rodavam "no pipeline CI" — antes deste workflow, falso.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Segunda 07:15 UTC — advisories/CVE novos sem depender de um push.
+    - cron: "15 7 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  deps-audit:
+    name: pip-audit (CVE em dependências)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          python-version: "3.13"
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
+      # Audita só as deps de RUNTIME (prod): sem --all-extras/--no-dev exclui
+      # `ui` (nicegui, dev-only) e o tooling de teste — que não são superfície
+      # de ataque de produção. Os 3 HIGH aceitos de nicegui (#112, CVE-2025-66645
+      # /CVE-2026-21873/CVE-2026-25732) ficam de fora por não constarem aqui;
+      # os --ignore-vuln abaixo são cinto-e-suspensório caso a resolução mude.
+      - name: Exporta lockfile de produção
+        run: >-
+          uv export --frozen --no-emit-project --no-dev --no-hashes
+          --format requirements-txt -o requirements-prod.txt
+      - name: pip-audit
+        run: >-
+          uvx pip-audit -r requirements-prod.txt --strict --progress-spinner off
+          --ignore-vuln CVE-2025-66645
+          --ignore-vuln CVE-2026-21873
+          --ignore-vuln CVE-2026-25732
+
+  secret-scan:
+    name: gitleaks (segredos)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # histórico completo para varrer commits antigos
+      # Binário direto em vez do gitleaks-action: o action exige GITLEAKS_LICENSE
+      # em repositórios de organização; o binário roda sem licença. Usa a config
+      # do repo (.gitleaks.toml: baseline default + allowlist de FPs dev-only).
+      - name: Instala gitleaks
+        run: >-
+          curl -sSfL
+          https://github.com/gitleaks/gitleaks/releases/download/v8.21.2/gitleaks_8.21.2_linux_x64.tar.gz
+          | tar -xz -C /usr/local/bin gitleaks
+      - name: gitleaks detect
+        run: gitleaks detect --source . --config .gitleaks.toml --redact --no-banner --verbose
+
+  image-scan:
+    name: trivy (CVE na imagem)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build da imagem de runtime
+        run: docker build -t pytstop:ci-scan .
+      # HIGH/CRITICAL como gate. ignore-unfixed=true descarta os CVEs OS aceitos
+      # sem fix upstream (ncurses/systemd, #113). .trivyignore lista os IDs
+      # conhecidos explicitamente (documentação + robustez se surgir um fix).
+      - name: Trivy image scan
+        uses: aquasecurity/trivy-action@0.28.0
+        with:
+          image-ref: pytstop:ci-scan
+          format: table
+          severity: HIGH,CRITICAL
+          ignore-unfixed: true
+          vuln-type: os,library
+          trivyignores: .trivyignore
+          exit-code: "1"
+        env:
+          TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db

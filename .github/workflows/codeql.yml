@@ -1,0 +1,47 @@
+name: CodeQL
+
+# Análise estática de segurança (SAST) via CodeQL — fecha o TD-010/#75:
+# antes o `.github/codeql/codeql-config.yml` existia mas nenhum workflow o
+# invocava. Usa a suíte `security-and-quality` (security + qualidade) com os
+# filtros de FP estrutural do config (migrations/full-test/idiomas de teste).
+#
+# Repo privado: o upload para o code scanning exige GitHub Advanced Security.
+# Se a org não tiver GHAS, o passo `analyze` falha no upload (403) — nesse caso
+# o gate cai para o Caminho B do #75 (documentar que não roda) ou habilitar GHAS.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  schedule:
+    # Segunda 07:00 UTC — pega advisories novos sem depender de um push.
+    - cron: "0 7 * * 1"
+
+permissions:
+  contents: read
+
+jobs:
+  analyze:
+    name: Analyze (python)
+    runs-on: ubuntu-latest
+    permissions:
+      security-events: write # upload do SARIF pro code scanning
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: python
+          build-mode: none # Python é interpretado — sem build step
+          config-file: ./.github/codeql/codeql-config.yml
+          queries: security-and-quality
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
