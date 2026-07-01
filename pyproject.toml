@@ -4,33 +4,33 @@ version = "0.2.0"
 description = "Sistema Integrado de Atendimento e Execucao de Servicos"
 requires-python = ">=3.12"
 dependencies = [
-    "fastapi>=0.115",
+    "fastapi>=0.139.0",
     "uvicorn[standard]>=0.32",
     "sqlalchemy>=2.0,<2.1",
-    "psycopg2-binary>=2.9",
-    "alembic>=1.14",
+    "psycopg2-binary>=2.9.12",
+    "alembic>=1.18.5",
     "pyjwt>=2.9",
     "pwdlib[bcrypt]>=0.2",
-    "brutils>=2.3,<3",
+    "brutils>=2.5.0,<3",
     "pydantic[email]>=2.0,<3",
     "structlog>=24.0",
-    "slowapi>=0.1",
+    "slowapi>=0.1.10",
     "redis>=5,<6",
     "cryptography>=42.0",
 ]
 
 [project.optional-dependencies]
 test = [
-    "pytest>=8.0",
+    "pytest>=9.1.1",
     "pytest-cov>=6.0",
     "pytest-xdist>=3.0",
     "testcontainers[postgres,redis]>=4.0",
     "polyfactory>=2.0",
     "httpx>=0.27",
-    "ruff>=0.8",
+    "ruff>=0.15.20",
     "mypy>=1.13",
     "bandit>=1.7",
-    "import-linter>=2.0",
+    "import-linter>=2.12",
     # Lido por scripts/codeql_quality.py (gate de Code Quality) para parsear o
     # codeql-config.yml. Declarado explicitamente aqui (dev-tooling, junto de
     # ruff/mypy/bandit): hoje so funciona porque bandit o puxa transitivamente,
@@ -47,11 +47,11 @@ ui = [
     # Necessarios para a fixture `screen` de nicegui.testing executar os testes
     # lentos de browser em vez de marca-los como skipped por dependencia ausente.
     "pytest-selenium>=4.1",
-    "selenium>=4.0",
+    "selenium>=4.45.0",
 ]
 full-test = [
     "httpx>=0.27",
-    "pytest>=8",
+    "pytest>=9.1.1",
     "pytest-xdist>=3.5",
     "python-dotenv>=1.0",
     "sqlalchemy>=2.0",
