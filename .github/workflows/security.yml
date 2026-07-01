@@ -1,9 +1,10 @@
 name: Security
 
 # Gates de segurança que faltavam (#75): pip-audit (CVE em deps), gitleaks
-# (segredos), trivy (CVE na imagem). Bandit (SAST) fica no ci.yml e CodeQL no
-# codeql.yml. Fecha a divergência doc↔código: os docs de segurança afirmavam
-# que estes scanners rodavam "no pipeline CI" — antes deste workflow, falso.
+# (segredos), trivy (CVE na imagem). Bandit (SAST) fica no ci.yml; CodeQL fica
+# como paridade local (`make codeql-quality`) — code scanning em repo privado
+# exige GitHub Advanced Security. Fecha a divergência doc↔código: os docs de
+# segurança afirmavam que estes scanners rodavam "no pipeline CI" — antes falso.
 
 on:
   push:
@@ -71,18 +72,17 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build da imagem de runtime
         run: docker build -t pytstop:ci-scan .
-      # HIGH/CRITICAL como gate. ignore-unfixed=true descarta os CVEs OS aceitos
-      # sem fix upstream (ncurses/systemd, #113). .trivyignore lista os IDs
-      # conhecidos explicitamente (documentação + robustez se surgir um fix).
+      # Binário via install script oficial (latest) em vez da trivy-action: a
+      # resolução de tag do action é frágil (0.28.0 não existia). HIGH/CRITICAL
+      # como gate; ignore-unfixed descarta os CVEs OS aceitos sem fix upstream
+      # (ncurses/systemd, #113); .trivyignore lista os IDs conhecidos.
+      - name: Instala trivy
+        run: >-
+          curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh
+          | sh -s -- -b /usr/local/bin
       - name: Trivy image scan
-        uses: aquasecurity/trivy-action@0.28.0
-        with:
-          image-ref: pytstop:ci-scan
-          format: table
-          severity: HIGH,CRITICAL
-          ignore-unfixed: true
-          vuln-type: os,library
-          trivyignores: .trivyignore
-          exit-code: "1"
+        run: >-
+          trivy image --severity HIGH,CRITICAL --ignore-unfixed --no-progress
+          --ignorefile .trivyignore --exit-code 1 pytstop:ci-scan
         env:
           TRIVY_DB_REPOSITORY: public.ecr.aws/aquasecurity/trivy-db
