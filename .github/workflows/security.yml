@@ -23,8 +23,8 @@ jobs:
     name: pip-audit (CVE em dependências)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
           enable-cache: true
@@ -49,7 +49,7 @@ jobs:
     name: gitleaks (segredos)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # Binário direto em vez do gitleaks-action: o action exige GITLEAKS_LICENSE
       # em repositórios de organização; o binário roda sem licença. Usa a config
       # do repo (.gitleaks.toml: baseline default + allowlist de FPs dev-only).
@@ -69,7 +69,7 @@ jobs:
     name: trivy (CVE na imagem)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - name: Build da imagem de runtime
         run: docker build -t pytstop:ci-scan .
       # Binário via install script oficial (latest) em vez da trivy-action: a

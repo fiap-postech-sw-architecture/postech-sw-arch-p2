@@ -32,12 +32,12 @@ jobs:
     outputs:
       tag: ${{ steps.meta.outputs.tag }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       # GHCR exige owner/repo em lowercase -- `${VAR,,}` normaliza.
       - id: meta
         name: Compute image tag
         run: echo "tag=ghcr.io/${GITHUB_REPOSITORY,,}-app:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
@@ -56,7 +56,7 @@ jobs:
     needs: image
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v3
         with:
           terraform_wrapper: false
@@ -75,7 +75,7 @@ jobs:
           kubectl config use-context kind-pytstop
       # O repositorio GHCR e privado: o pull da imagem recem-publicada
       # exige login com o GITHUB_TOKEN tambem neste job.
-      - uses: docker/login-action@v3
+      - uses: docker/login-action@v4
         with:
           registry: ghcr.io
           username: ${{ github.actor }}

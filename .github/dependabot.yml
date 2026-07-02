@@ -1,33 +1,38 @@
 version: 2
 
-# Dependabot (#75): alertas de vulnerabilidade já existiam no repo, mas sem
-# atualização automatizada de dependências. Cobre as 3 superfícies: deps Python
-# (uv), as próprias GitHub Actions dos workflows e as imagens base do Docker.
-# Agrupado por semver para reduzir ruído de PR; security updates vêm à parte
-# (Dependabot abre PR de segurança fora do grupo automaticamente).
+# Dependabot (#75): atualizacao automatizada nas 3 superficies — deps Python
+# (uv), GitHub Actions dos workflows e imagens base do Docker.
+#
+# Cadencia MENSAL + agrupamento TOTAL por ecossistema (patterns "*", todos os
+# update-types, major incluso): cada ecossistema abre UM unico PR por mes com
+# todas as atualizacoes juntas. A batelada semanal anterior (grupos so de
+# minor/patch) abria ~12 PRs de uma vez, cada um disparando CI+full-test — caro
+# em minutos de Actions. Dependabot NAO agrupa entre ecossistemas, entao o piso
+# e 3 PRs/mes (uv, actions, docker). Security updates continuam a parte, fora do
+# grupo (Dependabot abre PR de seguranca imediatamente, independente da cadencia).
 
 updates:
   - package-ecosystem: "uv"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 3
     groups:
-      python-minor-patch:
-        update-types: ["minor", "patch"]
+      python-deps:
+        patterns: ["*"]
+        update-types: ["major", "minor", "patch"]
     labels:
       - "dependencies"
 
   - package-ecosystem: "github-actions"
     directory: "/"
     schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 3
     groups:
       actions:
-        update-types: ["minor", "patch"]
+        patterns: ["*"]
+        update-types: ["major", "minor", "patch"]
     labels:
       - "dependencies"
       - "ci"
@@ -37,9 +42,12 @@ updates:
       - "/"
       - "/ui"
     schedule:
-      interval: "weekly"
-      day: "monday"
-    open-pull-requests-limit: 5
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    groups:
+      docker-images:
+        patterns: ["*"]
+        update-types: ["major", "minor", "patch"]
     labels:
       - "dependencies"
       - "docker"
