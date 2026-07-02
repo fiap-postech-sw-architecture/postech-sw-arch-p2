@@ -68,6 +68,19 @@ class TestLerConfig:
         with pytest.raises(_ConfigError, match="placeholder"):
             ler_config(env)
 
+    def test_rejeita_valor_demo_publico_do_repo(self) -> None:
+        # Regressao do #95: o ADMIN_PASSWORD demo commitado (k8s/secret.yaml,
+        # docker-compose.yml) e publico -- nunca pode virar senha real. Teste
+        # explicito (o parametrizado acima ja cobre via frozenset; este falha
+        # se alguem remover o valor da denylist).
+        env = {
+            "ADMIN_EMAIL": "admin@pytstop.dev",
+            "ADMIN_PASSWORD": "pytstop-admin-demo-2026",
+            "DATABASE_URL": "postgresql://u:p@h/d",
+        }
+        with pytest.raises(_ConfigError, match="placeholder"):
+            ler_config(env)
+
     def test_rejeita_senha_whitespace(self) -> None:
         env = {
             "ADMIN_EMAIL": "admin@pytstop.dev",
