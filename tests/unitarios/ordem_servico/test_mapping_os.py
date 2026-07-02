@@ -38,6 +38,7 @@ class TestMappingOS:
             "veiculo_id",
             "status",
             "orcamento_json",
+            "escopo_aprovado_json",
             "criado_em",
             "atualizado_em",
         }
@@ -120,6 +121,54 @@ class TestEventosMapeamentoOS:
             assert carregado.cliente_id == cliente_id
             assert carregado.veiculo_id == veiculo_id
             assert carregado.orcamento is None
+
+    def test_escopo_aprovado_round_trip_e_reversao(self, engine_sqlite: Engine) -> None:
+        # #111: o escopo aprovado (orcamento + ids) round-trip pela coluna JSONB
+        # escopo_aprovado_json, e a rejeicao do complementar restaura o orcamento
+        # e remove o item extra APOS reload — prova a persistencia da coluna.
+        with Session(engine_sqlite) as s:
+            ordem = OrdemDeServico.criar(cliente_id=uuid4(), veiculo_id=uuid4())
+            ordem.adicionar_item(_criar_item(quantidade=2))  # 2 * 50 = 100
+            ordem.iniciar_diagnostico()
+            ordem.gerar_orcamento()
+            ordem.aprovar_orcamento()
+            ordem.limpar_eventos()
+            s.add(ordem)
+            s.commit()
+            ordem_id = ordem.id
+            item_original_id = ordem.itens[0].id
+
+        with Session(engine_sqlite) as s:
+            carregada = s.get(OrdemDeServico, ordem_id)
+            assert carregada is not None
+            # escopo aprovado reconstruido do JSONB
+            assert carregada._orcamento_aprovado is not None
+            assert carregada._orcamento_aprovado.total.valor == Decimal("100.00")
+            assert carregada._itens_aprovados_ids == frozenset({item_original_id})
+            carregada.adicionar_item(_criar_item(quantidade=2))  # extra: +100
+            carregada.gerar_orcamento_complementar()
+            carregada.limpar_eventos()
+            s.commit()
+
+        with Session(engine_sqlite) as s:
+            carregada = s.get(OrdemDeServico, ordem_id)
+            assert carregada is not None
+            # orcamento corrente = complementar (200); escopo aprovado intacto
+            assert carregada.orcamento is not None
+            assert carregada.orcamento.total.valor == Decimal("200.00")
+            assert carregada._itens_aprovados_ids == frozenset({item_original_id})
+            removidos = carregada.rejeitar_orcamento_complementar()
+            assert [i.id for i in removidos] != []
+            carregada.limpar_eventos()
+            s.commit()
+
+        with Session(engine_sqlite) as s:
+            carregada = s.get(OrdemDeServico, ordem_id)
+            assert carregada is not None
+            # orcamento restaurado (100) e so o item original permanece
+            assert carregada.orcamento is not None
+            assert carregada.orcamento.total.valor == Decimal("100.00")
+            assert [i.id for i in carregada.itens] == [item_original_id]
 
     def test_instancia_carregada_rejeita_mutacao_de_id(
         self, engine_sqlite: Engine

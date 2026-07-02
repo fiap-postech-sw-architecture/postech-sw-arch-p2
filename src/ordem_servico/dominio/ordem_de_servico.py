@@ -63,6 +63,15 @@ class OrdemDeServico(AggregateRoot):
     _status: StatusOrdem = StatusOrdem.RECEBIDA
     _itens: list[ItemDaOrdem] = field(default_factory=list, repr=False)
     _orcamento: Orcamento | None = field(default=None, repr=False)
+    # Escopo aprovado pelo cliente: snapshot congelado na ULTIMA aprovacao
+    # (orcamento + ids dos itens cobertos). A rejeicao de um complementar
+    # restaura este orcamento e remove os itens fora dele; ``finalizar_servico``
+    # exige que todos os itens atuais estejam aqui (#111/#122). Persistidos
+    # juntos na coluna JSONB ``escopo_aprovado_json`` (mapping). Ordens legadas
+    # (pre-migracao) chegam sem snapshot -> ``None``/vazio preserva o
+    # comportamento antigo.
+    _orcamento_aprovado: Orcamento | None = field(default=None, repr=False)
+    _itens_aprovados_ids: frozenset[UUID] = field(default_factory=frozenset, repr=False)
     _criado_em: datetime = field(default_factory=lambda: datetime.now(UTC), repr=False)
     _atualizado_em: datetime = field(
         default_factory=lambda: datetime.now(UTC), repr=False
@@ -234,14 +243,54 @@ class OrdemDeServico(AggregateRoot):
         self._orcamento = novo_orcamento
         self._registrar_evento(OrcamentoGeradoEvent(agregado_id=self.id))
 
+    def _snapshot_escopo_aprovado(self) -> None:
+        """Congela o orcamento e os itens que o cliente acabou de aprovar.
+
+        Chamado nas aprovacoes (inicial e complementar). A rejeicao de um
+        complementar futuro restaura este orcamento e remove os itens fora do
+        conjunto aprovado; ``finalizar_servico`` exige cobertura total (#111/
+        #122). No momento da aprovacao ``_orcamento`` ja e o valor aprovado e
+        ``_itens`` sao exatamente os itens cobertos.
+
+        INVARIANTE (usada como sentinela de "sem snapshot" / ordem legada):
+        ``_orcamento_aprovado is None`` <=> ``_itens_aprovados_ids`` vazio. Os
+        dois sao setados juntos AQUI, e ``gerar_orcamento`` exige >=1 item,
+        entao um escopo aprovado nunca e vazio. Os guards usam
+        ``_orcamento_aprovado is None`` como marcador explicito de nao-aprovado.
+        """
+        self._orcamento_aprovado = self._orcamento
+        self._itens_aprovados_ids = frozenset(item.id for item in self._itens)
+
     def aprovar_orcamento(self) -> None:
         """AGUARDANDO_APROVACAO -> EM_EXECUCAO; emite ``OrcamentoAprovadoEvent``."""
         self._transicionar(StatusOrdem.EM_EXECUCAO)
+        self._snapshot_escopo_aprovado()
         self._registrar_evento(OrcamentoAprovadoEvent(agregado_id=self.id))
 
     def finalizar_servico(self) -> None:
-        """EM_EXECUCAO -> FINALIZADA; emite ``ServicoFinalizadoEvent``."""
-        self._transicionar(StatusOrdem.FINALIZADA)
+        """EM_EXECUCAO -> FINALIZADA; emite ``ServicoFinalizadoEvent``.
+
+        Guard (#122): nao finaliza se houver itens fora do escopo aprovado —
+        itens adicionados em EM_EXECUCAO sem gerar/aprovar o orcamento
+        complementar. Sem isso a OS finalizaria (e entregaria) cobrando
+        trabalho que o cliente nao aprovou. Ordens legadas (sem snapshot)
+        mantem o comportamento antigo.
+        """
+        self._validar_transicao(StatusOrdem.FINALIZADA)
+        ids_atuais = {item.id for item in self._itens}
+        # Sentinela explicita: _orcamento_aprovado is None => ordem legada (sem
+        # snapshot) -> guard desativado (comportamento antigo). Ver invariante
+        # em _snapshot_escopo_aprovado.
+        if self._orcamento_aprovado is not None and not (
+            ids_atuais <= self._itens_aprovados_ids
+        ):
+            raise ViolacaoRegraDeNegocioException(
+                mensagem=(
+                    f"Ordem {self.id} tem itens fora do orcamento aprovado; "
+                    f"gere e aprove o orcamento complementar antes de finalizar"
+                )
+            )
+        self._aplicar_transicao(StatusOrdem.FINALIZADA)
         self._registrar_evento(ServicoFinalizadoEvent(agregado_id=self.id))
 
     def registrar_entrega(self) -> None:
@@ -283,11 +332,42 @@ class OrdemDeServico(AggregateRoot):
         self._registrar_evento(OrcamentoComplementarGeradoEvent(agregado_id=self.id))
 
     def aprovar_orcamento_complementar(self) -> None:
-        """AGUARDANDO_APROVACAO_COMPLEMENTAR -> EM_EXECUCAO; emite o evento."""
+        """AGUARDANDO_APROVACAO_COMPLEMENTAR -> EM_EXECUCAO; emite o evento.
+
+        Promove o complementar a escopo aprovado: o orcamento corrente (o
+        complementar) e os itens atuais passam a ser o snapshot restaurado por
+        uma eventual rejeicao futura.
+        """
         self._transicionar(StatusOrdem.EM_EXECUCAO)
+        self._snapshot_escopo_aprovado()
         self._registrar_evento(OrcamentoComplementarAprovadoEvent(agregado_id=self.id))
 
-    def rejeitar_orcamento_complementar(self) -> None:
-        """AGUARDANDO_APROVACAO_COMPLEMENTAR -> EM_EXECUCAO; emite o evento."""
-        self._transicionar(StatusOrdem.EM_EXECUCAO)
+    def rejeitar_orcamento_complementar(self) -> tuple[ItemDaOrdem, ...]:
+        """AGUARDANDO_APROVACAO_COMPLEMENTAR -> EM_EXECUCAO, revertendo o escopo.
+
+        Restaura o orcamento aprovado e REMOVE os itens adicionados apos a
+        ultima aprovacao (fora de ``_itens_aprovados_ids``), retornando-os para
+        que a camada de aplicacao libere as reservas de estoque. Sem isso a OS
+        seguiria com o orcamento inflado e itens/reservas do trabalho que o
+        cliente recusou (#111). Ordens legadas (sem snapshot) so transicionam.
+        """
+        self._validar_transicao(StatusOrdem.EM_EXECUCAO)
+        if self._orcamento_aprovado is None:
+            # Ordem legada (pre-migracao, sem snapshot): sentinela explicita ->
+            # sem como classificar itens aprovados; preserva o comportamento
+            # antigo (so transiciona). Ver invariante em _snapshot_escopo_aprovado.
+            self._aplicar_transicao(StatusOrdem.EM_EXECUCAO)
+            self._registrar_evento(
+                OrcamentoComplementarRejeitadoEvent(agregado_id=self.id)
+            )
+            return ()
+        removidos = tuple(
+            item for item in self._itens if item.id not in self._itens_aprovados_ids
+        )
+        self._itens = [
+            item for item in self._itens if item.id in self._itens_aprovados_ids
+        ]
+        self._orcamento = self._orcamento_aprovado
+        self._aplicar_transicao(StatusOrdem.EM_EXECUCAO)
         self._registrar_evento(OrcamentoComplementarRejeitadoEvent(agregado_id=self.id))
+        return removidos

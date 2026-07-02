@@ -245,7 +245,7 @@ def obter_aprovar_complementar(session: Session) -> AprovarOrcamentoComplementar
 
 
 def obter_rejeitar_complementar(session: Session) -> RejeitarOrcamentoComplementar:
-    """Wires ``RejeitarOrcamentoComplementar`` (pure domain transition)."""
+    """Wires ``RejeitarOrcamentoComplementar`` (reverte escopo + libera reservas)."""
     from src.ordem_servico.aplicacao.use_cases import (
         RejeitarOrcamentoComplementar,
     )
@@ -253,6 +253,7 @@ def obter_rejeitar_complementar(session: Session) -> RejeitarOrcamentoComplement
     return RejeitarOrcamentoComplementar(
         repo=_repo(session),
         uow=_uow(session),
+        estoque_port=EstoqueSQLAlchemyAdapter(session=session),
         dispatcher=_dispatcher(session),
     )
 

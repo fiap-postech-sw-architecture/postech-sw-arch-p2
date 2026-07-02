@@ -28,7 +28,7 @@ classDiagram
         +cancelar(motivo: str | None)
         +gerar_orcamento_complementar()
         +aprovar_orcamento_complementar()
-        +rejeitar_orcamento_complementar()
+        +rejeitar_orcamento_complementar() tuple~ItemDaOrdem~
         +adicionar_item(item: ItemDaOrdem)
         +remover_item(item_id: UUID)
     }
