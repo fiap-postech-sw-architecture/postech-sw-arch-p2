@@ -152,32 +152,26 @@ def iniciar_mapeamentos() -> None:
         },
     )
 
-    def _reidratar_item(target: ItemDaOrdem) -> None:
-        # _preco_valor / _preco_moeda sao injetados em tempo de execucao
-        # pelo map_imperatively acima e invisiveis ao mypy estatico.
+    @event.listens_for(ItemDaOrdem, "load")
+    @event.listens_for(ItemDaOrdem, "refresh")
+    def _reconstruir_item(target: ItemDaOrdem, *_args: object) -> None:
+        # Decorators empilhados: ``load`` (target, context) e ``refresh``
+        # (target, context, attrs) tem aridades diferentes -> ``*_args`` absorve
+        # a diferenca. O ``refresh`` e necessario porque populate_existing=True
+        # (repositorio, ramo com_lock/obter_por_ids) e session.refresh disparam
+        # ``refresh``, nao ``load``: sem ele o VO Dinheiro ficaria stale apos a
+        # releitura sob lock (#117).
+        # _preco_valor / _preco_moeda sao injetados em runtime pelo
+        # map_imperatively acima e invisiveis ao mypy estatico.
         valor = target._preco_valor  # type: ignore[attr-defined]  # imperative-mapped attr
         moeda = target._preco_moeda  # type: ignore[attr-defined]  # imperative-mapped attr
         object.__setattr__(
             target, "_preco_unitario", Dinheiro(valor=valor, moeda=moeda)
         )
-        # SQLAlchemy nao invoca __post_init__ na reidratacao; o guard
-        # de imutabilidade de Entity.__setattr__ precisa ser ativado
-        # aqui para preservar a imutabilidade de id em instancias
-        # carregadas (regressao PR #60 aplicada workspace-wide).
+        # SQLAlchemy nao invoca __post_init__ na reidratacao; o guard de
+        # imutabilidade de Entity.__setattr__ precisa ser ativado aqui para
+        # preservar a imutabilidade de id (regressao PR #60 workspace-wide).
         object.__setattr__(target, "_id_atribuido", True)
-
-    @event.listens_for(ItemDaOrdem, "load")
-    def _reconstruir_item_on_load(target: ItemDaOrdem, _context: object) -> None:
-        _reidratar_item(target)
-
-    @event.listens_for(ItemDaOrdem, "refresh")
-    def _reconstruir_item_on_refresh(
-        target: ItemDaOrdem, _context: object, _attrs: object
-    ) -> None:
-        # populate_existing=True (repositorio, ramo com_lock/obter_por_ids) e
-        # session.refresh disparam ``refresh``, nao ``load``: sem este listener
-        # o VO Dinheiro ficaria stale apos a releitura sob lock (#117).
-        _reidratar_item(target)
 
     @event.listens_for(ItemDaOrdem, "before_insert")
     @event.listens_for(ItemDaOrdem, "before_update")
@@ -188,9 +182,16 @@ def iniciar_mapeamentos() -> None:
         target._preco_valor = preco.valor
         target._preco_moeda = preco.moeda
 
-    def _reidratar_os(target: OrdemDeServico) -> None:
-        # _status_valor / _orcamento_json sao injetados em tempo de
-        # execucao pelo map_imperatively acima.
+    @event.listens_for(OrdemDeServico, "load")
+    @event.listens_for(OrdemDeServico, "refresh")
+    def _reconstruir_os(target: OrdemDeServico, *_args: object) -> None:
+        # Decorators empilhados load+refresh (``*_args`` absorve o ``attrs`` do
+        # refresh). O ``refresh`` e indispensavel: a releitura sob FOR UPDATE
+        # com populate_existing=True (#117) e session.refresh disparam
+        # ``refresh``, nao ``load`` — sem ele o status/orcamento reconstruidos
+        # ficariam stale apos o lock, derrotando a serializacao de #82.
+        # _status_valor / _orcamento_json sao injetados em runtime pelo
+        # map_imperatively acima.
         status_str = target._status_valor  # type: ignore[attr-defined]  # imperative-mapped attr
         object.__setattr__(target, "_status", StatusOrdem(status_str))
         # A coluna e JSONB nativo (TD-005): o valor ja chega como dict
@@ -243,20 +244,6 @@ def iniciar_mapeamentos() -> None:
         # para que _registrar_evento funcione em metodos chamados sobre
         # instancias carregadas.
         object.__setattr__(target, "_eventos_pendentes", [])
-
-    @event.listens_for(OrdemDeServico, "load")
-    def _reconstruir_os_on_load(target: OrdemDeServico, _context: object) -> None:
-        _reidratar_os(target)
-
-    @event.listens_for(OrdemDeServico, "refresh")
-    def _reconstruir_os_on_refresh(
-        target: OrdemDeServico, _context: object, _attrs: object
-    ) -> None:
-        # Releitura sob FOR UPDATE com populate_existing=True (issue #117) e
-        # session.refresh disparam ``refresh`` (nao ``load``): sem este
-        # listener o status/orcamento reconstruidos ficariam stale apos o
-        # lock, derrotando a serializacao de concorrencia da issue #82.
-        _reidratar_os(target)
 
     @event.listens_for(OrdemDeServico, "before_insert")
     @event.listens_for(OrdemDeServico, "before_update")

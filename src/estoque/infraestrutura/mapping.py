@@ -57,36 +57,30 @@ def iniciar_mapeamentos() -> None:
         },
     )
 
-    def _reidratar_item_estoque(target: ItemEstoque) -> None:
+    @event.listens_for(ItemEstoque, "load")
+    @event.listens_for(ItemEstoque, "refresh")
+    def _reconstruir_preco(target: ItemEstoque, *_args: object) -> None:
+        # Decorators empilhados load+refresh (``*_args`` absorve o ``attrs`` do
+        # refresh). O ``refresh`` e necessario: obter_por_id(com_lock=True) e
+        # obter_por_ids usam populate_existing=True (#117), que dispara
+        # ``refresh`` e nao ``load`` — sem ele o VO Dinheiro e os invariantes
+        # (_id_atribuido/_eventos_pendentes) ficariam stale/ausentes na
+        # releitura sob lock da reserva.
         valor = target._preco_valor  # type: ignore[attr-defined]
         moeda = target._preco_moeda  # type: ignore[attr-defined]
         object.__setattr__(
             target, "_preco_unitario", Dinheiro(valor=valor, moeda=moeda)
         )
-        # SQLAlchemy nao chama __post_init__ ao reidratar, entao o guard
-        # de Entity.__setattr__ precisa ser ativado aqui para preservar
-        # a imutabilidade de id em instancias carregadas.
+        # SQLAlchemy nao chama __post_init__ ao reidratar, entao o guard de
+        # Entity.__setattr__ precisa ser ativado aqui para preservar a
+        # imutabilidade de id em instancias carregadas.
         object.__setattr__(target, "_id_atribuido", True)
         # AggregateRoot._eventos_pendentes tem init=False com default_factory,
         # entao o mapper nao o inicializa na reidratacao. Sem isso,
         # reservar()/liberar() crasham com AttributeError na primeira chamada
-        # apos load() (ver src/cliente_veiculo/infraestrutura/mapping.py:145
-        # para o mesmo padrao em Cliente).
+        # apos load() (ver src/cliente_veiculo/infraestrutura/mapping.py para o
+        # mesmo padrao em Cliente).
         object.__setattr__(target, "_eventos_pendentes", [])
-
-    @event.listens_for(ItemEstoque, "load")
-    def _reconstruir_preco_on_load(target: ItemEstoque, _context: object) -> None:
-        _reidratar_item_estoque(target)
-
-    @event.listens_for(ItemEstoque, "refresh")
-    def _reconstruir_preco_on_refresh(
-        target: ItemEstoque, _context: object, _attrs: object
-    ) -> None:
-        # obter_por_id(com_lock=True)/obter_por_ids usam populate_existing=True
-        # (issue #117), que dispara ``refresh`` e nao ``load``: sem este
-        # listener o VO Dinheiro e os invariantes (_id_atribuido/_eventos_
-        # pendentes) ficariam stale/ausentes na releitura sob lock da reserva.
-        _reidratar_item_estoque(target)
 
     @event.listens_for(ItemEstoque, "before_insert")
     @event.listens_for(ItemEstoque, "before_update")

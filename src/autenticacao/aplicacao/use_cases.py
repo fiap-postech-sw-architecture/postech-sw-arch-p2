@@ -110,9 +110,7 @@ class Logout:
             self._uow.commit()
         return {"mensagem": "Logout realizado com sucesso"}
 
-    def _jti_refresh_para_revogar(
-        self, refresh_token: str, *, sub: str
-    ) -> str | None:
+    def _jti_refresh_para_revogar(self, refresh_token: str, *, sub: str) -> str | None:
         """jti do refresh se for um refresh valido do MESMO usuario; senao None."""
         try:
             payload = self._jwt_service.validar_token(refresh_token)

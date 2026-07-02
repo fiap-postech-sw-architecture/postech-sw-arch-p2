@@ -677,9 +677,7 @@ class TestReleituraComLockRefrescaIdentityMap:
         finally:
             _limpar_ordem(engine, ordem_id)
 
-    def test_item_estoque_com_lock_reflete_commit_externo(
-        self, engine: Engine
-    ) -> None:
+    def test_item_estoque_com_lock_reflete_commit_externo(self, engine: Engine) -> None:
         from src.estoque.infraestrutura.repository import (
             ItemEstoqueSQLAlchemyRepository,
         )

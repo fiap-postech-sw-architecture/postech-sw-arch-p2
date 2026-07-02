@@ -230,9 +230,7 @@ def _montar_item(
         # de servico inativo acima e fecha a brecha do guard de
         # DesativarItemEstoque (que so impede desativar item COM OS ativa).
         if not peca.ativo:
-            raise ViolacaoRegraDeNegocioException(
-                mensagem="Item de estoque inativo"
-            )
+            raise ViolacaoRegraDeNegocioException(mensagem="Item de estoque inativo")
         preco_unitario = peca.preco_unitario
         nome_padrao = peca.nome
     else:
