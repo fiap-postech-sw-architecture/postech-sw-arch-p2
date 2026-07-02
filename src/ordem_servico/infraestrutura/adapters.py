@@ -102,6 +102,7 @@ class EstoqueSQLAlchemyAdapter:
             id=item.id,
             nome=item.nome,
             preco_unitario=item.preco_unitario,
+            ativo=item.ativo,
         )
 
     def obter_itens_em_lote(
@@ -133,6 +134,7 @@ class EstoqueSQLAlchemyAdapter:
                 id=item.id,
                 nome=item.nome,
                 preco_unitario=item.preco_unitario,
+                ativo=item.ativo,
             )
             for item in rows
         }

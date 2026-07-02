@@ -6,7 +6,10 @@ from uuid import uuid4
 import pytest
 
 from src.compartilhado.dominio.dinheiro import Dinheiro
-from src.compartilhado.dominio.exceptions import EstoqueInsuficienteException
+from src.compartilhado.dominio.exceptions import (
+    EstoqueInsuficienteException,
+    ViolacaoRegraDeNegocioException,
+)
 from src.estoque.dominio.events import (
     EstoqueLiberadoEvent,
     EstoqueReservadoEvent,
@@ -85,6 +88,20 @@ class TestItemEstoque:
         item = _criar_item()
         with pytest.raises(ValueError, match="Quantidade para reserva"):
             item.reservar(0)
+
+    def test_reservar_item_inativo_rejeitado(self) -> None:
+        # Issue #120: defesa em profundidade — item desativado nunca reserva,
+        # mesmo que a validacao de aplicacao (_montar_item) seja contornada.
+        item = ItemEstoque(
+            _nome="Filtro",
+            _descricao="Descontinuado",
+            _quantidade=10,
+            _preco_unitario=Dinheiro(valor=Decimal("50.00")),
+            _ativo=False,
+        )
+        with pytest.raises(ViolacaoRegraDeNegocioException, match="inativo"):
+            item.reservar(3)
+        assert item.quantidade == 10  # saldo intacto
 
     def test_liberar_sucesso(self) -> None:
         item = _criar_item(quantidade=5)

@@ -385,6 +385,40 @@ class TestCriarOrdemComItens:
         assert persistida is not None
         assert len(persistida.itens) == 3
 
+    def test_cria_os_com_peca_inativa_rejeitada(self) -> None:
+        # Issue #120: peca desativada nao entra em OS nova (nem e reservada).
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        troca = self._servico("Troca de oleo", "100.00")
+        peca_inativa = ItemEstoqueDTO(
+            id=uuid4(),
+            nome="Filtro descontinuado",
+            preco_unitario=Dinheiro(valor=Decimal("35.00")),
+            ativo=False,
+        )
+        uc = CriarOrdem(
+            repo=repo,
+            uow=uow,
+            cliente_port=StubClientePort(),
+            catalogo_port=CatalogoPorIdStub({troca.id: troca}),
+            estoque_port=StubEstoquePort(item=peca_inativa),
+        )
+        dto = CriarOrdemDTO(
+            cliente_id=uuid4(),
+            veiculo_id=uuid4(),
+            servicos=(ServicoDaOrdemDTO(servico_catalogo_id=troca.id),),
+            pecas=(
+                PecaDaOrdemDTO(
+                    servico_catalogo_id=troca.id,
+                    item_estoque_id=peca_inativa.id,
+                    quantidade=1,
+                ),
+            ),
+        )
+        with pytest.raises(ViolacaoRegraDeNegocioException, match="inativo"):
+            uc.executar(dto)
+        assert uow.committed is False  # nada persistido
+
     def test_rollback_total_com_peca_inexistente(self) -> None:
         repo = FakeOrdemDeServicoRepository()
         uow = FakeUnitOfWork()

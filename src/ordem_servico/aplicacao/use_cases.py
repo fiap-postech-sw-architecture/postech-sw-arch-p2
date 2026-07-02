@@ -226,6 +226,13 @@ def _montar_item(
             raise ViolacaoRegraDeNegocioException(
                 mensagem="Item de estoque nao encontrado"
             )
+        # Peca desativada nao entra em OS nova (issue #120): espelha a rejeicao
+        # de servico inativo acima e fecha a brecha do guard de
+        # DesativarItemEstoque (que so impede desativar item COM OS ativa).
+        if not peca.ativo:
+            raise ViolacaoRegraDeNegocioException(
+                mensagem="Item de estoque inativo"
+            )
         preco_unitario = peca.preco_unitario
         nome_padrao = peca.nome
     else:
