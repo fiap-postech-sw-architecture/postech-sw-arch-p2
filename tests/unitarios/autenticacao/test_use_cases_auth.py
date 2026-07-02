@@ -270,6 +270,70 @@ class TestLogout:
         result = uc.executar(token)
         assert result["mensagem"] == "Logout realizado com sucesso"
 
+    def test_revoga_refresh_quando_enviado(self) -> None:
+        # Issue #118 (CWE-613): com o refresh no corpo, o logout revoga a
+        # sessao inteira -- ambos os jti (access e refresh).
+        from uuid import uuid4
+
+        jwt_svc = JWTService(chave_secreta="test-secret")
+        token_repo = FakeTokenRevogadoRepository()
+        uow = FakeUnitOfWork()
+        usuario_id = uuid4()
+        access = jwt_svc.gerar_access_token(usuario_id, "t@t.com", "admin")
+        refresh = jwt_svc.gerar_refresh_token(usuario_id)
+        uc = Logout(jwt_service=jwt_svc, token_repo=token_repo, uow=uow)
+
+        uc.executar(access, refresh_token=refresh)
+
+        assert token_repo.esta_revogado(str(jwt_svc.validar_token(access)["jti"]))
+        assert token_repo.esta_revogado(str(jwt_svc.validar_token(refresh)["jti"]))
+
+    def test_refresh_pos_logout_e_rejeitado(self) -> None:
+        # Prova end-to-end de #118: apos o logout com refresh, o fluxo de
+        # refresh rejeita o token revogado (antes: cunhava novo par).
+        repo = FakeUsuarioRepository()
+        usuario = Usuario.criar(
+            email="t@t.com",
+            senha_hash=hash_senha("senhaforte1234"),
+            papel=Papel.ADMIN,
+        )
+        repo.salvar(usuario)
+        jwt_svc = JWTService(chave_secreta="test-secret")
+        token_repo = FakeTokenRevogadoRepository()
+        uow = FakeUnitOfWork()
+        access = jwt_svc.gerar_access_token(usuario.id, "t@t.com", "admin")
+        refresh = jwt_svc.gerar_refresh_token(usuario.id)
+        Logout(jwt_service=jwt_svc, token_repo=token_repo, uow=uow).executar(
+            access, refresh_token=refresh
+        )
+        refresh_uc = RefreshToken(
+            jwt_service=jwt_svc,
+            token_repo=token_repo,
+            usuario_repo=repo,
+            uow=uow,
+        )
+        with pytest.raises(TokenRevogadoException):
+            refresh_uc.executar(refresh)
+
+    def test_refresh_de_outro_usuario_nao_e_revogado(self) -> None:
+        # A revogacao do refresh e best-effort e escopada ao dono: um refresh
+        # de OUTRO usuario enviado no corpo nao e revogado (so o access do
+        # solicitante).
+        from uuid import uuid4
+
+        jwt_svc = JWTService(chave_secreta="test-secret")
+        token_repo = FakeTokenRevogadoRepository()
+        uow = FakeUnitOfWork()
+        access = jwt_svc.gerar_access_token(uuid4(), "eu@t.com", "admin")
+        refresh_alheio = jwt_svc.gerar_refresh_token(uuid4())
+        uc = Logout(jwt_service=jwt_svc, token_repo=token_repo, uow=uow)
+
+        uc.executar(access, refresh_token=refresh_alheio)
+
+        assert not token_repo.esta_revogado(
+            str(jwt_svc.validar_token(refresh_alheio)["jti"])
+        )
+
 
 class TestRefreshToken:
     def test_rotacao_sucesso(self) -> None:
