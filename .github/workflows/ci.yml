@@ -17,8 +17,8 @@ jobs:
   lint:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
           enable-cache: true
@@ -37,8 +37,8 @@ jobs:
   type-check:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
           enable-cache: true
@@ -51,16 +51,18 @@ jobs:
   security:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
           enable-cache: true
           cache-dependency-glob: "uv.lock"
       - name: Install dependencies from lockfile
         run: uv sync --extra test --extra ui --frozen
+      # Escopo alinhado ao Makefile target `security` (#75): inclui relay/ e
+      # scripts/ — antes o CI varria só src/ ui/, deixando relay/scripts fora.
       - name: Bandit security scan
-        run: uv run bandit -r src/ ui/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py -c pyproject.toml --severity-level high
+        run: uv run bandit -r src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py -c pyproject.toml --severity-level high
 
   test:
     runs-on: ubuntu-latest
@@ -79,8 +81,8 @@ jobs:
           --health-timeout 5s
           --health-retries 5
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
           enable-cache: true
@@ -124,7 +126,7 @@ jobs:
           exit $rc
       - name: Upload coverage
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: coverage-report
           path: coverage.xml
@@ -132,8 +134,8 @@ jobs:
   sbom:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: astral-sh/setup-uv@v4
+      - uses: actions/checkout@v7
+      - uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.13"
           enable-cache: true
@@ -146,7 +148,7 @@ jobs:
       # Sem `if: always()`: so publica se `make sbom` (geracao + validacao) passar,
       # pra nunca subir um SBOM parcial/invalido como artefato.
       - name: Upload SBOM
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: sbom-cyclonedx
           path: sbom.cdx.json

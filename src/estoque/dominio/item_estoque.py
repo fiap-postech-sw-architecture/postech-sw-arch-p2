@@ -4,7 +4,10 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from src.compartilhado.dominio.aggregate_root import AggregateRoot
-from src.compartilhado.dominio.exceptions import EstoqueInsuficienteException
+from src.compartilhado.dominio.exceptions import (
+    EstoqueInsuficienteException,
+    ViolacaoRegraDeNegocioException,
+)
 from src.estoque.dominio.events import EstoqueLiberadoEvent, EstoqueReservadoEvent
 
 if TYPE_CHECKING:
@@ -91,6 +94,14 @@ class ItemEstoque(AggregateRoot):
         if quantidade <= 0:
             msg = f"Quantidade para reserva deve ser positiva (recebido: {quantidade})"
             raise ValueError(msg)
+        # Defesa em profundidade (issue #120): item desativado nao pode ser
+        # reservado por nenhum caminho, mesmo que a validacao de aplicacao
+        # (_montar_item) seja contornada. Espelha a intencao do guard de
+        # DesativarItemEstoque.
+        if not self._ativo:
+            raise ViolacaoRegraDeNegocioException(
+                mensagem="Item de estoque inativo nao pode ser reservado"
+            )
         if self._quantidade < quantidade:
             raise EstoqueInsuficienteException(
                 mensagem=(

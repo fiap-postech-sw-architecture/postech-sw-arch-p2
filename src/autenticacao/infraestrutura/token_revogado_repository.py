@@ -13,6 +13,13 @@ class TokenRevogadoSQLAlchemyRepository:
         self._session = session
 
     def revogar(self, jti: str) -> None:
+        # Idempotente (#121): logout duplo / retry nao pode estourar o UNIQUE de
+        # jti (IntegrityError -> 500 num fluxo trivial). O guard cobre o caso
+        # sequencial (duplo-clique/retry); uma corrida concorrente no logout do
+        # MESMO token e improvavel e, no pior caso, o token acaba revogado de
+        # qualquer forma.
+        if self.esta_revogado(jti):
+            return
         token = TokenRevogado.criar(jti=jti)
         self._session.add(token)
         self._session.flush()

@@ -37,11 +37,19 @@ class ItemEstoqueDTO:
     Snapshot do preco da peca no momento da consulta — usado por
     ``AdicionarItem`` para registrar o preco da peca consumida (em vez
     do preco do servico, que seria pra mao-de-obra).
+
+    ``ativo`` permite que ``_montar_item`` rejeite peca desativada antes de
+    entrar na OS (issue #120): sem isso, um item desativado (fora do catalogo
+    ativo) podia ser adicionado e reservado, furando o invariante que o guard
+    de ``DesativarItemEstoque`` protege. Default ``True`` para nao quebrar
+    construcoes que so consultam preco/nome (o adapter real sempre popula o
+    valor efetivo).
     """
 
     id: UUID
     nome: str
     preco_unitario: Dinheiro
+    ativo: bool = True
 
 
 @dataclass(frozen=True, slots=True)

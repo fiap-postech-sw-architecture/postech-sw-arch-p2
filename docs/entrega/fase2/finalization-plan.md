@@ -6,6 +6,8 @@ Issue índice: [#128](https://github.com/fiap-postech-sw-architecture/postech-sw
 
 Objetivo: fechar a fase 2 com nota máxima e um pacote **melhor que o da fase 1** (que tirou 10). Este plano consolida a auditoria de 2026-07-01 — quatro frentes independentes — em issues rastreáveis, ordem de ataque e critério de pronto.
 
+> **Progresso (2026-07-02).** P0 de código **concluído e mergeado** via [PR #142](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/142) — #117, #118, #119, #120, #121 (com TDD e testes manuais no app real: logout→refresh 401, logout duplo 200, rate limiter redis 429). Migração de dependências (redis 8, structlog 26, Actions) + Dependabot mensal via [PR #143](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/143) (fechou os 12 PRs do Dependabot; Python 3.14 deferido — `vbuild`/NiceGUI usa `pkgutil.find_loader` removido no 3.14). #75/#116 fechados; #55 fechado. **Resta o flagship #111 + #122** (P0-2, migração + agregado) e o trilho P1/P2 abaixo.
+
 ## 1. Método da auditoria
 
 | Frente | Escopo | Resultado |

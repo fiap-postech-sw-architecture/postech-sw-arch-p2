@@ -23,7 +23,11 @@ class TestMain:
 
     def test_routers_montados(self) -> None:
         application = criar_app()
-        paths = {r.path for r in application.routes if hasattr(r, "path")}
+        # Contrato publico (OpenAPI) em vez de introspecao de `application.routes`:
+        # o FastAPI 0.138 passou a guardar routers incluidos como `_IncludedRouter`
+        # (nao mais `Route` achatado com `.path`), entao varrer `.routes` deixou de
+        # enxergar os paths montados. `openapi()["paths"]` e a API estavel.
+        paths = set(application.openapi()["paths"])
         assert "/api/v1/saude" in paths
         assert any("/api/v1/clientes" in p for p in paths)
         assert any("/api/v1/servicos" in p for p in paths)

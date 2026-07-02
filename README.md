@@ -182,9 +182,13 @@ Recursos criados, variáveis, fluxo integrado e troubleshooting: [`infra/README.
 
 | Workflow | Trigger | O que faz |
 |---|---|---|
-| [`ci.yml`](.github/workflows/ci.yml) | PRs e push na main | lint (ruff), contratos de camadas (import-linter), mypy, bandit, testes com gate de cobertura de 95% |
+| [`ci.yml`](.github/workflows/ci.yml) | PRs e push na main | lint (ruff + format), contratos de camadas (import-linter), mypy, bandit (`src ui relay scripts`), testes com gate de cobertura de 95% (src e ui), SBOM CycloneDX |
+| [`security.yml`](.github/workflows/security.yml) | PRs, push na main, semanal | pip-audit (CVE em deps de runtime), gitleaks (segredos na árvore), trivy (CVE na imagem, HIGH/CRITICAL com `.trivyignore`) — #75 |
+| CodeQL | PRs e push na main | SAST via **default setup** do GitHub (`Analyze (python)`). Localmente `make codeql-quality` aplica as supressões de FP do [`codeql-config.yml`](.github/codeql/codeql-config.yml) que o default setup não consegue — é o gate SAST autoritativo (parte do `make all`) |
 | [`cd.yml`](.github/workflows/cd.yml) | push na main + `workflow_dispatch` | build e push da imagem no GHCR (tag por SHA) → cluster kind efêmero no runner via Terraform → `kind load` → manifests de `k8s/` → rollout → smoke test |
-| [`full-test-ci.yml`](.github/workflows/full-test-ci.yml) | nightly | E2E concorrente contra a stack compose completa |
+| [`full-test-ci.yml`](.github/workflows/full-test-ci.yml) | PRs + nightly | E2E concorrente contra a stack compose completa (journeys + matriz RBAC + DAST OWASP ZAP) |
+
+Atualização de dependências automatizada por [Dependabot](.github/dependabot.yml) (uv, github-actions, docker), semanal.
 
 Execuções verdes do CD na main: [27450493913](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/27450493913) (primeiro deploy) e [27451618014](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/27451618014) (com OTel/Jaeger). O fluxo local `make cd-local` espelha o workflow passo a passo.
 

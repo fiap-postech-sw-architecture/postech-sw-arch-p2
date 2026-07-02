@@ -1,0 +1,53 @@
+version: 2
+
+# Dependabot (#75): atualizacao automatizada nas 3 superficies — deps Python
+# (uv), GitHub Actions dos workflows e imagens base do Docker.
+#
+# Cadencia MENSAL + agrupamento TOTAL por ecossistema (patterns "*", todos os
+# update-types, major incluso): cada ecossistema abre UM unico PR por mes com
+# todas as atualizacoes juntas. A batelada semanal anterior (grupos so de
+# minor/patch) abria ~12 PRs de uma vez, cada um disparando CI+full-test — caro
+# em minutos de Actions. Dependabot NAO agrupa entre ecossistemas, entao o piso
+# e 3 PRs/mes (uv, actions, docker). Security updates continuam a parte, fora do
+# grupo (Dependabot abre PR de seguranca imediatamente, independente da cadencia).
+
+updates:
+  - package-ecosystem: "uv"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    groups:
+      python-deps:
+        patterns: ["*"]
+        update-types: ["major", "minor", "patch"]
+    labels:
+      - "dependencies"
+
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    groups:
+      actions:
+        patterns: ["*"]
+        update-types: ["major", "minor", "patch"]
+    labels:
+      - "dependencies"
+      - "ci"
+
+  - package-ecosystem: "docker"
+    directories:
+      - "/"
+      - "/ui"
+    schedule:
+      interval: "monthly"
+    open-pull-requests-limit: 3
+    groups:
+      docker-images:
+        patterns: ["*"]
+        update-types: ["major", "minor", "patch"]
+    labels:
+      - "dependencies"
+      - "docker"

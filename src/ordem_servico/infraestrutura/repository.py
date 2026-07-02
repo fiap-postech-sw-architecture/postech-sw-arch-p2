@@ -93,10 +93,18 @@ class OrdemDeServicoSQLAlchemyRepository:
         """
         if not com_lock:
             return self._session.get(OrdemDeServico, ordem_id)
+        # populate_existing=True forca o refresh das colunas mesmo quando a
+        # instancia ja esta no identity map da session: sem isso, um re-select
+        # com FOR UPDATE de uma ordem previamente carregada (ex.: o guard de
+        # DecidirOrcamento le sem lock e o caso de uso delegado re-le com lock
+        # na MESMA session) devolveria o objeto stale — o lock e adquirido no
+        # banco, mas o estado em memoria seria o antigo, derrotando a defesa
+        # de concorrencia da issue #82 (issue #117).
         stmt = (
             select(OrdemDeServico)
             .where(ordens_de_servico_table.c.id == ordem_id)
             .with_for_update(nowait=False)
+            .execution_options(populate_existing=True)
         )
         return self._session.scalars(stmt).one_or_none()
 

@@ -119,9 +119,11 @@ Licenças permissivas em todas as dependências diretas (MIT, BSD, Apache 2.0). 
 
 ### Ferramentas de auditoria
 
-- **pip-audit**: execução no pipeline CI para detectar vulnerabilidades conhecidas (CVEs) em dependências diretas e transitivas
-- **CycloneDX**: geração de SBOM planejada para cada release, permitindo rastreabilidade da cadeia de suprimentos
-- **gitleaks**: prevenção de vazamento de segredos (API keys, senhas) no histórico Git
+- **pip-audit**: gate no CI ([`security.yml`](../../.github/workflows/security.yml), job `deps-audit`, #75) sobre as deps de runtime exportadas do `uv.lock`, detectando CVEs conhecidas em dependências diretas e transitivas
+- **gitleaks**: gate no CI ([`security.yml`](../../.github/workflows/security.yml), job `secret-scan`) varrendo o histórico Git com a config `.gitleaks.toml` para prevenir vazamento de segredos
+- **trivy**: gate no CI ([`security.yml`](../../.github/workflows/security.yml), job `image-scan`) sobre a imagem de runtime — HIGH/CRITICAL com `ignore-unfixed` e `.trivyignore` para os CVEs OS aceitos (#113)
+- **CodeQL**: SAST no CI pelo **default setup** do GitHub code scanning (job `Analyze (python)`), configurado no repositório e não por workflow versionado (um *advanced setup* conflitaria com o default setup ativo); paridade local via `make codeql-quality`; TD-010
+- **CycloneDX**: SBOM gerado no CI ([`ci.yml`](../../.github/workflows/ci.yml), job `sbom`, TD-012) via `make sbom`, permitindo rastreabilidade da cadeia de suprimentos
 
 ### Riscos mitigados
 

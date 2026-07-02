@@ -1,6 +1,11 @@
 # syntax=docker/dockerfile:1.7
 # Imagem base com Python 3.13 + uv pre-instalado (Astral oficial).
 # Ver ADR-014 para justificativa da escolha do uv como gerenciador.
+# builder e runtime DEVEM usar a MESMA minor do Python: o venv copiado
+# (--from=builder) carrega bytecode/wheels compilados para a versao do builder,
+# e a versao efetiva vem do `.python-version` (uv respeita) — nao basta trocar o
+# base image. Python 3.14 deferido: `vbuild` (dep transitiva do NiceGUI/UI) usa
+# `pkgutil.find_loader`, removido no 3.14.
 FROM ghcr.io/astral-sh/uv:python3.13-bookworm-slim AS builder
 
 ENV UV_LINK_MODE=copy \
