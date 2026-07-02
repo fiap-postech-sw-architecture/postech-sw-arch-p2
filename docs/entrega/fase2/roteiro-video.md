@@ -121,7 +121,7 @@ kubectl --context kind-pytstop delete pod -n pytstop gerador-carga
 
 **Evidência no ar**: coluna `TARGETS` do HPA subindo; `REPLICAS` 1→N; pods novos em Running.
 
-### 6. Observabilidade — OTel + Jaeger (1 min)
+### 6. Observabilidade — OTel + Jaeger + métricas Prometheus (2 min)
 
 ```bash
 kubectl --context kind-pytstop -n pytstop port-forward svc/jaeger 16686:16686
@@ -129,7 +129,15 @@ kubectl --context kind-pytstop -n pytstop port-forward svc/jaeger 16686:16686
 
 Abrir **http://localhost:16686** → serviço `pytstop-api` → *Find Traces* → abrir 1 trace de requisição do bloco 4: span do endpoint FastAPI com os spans das queries SQLAlchemy aninhados (ADR-020; instrumentação condicional — ligada só no cluster de demo).
 
-**Evidência no ar**: um trace aberto com spans `fastapi` + `sqlalchemy`.
+Em seguida, as **métricas Prometheus** da Transactional Outbox (ADR-024) — o Prometheus faz *scrape* do `/metrics` do relay (`pytstop-relay-metrics:9100`):
+
+```bash
+kubectl --context kind-pytstop -n pytstop port-forward svc/prometheus 9090:9090
+```
+
+Abrir **http://localhost:9090** → consultar os sinais da outbox coletados do relay: o counter `outbox_entregue_total` subiu com os e-mails despachados no bloco 4 e o gauge `outbox_pendentes` volta a **0**, evidenciando o relay drenando a fila de forma assíncrona (sem dual-write — ADR-022). Citar `outbox_idade_mais_antigo_seconds` e `outbox_dead_total` como sinais de saúde/alerta da fila.
+
+**Evidência no ar**: um trace aberto com spans `fastapi` + `sqlalchemy`; e no Prometheus, `outbox_entregue_total` > 0 com `outbox_pendentes` em 0 após o processamento.
 
 ### 7. Encerramento (30 s)
 

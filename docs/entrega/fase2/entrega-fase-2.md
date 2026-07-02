@@ -8,9 +8,9 @@ Documento de entrega da Fase 2 do Tech Challenge da Pós-Graduação em Arquitet
 
 ## Como ler este documento
 
-O repositório é a fonte de verdade da entrega. Os artefatos exigidos pela fase — código refatorado com Clean Architecture, Dockerfile e docker-compose revisados, manifests Kubernetes em `/k8s`, scripts Terraform em `/infra`, pipeline de CI/CD e README atualizado — estão versionados no próprio projeto. Os links abaixo apontam diretamente para esses arquivos no GitHub (branch `main`), navegáveis pela UI nativa do GitHub com o avaliador adicionado como colaborador. O desenho da arquitetura é modelado em Mermaid, renderizado nativamente pelo GitHub; a fonte única do diagrama é a [RFC-002 §3](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md), replicada no [README](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/README.md) e na seção 6 deste documento.
+O repositório é a fonte de verdade da entrega. Os artefatos exigidos pela fase — código refatorado com Clean Architecture, Dockerfile e docker-compose revisados, manifests Kubernetes em `/k8s`, scripts Terraform em `/infra`, pipeline de CI/CD e README atualizado — estão versionados no próprio projeto. Os links abaixo apontam diretamente para esses arquivos no GitHub (branch `main`), navegáveis pela UI nativa do GitHub com o avaliador adicionado como colaborador. O desenho da arquitetura é modelado em Mermaid, renderizado nativamente pelo GitHub; a fonte única do diagrama é a [RFC-002 §3](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md), replicada no [README](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/README.md) e na seção 7 deste documento.
 
-A opção por documentação textual e versionada segue a fase 1: o projeto é AI-first, e Markdown + Mermaid permitem manutenção por agentes de IA sem prejuízo da leitura humana. As decisões da fase estão registradas em ADRs (015–024) e consolidadas na RFC-002; a rastreabilidade requisito → implementação → evidência está na seção 5.
+A opção por documentação textual e versionada segue a fase 1: o projeto é AI-first, e Markdown + Mermaid permitem manutenção por agentes de IA sem prejuízo da leitura humana. As decisões da fase estão registradas em ADRs (015–024) e consolidadas na RFC-002; a rastreabilidade requisito → implementação → evidência está na seção 6.
 
 ---
 
@@ -77,6 +77,8 @@ Toda a documentação versionada está no próprio repositório, na pasta `docs/
 | Pasta `docs/` (índice) | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/docs |
 | Requisitos da fase 2 (enunciado transcrito) | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/requisitos/fase2/desafio-tech-fase-2.md |
 | Gap analysis — challenge × código da fase 1 (RF-020–024, RNF-017–024, RN-018–020) | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/requisitos/fase2/gap-analysis-fase-2.md |
+| Apêndice A — funcionalidades extras da fase 2 (além do enunciado) | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/entrega/fase2/apendice-funcionalidades-extras.md |
+| Scans de segurança — fechamento da fase 2 (bateria na HEAD final) | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/seguranca/scan-fase-2.md |
 
 ### 4.2 Decisões de arquitetura da fase 2
 
@@ -96,7 +98,43 @@ Toda a documentação versionada está no próprio repositório, na pasta `docs/
 
 A documentação da fase 1 (Event Storming, Domain Storytelling, Linguagem Ubíqua, mapa de contextos, modelo de domínio, ADRs 001–014) permanece válida e versionada nas mesmas pastas — índice em [`docs/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/docs).
 
-## 5. Rastreabilidade requisito → evidência
+## 5. Relatório de Análise de Vulnerabilidades
+
+A postura de segurança da fase 2 é **verificada por CI, não afirmada em documento**: os seis scanners que a fase 1 rodava manualmente foram automatizados como gates de pipeline ([PR #116](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/116), fecha [#75](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/75)) e reexecutados na HEAD final (commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826)), já sobre **Python 3.14** ([PR #150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150)). Todos passaram verdes — cobrindo `src/` + `relay/` no SAST, dependências de runtime na SCA, a imagem 3.14 no scan de container, segredos, análise semântica e DAST contra a API viva.
+
+### 5.1 Ferramentas e resultado na HEAD final
+
+| Ferramenta | Tipo | Alvo | Resultado |
+|---|---|---|---|
+| bandit | SAST | `src/` + `relay/` (10.112 LoC) | 0 high / 0 medium / 0 low |
+| pip-audit | SCA — dependências | deps de runtime resolvidas do `uv.lock` | 0 vulnerabilidades (3 CVEs de nicegui dev-only aceitos, [#112](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/112)) |
+| trivy | SCA — imagem Docker | imagem de runtime `pytstop` (Python 3.14) | 0 HIGH/CRITICAL no gate |
+| gitleaks | Detecção de segredos | árvore de trabalho, com allowlist | 0 leaks |
+| CodeQL | SAST semântico | python + javascript-typescript (default setup) | `Analyze` verde, sem alertas ativos |
+| OWASP ZAP | DAST baseline | API viva via OpenAPI (stack compose) | 0 FAIL — 2 WARN aceitos como IGNORE |
+
+Gates em [`security.yml`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/.github/workflows/security.yml) (pip-audit, gitleaks, trivy), [`ci.yml`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/.github/workflows/ci.yml) (bandit) e [`full-test-ci.yml`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/.github/workflows/full-test-ci.yml) (ZAP), mais o CodeQL pelo *default setup* do GitHub e o Dependabot mensal.
+
+### 5.2 Itens de segurança endereçados
+
+Além dos scans limpos, a auditoria de finalização ([issue #128](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/128)) gerou correções de segurança com teste TDD:
+
+- **Revogação de refresh token** (CWE-613) e logout idempotente ([PR #142](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/142) — [#118](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/118)/[#121](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/121));
+- **TOCTOU na recusa externa de orçamento** — revalidação sob lock antes do cancelamento ([PR #142](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/142) — [#119](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/119));
+- **Item de estoque desativado** barrado em OS nova e na reserva ([PR #142](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/142) — [#120](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/120));
+- **Seed com denylist** — `seed_admin.py` rejeita o `ADMIN_PASSWORD` de demo público ([PR #152](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/152) — [#95](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/95));
+- **Papel de usuário fail-closed** — removido `default="admin"` do mapping, inserção sem papel vira `NOT NULL` ([PR #152](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/152) — [#96](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/96));
+- **Webhook de orçamento assinado por HMAC** ([PR #114](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/114), TD-027);
+- **Rate limiter global sob HPA** com storage compartilhado Redis ([PR #62](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/62), [ADR-023](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md)).
+
+### 5.3 Documentos completos
+
+| Documento | URL |
+|---|---|
+| Scans de fechamento da fase 2 (v2.0, HEAD final) | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/seguranca/scan-fase-2.md |
+| Relatório de Vulnerabilidades (baseline OWASP API Top 10, fase 1) | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/seguranca/relatorio-vulnerabilidades.md |
+
+## 6. Rastreabilidade requisito → evidência
 
 Cada requisito da fase 2 ([gap analysis](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/requisitos/fase2/gap-analysis-fase-2.md)) mapeado para o PR que o implementou, a evidência principal no código e o ponto do [roteiro do vídeo](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/entrega/fase2/roteiro-video.md) que o demonstra.
 
@@ -158,7 +196,7 @@ A tabela acima destaca os itens de maior valor; o conjunto completo dos **26 res
 
 Isso concretiza a Boy Scout Rule registrada na estratégia de pagamento do [ledger de dívida técnica](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/tech-debt/README.md): cada evolução deixa o código e a documentação melhores do que os encontrou. Nenhum desses itens era exigido pela fase 2 — são iniciativa de qualidade do grupo.
 
-## 6. Desenho da arquitetura
+## 7. Desenho da arquitetura
 
 Diagrama de referência da fase 2 — pipeline de deploy, infraestrutura provisionada e workloads no cluster. Fonte única: [RFC-002 §3](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md); o GitHub renderiza o bloco abaixo nativamente.
 
@@ -211,15 +249,23 @@ flowchart TB
     prometheus -.->|"scrape /metrics"| relay
 ```
 
-## 7. Conteúdo do PDF de submissão
+## 8. Conteúdo do PDF de submissão
 
-O PDF entregue no portal do aluno é gerado a partir deste documento e contém os três itens exigidos pelo enunciado:
+O PDF entregue no portal do aluno é gerado a partir deste documento pelo [`scripts/build-entrega-pdf.sh`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/scripts/build-entrega-pdf.sh), que pré-pende uma **capa ABNT**, renderiza o diagrama Mermaid como imagem, converte os links relativos em absolutos e anexa os apêndices de evidência. A §9 (Pendências) é um checklist interno da equipe e **não** é incluída no PDF submetido.
+
+Contém os três itens exigidos pelo enunciado:
 
 1. **Link do repositório GitHub** compartilhado com o usuário `soat-architecture`: https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2
-2. **Desenho da arquitetura** com os recursos escolhidos (seção 6 — kind, Terraform, GHCR, manifests K8s com HPA, Mailpit, Jaeger, Prometheus).
+2. **Desenho da arquitetura** com os recursos escolhidos (seção 7 — kind, Terraform, GHCR, manifests K8s com HPA, Mailpit, Jaeger, Prometheus).
 3. **Link do vídeo** de até 15 minutos apresentando a solução (seção 3 — preenchido após a gravação).
 
-## 8. Pendências para fechar a entrega
+Mais três anexos de evidência de profundidade:
+
+- **Anexo A — Scans de Segurança da Fase 2**: bateria de fechamento na HEAD final ([`scan-fase-2.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/seguranca/scan-fase-2.md)).
+- **Anexo B — Evidências Visuais**: capturas da demonstração no cluster (CD verde, HPA escalando, trace no Jaeger, e-mail no Mailpit, métricas no Prometheus, Quality Gate do SonarQube).
+- **Anexo C — Funcionalidades Extras da Fase 2**: catálogo além do enunciado ([`apendice-funcionalidades-extras.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/entrega/fase2/apendice-funcionalidades-extras.md)).
+
+## 9. Pendências para fechar a entrega
 
 Ações manuais que permanecem com a equipe (nenhuma bloqueia a navegação do repositório):
 

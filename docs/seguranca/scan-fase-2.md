@@ -2,29 +2,45 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Segurança](README.md)
 
-> **Versão**: 1.0 — bateria executada em 12/06/2026 como hardening de fechamento da fase 2. Complementa o [relatório de vulnerabilidades](relatorio-vulnerabilidades.md) da fase 1, que permanece válido para o escopo do MVP.
+> **Versão**: 2.0 — bateria de fechamento **reexecutada na HEAD final da fase 2** (commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826), 02/07/2026), já sobre **Python 3.14** ([PR #150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150)). Sucede a versão 1.0 (12/06/2026), que cobria só `src/`+`ui/` e não reexecutou trivy; esta versão fecha o escopo — `src/`+`relay/` no SAST, deps de runtime na SCA, imagem 3.14 no scan de container, segredos, CodeQL e DAST — e incorpora os PRs de segurança posteriores a 12/06. Complementa o [relatório de vulnerabilidades](relatorio-vulnerabilidades.md) da fase 1, que permanece válido para o baseline OWASP API Top 10 do MVP.
 
 ## Escopo
 
-Reexecução dos scans automatizados de segurança sobre o código da fase 2 (RF-020..024, RNF-017..024): análise estática (bandit), auditoria de dependências (pip-audit) e detecção de segredos (gitleaks, working tree + histórico completo). Trivy não foi reexecutado nesta bateria — a imagem runtime foi auditada na fase 1 e os deltas da fase 2 (rotas novas, OTel opcional) estão cobertos pelos demais scans e pela suíte de testes. O **OWASP ZAP** deixou de ser scan manual de fechamento: a partir de [TD-011](../tech-debt/README.md) (PR #65) o baseline (DAST) roda **continuamente no CI** ([`full-test-ci`](../../.github/workflows/full-test-ci.yml)) contra o OpenAPI vivo da stack compose, com gate por `.zap/rules.tsv` (os 2 warnings aceitos da fase 1 ficam como IGNORE; achado novo reprova) e relatório publicado como artefato — paridade local via `make dast`.
+Reexecução completa dos scans automatizados de segurança sobre o código da fase 2 na HEAD final, cobrindo as seis camadas do pipeline ([ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md)):
 
-> **Nota:** o `relay/` e o `k8s/redis.yaml` (PRs [#56](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/56), [#62](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/62)) são posteriores a esta bateria de 12/06 e não foram cobertos por ela; o código do `relay/` segue coberto pelo gate `make security` (o bandit varre `src/ ui/ relay/`) no CI de cada PR.
+- **SAST** (bandit) sobre `src/` + `relay/` — o `relay/` (Transactional Outbox, [PR #56](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/56)/[ADR-022](../arquitetura/adr/fase2/022-transactional-outbox-relay.md)), ausente da bateria de 12/06, agora é varrido de primeira;
+- **SCA de dependências** (pip-audit) sobre as dependências de **runtime** (produção), pós-migração consolidada de deps ([#143](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/143), redis 8) e upgrade do NiceGUI 3 ([#149](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/149));
+- **SCA de imagem** (trivy) sobre a imagem de runtime **agora em Python 3.14** ([#150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150));
+- **Detecção de segredos** (gitleaks) sobre a árvore de trabalho;
+- **SAST semântico** (CodeQL, python + javascript-typescript);
+- **DAST** (OWASP ZAP baseline) contra o OpenAPI vivo da stack compose.
+
+Diferentemente da bateria de 12/06 — um scan local pontual — a bateria de fechamento **é o próprio CI**: a partir de [#116](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/116) (fecha [#75](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/75)) os gates de pip-audit, gitleaks e trivy rodam em [`security.yml`](../../.github/workflows/security.yml); o bandit em [`ci.yml`](../../.github/workflows/ci.yml) (job `security`, escopo `src/ ui/ relay/ scripts/`); o CodeQL pelo *default setup* do GitHub (jobs `Analyze (python)` e `Analyze (javascript-typescript)`); e o ZAP baseline em [`full-test-ci.yml`](../../.github/workflows/full-test-ci.yml) ([TD-011](../tech-debt/README.md), [PR #65](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/65)). Todos os seis passaram **verdes na HEAD final** — a evidência abaixo é o resultado dessas execuções, e não mais um scan manual sem trilha.
+
+> **Nota sobre os relatórios versionados:** os JSON em `docs/seguranca/*-report.json` (trivy, pip-audit, ZAP, gitleaks, bandit) são os artefatos da fase 1, preservados como baseline histórico — não são reescritos a cada bateria (o CI publica os seus próprios como artefatos de run). Os números desta versão 2.0 refletem o **estado da HEAD final** (lockfile e imagem em 3.14), que diverge do snapshot da fase 1 nos JSON versionados.
 
 ## Resumo
 
-| Ferramenta | Versão | Alvo | Resultado |
+| Ferramenta | Tipo | Alvo | Resultado na HEAD final |
 |---|---|---|---|
-| bandit | 1.9.4 | `src/` + `ui/` (10.828 LoC) | **0 high / 0 medium**; 1 low aceito (detalhe abaixo) |
-| pip-audit | 2.10.1 | ambiente do projeto sincronizado do `uv.lock` | 11 advisories em 5 pacotes → **corrigidos por upgrade**; re-scan limpo |
-| gitleaks | 8.30.1 | working tree (`--no-git`) e histórico (`--log-opts="--all"`, 164 commits) | **0 leaks** após allowlist documentada |
+| bandit 1.9.4 | SAST | `src/` + `relay/` (10.112 LoC) | **0 high / 0 medium / 0 low** — nenhum achado |
+| pip-audit | SCA (deps) | dependências de runtime resolvidas do `uv.lock` | **0 vulnerabilidades** (3 CVEs de nicegui dev-only aceitos, #112) |
+| trivy | SCA (imagem) | imagem de runtime `pytstop` (Python 3.14) | **0 HIGH/CRITICAL** no gate (`ignore-unfixed` + `.trivyignore`) |
+| gitleaks | Segredos | árvore de trabalho (`gitleaks dir`) com allowlist | **0 leaks** |
+| CodeQL | SAST semântico | python + javascript-typescript (default setup) | **`Analyze` verde** — sem alertas de segurança ativos |
+| OWASP ZAP | DAST baseline | API viva via OpenAPI (stack compose) | **0 FAIL** — 2 WARN aceitos como IGNORE ([`.zap/rules.tsv`](../../.zap/rules.tsv)) |
+
+Referência da última execução verde: check-runs do commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826) — `security`, `pip-audit (CVE em dependências)`, `gitleaks (segredos)`, `trivy (CVE na imagem)`, `Analyze (python)`, `Analyze (javascript-typescript)` e o `full-test-ci` (que hospeda o DAST) todos `success`.
 
 ## Análise Estática (bandit)
 
-Gate do projeto (`make security`): `bandit -r src/ ui/ -c pyproject.toml --severity-level high` — **nenhum achado high**. A varredura completa (sem filtro de severidade) registra um único achado de severidade **low**:
+Gate do projeto (`make security`, espelhado no CI): `bandit -r src/ ui/ relay/ scripts/ ... -c pyproject.toml --severity-level high` — **nenhum achado high**. A varredura completa de **`src/` + `relay/`** sem filtro de severidade (10.112 LoC) fecha em **0 high / 0 medium / 0 low**: nenhum resultado. O `relay/`, introduzido depois da bateria de 12/06, entra limpo.
+
+A UI (`ui/`, dev-only, fora do runtime de produção e não empacotada pelo `pyproject.toml`) mantém o único achado **low** já aceito na versão 1.0:
 
 | Arquivo | ID | Severidade | Análise |
 |---|---|---|---|
-| `ui/config.py:52` | B105 (hardcoded password) | Low / Medium | Fallback dev-only do `storage_secret` da UI NiceGUI, usado somente quando `UI_STORAGE_SECRET` não está definido. A UI é dev-only por design (não sobe em produção) e o próprio valor se documenta (`...-change-for-public-deploy`). Aceito. |
+| `ui/config.py:52` | B105 (hardcoded password) | Low | Fallback dev-only do `storage_secret` da UI NiceGUI, usado somente quando `UI_STORAGE_SECRET` não está definido. Valor auto-documentado (`pytstop-ui-dev-only-...`). Aceito. |
 
 Reprodução:
 
@@ -34,43 +50,80 @@ make security
 
 ## Auditoria de Dependências (pip-audit)
 
-Execução em ambiente efêmero (sem poluir o `.venv`), auditando as dependências resolvidas do projeto:
+O gate de CI ([`security.yml`](../../.github/workflows/security.yml)) audita apenas as dependências de **runtime** — `uv export --no-dev --no-emit-project` gera `requirements-prod.txt`, que exclui o tooling de teste e a UI NiceGUI (dev-only) — porque essa é a superfície de ataque de produção:
 
 ```bash
-uv run --with pip-audit pip-audit
+uv export --frozen --no-emit-project --no-dev --no-hashes --format requirements-txt -o requirements-prod.txt
+uvx pip-audit -r requirements-prod.txt --strict
 ```
 
-**Resultado inicial**: 11 advisories (9 IDs únicos) em 5 pacotes. **Ação: upgrade no `uv.lock`** — todos os fixes eram patch/minor, sem mudança de API para o nosso uso:
+**Resultado na HEAD final**: `No known vulnerabilities found`. Os únicos advisories excluídos são os **3 HIGH de `nicegui`** ([CVE-2025-66645, CVE-2026-21873, CVE-2026-25732](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/112)) — a UI é dev-only e não consta no lockfile de produção; ficam como `--ignore-vuln` explícito (cinto-e-suspensório, [#112](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/112)).
 
-| Pacote | Versão | Advisories | Fix aplicado | Relevância para o projeto |
-|---|---|---|---|---|
-| pyjwt | 2.12.1 | PYSEC-2026-175/177/178/179 | **2.13.0** | Biblioteca central da autenticação (ADR-004). Os CVEs atingem `PyJWKClient`/JWKS e JWS destacado (`b64: false`) — fluxos que não usamos (HS256 com segredo estático) — mas, por ser o componente crítico de auth, o upgrade é obrigatório. |
-| starlette | 1.0.0 | PYSEC-2026-161 | **1.0.1** | Base do FastAPI. Header `Host` malformado podia divergir `request.url.path` do path roteado, com potencial bypass de checagens path-based. Fixado na versão exata de correção para minimizar drift no fechamento. |
-| urllib3 | 2.6.3 | PYSEC-2026-141/142 | **2.7.0** | Transitiva. DoS por descompressão e forward de headers sensíveis em redirect via API low-level — fluxos não exercitados pelo runtime, corrigidos por higiene. |
-| idna | 3.11 | CVE-2026-45409 | **3.18** | Transitiva. DoS por entradas longas em `idna.encode()`; entradas do app são limitadas por validação Pydantic. |
-| mako | 1.3.11 | CVE-2026-44307 | **1.3.12** | Transitiva (Alembic). Path traversal de templates apenas em Windows; runtime é container Linux e templates não são controlados por usuário. |
+Este resultado limpo é o **estado consolidado** de duas ondas de upgrade posteriores à v1.0:
 
-**Re-scan pós-upgrade**: `No known vulnerabilities found` (o pacote local `pytstop` é pulado por não estar no PyPI — esperado). Suíte completa verde após o bump (1483 testes unitários + 143 de integração — contagem coletada via `pytest --collect-only`), validando que os upgrades não regrediram comportamento.
+| Onda | O que mudou | PR |
+|---|---|---|
+| Gate de CI + 5 CVEs reais | A automação do pip-audit no CI (#75) pegou **5 CVEs reais** e forçou o upgrade — **cryptography 46→49**, **starlette 1.0→1.3.1**, **fastapi→0.138.2** — além dos bumps de pyjwt/urllib3/idna/mako já feitos na v1.0 | [#116](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/116) |
+| Migração consolidada de deps | Leva do Dependabot consolidada (redis 8, entre outros), com Dependabot mensal ativo | [#143](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/143) |
+| NiceGUI 3 | Upgrade `nicegui 2.24 → 3.14` — removeu a transitiva `vbuild` (que usava `pkgutil.find_loader`, extinto no Python 3.14), destravando a migração 3.14 | [#149](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/149) |
+| Pisos de deps + Terraform action | Alinha pisos de `pwdlib`/`testcontainers`; `setup-terraform@v4` | [#151](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/151) |
+
+Versões-chave resolvidas no `uv.lock` da HEAD final: `pyjwt 2.13.0`, `starlette 1.3.1`, `cryptography 49.0.0`, `fastapi 0.139.0`, `urllib3 2.7.0`, `idna 3.18`, `mako 1.3.12`, `redis 8.0.1`. A suíte completa (1593 testes unitários + 163 de integração, contagem via `pytest --collect-only`) segue verde após os bumps, validando ausência de regressão.
+
+## Scan de Imagem (trivy)
+
+Reexecutado nesta bateria (a v1.0 havia pulado o trivy): a imagem de runtime agora é **Python 3.14** ([#150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150) — builder `ghcr.io/astral-sh/uv:python3.14-bookworm-slim` + runtime `python:3.14-slim`). O gate ([`security.yml`](../../.github/workflows/security.yml)) constrói a imagem e reprova em HIGH/CRITICAL:
+
+```bash
+docker build -t pytstop:ci-scan .
+trivy image --severity HIGH,CRITICAL --ignore-unfixed --ignorefile .trivyignore --exit-code 1 pytstop:ci-scan
+```
+
+**Resultado na HEAD final**: **0 HIGH/CRITICAL** no gate. Os CVEs de pacotes de SO da imagem base sem fix upstream (`ncurses`, `systemd`) são descartados por `ignore-unfixed` e listados explicitamente em [`.trivyignore`](../../.trivyignore) (CVE-2025-69720, CVE-2026-29111) — não usados pelo runtime FastAPI/uvicorn (entrypoint é `uvicorn` direto, sem systemd), aceite herdado de [#113](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/113).
 
 ## Detecção de Segredos (gitleaks)
 
-Working tree (inclui arquivos não versionados) e histórico completo:
+O gate ([`security.yml`](../../.github/workflows/security.yml)) varre a **árvore atual** (não o histórico) com a config do repo — barra segredos novos entrando por PR sem re-flagar dev-secrets antigos já cobertos pela allowlist:
 
 ```bash
-gitleaks detect --source . --no-git --config .gitleaks.toml --no-banner --redact
-gitleaks detect --source . --log-opts="--all" --config .gitleaks.toml --no-banner --redact
+gitleaks dir . --config .gitleaks.toml --redact --no-banner --verbose
 ```
 
-**Resultado inicial**: 6 findings no working tree, todos falsos positivos ou valores de demo deliberados. Tratamento: allowlist em `.gitleaks.toml`, cada entrada com comentário justificando (Caso D do workflow A/B/C/D da fase 1):
+**Resultado na HEAD final**: **0 leaks**. A [`.gitleaks.toml`](../../.gitleaks.toml) mantém a allowlist documentada dos falsos positivos e valores de demo deliberados da fase 1 (digests do relatório trivy, estado local do Terraform gitignored, token de demo do webhook de orçamento — todos auto-documentados como `...-nao-usar-em-producao`).
 
-| Finding | Tratamento |
-|---|---|
-| `db-image/docker-compose.yml` — `ENCRYPTION_KEY` Fernet | **N/A** — o `db-image/` (fast-check da fase 1) foi removido do repo ([TD-018](../tech-debt/README.md)); o arquivo não existe mais e a entrada da allowlist foi retirada do `.gitleaks.toml`. |
-| `docs/seguranca/trivy-image-report.json` (2×) | Digests/hashes de pacotes no relatório do trivy detectados como `generic-api-key`; não são segredos. Allowlist por path. |
-| `infra/terraform.tfstate.backup` (2× private-key) | Estado local do Terraform com credenciais do cluster kind descartável de dev. Gitignored (`infra/.gitignore`) — nunca chega ao repo; aparece só no scan `--no-git`. Allowlist por path (idem para o kubeconfig `infra/pytstop-config` que o provider kind grava no apply). |
-| `docs/entrega/fase2/roteiro-video.md` — header `X-Webhook-Token` | Token de demo do webhook de decisão de orçamento (RF-022), valor auto-documentado (`demo-webhook-orcamento-nao-usar-em-producao`), o mesmo default de dev do compose/k8s. Allowlist por regex do valor literal. |
+## SAST Semântico (CodeQL)
 
-**Resultado pós-allowlist**: **0 leaks** no working tree e **0 leaks** no histórico (164 commits).
+O CodeQL roda pelo **default setup** do GitHub code scanning (decisão de [#116](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/116)/[TD-010](../tech-debt/README.md): sem workflow `codeql.yml` avançado, que conflita com o default setup). Os jobs `Analyze (python)` e `Analyze (javascript-typescript)` estão **verdes na HEAD final**, sem alertas de segurança ativos. Paridade local via `make codeql-quality`, que aplica as supressões de falso positivo que o default setup não permite.
+
+> A API REST de code scanning responde `403 "Advanced Security must be enabled"` para este repositório privado — mensagem enganosa: o default setup **está ativo** e os jobs `Analyze` rodam e reprovam normalmente no CI (é a razão de não se criar um `codeql.yml` avançado). A evidência do resultado são os check-runs verdes, não a API de alerts.
+
+## DAST (OWASP ZAP baseline)
+
+O ZAP baseline (scan passivo) roda continuamente no [`full-test-ci`](../../.github/workflows/full-test-ci.yml) contra o OpenAPI vivo da stack compose ([TD-011](../tech-debt/README.md), [PR #65](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/65)), com gate por [`.zap/rules.tsv`](../../.zap/rules.tsv): sem `-I`, qualquer alerta que não esteja como `IGNORE` reprova a build. As duas únicas regras em IGNORE são os 2 WARN aceitos e justificados na fase 1 (falsos positivos esperados para API REST):
+
+| Plugin | Regra | Tratamento |
+|---|---|---|
+| 10049 | Non-Storable Content | IGNORE — correto para uma API com `Cache-Control: no-store` |
+| 90004 | Cross-Origin-Resource-Policy Header | IGNORE — superfície interna do cluster de demo |
+
+**Resultado na HEAD final**: **0 FAIL** — nenhum achado novo além dos 2 WARN aceitos; o `full-test-ci` fechou verde no commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826). Baseline de referência da fase 1: 65 PASS / 0 FAIL / 2 WARN (49 URLs via OpenAPI). Paridade local via `make dast`.
+
+## Itens de Segurança Endereçados na Fase 2
+
+Além dos scans limpos, a fase 2 fechou um conjunto de correções de segurança/correção — os bugs confirmados da [auditoria de finalização](../entrega/fase2/finalization-plan.md) ([issue #128](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/128)) viraram issues no GitHub e foram corrigidos com teste TDD (red→green):
+
+| Item | Correção | PR (issue) |
+|---|---|---|
+| Revogação de refresh token (CWE-613) | Logout passa a revogar o **refresh** (best-effort, escopado ao dono) e vira idempotente (guard antes do INSERT — logout duplo não estoura o UNIQUE do JTI) | [#142](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/142) ([#118](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/118), [#121](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/121)) |
+| TOCTOU na recusa externa de orçamento | A recusa externa revalida o estado de espera **sob lock** antes de delegar o cancelamento — fecha a janela que cancelava OS já em execução | [#142](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/142) ([#119](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/119)) |
+| Item de estoque desativado em OS | Peça desativada não entra em OS nova nem é reservada (`ItemEstoqueDTO.ativo` + rejeição em `_montar_item` + defesa em `ItemEstoque.reservar`) | [#142](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/142) ([#120](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/120)) |
+| Instância stale sob `FOR UPDATE` | `populate_existing=True` no ramo `com_lock` + listeners de `refresh` no mapping — sem isso o SELECT FOR UPDATE devolvia a instância stale do identity map, derrotando a defesa de concorrência | [#142](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/142) ([#117](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/117)) |
+| Seed com senha de demo pública | `seed_admin.py` rejeita o `ADMIN_PASSWORD` de demo commitado (`pytstop-admin-demo-2026`); teste-guarda falha se removerem o valor da denylist | [#152](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/152) ([#95](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/95)) |
+| Papel de usuário fail-closed | Removido `default="admin"` da coluna `papel` no mapping de auth — inserção sem papel vira `NOT NULL` (fail-closed) em vez de `admin` silencioso, completando o fail-safe do [#84](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/84) | [#152](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/152) ([#96](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/96)) |
+| Webhook de orçamento assinado | Aprovação/recusa externa passa a exigir assinatura HMAC (`X-Webhook-Signature` + `X-Webhook-Timestamp`) — [ADR-021](../arquitetura/adr/fase2/021-aprovacao-externa-orcamento.md), TD-027 | [#114](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/114) |
+| Rate limiter global sob HPA | Storage compartilhado (Redis) via `storage_uri` — limite por IP correto e global entre réplicas, com degradação graciosa se o Redis cair ([ADR-023](../arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md)); IP real atrás de proxy via `ProxyHeadersMiddleware` quando `TRUSTED_PROXIES` está setado | [#62](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/62), [#67](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/67) |
+
+Complementam os controles já entregues antes desta bateria: `ENCRYPTION_KEY` obrigatória em produção + decrypt sem fail-open ([#103](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/103)), erasure LGPD admin-only com trilha de auditoria ([#104](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/104)), pré-hash bcrypt de 72 bytes + refresh não vale como access ([#105](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/105)), `securityContext` nos workloads k8s ([#108](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/108)) e scrub de PII em tracebacks/logs ([#86](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/86)).
 
 ## Relação com Outros Documentos
 

@@ -12,7 +12,7 @@ Documentação de segurança do projeto, incluindo análise de vulnerabilidades 
 |---------|-----------|
 | [plano-seguranca.md](plano-seguranca.md) | Plano de segurança — modelo de ameaças, controles de acesso, resposta a incidentes e conformidade LGPD |
 | [relatorio-vulnerabilidades.md](relatorio-vulnerabilidades.md) | Relatório de vulnerabilidades — scanning estático (bandit), auditoria de dependências (pip-audit) e scanning de container (trivy) |
-| [scan-fase-2.md](scan-fase-2.md) | Scans de fechamento da fase 2 — bandit, pip-audit (upgrades aplicados) e gitleaks (working tree + histórico) |
+| [scan-fase-2.md](scan-fase-2.md) | Scans de fechamento da fase 2 (v2.0, HEAD final em Python 3.14) — bandit (`src/`+`relay/`), pip-audit, trivy, gitleaks, CodeQL e OWASP ZAP, todos verdes no CI |
 
 ## Relação com Outros Documentos
 
