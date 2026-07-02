@@ -342,6 +342,36 @@ class TestComplementar:
         os.finalizar_servico()
         assert os.status == StatusOrdem.FINALIZADA
 
+    def test_finalizar_ok_apos_rejeitar_complementar(self) -> None:
+        # Contraprova de #122: apos rejeitar (item extra removido), a OS volta
+        # a ser finalizavel — a reversao restaura estado dentro do escopo.
+        os = _criar_os_com_item()
+        os.iniciar_diagnostico()
+        os.gerar_orcamento()
+        os.aprovar_orcamento()
+        os.adicionar_item(_criar_item())
+        os.gerar_orcamento_complementar()
+        os.rejeitar_orcamento_complementar()
+        os.finalizar_servico()
+        assert os.status == StatusOrdem.FINALIZADA
+
+    def test_rejeitar_ordem_legada_sem_snapshot_so_transiciona(self) -> None:
+        # #111 branch legada: OS em AGUARDANDO_APROVACAO_COMPLEMENTAR sem
+        # snapshot (escopo NULL, ex.: ordem pre-migracao) so transiciona — nao
+        # remove itens nem retorna removidos.
+        item = _criar_item()
+        os = OrdemDeServico(
+            _cliente_id=uuid4(),
+            _veiculo_id=uuid4(),
+            _status=StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR,
+            _itens=[item],
+        )
+        assert os._orcamento_aprovado is None  # legada (sem snapshot)
+        removidos = os.rejeitar_orcamento_complementar()
+        assert removidos == ()
+        assert os.status == StatusOrdem.EM_EXECUCAO
+        assert [i.id for i in os.itens] == [item.id]  # itens intactos
+
     def test_gerar_complementar_sem_itens_invalido(self) -> None:
         """Defesa: aggregate construido diretamente sem itens em EM_EXECUCAO
         nao deve permitir gerar orcamento complementar."""

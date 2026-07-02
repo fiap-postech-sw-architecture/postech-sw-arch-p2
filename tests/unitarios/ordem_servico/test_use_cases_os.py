@@ -876,6 +876,105 @@ class TestComplementar:
         assert estoque.liberacoes == [(item_estoque_id, 3)]
         assert uow.committed is True
 
+    def test_rejeitar_item_labor_only_nao_libera_reserva(self) -> None:
+        # #111: item extra SEM item_estoque_id (mao de obra) e removido mas NAO
+        # gera liberacao de estoque (nunca reservou).
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        estoque = StubEstoquePort()
+        ordem = _criar_ordem_com_item(repo)
+        ordem.iniciar_diagnostico()
+        ordem.gerar_orcamento()
+        ordem.aprovar_orcamento()
+        ordem.adicionar_item(
+            ItemDaOrdem(
+                _servico_catalogo_id=uuid4(),
+                _item_estoque_id=None,  # mao de obra, sem reserva
+                _descricao="Servico extra",
+                _quantidade=1,
+                _preco_unitario=Dinheiro(valor=Decimal("50.00")),
+            )
+        )
+        ordem.gerar_orcamento_complementar()
+        ordem.limpar_eventos()
+        repo.salvar(ordem)
+
+        RejeitarOrcamentoComplementar(
+            repo=repo, uow=uow, estoque_port=estoque
+        ).executar(ordem.id)
+        assert estoque.liberacoes == []  # nada a liberar
+
+    def test_rejeitar_libera_multiplos_itens_em_ordem_de_id(self) -> None:
+        # #111 anti-deadlock: 2 pecas extras removidas -> liberacoes ordenadas
+        # por item_estoque_id, independente da ordem de insercao.
+        from uuid import UUID
+
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        estoque = StubEstoquePort()
+        ordem = _criar_ordem_com_item(repo)
+        ordem.iniciar_diagnostico()
+        ordem.gerar_orcamento()
+        ordem.aprovar_orcamento()
+        id_menor = UUID(int=1)
+        id_maior = UUID(int=2)
+        for iid, qtd in ((id_maior, 2), (id_menor, 5)):  # inserido fora de ordem
+            ordem.adicionar_item(
+                ItemDaOrdem(
+                    _servico_catalogo_id=uuid4(),
+                    _item_estoque_id=iid,
+                    _descricao="Peca",
+                    _quantidade=qtd,
+                    _preco_unitario=Dinheiro(valor=Decimal("10.00")),
+                )
+            )
+        ordem.gerar_orcamento_complementar()
+        ordem.limpar_eventos()
+        repo.salvar(ordem)
+
+        RejeitarOrcamentoComplementar(
+            repo=repo, uow=uow, estoque_port=estoque
+        ).executar(ordem.id)
+        assert estoque.liberacoes == [(id_menor, 5), (id_maior, 2)]  # ordem de id
+
+    def test_rejeitar_rollback_se_liberar_levanta(self) -> None:
+        # Paridade com CancelarOrdem: se liberar levanta (item de estoque sumiu),
+        # a UoW faz rollback -> nao commita.
+        from src.compartilhado.dominio.exceptions import (
+            EntidadeNaoEncontradaException,
+        )
+
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        estoque = StubEstoquePort()
+
+        def _liberar_falha(*_a: object, **_k: object) -> None:
+            raise EntidadeNaoEncontradaException(mensagem="item de estoque sumiu")
+
+        estoque.liberar = _liberar_falha  # type: ignore[method-assign]
+        ordem = _criar_ordem_com_item(repo)
+        ordem.iniciar_diagnostico()
+        ordem.gerar_orcamento()
+        ordem.aprovar_orcamento()
+        ordem.adicionar_item(
+            ItemDaOrdem(
+                _servico_catalogo_id=uuid4(),
+                _item_estoque_id=uuid4(),
+                _descricao="Peca",
+                _quantidade=1,
+                _preco_unitario=Dinheiro(valor=Decimal("10.00")),
+            )
+        )
+        ordem.gerar_orcamento_complementar()
+        ordem.limpar_eventos()
+        repo.salvar(ordem)
+
+        with pytest.raises(EntidadeNaoEncontradaException):
+            RejeitarOrcamentoComplementar(
+                repo=repo, uow=uow, estoque_port=estoque
+            ).executar(ordem.id)
+        assert uow.committed is False  # rollback
+
 
 class TestListarOrdens:
     def test_vazio(self) -> None:

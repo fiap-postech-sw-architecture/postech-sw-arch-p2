@@ -251,6 +251,12 @@ class OrdemDeServico(AggregateRoot):
         conjunto aprovado; ``finalizar_servico`` exige cobertura total (#111/
         #122). No momento da aprovacao ``_orcamento`` ja e o valor aprovado e
         ``_itens`` sao exatamente os itens cobertos.
+
+        INVARIANTE (usada como sentinela de "sem snapshot" / ordem legada):
+        ``_orcamento_aprovado is None`` <=> ``_itens_aprovados_ids`` vazio. Os
+        dois sao setados juntos AQUI, e ``gerar_orcamento`` exige >=1 item,
+        entao um escopo aprovado nunca e vazio. Os guards usam
+        ``_orcamento_aprovado is None`` como marcador explicito de nao-aprovado.
         """
         self._orcamento_aprovado = self._orcamento
         self._itens_aprovados_ids = frozenset(item.id for item in self._itens)
@@ -272,7 +278,12 @@ class OrdemDeServico(AggregateRoot):
         """
         self._validar_transicao(StatusOrdem.FINALIZADA)
         ids_atuais = {item.id for item in self._itens}
-        if self._itens_aprovados_ids and not ids_atuais <= self._itens_aprovados_ids:
+        # Sentinela explicita: _orcamento_aprovado is None => ordem legada (sem
+        # snapshot) -> guard desativado (comportamento antigo). Ver invariante
+        # em _snapshot_escopo_aprovado.
+        if self._orcamento_aprovado is not None and not (
+            ids_atuais <= self._itens_aprovados_ids
+        ):
             raise ViolacaoRegraDeNegocioException(
                 mensagem=(
                     f"Ordem {self.id} tem itens fora do orcamento aprovado; "
@@ -341,9 +352,10 @@ class OrdemDeServico(AggregateRoot):
         cliente recusou (#111). Ordens legadas (sem snapshot) so transicionam.
         """
         self._validar_transicao(StatusOrdem.EM_EXECUCAO)
-        if not self._itens_aprovados_ids:
-            # Ordem legada (pre-migracao): sem snapshot nao ha como classificar
-            # itens aprovados; preserva o comportamento antigo (so transiciona).
+        if self._orcamento_aprovado is None:
+            # Ordem legada (pre-migracao, sem snapshot): sentinela explicita ->
+            # sem como classificar itens aprovados; preserva o comportamento
+            # antigo (so transiciona). Ver invariante em _snapshot_escopo_aprovado.
             self._aplicar_transicao(StatusOrdem.EM_EXECUCAO)
             self._registrar_evento(
                 OrcamentoComplementarRejeitadoEvent(agregado_id=self.id)

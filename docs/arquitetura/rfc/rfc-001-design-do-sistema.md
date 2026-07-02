@@ -330,7 +330,8 @@ EmExecucao → AguardandoAprovacaoComplementar → EmExecucao
 - Orçamento complementar gerado com os novos itens
 - Aprovação reserva estoque dos itens complementares
 - Orçamentos anteriores mantidos como histórico (array JSONB com timestamp) — RF-017 (Could Have)
-- Rejeição do complementar retorna para `EmExecucao` (sem cancelamento da OS)
+- Rejeição do complementar retorna para `EmExecucao` **revertendo o escopo** (#111): restaura o orçamento aprovado, remove os itens complementares não aprovados e libera suas reservas de estoque na mesma transação, sem cancelar a OS. O escopo aprovado é um snapshot (orçamento + ids dos itens cobertos) persistido em `ordens_de_servico.escopo_aprovado_json` (JSONB, migração 007), congelado a cada aprovação
+- Finalização recusa itens fora do orçamento aprovado (#122): trabalho adicionado em `EmExecucao` sem gerar/aprovar o complementar não pode ser finalizado — evita cobrar trabalho não aprovado
 
 ## 10. Transactional Outbox (RF-018, Could Have)
 

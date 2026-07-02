@@ -63,13 +63,14 @@ def _tipo_coluna(url: str) -> str | None:
     engine = create_engine(url)
     try:
         with engine.connect() as conn:
-            return conn.execute(
+            row = conn.execute(
                 text(
-                    "SELECT data_type FROM information_schema.columns "
+                    "SELECT data_type, is_nullable FROM information_schema.columns "
                     "WHERE table_name = 'ordens_de_servico' "
                     "AND column_name = 'escopo_aprovado_json'"
                 )
-            ).scalar_one_or_none()
+            ).first()
+            return None if row is None else (row.data_type, row.is_nullable)
     finally:
         engine.dispose()
 
@@ -80,9 +81,9 @@ def test_upgrade_adiciona_coluna_jsonb_e_downgrade_remove(postgres_url: str) -> 
     cfg = _config(postgres_url)
     command.downgrade(cfg, "base")  # estado limpo (caso o banco seja reusado)
 
-    # upgrade head: a cadeia chega ao 007 e a coluna jsonb passa a existir.
+    # upgrade head: a cadeia chega ao 007 e a coluna jsonb NULLABLE passa a existir.
     command.upgrade(cfg, "head")
-    assert _tipo_coluna(postgres_url) == "jsonb"
+    assert _tipo_coluna(postgres_url) == ("jsonb", "YES")
 
     # downgrade para 006: so o 007 e revertido -> a coluna some.
     command.downgrade(cfg, "006")

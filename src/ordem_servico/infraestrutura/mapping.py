@@ -271,19 +271,19 @@ def iniciar_mapeamentos() -> None:
         object.__setattr__(
             target, "_orcamento", _orcamento_de_dict(data) if data else None
         )
-        # Escopo aprovado (#111): {"orcamento": <orcamento|null>, "item_ids": [...]}.
+        # Escopo aprovado (#111): {"orcamento": <orcamento>, "item_ids": [...]}.
+        # Persistido SOMENTE quando ha snapshot (_orcamento_aprovado non-None),
+        # entao "orcamento" nunca e null aqui e "item_ids" sempre o acompanha
+        # (ver _decompor_os) — sem o ramo assimetrico orcamento=null+ids.
         escopo = target._escopo_aprovado_json  # type: ignore[attr-defined]  # imperative-mapped attr
         if escopo:
-            orc_aprovado = escopo.get("orcamento")
             object.__setattr__(
-                target,
-                "_orcamento_aprovado",
-                _orcamento_de_dict(orc_aprovado) if orc_aprovado else None,
+                target, "_orcamento_aprovado", _orcamento_de_dict(escopo["orcamento"])
             )
             object.__setattr__(
                 target,
                 "_itens_aprovados_ids",
-                frozenset(UUID(s) for s in escopo.get("item_ids", [])),
+                frozenset(UUID(s) for s in escopo["item_ids"]),
             )
         else:
             object.__setattr__(target, "_orcamento_aprovado", None)
@@ -310,17 +310,17 @@ def iniciar_mapeamentos() -> None:
         # para jsonb. Sem json.dumps — mesmo padrao de outbox.payload.
         target._orcamento_json = _orcamento_para_dict(orc) if orc is not None else None
         # Escopo aprovado (#111): orcamento aprovado + ids dos itens cobertos.
+        # Condicionado a _orcamento_aprovado (sentinela unica de "tem snapshot"):
         # None quando nunca houve aprovacao (ordem legada / pre-orcamento).
-        ids_aprovados = target._itens_aprovados_ids
-        if ids_aprovados:
-            orc_aprovado = target._orcamento_aprovado
+        # INVARIANTE: item_ids sempre acompanha um orcamento non-null (evita o
+        # ramo orcamento=null+ids no load).
+        orc_aprovado = target._orcamento_aprovado
+        if orc_aprovado is not None:
             target._escopo_aprovado_json = {
-                "orcamento": (
-                    _orcamento_para_dict(orc_aprovado)
-                    if orc_aprovado is not None
-                    else None
+                "orcamento": _orcamento_para_dict(orc_aprovado),
+                "item_ids": sorted(
+                    str(item_id) for item_id in target._itens_aprovados_ids
                 ),
-                "item_ids": sorted(str(item_id) for item_id in ids_aprovados),
             }
         else:
             target._escopo_aprovado_json = None
