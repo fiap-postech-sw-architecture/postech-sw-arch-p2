@@ -2369,7 +2369,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0,<2.1" },
     { name = "sqlalchemy", marker = "extra == 'full-test'", specifier = ">=2.0" },
     { name = "structlog", specifier = ">=24.0" },
-    { name = "testcontainers", extras = ["postgres", "redis"], marker = "extra == 'test'", specifier = ">=4.0" },
+    { name = "testcontainers", extras = ["postgres", "redis"], marker = "extra == 'test'", specifier = ">=4.14.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
 provides-extras = ["test", "ui", "full-test", "otel"]
