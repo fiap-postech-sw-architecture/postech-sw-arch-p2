@@ -80,6 +80,13 @@ def iniciar_mapeamentos() -> None:
         # reservar()/liberar() crasham com AttributeError na primeira chamada
         # apos load() (ver src/cliente_veiculo/infraestrutura/mapping.py para o
         # mesmo padrao em Cliente).
+        # INVARIANTE (Copilot #142): re-armar a lista no ``refresh`` descarta
+        # eventos pendentes. Isto e seguro SOMENTE porque todo re-fetch com
+        # populate_existing=True ocorre ANTES de qualquer mutacao de dominio
+        # (reservar/liberar registram eventos DEPOIS do lock). Se um fluxo
+        # futuro re-buscar (ex.: obter_itens_em_lote) uma instancia que ja
+        # tenha eventos pendentes nao publicados, mova este re-arm para so
+        # inicializar quando o atributo ainda nao existir.
         object.__setattr__(target, "_eventos_pendentes", [])
 
     @event.listens_for(ItemEstoque, "before_insert")

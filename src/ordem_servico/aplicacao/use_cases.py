@@ -789,6 +789,14 @@ class DecidirOrcamento:
             return self._cancelar_ordem.executar(
                 ordem_id, CancelarOrdemDTO(motivo=MOTIVO_RECUSA_EXTERNA)
             )
+        # Roteamento aprova↔complementar por status lido SEM lock (best-effort,
+        # Copilot #142): se o estado mudar de forma concorrente entre o guard e
+        # aqui, o delegado escolhido pode ser o "errado", mas NAO ha corrupcao —
+        # cada aprovacao delegada re-le a ordem com_lock=True e a maquina de
+        # status rejeita a transicao ilegal (TransicaoStatusInvalidaException).
+        # A autoridade final e a revalidacao sob lock do delegado, nao este
+        # roteamento. (O caminho 'recusada' acima precisa da revalidacao
+        # explicita porque CancelarOrdem aceita qualquer estado ativo.)
         if ordem.status is StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR:
             return self._aprovar_complementar.executar(ordem_id)
         return self._aprovar_orcamento.executar(ordem_id)
