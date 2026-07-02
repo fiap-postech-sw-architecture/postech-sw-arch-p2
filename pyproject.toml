@@ -38,7 +38,7 @@ test = [
     "pyyaml>=6",
 ]
 ui = [
-    "nicegui>=2.0,<3",
+    "nicegui>=3.14.0,<4",
     # httpx e usado direto por ui/cliente_api.py (wrapper HTTP da UI). NiceGUI
     # 2.x nao puxa httpx transitivamente, entao precisa estar declarado aqui.
     # Sem isso, `uv run --extra ui` (incluindo make ui, make seed-demo,
