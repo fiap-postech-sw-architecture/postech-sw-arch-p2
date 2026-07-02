@@ -7,6 +7,7 @@ from src.autenticacao.aplicacao.dtos import TokenDTO, UsuarioDTO
 from src.autenticacao.dominio.exceptions import (
     CredenciaisInvalidasException,
     EmailDuplicadoException,
+    TokenExpiradoException,
     TokenInvalidoException,
     TokenRevogadoException,
 )
@@ -83,13 +84,41 @@ class Logout:
         self._token_repo = token_repo
         self._uow = uow
 
-    def executar(self, token: str) -> dict[str, str]:
+    def executar(
+        self, token: str, *, refresh_token: str | None = None
+    ) -> dict[str, str]:
+        """Revoga o access token e, se fornecido, o refresh do mesmo usuario.
+
+        Sem revogar o refresh (issue #118, CWE-613) o logout so encerra o
+        access: um ``POST /refresh`` com o refresh emitido no mesmo login ainda
+        cunharia um novo par apos o logout, deixando a sessao viva. O cliente
+        envia o refresh no corpo para encerrar a sessao por completo; revogar
+        o refresh e best-effort — refresh ausente/invalido/expirado ou de outro
+        usuario nao falha a revogacao do access.
+        """
         payload = self._jwt_service.validar_token(token)
-        jti = str(payload["jti"])
+        jtis = {str(payload["jti"])}
+        if refresh_token is not None:
+            jti_refresh = self._jti_refresh_para_revogar(
+                refresh_token, sub=str(payload.get("sub"))
+            )
+            if jti_refresh is not None:
+                jtis.add(jti_refresh)
         with self._uow:
-            self._token_repo.revogar(jti)
+            for jti in jtis:
+                self._token_repo.revogar(jti)
             self._uow.commit()
         return {"mensagem": "Logout realizado com sucesso"}
+
+    def _jti_refresh_para_revogar(self, refresh_token: str, *, sub: str) -> str | None:
+        """jti do refresh se for um refresh valido do MESMO usuario; senao None."""
+        try:
+            payload = self._jwt_service.validar_token(refresh_token)
+        except (TokenExpiradoException, TokenInvalidoException):
+            return None
+        if payload.get("type") != "refresh" or str(payload.get("sub")) != sub:
+            return None
+        return str(payload["jti"])
 
 
 class RefreshToken:

@@ -58,10 +58,23 @@ class TestTokenRevogadoRepository:
 
     def test_revogar(self) -> None:
         session = MagicMock()
+        # O guard de idempotencia (#121) consulta esta_revogado antes de
+        # inserir; simula "ainda nao revogado" para exercitar o INSERT.
+        session.execute.return_value.first.return_value = None
         repo = TokenRevogadoSQLAlchemyRepository(session=session)
         repo.revogar("some-jti")
         session.add.assert_called_once()
         session.flush.assert_called_once()
+
+    def test_revogar_idempotente_nao_reinsere(self) -> None:
+        # Issue #121: jti ja revogado -> revogar nao tenta novo INSERT, evitando
+        # o IntegrityError do UNIQUE que virava 500 no logout duplo/retry.
+        session = MagicMock()
+        session.execute.return_value.first.return_value = MagicMock()  # ja revogado
+        repo = TokenRevogadoSQLAlchemyRepository(session=session)
+        repo.revogar("some-jti")
+        session.add.assert_not_called()
+        session.flush.assert_not_called()
 
     def test_esta_revogado_false(self) -> None:
         session = MagicMock()

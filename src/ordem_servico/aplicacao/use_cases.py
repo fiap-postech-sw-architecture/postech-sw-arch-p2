@@ -226,6 +226,11 @@ def _montar_item(
             raise ViolacaoRegraDeNegocioException(
                 mensagem="Item de estoque nao encontrado"
             )
+        # Peca desativada nao entra em OS nova (issue #120): espelha a rejeicao
+        # de servico inativo acima e fecha a brecha do guard de
+        # DesativarItemEstoque (que so impede desativar item COM OS ativa).
+        if not peca.ativo:
+            raise ViolacaoRegraDeNegocioException(mensagem="Item de estoque inativo")
         preco_unitario = peca.preco_unitario
         nome_padrao = peca.nome
     else:
@@ -764,9 +769,34 @@ class DecidirOrcamento:
                 )
             )
         if decisao == DECISAO_RECUSADA:
+            # Revalida o estado de espera SOB LOCK (#119): o guard acima le sem
+            # lock e ``CancelarOrdem`` (delegado) aceita QUALQUER estado ativo
+            # sem revalidar a espera. Sem esta releitura travada, uma aprovacao
+            # interna concorrente (AGUARDANDO_APROVACAO -> EM_EXECUCAO) entre o
+            # guard e o cancelamento faria a recusa externa cancelar uma OS ja
+            # em execucao. A session e compartilhada (composition root), entao o
+            # FOR UPDATE adquirido aqui e retido ate o commit da UoW de
+            # CancelarOrdem — a mesma transacao.
+            ordem_travada = _obter_ordem(self._repo, ordem_id, com_lock=True)
+            if ordem_travada.status not in self._ESTADOS_DE_ESPERA:
+                validos = sorted(s.value for s in self._ESTADOS_DE_ESPERA)
+                raise TransicaoStatusInvalidaException(
+                    mensagem=(
+                        f"Decisao externa de orcamento invalida em "
+                        f"{ordem_travada.status.value}; valida apenas em {validos}"
+                    )
+                )
             return self._cancelar_ordem.executar(
                 ordem_id, CancelarOrdemDTO(motivo=MOTIVO_RECUSA_EXTERNA)
             )
+        # Roteamento aprova↔complementar por status lido SEM lock (best-effort,
+        # Copilot #142): se o estado mudar de forma concorrente entre o guard e
+        # aqui, o delegado escolhido pode ser o "errado", mas NAO ha corrupcao —
+        # cada aprovacao delegada re-le a ordem com_lock=True e a maquina de
+        # status rejeita a transicao ilegal (TransicaoStatusInvalidaException).
+        # A autoridade final e a revalidacao sob lock do delegado, nao este
+        # roteamento. (O caminho 'recusada' acima precisa da revalidacao
+        # explicita porque CancelarOrdem aceita qualquer estado ativo.)
         if ordem.status is StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR:
             return self._aprovar_complementar.executar(ordem_id)
         return self._aprovar_orcamento.executar(ordem_id)

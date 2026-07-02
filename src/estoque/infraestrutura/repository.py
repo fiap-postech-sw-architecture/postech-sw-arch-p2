@@ -30,19 +30,29 @@ class ItemEstoqueSQLAlchemyRepository:
         """
         if not com_lock:
             return self._session.get(ItemEstoque, item_id)
+        # populate_existing=True: refresh das colunas mesmo se o item ja esta
+        # no identity map — senao o FOR UPDATE devolveria a instancia stale
+        # (ex.: item pre-carregado em _montar_item e depois relido para
+        # reservar), reabrindo a janela de sobre-venda que o lock deveria
+        # fechar (issue #117; mesma classe do fix #83).
         stmt = (
             select(ItemEstoque)
             .where(itens_estoque_table.c.id == item_id)
             .with_for_update(nowait=False)
+            .execution_options(populate_existing=True)
         )
         return self._session.scalars(stmt).one_or_none()
 
     def obter_por_ids(self, ids: list[UUID]) -> list[ItemEstoque]:
+        # populate_existing=True pelo mesmo motivo do ramo com_lock acima: este
+        # e o lock em lote da reserva/liberacao (FOR UPDATE), e itens ja
+        # carregados na session precisam do estado fresco pos-lock (#117).
         stmt = (
             select(ItemEstoque)
             .where(itens_estoque_table.c.id.in_(ids))
             .with_for_update(nowait=True)
             .order_by(itens_estoque_table.c.id)
+            .execution_options(populate_existing=True)
         )
         return list(self._session.scalars(stmt))
 

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Body, Depends, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.requests import Request  # noqa: TC002
 
@@ -68,10 +68,15 @@ def registrar(
 def logout(
     request: Request,
     credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme_required),
+    refresh_token: str | None = Body(default=None, embed=True),
     session: Session = Depends(obter_session),
 ) -> dict[str, str]:
+    # refresh_token e OPCIONAL no corpo (issue #118): quando enviado, o logout
+    # revoga tambem o refresh e encerra a sessao por completo (CWE-613). Corpo
+    # ausente mantem o comportamento anterior (revoga so o access) — sem 422
+    # para clientes que so mandam o header.
     uc = obter_logout(session)
-    return uc.executar(credentials.credentials)
+    return uc.executar(credentials.credentials, refresh_token=refresh_token)
 
 
 @router.post("/refresh")

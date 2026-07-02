@@ -58,21 +58,35 @@ def iniciar_mapeamentos() -> None:
     )
 
     @event.listens_for(ItemEstoque, "load")
-    def _reconstruir_preco(target: ItemEstoque, _context: object) -> None:
+    @event.listens_for(ItemEstoque, "refresh")
+    def _reconstruir_preco(target: ItemEstoque, *_args: object) -> None:
+        # Decorators empilhados load+refresh (``*_args`` absorve o ``attrs`` do
+        # refresh). O ``refresh`` e necessario: obter_por_id(com_lock=True) e
+        # obter_por_ids usam populate_existing=True (#117), que dispara
+        # ``refresh`` e nao ``load`` — sem ele o VO Dinheiro e os invariantes
+        # (_id_atribuido/_eventos_pendentes) ficariam stale/ausentes na
+        # releitura sob lock da reserva.
         valor = target._preco_valor  # type: ignore[attr-defined]
         moeda = target._preco_moeda  # type: ignore[attr-defined]
         object.__setattr__(
             target, "_preco_unitario", Dinheiro(valor=valor, moeda=moeda)
         )
-        # SQLAlchemy nao chama __post_init__ ao reidratar, entao o guard
-        # de Entity.__setattr__ precisa ser ativado aqui para preservar
-        # a imutabilidade de id em instancias carregadas.
+        # SQLAlchemy nao chama __post_init__ ao reidratar, entao o guard de
+        # Entity.__setattr__ precisa ser ativado aqui para preservar a
+        # imutabilidade de id em instancias carregadas.
         object.__setattr__(target, "_id_atribuido", True)
         # AggregateRoot._eventos_pendentes tem init=False com default_factory,
         # entao o mapper nao o inicializa na reidratacao. Sem isso,
         # reservar()/liberar() crasham com AttributeError na primeira chamada
-        # apos load() (ver src/cliente_veiculo/infraestrutura/mapping.py:145
-        # para o mesmo padrao em Cliente).
+        # apos load() (ver src/cliente_veiculo/infraestrutura/mapping.py para o
+        # mesmo padrao em Cliente).
+        # INVARIANTE (Copilot #142): re-armar a lista no ``refresh`` descarta
+        # eventos pendentes. Isto e seguro SOMENTE porque todo re-fetch com
+        # populate_existing=True ocorre ANTES de qualquer mutacao de dominio
+        # (reservar/liberar registram eventos DEPOIS do lock). Se um fluxo
+        # futuro re-buscar (ex.: obter_itens_em_lote) uma instancia que ja
+        # tenha eventos pendentes nao publicados, mova este re-arm para so
+        # inicializar quando o atributo ainda nao existir.
         object.__setattr__(target, "_eventos_pendentes", [])
 
     @event.listens_for(ItemEstoque, "before_insert")
