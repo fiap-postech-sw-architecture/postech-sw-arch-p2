@@ -44,7 +44,7 @@ O que a fase 2 **não exige** (e portanto não vale nota por si só):
 
 Defeitos/melhorias descobertos ao implementar o Tier 0-2 — abertos como issues e seguidos (não bloquearam o item de origem):
 
-- **[#90](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/90)** — README diz "Python 3.12" mas o runtime é `python:3.13-slim` (doc, low).
+- **[#90](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/90)** — README diz "Python 3.12" mas o runtime é `python:3.14-slim` (doc, low).
 - **[#93](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/93)** — roteiro do vídeo sem passo de demo das métricas Prometheus / ADR-024 (doc, low).
 - **[#95](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/95)** — `seed_admin.py` não rejeita o `ADMIN_PASSWORD` demo público (caminho do Job de migração) (bug-seg, medium).
 - **[#96](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/96)** — coluna `usuarios.papel` ainda tem `default="admin"` no mapping (contradiz o fail-safe do #84) (bug-seg, low).
