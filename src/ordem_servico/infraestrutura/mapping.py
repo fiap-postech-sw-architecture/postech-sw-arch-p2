@@ -152,8 +152,7 @@ def iniciar_mapeamentos() -> None:
         },
     )
 
-    @event.listens_for(ItemDaOrdem, "load")
-    def _reconstruir_preco_item(target: ItemDaOrdem, _context: object) -> None:
+    def _reidratar_item(target: ItemDaOrdem) -> None:
         # _preco_valor / _preco_moeda sao injetados em tempo de execucao
         # pelo map_imperatively acima e invisiveis ao mypy estatico.
         valor = target._preco_valor  # type: ignore[attr-defined]  # imperative-mapped attr
@@ -167,6 +166,19 @@ def iniciar_mapeamentos() -> None:
         # carregadas (regressao PR #60 aplicada workspace-wide).
         object.__setattr__(target, "_id_atribuido", True)
 
+    @event.listens_for(ItemDaOrdem, "load")
+    def _reconstruir_item_on_load(target: ItemDaOrdem, _context: object) -> None:
+        _reidratar_item(target)
+
+    @event.listens_for(ItemDaOrdem, "refresh")
+    def _reconstruir_item_on_refresh(
+        target: ItemDaOrdem, _context: object, _attrs: object
+    ) -> None:
+        # populate_existing=True (repositorio, ramo com_lock/obter_por_ids) e
+        # session.refresh disparam ``refresh``, nao ``load``: sem este listener
+        # o VO Dinheiro ficaria stale apos a releitura sob lock (#117).
+        _reidratar_item(target)
+
     @event.listens_for(ItemDaOrdem, "before_insert")
     @event.listens_for(ItemDaOrdem, "before_update")
     def _decompor_preco_item(
@@ -176,8 +188,7 @@ def iniciar_mapeamentos() -> None:
         target._preco_valor = preco.valor
         target._preco_moeda = preco.moeda
 
-    @event.listens_for(OrdemDeServico, "load")
-    def _reconstruir_os(target: OrdemDeServico, _context: object) -> None:
+    def _reidratar_os(target: OrdemDeServico) -> None:
         # _status_valor / _orcamento_json sao injetados em tempo de
         # execucao pelo map_imperatively acima.
         status_str = target._status_valor  # type: ignore[attr-defined]  # imperative-mapped attr
@@ -232,6 +243,20 @@ def iniciar_mapeamentos() -> None:
         # para que _registrar_evento funcione em metodos chamados sobre
         # instancias carregadas.
         object.__setattr__(target, "_eventos_pendentes", [])
+
+    @event.listens_for(OrdemDeServico, "load")
+    def _reconstruir_os_on_load(target: OrdemDeServico, _context: object) -> None:
+        _reidratar_os(target)
+
+    @event.listens_for(OrdemDeServico, "refresh")
+    def _reconstruir_os_on_refresh(
+        target: OrdemDeServico, _context: object, _attrs: object
+    ) -> None:
+        # Releitura sob FOR UPDATE com populate_existing=True (issue #117) e
+        # session.refresh disparam ``refresh`` (nao ``load``): sem este
+        # listener o status/orcamento reconstruidos ficariam stale apos o
+        # lock, derrotando a serializacao de concorrencia da issue #82.
+        _reidratar_os(target)
 
     @event.listens_for(OrdemDeServico, "before_insert")
     @event.listens_for(OrdemDeServico, "before_update")

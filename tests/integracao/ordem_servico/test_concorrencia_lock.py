@@ -630,3 +630,83 @@ class TestCaminhoLeituraPermaneceSemLock:
         finally:
             conn.close()
             _limpar_ordem(engine, ordem_id)
+
+
+# ---------------------------------------------------------------------------
+# #117 — releitura sob FOR UPDATE devolve estado fresco (populate_existing +
+# listener de refresh no mapping)
+# ---------------------------------------------------------------------------
+
+
+class TestReleituraComLockRefrescaIdentityMap:
+    """#117: ``obter_por_id(com_lock=True)`` deve refletir o estado commitado
+    por OUTRA transacao mesmo quando a instancia ja foi carregada (sem lock) na
+    session — ou seja, ja esta no identity map. Sem ``populate_existing=True``
+    (+ listener de ``refresh`` no mapping) o SELECT FOR UPDATE devolveria o
+    objeto stale: o lock e adquirido no banco, mas o estado em memoria seria o
+    antigo, derrotando a serializacao de concorrencia de #82/#83.
+    """
+
+    def test_os_com_lock_reflete_commit_externo_apos_leitura_sem_lock(
+        self, engine: Engine
+    ) -> None:
+        ordem_id = _seed_ordem_recebida(engine)
+        try:
+            with SASession(bind=engine, expire_on_commit=False) as sess:
+                repo = OrdemDeServicoSQLAlchemyRepository(session=sess)
+                # 1a leitura SEM lock: poe a OS (recebida) no identity map.
+                ordem_stale = repo.obter_por_id(ordem_id)
+                assert ordem_stale is not None
+                assert ordem_stale.status is StatusOrdem.RECEBIDA
+
+                # Outra transacao avanca o status e commita.
+                with engine.begin() as conn:
+                    conn.execute(
+                        text(
+                            "UPDATE ordens_de_servico SET status = :novo, "
+                            "atualizado_em = now() WHERE id = :id"
+                        ),
+                        {"novo": StatusOrdem.EM_DIAGNOSTICO.value, "id": ordem_id},
+                    )
+
+                # Releitura COM lock: a MESMA instancia (identity map), mas com
+                # o status de dominio reconstruido a partir do estado fresco.
+                ordem_fresca = repo.obter_por_id(ordem_id, com_lock=True)
+                assert ordem_fresca is ordem_stale
+                assert ordem_fresca.status is StatusOrdem.EM_DIAGNOSTICO
+        finally:
+            _limpar_ordem(engine, ordem_id)
+
+    def test_item_estoque_com_lock_reflete_commit_externo(
+        self, engine: Engine
+    ) -> None:
+        from src.estoque.infraestrutura.repository import (
+            ItemEstoqueSQLAlchemyRepository,
+        )
+
+        item_id = _seed_item(engine, quantidade=5)
+        try:
+            with SASession(bind=engine, expire_on_commit=False) as sess:
+                repo = ItemEstoqueSQLAlchemyRepository(session=sess)
+                item_stale = repo.obter_por_id(item_id)
+                assert item_stale is not None
+                assert item_stale.quantidade == 5
+
+                # Outra transacao muda saldo (coluna crua) E preco (VO
+                # reconstruido pelo listener) e commita.
+                with engine.begin() as conn:
+                    conn.execute(
+                        text(
+                            "UPDATE itens_estoque SET quantidade = :q, "
+                            "preco_unitario_valor = :p WHERE id = :id"
+                        ),
+                        {"q": 2, "p": Decimal("99.00"), "id": item_id},
+                    )
+
+                item_fresco = repo.obter_por_id(item_id, com_lock=True)
+                assert item_fresco is item_stale
+                assert item_fresco.quantidade == 2  # coluna crua (populate_existing)
+                # VO Dinheiro reconstruido no refresh (listener #117), nao stale.
+                assert item_fresco.preco_unitario.valor == Decimal("99.00")
+        finally:
+            _limpar_item(engine, item_id)
