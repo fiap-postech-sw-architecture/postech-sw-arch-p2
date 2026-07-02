@@ -14,7 +14,7 @@ usuarios_table = Table(
     Column("id", Uuid, primary_key=True),
     Column("email", String(255), nullable=False, unique=True),
     Column("senha_hash", String(255), nullable=False),
-    Column("papel", String(20), nullable=False, default="admin"),
+    Column("papel", String(20), nullable=False),
 )
 
 tokens_revogados_table = Table(

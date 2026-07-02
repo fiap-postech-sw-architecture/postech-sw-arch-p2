@@ -47,6 +47,9 @@ _PLACEHOLDERS_PROIBIDOS = frozenset(
         "changeme",
         "password",
         "admin",
+        # Valor demo publico do repo (k8s/secret.yaml, docker-compose.yml).
+        # Esta commitado e portanto nao e segredo -- nunca pode virar senha real.
+        "pytstop-admin-demo-2026",
     }
 )
 _SENHA_MIN_LEN = 12

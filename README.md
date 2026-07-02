@@ -260,7 +260,7 @@ Mapa completo variável → ConfigMap/Secret no cluster: [RFC-002 §6](docs/arqu
 
 ## Stack
 
-- **Linguagem**: Python 3.12
+- **Linguagem**: Python 3.14
 - **Framework**: FastAPI
 - **Banco de dados**: PostgreSQL 16
 - **ORM**: SQLAlchemy 2.0 (mapeamento imperativo)
