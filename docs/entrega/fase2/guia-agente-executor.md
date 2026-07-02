@@ -118,9 +118,9 @@ Se um gate quebrar por causa alheia ao seu diff: pare, reporte no PR/issue, não
 - Commit: `docs(roteiro): prometheus no bloco 6 + workloads e seguranca sincronizados (#93)`
 
 ### PR J — housekeeping #90 #95 #96 (+ import do PR #55)
-- #90: README "Python 3.12" → 3.13 (1 linha). #95: denylist do `scripts/seed_admin.py` inclui o valor demo público (`k8s/secret.yaml:31`). #96: remover `default="admin"` da coluna `papel` em `src/autenticacao/infraestrutura/mapping.py` (o `before_insert` sempre seta do `_papel` explícito — confirmar teste). Import misto em `tests/unitarios/ordem_servico/test_repository_os.py:13` → estilo único (finding CodeQL do PR #55, reimplementado limpo).
+- #90: README "Python 3.12" → 3.14 (1 linha). #95: denylist do `scripts/seed_admin.py` inclui o valor demo público (`k8s/secret.yaml:31`). #96: remover `default="admin"` da coluna `papel` em `src/autenticacao/infraestrutura/mapping.py` (o `before_insert` sempre seta do `_papel` explícito — confirmar teste). Import misto em `tests/unitarios/ordem_servico/test_repository_os.py:13` → estilo único (finding CodeQL do PR #55, reimplementado limpo).
 - Testes: suíte cheia (o #96 pode ter teste afirmando o default — ajustar mantendo fail-safe).
-- Commit: `chore: housekeeping da entrega — python 3.13, seed denylist, papel sem default, import unico (#90, #95, #96)`
+- Commit: `chore: housekeeping da entrega — python 3.14, seed denylist, papel sem default, import unico (#90, #95, #96)`
 
 ### PR K — #123 pipeline do PDF (depois de G e H)
 - `scripts/build-entrega-pdf.sh`: pré-pendar capa ABNT (FIAP · 15SOAT · nomes completos + RM · São Paulo · 2026 — copiar dados da capa da fase 1 nos assets da skill `entrega-tech-challenge`); concatenar Anexo A (scan-fase-2.md v1.1), Anexo B (screenshots de evidência em `docs/entrega/fase2/assets/`), Anexo C (apêndice de extras); filtrar a §8 Pendências do corpo.

@@ -2,7 +2,7 @@
 # Esta imagem serve a UI de simulacao NiceGUI consumindo o backend
 # PytStop via HTTP. Nao deve ser promovida para publicos externos.
 
-FROM python:3.13-slim AS base
+FROM python:3.14-slim AS base
 
 ARG GIT_SHA=unknown
 ARG GIT_DATE=unknown
