@@ -24,6 +24,8 @@ from __future__ import annotations
 
 from datetime import datetime
 from decimal import Decimal
+from typing import Any
+from uuid import UUID
 
 from sqlalchemy import (
     JSON,
@@ -48,6 +50,65 @@ from src.ordem_servico.dominio.orcamento import LinhaOrcamento, Orcamento
 from src.ordem_servico.dominio.ordem_de_servico import OrdemDeServico
 from src.ordem_servico.dominio.status import StatusOrdem
 
+
+def _orcamento_para_dict(orc: Orcamento) -> dict[str, Any]:
+    """Serializa um ``Orcamento`` para o dict JSONB persistido.
+
+    Reusado pela coluna ``orcamento_json`` e pelo orcamento aninhado em
+    ``escopo_aprovado_json`` (#111). Moeda por linha e no total => round-trip
+    sem perda (Copilot PR #62).
+    """
+    return {
+        "total_centavos": int(orc.total.valor * 100),
+        "moeda_total": orc.total.moeda,
+        "gerado_em": orc.gerado_em.isoformat(),
+        "versao_schema": orc.versao_schema,
+        "itens": [
+            {
+                "descricao": li.descricao,
+                "quantidade": li.quantidade,
+                "preco_unitario_centavos": int(li.preco_unitario.valor * 100),
+                "subtotal_centavos": int(li.subtotal.valor * 100),
+                "moeda": li.preco_unitario.moeda,
+            }
+            for li in orc.itens
+        ],
+    }
+
+
+def _orcamento_de_dict(data: Any) -> Orcamento:  # noqa: ANN401 -- JSONB e dinamico
+    """Reconstroi um ``Orcamento`` do dict JSONB (``data`` e dinamico: JSONB).
+
+    Snapshots antigos (versao_schema < 2) nao persistiam moeda -> fallback
+    'BRL'. Inverso de ``_orcamento_para_dict``.
+    """
+    moeda_total = data.get("moeda_total", "BRL")
+    linhas = tuple(
+        LinhaOrcamento(
+            descricao=li["descricao"],
+            quantidade=li["quantidade"],
+            _preco_unitario=Dinheiro(
+                valor=Decimal(str(li["preco_unitario_centavos"])) / 100,
+                moeda=li.get("moeda", "BRL"),
+            ),
+            _subtotal=Dinheiro(
+                valor=Decimal(str(li["subtotal_centavos"])) / 100,
+                moeda=li.get("moeda", "BRL"),
+            ),
+        )
+        for li in data["itens"]
+    )
+    return Orcamento(
+        itens=linhas,
+        _total=Dinheiro(
+            valor=Decimal(str(data["total_centavos"])) / 100,
+            moeda=moeda_total,
+        ),
+        _gerado_em=datetime.fromisoformat(data["gerado_em"]),
+        versao_schema=data.get("versao_schema", 1),
+    )
+
+
 ordens_de_servico_table = Table(
     "ordens_de_servico",
     metadata,
@@ -63,6 +124,14 @@ ordens_de_servico_table = Table(
     # legadas — assim `WHERE orcamento_json IS NULL` casa "sem orcamento".
     Column(
         "orcamento_json",
+        JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
+        nullable=True,
+    ),
+    # Snapshot do escopo aprovado (#111): {"orcamento": <orcamento|null>,
+    # "item_ids": [...]}. Sustenta a reversao da rejeicao do complementar e o
+    # guard de finalizar_servico (#122). Nullable: ordens legadas / nao aprovadas.
+    Column(
+        "escopo_aprovado_json",
         JSONB(none_as_null=True).with_variant(JSON(none_as_null=True), "sqlite"),
         nullable=True,
     ),
@@ -142,6 +211,7 @@ def iniciar_mapeamentos() -> None:
             "_veiculo_id": ordens_de_servico_table.c.veiculo_id,
             "_status_valor": ordens_de_servico_table.c.status,
             "_orcamento_json": ordens_de_servico_table.c.orcamento_json,
+            "_escopo_aprovado_json": ordens_de_servico_table.c.escopo_aprovado_json,
             "_criado_em": ordens_de_servico_table.c.criado_em,
             "_atualizado_em": ordens_de_servico_table.c.atualizado_em,
             "_itens": relationship(
@@ -198,42 +268,26 @@ def iniciar_mapeamentos() -> None:
         # (adapter jsonb do psycopg2 no Postgres; tipo JSON do SQLAlchemy no
         # sqlite de teste). Sem json.loads — a camada manual foi removida.
         data = target._orcamento_json  # type: ignore[attr-defined]  # imperative-mapped attr
-        if data:
-            # Snapshots antigos (versao_schema < 2) nao persistiam a moeda;
-            # cair para "BRL" como fallback. Snapshots 2+ incluem "moeda"
-            # por linha e um "moeda_total" para o agregado, permitindo
-            # evolucao multi-moeda sem perder dados no round-trip.
-            moeda_total = data.get("moeda_total", "BRL")
-            linhas = tuple(
-                LinhaOrcamento(
-                    descricao=li["descricao"],
-                    quantidade=li["quantidade"],
-                    _preco_unitario=Dinheiro(
-                        valor=Decimal(str(li["preco_unitario_centavos"])) / 100,
-                        moeda=li.get("moeda", "BRL"),
-                    ),
-                    _subtotal=Dinheiro(
-                        valor=Decimal(str(li["subtotal_centavos"])) / 100,
-                        moeda=li.get("moeda", "BRL"),
-                    ),
-                )
-                for li in data["itens"]
+        object.__setattr__(
+            target, "_orcamento", _orcamento_de_dict(data) if data else None
+        )
+        # Escopo aprovado (#111): {"orcamento": <orcamento|null>, "item_ids": [...]}.
+        escopo = target._escopo_aprovado_json  # type: ignore[attr-defined]  # imperative-mapped attr
+        if escopo:
+            orc_aprovado = escopo.get("orcamento")
+            object.__setattr__(
+                target,
+                "_orcamento_aprovado",
+                _orcamento_de_dict(orc_aprovado) if orc_aprovado else None,
             )
             object.__setattr__(
                 target,
-                "_orcamento",
-                Orcamento(
-                    itens=linhas,
-                    _total=Dinheiro(
-                        valor=Decimal(str(data["total_centavos"])) / 100,
-                        moeda=moeda_total,
-                    ),
-                    _gerado_em=datetime.fromisoformat(data["gerado_em"]),
-                    versao_schema=data.get("versao_schema", 1),
-                ),
+                "_itens_aprovados_ids",
+                frozenset(UUID(s) for s in escopo.get("item_ids", [])),
             )
         else:
-            object.__setattr__(target, "_orcamento", None)
+            object.__setattr__(target, "_orcamento_aprovado", None)
+            object.__setattr__(target, "_itens_aprovados_ids", frozenset())
         # PR #60 lesson aplicada ao agregado: reativa _id_atribuido para
         # que Entity.__setattr__ bloqueie mutacao de id em ordens
         # carregadas via ORM.
@@ -252,29 +306,21 @@ def iniciar_mapeamentos() -> None:
     ) -> None:
         target._status_valor = target._status.value
         orc = target._orcamento
-        if orc is not None:
-            # moeda e persistida por linha e no total para permitir
-            # round-trip completo sem perda (Copilot PR #62 finding:
-            # reconstruir apenas com "valor" assume BRL implicitamente).
-            data = {
-                "total_centavos": int(orc.total.valor * 100),
-                "moeda_total": orc.total.moeda,
-                "gerado_em": orc.gerado_em.isoformat(),
-                "versao_schema": orc.versao_schema,
-                "itens": [
-                    {
-                        "descricao": li.descricao,
-                        "quantidade": li.quantidade,
-                        "preco_unitario_centavos": int(li.preco_unitario.valor * 100),
-                        "subtotal_centavos": int(li.subtotal.valor * 100),
-                        "moeda": li.preco_unitario.moeda,
-                    }
-                    for li in orc.itens
-                ],
+        # Dict cru para a coluna JSONB (TD-005); psycopg2 + SQLAlchemy adaptam
+        # para jsonb. Sem json.dumps — mesmo padrao de outbox.payload.
+        target._orcamento_json = _orcamento_para_dict(orc) if orc is not None else None
+        # Escopo aprovado (#111): orcamento aprovado + ids dos itens cobertos.
+        # None quando nunca houve aprovacao (ordem legada / pre-orcamento).
+        ids_aprovados = target._itens_aprovados_ids
+        if ids_aprovados:
+            orc_aprovado = target._orcamento_aprovado
+            target._escopo_aprovado_json = {
+                "orcamento": (
+                    _orcamento_para_dict(orc_aprovado)
+                    if orc_aprovado is not None
+                    else None
+                ),
+                "item_ids": sorted(str(item_id) for item_id in ids_aprovados),
             }
-            # Dict cru para a coluna JSONB (TD-005); psycopg2 + SQLAlchemy
-            # adaptam para jsonb. Sem json.dumps — mesmo padrao de
-            # outbox.payload (camada manual removida).
-            target._orcamento_json = data
         else:
-            target._orcamento_json = None
+            target._escopo_aprovado_json = None

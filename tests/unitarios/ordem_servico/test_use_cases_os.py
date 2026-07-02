@@ -837,9 +837,44 @@ class TestComplementar:
         ordem.gerar_orcamento_complementar()
         ordem.limpar_eventos()
         repo.salvar(ordem)
-        rejeitar = RejeitarOrcamentoComplementar(repo=repo, uow=uow)
+        rejeitar = RejeitarOrcamentoComplementar(
+            repo=repo, uow=uow, estoque_port=StubEstoquePort()
+        )
         result = rejeitar.executar(ordem.id)
         assert result.status == "em_execucao"
+
+    def test_rejeitar_libera_reserva_do_item_removido(self) -> None:
+        # #111: o item adicionado apos a aprovacao e removido na rejeicao e sua
+        # reserva de estoque e liberada na MESMA transacao (uow commitada).
+        repo = FakeOrdemDeServicoRepository()
+        uow = FakeUnitOfWork()
+        estoque = StubEstoquePort()
+        ordem = _criar_ordem_com_item(repo)
+        ordem.iniciar_diagnostico()
+        ordem.gerar_orcamento()
+        ordem.aprovar_orcamento()
+        item_estoque_id = uuid4()
+        ordem.adicionar_item(
+            ItemDaOrdem(
+                _servico_catalogo_id=uuid4(),
+                _item_estoque_id=item_estoque_id,
+                _descricao="Peca extra",
+                _quantidade=3,
+                _preco_unitario=Dinheiro(valor=Decimal("50.00")),
+            )
+        )
+        ordem.gerar_orcamento_complementar()
+        ordem.limpar_eventos()
+        repo.salvar(ordem)
+
+        rejeitar = RejeitarOrcamentoComplementar(
+            repo=repo, uow=uow, estoque_port=estoque
+        )
+        result = rejeitar.executar(ordem.id)
+
+        assert result.status == "em_execucao"
+        assert estoque.liberacoes == [(item_estoque_id, 3)]
+        assert uow.committed is True
 
 
 class TestListarOrdens:
@@ -1717,7 +1752,7 @@ class TestDispatchDeEventosPosCommit:
             (
                 (*ate_execucao, "gerar_orcamento_complementar"),
                 lambda r, u, d: RejeitarOrcamentoComplementar(
-                    repo=r, uow=u, dispatcher=d
+                    repo=r, uow=u, estoque_port=StubEstoquePort(), dispatcher=d
                 ),
                 lambda uc, oid: uc.executar(oid),
                 OrcamentoComplementarRejeitadoEvent,

@@ -283,6 +283,65 @@ class TestComplementar:
         os.rejeitar_orcamento_complementar()
         assert os.status == StatusOrdem.EM_EXECUCAO
 
+    def test_rejeitar_complementar_reverte_orcamento_e_remove_itens(self) -> None:
+        # #111: aprovar (item original), ADICIONAR item em EM_EXECUCAO, gerar
+        # complementar e rejeitar deve restaurar o orcamento aprovado, remover
+        # o item nao aprovado e retorna-lo (para liberar a reserva na aplicacao).
+        os = _criar_os_com_item()
+        os.iniciar_diagnostico()
+        os.gerar_orcamento()
+        os.aprovar_orcamento()
+        orcamento_aprovado = os.orcamento
+        item_original_id = os.itens[0].id
+        item_extra = _criar_item()
+        os.adicionar_item(item_extra)
+        os.gerar_orcamento_complementar()
+        assert os.orcamento is not None
+        assert os.orcamento.total.valor == Decimal("200.00")  # 2 itens
+
+        removidos = os.rejeitar_orcamento_complementar()
+
+        assert os.status == StatusOrdem.EM_EXECUCAO
+        assert os.orcamento is orcamento_aprovado  # restaurado
+        assert os.orcamento is not None
+        assert os.orcamento.total.valor == Decimal("100.00")  # so o original
+        assert [i.id for i in os.itens] == [item_original_id]
+        assert [i.id for i in removidos] == [item_extra.id]
+
+    def test_finalizar_bloqueia_com_item_nao_aprovado(self) -> None:
+        # #122: item adicionado em EM_EXECUCAO sem gerar/aprovar complementar
+        # nao pode ser finalizado (cliente pagaria por trabalho nao aprovado).
+        os = _criar_os_com_item()
+        os.iniciar_diagnostico()
+        os.gerar_orcamento()
+        os.aprovar_orcamento()
+        os.adicionar_item(_criar_item())
+        with pytest.raises(
+            ViolacaoRegraDeNegocioException, match="fora do orcamento aprovado"
+        ):
+            os.finalizar_servico()
+        assert os.status == StatusOrdem.EM_EXECUCAO
+
+    def test_finalizar_ok_apos_aprovar_complementar(self) -> None:
+        # Contraprova de #122: complementar aprovado -> item extra no escopo.
+        os = _criar_os_com_item()
+        os.iniciar_diagnostico()
+        os.gerar_orcamento()
+        os.aprovar_orcamento()
+        os.adicionar_item(_criar_item())
+        os.gerar_orcamento_complementar()
+        os.aprovar_orcamento_complementar()
+        os.finalizar_servico()
+        assert os.status == StatusOrdem.FINALIZADA
+
+    def test_finalizar_ok_sem_itens_extras(self) -> None:
+        os = _criar_os_com_item()
+        os.iniciar_diagnostico()
+        os.gerar_orcamento()
+        os.aprovar_orcamento()
+        os.finalizar_servico()
+        assert os.status == StatusOrdem.FINALIZADA
+
     def test_gerar_complementar_sem_itens_invalido(self) -> None:
         """Defesa: aggregate construido diretamente sem itens em EM_EXECUCAO
         nao deve permitir gerar orcamento complementar."""

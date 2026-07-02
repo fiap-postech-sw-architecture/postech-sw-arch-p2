@@ -45,6 +45,7 @@ from src.ordem_servico.dominio.exceptions import (
 from src.ordem_servico.dominio.status import StatusOrdem
 
 if TYPE_CHECKING:
+    from collections.abc import Iterable
     from uuid import UUID
 
     from src.compartilhado.aplicacao.unit_of_work import UnitOfWork
@@ -151,7 +152,9 @@ def _obter_ordem(
     return ordem
 
 
-def _reservas_de_estoque_ordenadas(ordem: OrdemDeServico) -> list[tuple[UUID, int]]:
+def _reservas_de_itens_ordenadas(
+    itens: Iterable[ItemDaOrdem],
+) -> list[tuple[UUID, int]]:
     """``(item_estoque_id, quantidade)`` das pecas, em ordem de ``id``.
 
     Reserva/liberacao de varios itens numa transacao deve adquirir os locks
@@ -164,10 +167,15 @@ def _reservas_de_estoque_ordenadas(ordem: OrdemDeServico) -> list[tuple[UUID, in
     """
     pares = [
         (item.item_estoque_id, item.quantidade)
-        for item in ordem.itens
+        for item in itens
         if item.item_estoque_id is not None
     ]
     return sorted(pares, key=lambda par: par[0])
+
+
+def _reservas_de_estoque_ordenadas(ordem: OrdemDeServico) -> list[tuple[UUID, int]]:
+    """Reservas ordenadas dos itens da ordem (ver ``_reservas_de_itens_ordenadas``)."""
+    return _reservas_de_itens_ordenadas(ordem.itens)
 
 
 def _despachar_pos_commit(
@@ -678,29 +686,44 @@ class AprovarOrcamentoComplementar:
 
 
 class RejeitarOrcamentoComplementar:
-    """Rejeita o orcamento complementar, retornando a ordem a EM_EXECUCAO."""
+    """Rejeita o orcamento complementar: reverte o escopo e libera reservas."""
 
     def __init__(
         self,
         repo: OrdemDeServicoRepository,
         uow: UnitOfWork,
+        estoque_port: EstoquePort,
         dispatcher: EventDispatcher | None = None,
     ) -> None:
         self._repo = repo
         self._uow = uow
+        self._estoque_port = estoque_port
         self._dispatcher = dispatcher
 
     def executar(self, ordem_id: UUID) -> OrdemDeServicoDTO:
-        """Delega ao agregado ``OrdemDeServico.rejeitar_orcamento_complementar``.
+        """Delega ao agregado e LIBERA as reservas dos itens revertidos (#111).
+
+        ``rejeitar_orcamento_complementar`` remove do agregado os itens
+        adicionados apos a ultima aprovacao (e restaura o orcamento aprovado),
+        retornando-os; aqui liberamos as reservas de estoque desses itens na
+        MESMA transacao (atomico com o save). As reservas sao calculadas ANTES
+        do save (que deleta os itens via cascade) e liberadas em ordem de id
+        (anti-deadlock, igual a AprovarOrcamento/CancelarOrdem).
 
         Raises:
             OrdemNaoEncontradaException: ordem inexistente.
             TransicaoStatusInvalidaException: status atual invalido.
+            EntidadeNaoEncontradaException: item de estoque inexistente.
         """
+        # com_lock=True: OS travada antes do Estoque (ordem global de locks),
+        # retido ate o commit da UoW.
         ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
-        ordem.rejeitar_orcamento_complementar()
+        itens_removidos = ordem.rejeitar_orcamento_complementar()
+        reservas = _reservas_de_itens_ordenadas(itens_removidos)
         with self._uow:
             self._repo.salvar(ordem)
+            for item_estoque_id, quantidade in reservas:
+                self._estoque_port.liberar(item_estoque_id, quantidade)
             self._uow.commit()
         _despachar_pos_commit(self._dispatcher, ordem)
         return _ordem_dto(ordem)
