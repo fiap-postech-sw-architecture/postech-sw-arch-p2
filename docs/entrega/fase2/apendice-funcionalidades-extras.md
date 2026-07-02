@@ -6,7 +6,7 @@
 
 ## O que é este apêndice
 
-O enunciado da Fase 2 ([desafio-tech-fase-2.md](../../requisitos/fase2/desafio-tech-fase-2.md)) exige um conjunto fechado de itens: refatoração para Clean Architecture, cinco APIs de OS, containerização (Dockerfile + docker-compose), manifests Kubernetes (Deployment, Service, ConfigMap, Secret, HPA), Terraform para cluster e banco, pipeline de CI/CD e README com desenho da arquitetura, instruções e link do vídeo. A rastreabilidade desses itens obrigatórios está na [seção 5 do documento de entrega](entrega-fase-2.md#5-rastreabilidade-requisito--evidência) (RF-020–024, RNF-017–024, RN-018–020).
+O enunciado da Fase 2 ([desafio-tech-fase-2.md](../../requisitos/fase2/desafio-tech-fase-2.md)) exige um conjunto fechado de itens: refatoração para Clean Architecture, cinco APIs de OS, containerização (Dockerfile + docker-compose), manifests Kubernetes (Deployment, Service, ConfigMap, Secret, HPA), Terraform para cluster e banco, pipeline de CI/CD e README com desenho da arquitetura, instruções e link do vídeo. A rastreabilidade desses itens obrigatórios está na [seção 6 do documento de entrega](entrega-fase-2.md#6-rastreabilidade-requisito--evidência) (RF-020–024, RNF-017–024, RN-018–020).
 
 Este apêndice reúne o que o grupo entregou **fora** desse escopo — decisões de robustez, observabilidade, segurança e infraestrutura que não eram cobradas mas evidenciam profundidade de engenharia. O critério de "extra" é objetivo: qualquer item que o enunciado não pede explicitamente. Boa parte nasceu do ledger de dívida técnica versionado ([`docs/tech-debt/README.md`](../../tech-debt/README.md), 26 itens resolvidos) e da auditoria pré-entrega ([auditoria-pre-entrega-fase2.md](../../tech-debt/auditoria-pre-entrega-fase2.md)), atacados em tiers priorizados após a base obrigatória já estar verde. Nenhum era exigido pela fase.
 
@@ -192,7 +192,7 @@ Cada extra abaixo traz **motivação** (por que foi feito, já que não era obri
 | Infraestrutura, escala e DX | 4 (itens 23–26) |
 | Arquitetura, qualidade e plataforma | 3 (itens 27–29) |
 
-Nenhum desses itens era exigido pela Fase 2. São iniciativa de qualidade do grupo, materializando a Boy Scout Rule registrada no [ledger de dívida técnica](../../tech-debt/README.md): cada evolução deixa o código e a documentação melhores do que os encontrou. O conjunto completo dos 26 itens de dívida técnica resolvidos está no [ledger](../../tech-debt/README.md#itens-resolvidos-26); os itens de maior valor também aparecem na [seção 5 do documento de entrega](entrega-fase-2.md#qualidade-além-do-escopo--dívida-técnica-endereçada).
+Nenhum desses itens era exigido pela Fase 2. São iniciativa de qualidade do grupo, materializando a Boy Scout Rule registrada no [ledger de dívida técnica](../../tech-debt/README.md): cada evolução deixa o código e a documentação melhores do que os encontrou. O conjunto completo dos 26 itens de dívida técnica resolvidos está no [ledger](../../tech-debt/README.md#itens-resolvidos-26); os itens de maior valor também aparecem na [seção 6 do documento de entrega](entrega-fase-2.md#qualidade-além-do-escopo--dívida-técnica-endereçada).
 
 ---
 
