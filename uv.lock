@@ -2439,7 +2439,7 @@ requires-dist = [
     { name = "polyfactory", marker = "extra == 'test'", specifier = ">=2.0" },
     { name = "prometheus-client", marker = "extra == 'otel'", specifier = ">=0.20" },
     { name = "psycopg2-binary", specifier = ">=2.9" },
-    { name = "pwdlib", extras = ["bcrypt"], specifier = ">=0.2" },
+    { name = "pwdlib", extras = ["bcrypt"], specifier = ">=0.3.0" },
     { name = "pydantic", extras = ["email"], specifier = ">=2.13.4,<3" },
     { name = "pyjwt", specifier = ">=2.9" },
     { name = "pytest", marker = "extra == 'full-test'", specifier = ">=8" },
@@ -2457,7 +2457,7 @@ requires-dist = [
     { name = "sqlalchemy", specifier = ">=2.0,<2.1" },
     { name = "sqlalchemy", marker = "extra == 'full-test'", specifier = ">=2.0" },
     { name = "structlog", specifier = ">=24.0" },
-    { name = "testcontainers", extras = ["postgres", "redis"], marker = "extra == 'test'", specifier = ">=4.0" },
+    { name = "testcontainers", extras = ["postgres", "redis"], marker = "extra == 'test'", specifier = ">=4.14.2" },
     { name = "uvicorn", extras = ["standard"], specifier = ">=0.32" },
 ]
 provides-extras = ["test", "ui", "full-test", "otel"]
