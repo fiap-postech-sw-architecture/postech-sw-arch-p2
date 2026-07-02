@@ -6,7 +6,10 @@ from uuid import UUID, uuid4
 import pytest
 
 from src.compartilhado.dominio.dinheiro import Dinheiro
-from src.compartilhado.dominio.exceptions import ViolacaoRegraDeNegocioException
+from src.compartilhado.dominio.exceptions import (
+    TransicaoStatusInvalidaException,
+    ViolacaoRegraDeNegocioException,
+)
 from src.ordem_servico.aplicacao.dtos import (
     AdicionarItemDTO,
     CancelarOrdemDTO,
@@ -1388,6 +1391,71 @@ class TestDecidirOrcamento:
         uc.executar(ordem.id, decisao="aprovada")
 
         assert repo.chamadas_obter_por_id == [(ordem.id, False), (ordem.id, True)]
+
+    def test_recusada_revalida_espera_sob_lock(self) -> None:
+        # Issue #119: uma aprovacao interna concorrente move a OS de
+        # AGUARDANDO_APROVACAO para EM_EXECUCAO entre o guard (sem lock) e a
+        # delegacao. A releitura SOB LOCK do caminho 'recusada' deve rejeitar,
+        # em vez de cancelar uma OS ja em execucao (CancelarOrdem aceitaria
+        # qualquer estado ativo).
+        from src.ordem_servico.dominio.status import StatusOrdem
+
+        ordem = OrdemDeServico.criar(cliente_id=uuid4(), veiculo_id=uuid4())
+        ordem.adicionar_item(
+            ItemDaOrdem(
+                _servico_catalogo_id=uuid4(),
+                _item_estoque_id=None,
+                _descricao="Troca de oleo",
+                _quantidade=1,
+                _preco_unitario=Dinheiro(valor=Decimal("100.00")),
+            )
+        )
+        ordem.iniciar_diagnostico()
+        ordem.gerar_orcamento()  # AGUARDANDO_APROVACAO
+        ordem.limpar_eventos()
+
+        class RepoAprovacaoConcorrente:
+            """Fake que simula a aprovacao interna chegando no momento do lock:
+            a leitura de GUARD (com_lock=False) ve AGUARDANDO_APROVACAO; a
+            releitura SOB LOCK (com_lock=True) ja encontra EM_EXECUCAO."""
+
+            def obter_por_id(
+                self, ordem_id: UUID, *, com_lock: bool = False
+            ) -> OrdemDeServico:
+                if com_lock and ordem.status is StatusOrdem.AGUARDANDO_APROVACAO:
+                    ordem.aprovar_orcamento()
+                    ordem.limpar_eventos()
+                return ordem
+
+            def salvar(self, _o: OrdemDeServico) -> None:
+                pass
+
+        repo = RepoAprovacaoConcorrente()
+        uow = FakeUnitOfWork()
+        estoque = StubEstoquePort()
+        uc = DecidirOrcamento(
+            repo=repo,  # type: ignore[arg-type]  # fake de teste
+            aprovar_orcamento=AprovarOrcamento(
+                repo=repo,  # type: ignore[arg-type]
+                uow=uow,
+                estoque_port=estoque,
+            ),
+            aprovar_complementar=AprovarOrcamentoComplementar(
+                repo=repo,  # type: ignore[arg-type]
+                uow=uow,
+            ),
+            cancelar_ordem=CancelarOrdem(
+                repo=repo,  # type: ignore[arg-type]
+                uow=uow,
+                estoque_port=estoque,
+            ),
+        )
+
+        with pytest.raises(TransicaoStatusInvalidaException):
+            uc.executar(ordem.id, decisao="recusada")
+        # Nao cancelou: a OS segue em execucao, sem commit.
+        assert ordem.status is StatusOrdem.EM_EXECUCAO
+        assert uow.committed is False
 
     def test_aprovada_em_complementar_usa_caminho_complementar(self) -> None:
         repo = FakeOrdemDeServicoRepository()

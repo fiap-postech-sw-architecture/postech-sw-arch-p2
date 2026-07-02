@@ -771,6 +771,23 @@ class DecidirOrcamento:
                 )
             )
         if decisao == DECISAO_RECUSADA:
+            # Revalida o estado de espera SOB LOCK (#119): o guard acima le sem
+            # lock e ``CancelarOrdem`` (delegado) aceita QUALQUER estado ativo
+            # sem revalidar a espera. Sem esta releitura travada, uma aprovacao
+            # interna concorrente (AGUARDANDO_APROVACAO -> EM_EXECUCAO) entre o
+            # guard e o cancelamento faria a recusa externa cancelar uma OS ja
+            # em execucao. A session e compartilhada (composition root), entao o
+            # FOR UPDATE adquirido aqui e retido ate o commit da UoW de
+            # CancelarOrdem — a mesma transacao.
+            ordem_travada = _obter_ordem(self._repo, ordem_id, com_lock=True)
+            if ordem_travada.status not in self._ESTADOS_DE_ESPERA:
+                validos = sorted(s.value for s in self._ESTADOS_DE_ESPERA)
+                raise TransicaoStatusInvalidaException(
+                    mensagem=(
+                        f"Decisao externa de orcamento invalida em "
+                        f"{ordem_travada.status.value}; valida apenas em {validos}"
+                    )
+                )
             return self._cancelar_ordem.executar(
                 ordem_id, CancelarOrdemDTO(motivo=MOTIVO_RECUSA_EXTERNA)
             )
