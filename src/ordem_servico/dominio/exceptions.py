@@ -51,26 +51,3 @@ class VeiculoNaoEncontradoException(EntidadeNaoEncontradaException):
         mensagem: str = "Veiculo nao encontrado para o cliente informado",
     ) -> None:
         super().__init__(mensagem=mensagem)
-
-
-class ItemDaOrdemNaoEncontradoException(EntidadeNaoEncontradaException):
-    """Levantada quando o item referenciado nao existe na ordem.
-
-    Quando informados, ``ordem_id`` e ``item_id`` sao incluidos na
-    mensagem padrao para diagnostico.
-    """
-
-    def __init__(
-        self,
-        ordem_id: UUID | None = None,
-        item_id: UUID | None = None,
-        mensagem: str | None = None,
-    ) -> None:
-        if mensagem is None:
-            if ordem_id is not None and item_id is not None:
-                mensagem = (
-                    f"Item {item_id} nao encontrado na ordem de servico {ordem_id}"
-                )
-            else:
-                mensagem = "Item da ordem nao encontrado"
-        super().__init__(mensagem=mensagem)

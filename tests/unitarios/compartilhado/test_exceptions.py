@@ -8,7 +8,6 @@ from src.compartilhado.dominio.exceptions import (
     EntidadeNaoEncontradaException,
     EstoqueInsuficienteException,
     FalhaAutenticacaoException,
-    FalhaAutorizacaoException,
     TransicaoStatusInvalidaException,
     ViolacaoRegraDeNegocioException,
 )
@@ -60,11 +59,6 @@ class TestExceptionsEspecificas:
                 "FALHA_AUTENTICACAO",
                 "Falha na autenticacao",
             ),
-            (
-                FalhaAutorizacaoException,
-                "FALHA_AUTORIZACAO",
-                "Falha na autorizacao",
-            ),
         ],
     )
     def test_excecao_com_padrao(
@@ -87,7 +81,6 @@ class TestExceptionsEspecificas:
             EstoqueInsuficienteException,
             EntidadeDuplicadaException,
             FalhaAutenticacaoException,
-            FalhaAutorizacaoException,
         ],
     )
     def test_excecao_com_mensagem_customizada(
@@ -106,7 +99,6 @@ class TestExceptionsEspecificas:
             EstoqueInsuficienteException,
             EntidadeDuplicadaException,
             FalhaAutenticacaoException,
-            FalhaAutorizacaoException,
         ],
     )
     def test_excecao_pode_ser_levantada(

@@ -1023,22 +1023,6 @@ class TestItemEstoqueRepository:
         assert resultado is not None
         assert resultado.ativo is False
 
-    def test_obter_por_ids(self, session: Session) -> None:
-        from src.estoque.infraestrutura.repository import (
-            ItemEstoqueSQLAlchemyRepository,
-        )
-
-        repo = ItemEstoqueSQLAlchemyRepository(session=session)
-        item_a = _criar_item_estoque(session, nome="Item A")
-        item_b = _criar_item_estoque(session, nome="Item B")
-        _criar_item_estoque(session, nome="Item C")
-
-        resultados = repo.obter_por_ids([item_a.id, item_b.id])
-
-        assert len(resultados) == 2
-        ids_resultado = {r.id for r in resultados}
-        assert ids_resultado == {item_a.id, item_b.id}
-
     def test_obter_por_id_inexistente(self, session: Session) -> None:
         from src.estoque.infraestrutura.repository import (
             ItemEstoqueSQLAlchemyRepository,

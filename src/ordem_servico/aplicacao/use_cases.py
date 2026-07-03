@@ -159,8 +159,7 @@ def _reservas_de_itens_ordenadas(
 
     Reserva/liberacao de varios itens numa transacao deve adquirir os locks
     pessimistas (``FOR UPDATE``) sempre na MESMA ordem global de id (issue
-    #83) — espelha o ``order_by(id)`` de ``obter_por_ids`` do repositorio de
-    Estoque. Sem isso, duas aprovacoes que tocam os mesmos itens em ordens
+    #83). Sem isso, duas aprovacoes que tocam os mesmos itens em ordens
     de insercao diferentes poderiam cruzar locks e deadlockar. Itens de mao
     de obra (``item_estoque_id is None``) ficam de fora — nao reservam; o
     filtro tambem estreita o tipo para ``UUID`` (nao ``UUID | None``).
@@ -171,11 +170,6 @@ def _reservas_de_itens_ordenadas(
         if item.item_estoque_id is not None
     ]
     return sorted(pares, key=lambda par: par[0])
-
-
-def _reservas_de_estoque_ordenadas(ordem: OrdemDeServico) -> list[tuple[UUID, int]]:
-    """Reservas ordenadas dos itens da ordem (ver ``_reservas_de_itens_ordenadas``)."""
-    return _reservas_de_itens_ordenadas(ordem.itens)
 
 
 def _despachar_pos_commit(
@@ -502,7 +496,9 @@ class AprovarOrcamento:
         ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         with self._uow:
             # Ordem determinista de id ao reservar varios itens (anti-deadlock).
-            for item_estoque_id, quantidade in _reservas_de_estoque_ordenadas(ordem):
+            for item_estoque_id, quantidade in _reservas_de_itens_ordenadas(
+                ordem.itens
+            ):
                 self._estoque_port.reservar(item_estoque_id, quantidade)
             ordem.aprovar_orcamento()
             self._repo.salvar(ordem)
@@ -615,8 +611,8 @@ class CancelarOrdem:
             }:
                 # Ordem determinista de id ao liberar (anti-deadlock, igual
                 # ao caminho de reserva de AprovarOrcamento).
-                for item_estoque_id, quantidade in _reservas_de_estoque_ordenadas(
-                    ordem
+                for item_estoque_id, quantidade in _reservas_de_itens_ordenadas(
+                    ordem.itens
                 ):
                     self._estoque_port.liberar(item_estoque_id, quantidade)
             ordem.cancelar(dto.motivo)

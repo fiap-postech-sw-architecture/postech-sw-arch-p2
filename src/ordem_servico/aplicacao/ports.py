@@ -1,8 +1,9 @@
 """Portas de saida (Protocol) que a aplicacao OrdemDeServico consome.
 
 Cada Protocol e definido aqui (no contexto consumidor) e implementado
-em ``infraestrutura/`` do contexto provedor — padrao Anti-Corruption
-Layer. PRs futuros (10/11) registrarao adapters concretos.
+em ``infraestrutura/adapters.py`` do PROPRIO contexto consumidor — padrao
+Anti-Corruption Layer: o adapter traduz o modelo do contexto vizinho para
+os DTOs deste modulo, sem vazar agregados alheios.
 """
 
 from __future__ import annotations

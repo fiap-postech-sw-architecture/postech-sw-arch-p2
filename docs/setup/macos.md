@@ -5,10 +5,10 @@
 Guia passo a passo para preparar uma máquina macOS do zero até rodar o projeto. Suporta tanto Apple Silicon (M1/M2/M3) quanto Intel. Tempo estimado: 30-60 min com download da rede.
 
 - **Fase 1** (~20 min): clone-ready -- Xcode CLT, Homebrew, GitHub CLI, runtime Docker.
-- **Fase 2** (~10 min): dev-ready -- uv, Python 3.12 (opcional, uv resolve).
+- **Fase 2** (~10 min): dev-ready -- uv, Python 3.14 (opcional, uv resolve).
 - **Fase 3** (opcional): Selenium para testes E2E.
 
-> Stack do projeto: Python 3.12 - FastAPI - SQLAlchemy 2 - PostgreSQL 16 - Alembic - uv - Docker Compose v2 - pytest - ruff - mypy.
+> Stack do projeto: Python 3.14 - FastAPI - SQLAlchemy 2 - PostgreSQL 16 - Alembic - uv - Docker Compose v2 - pytest - ruff - mypy.
 
 > Você não precisa instalar `make`, `bash`, ou `git` separadamente -- todos vêm com o Xcode Command Line Tools (CLT) ou já estão no sistema.
 
@@ -320,7 +320,7 @@ Tudo respondendo sem erro = pronto para a fase 2.
 uv é o gerenciador escolhido pelo projeto ([ADR-014](../arquitetura/adr/014-gerenciador-pacotes-uv.md)). Vantagens vs `pip + venv`:
 
 - Lock file determinístico (`uv.lock`) com hashes SHA-256.
-- Gerencia o próprio Python: `uv sync` baixa o Python 3.12 automaticamente.
+- Gerencia o próprio Python: `uv sync` baixa o Python 3.14 automaticamente.
 - 10-100x mais rápido que pip.
 - `uv run <cmd>` executa no venv sem `activate`.
 
@@ -346,11 +346,11 @@ uv --version
 
 ---
 
-## 6. Python 3.12 (opcional)
+## 6. Python 3.14 (opcional)
 
 ### Por que talvez você não precise
 
-`pyproject.toml` exige `requires-python = ">=3.12"`. Se você já instalou o `uv` (passo 5), `uv sync` baixa o Python 3.12 automaticamente em `~/.local/share/uv/python` -- você não precisa fazer nada. **Esta é a forma recomendada.**
+`pyproject.toml` exige `requires-python = ">=3.12"`. Se você já instalou o `uv` (passo 5), `uv sync` baixa o Python 3.14 automaticamente em `~/.local/share/uv/python` -- você não precisa fazer nada. **Esta é a forma recomendada.**
 
 Instale via brew **só se** quiser usar `python3.12` direto (fora do `uv run ...`).
 

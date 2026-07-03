@@ -49,3 +49,18 @@ build/
 .github/
 .review/
 .DS_Store
+
+# Infra local e artefatos de scan/build (kubeconfig e tfstate NAO podem
+# entrar na imagem; o COPY . . do Dockerfile embute tudo que nao estiver
+# listado aqui — finding da revisao devops de fechamento)
+infra/
+k8s/
+.env*
+.zap/
+screenshots/
+*.tfstate
+sbom.cdx.json
+coverage.xml
+.import_linter_cache/
+.nicegui/
+.scannerwork/

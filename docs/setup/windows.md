@@ -5,10 +5,10 @@
 Guia passo a passo para preparar uma máquina Windows do zero até rodar o projeto. Todas as ferramentas são instaladas via `winget` (gerenciador de pacotes oficial do Windows). Tempo estimado: 30-60 min com download da rede.
 
 - **Fase 1** (~20 min): clone-ready -- PowerShell 7+, Git, GitHub CLI, Docker Desktop.
-- **Fase 2** (~10 min): dev-ready -- uv, Python 3.12 (opcional, uv resolve), make.
+- **Fase 2** (~10 min): dev-ready -- uv, Python 3.14 (opcional, uv resolve), make.
 - **Fase 3** (opcional): Selenium para testes E2E, ou WSL2 Ubuntu como alternativa.
 
-> Stack do projeto: Python 3.12 - FastAPI - SQLAlchemy 2 - PostgreSQL 16 - Alembic - uv - Docker Compose v2 - pytest - ruff - mypy.
+> Stack do projeto: Python 3.14 - FastAPI - SQLAlchemy 2 - PostgreSQL 16 - Alembic - uv - Docker Compose v2 - pytest - ruff - mypy.
 
 ---
 
@@ -284,7 +284,7 @@ Todos respondendo sem erro = pronto para a fase 2.
 uv é o gerenciador escolhido pelo projeto ([ADR-014](../arquitetura/adr/014-gerenciador-pacotes-uv.md)). Vantagens vs `pip + venv`:
 
 - Lock file determinístico (`uv.lock`) com hashes SHA-256 -- resolução reproduzível entre máquinas e CI.
-- Gerencia o próprio Python: `uv sync` baixa o Python 3.12 automaticamente se não estiver no sistema. Você não precisa instalar Python 3.12 separadamente.
+- Gerencia o próprio Python: `uv sync` baixa o Python 3.14 automaticamente se não estiver no sistema. Você não precisa instalar Python 3.14 separadamente.
 - 10-100x mais rápido que pip.
 - `uv run <cmd>` executa no venv sem precisar `activate`.
 
@@ -314,13 +314,13 @@ uv --version
 
 ---
 
-## 6. Python 3.12 (opcional)
+## 6. Python 3.14 (opcional)
 
 ### Por que talvez você não precise
 
-`pyproject.toml` exige `requires-python = ">=3.12"`. Se você já instalou o `uv` (passo 5), `uv sync` baixa o Python 3.12 automaticamente em `%LOCALAPPDATA%\uv\python` -- você não precisa fazer nada manual. **Esta é a forma recomendada.**
+`pyproject.toml` exige `requires-python = ">=3.12"`. Se você já instalou o `uv` (passo 5), `uv sync` baixa o Python 3.14 automaticamente em `%LOCALAPPDATA%\uv\python` -- você não precisa fazer nada manual. **Esta é a forma recomendada.**
 
-Instale Python 3.12 do sistema **só se** quiser usar `python` direto (fora do `uv run ...`), ou se preferir não delegar a versão para o uv.
+Instale Python 3.14 do sistema **só se** quiser usar `python` direto (fora do `uv run ...`), ou se preferir não delegar a versão para o uv.
 
 ### Verificação via uv (recomendado)
 

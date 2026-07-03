@@ -101,8 +101,37 @@ services:
   # a transicao de status e o e-mail materializado na UI. SMTP fica na
   # rede interna do compose (porta 1025, sem publicar no host); apenas a
   # UI web e exposta em http://localhost:8025.
+  # Relay da Transactional Outbox (RF-024/ADR-022): SEM ele a stack compose
+  # acumulava linhas pendentes na outbox e o Mailpit nunca recebia e-mail —
+  # a entrega acontece exclusivamente aqui (dispatcher sincrono congelado
+  # vazio). Mesma imagem do app; espelha o k8s/relay.yaml (paridade dev x
+  # cluster). Finding da revisao devops de fechamento.
+  relay:
+    build:
+      context: .
+      args:
+        GIT_SHA: ${GIT_SHA:-unknown}
+        GIT_DATE: ${GIT_DATE:-unknown}
+    command: ["python", "-m", "relay"]
+    entrypoint: []
+    # O HEALTHCHECK embutido na imagem proba /api/v1/saude — o relay nao
+    # serve HTTP; sem o disable o container ficaria unhealthy para sempre
+    # (no cluster a liveness e por heartbeat, k8s/relay.yaml).
+    healthcheck:
+      disable: true
+    depends_on:
+      postgres:
+        condition: service_healthy
+    env_file:
+      - .env.dev
+    environment:
+      - SMTP_HOST=${SMTP_HOST:-mailpit}
+      - SMTP_PORT=${SMTP_PORT:-1025}
+      - SMTP_FROM=${SMTP_FROM:-oficina@pytstop.local}
+
   mailpit:
-    image: axllent/mailpit
+    # Tag pinada (major) — sem ela o compose flutuava no latest.
+    image: axllent/mailpit:v1.30
     container_name: pytstop-mailpit
     ports:
       - "${MAILPIT_UI_PORT:-8025}:8025"

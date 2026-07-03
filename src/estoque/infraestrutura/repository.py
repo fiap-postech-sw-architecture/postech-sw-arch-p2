@@ -43,19 +43,6 @@ class ItemEstoqueSQLAlchemyRepository:
         )
         return self._session.scalars(stmt).one_or_none()
 
-    def obter_por_ids(self, ids: list[UUID]) -> list[ItemEstoque]:
-        # populate_existing=True pelo mesmo motivo do ramo com_lock acima: este
-        # e o lock em lote da reserva/liberacao (FOR UPDATE), e itens ja
-        # carregados na session precisam do estado fresco pos-lock (#117).
-        stmt = (
-            select(ItemEstoque)
-            .where(itens_estoque_table.c.id.in_(ids))
-            .with_for_update(nowait=True)
-            .order_by(itens_estoque_table.c.id)
-            .execution_options(populate_existing=True)
-        )
-        return list(self._session.scalars(stmt))
-
     def salvar(self, item: ItemEstoque) -> None:
         self._session.add(item)
         self._session.flush()

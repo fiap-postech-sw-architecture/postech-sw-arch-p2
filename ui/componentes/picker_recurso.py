@@ -25,11 +25,13 @@ class CacheRecursos:
     _expira_em: float = 0.0
 
     def obter(self) -> list[dict[str, Any]]:
+        # Copia defensiva: o estado cacheado nunca sai cru (um caller que
+        # mutasse a lista corromperia o cache ate o TTL expirar).
         if self._cache is not None and time.monotonic() < self._expira_em:
-            return self._cache
+            return list(self._cache)
         self._cache = self.fetcher()
         self._expira_em = time.monotonic() + self.ttl_seg
-        return self._cache
+        return list(self._cache)
 
     def invalidar(self) -> None:
         self._cache = None

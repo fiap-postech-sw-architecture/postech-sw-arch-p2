@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 from src.compartilhado.dominio.events import DomainEvent
 
@@ -12,8 +12,10 @@ class EstoqueReservadoEvent(DomainEvent):
     ``agregado_id`` (herdado de ``DomainEvent``) identifica o ``ItemEstoque``.
     """
 
-    quantidade_reservada: int = 0
-    quantidade_restante: int = 0
+    # kw_only sem defaults: evento sem os dados nao e construivel por engano
+    # (padrao dos eventos de cliente_veiculo; finding DDD-tatico).
+    quantidade_reservada: int = field(kw_only=True)
+    quantidade_restante: int = field(kw_only=True)
 
 
 @dataclass(frozen=True)
@@ -23,5 +25,5 @@ class EstoqueLiberadoEvent(DomainEvent):
     ``agregado_id`` (herdado de ``DomainEvent``) identifica o ``ItemEstoque``.
     """
 
-    quantidade_liberada: int = 0
-    quantidade_atual: int = 0
+    quantidade_liberada: int = field(kw_only=True)
+    quantidade_atual: int = field(kw_only=True)

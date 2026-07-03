@@ -65,11 +65,3 @@ class TestRepositoryEstoque:
         result = repo.listar(offset=0, limit=10)
         assert result == []
         session.scalars.assert_called_once()
-
-    def test_obter_por_ids_delega_para_session_scalars(self) -> None:
-        session = MagicMock()
-        session.scalars.return_value = iter([])
-        repo = ItemEstoqueSQLAlchemyRepository(session=session)
-        result = repo.obter_por_ids(ids=[])
-        assert result == []
-        session.scalars.assert_called_once()

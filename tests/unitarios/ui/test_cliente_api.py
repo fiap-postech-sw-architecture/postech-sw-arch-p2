@@ -18,6 +18,10 @@ from ui.cliente_api import (
 )
 from ui.estado import Sessao, StateStore
 
+# {"alg":"HS256","typ":"JWT"} base64 sem padding — header estruturalmente
+# valido exigido pelo pyjwt para decodificar, mesmo sem verificar assinatura.
+_HEADER_B64 = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
+
 
 @pytest.fixture
 def store() -> StateStore:
@@ -225,7 +229,9 @@ def test_login_salva_sessao_e_decodifica_papel(store: StateStore) -> None:
     # JWT payload base64 com papel=admin e email=a@b
     # {"email":"a@b","papel":"admin"} base64 sem padding:
     payload_b64 = "eyJlbWFpbCI6ImFAYiIsInBhcGVsIjoiYWRtaW4ifQ"
-    fake_jwt = f"xxx.{payload_b64}.yyy"
+    # header {"alg":"HS256","typ":"JWT"} valido: pyjwt parseia o header
+    # mesmo com verify_signature=False; a assinatura pode ser fake.
+    fake_jwt = f"{_HEADER_B64}.{payload_b64}.yyy"
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
@@ -258,7 +264,7 @@ def test_logout_limpa_sessao_mesmo_se_backend_falhar(store: StateStore) -> None:
 def test_login_sem_papel_no_jwt_levanta_nao_autenticado(store: StateStore) -> None:
     # Payload sem "papel": {"email":"a@b"} -> base64 urlsafe sem padding.
     payload_b64 = "eyJlbWFpbCI6ImFAYiJ9"
-    fake_jwt = f"xxx.{payload_b64}.yyy"
+    fake_jwt = f"{_HEADER_B64}.{payload_b64}.yyy"
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(

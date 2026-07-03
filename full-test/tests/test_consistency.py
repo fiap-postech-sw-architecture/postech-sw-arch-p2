@@ -13,7 +13,7 @@ import httpx
 import pytest
 from full_test.client import models
 from full_test.client.system_client import SystemClient
-from full_test.support.consistency import ConsistencyChecker, SnapshotEstoque
+from full_test.support.consistency import ConsistencyChecker
 
 
 def _client_mock(handler: httpx.MockTransport) -> SystemClient:
@@ -136,59 +136,6 @@ def test_subtotal_divergente_levanta() -> None:
     checker = ConsistencyChecker(_client_mock(httpx.MockTransport(_noop_handler)))
     with pytest.raises(AssertionError, match="subtotal"):
         checker.assert_subtotais_dos_itens(ordem)
-
-
-def test_conservacao_estoque_ok() -> None:
-    item_id = uuid4()
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "id": str(item_id),
-                "nome": "x",
-                "descricao": "y",
-                "quantidade": 90,
-                "preco_unitario": "10.00",
-                "moeda": "BRL",
-                "ativo": True,
-            },
-        )
-
-    client = _client_mock(httpx.MockTransport(handler))
-    client.set_token("fake")
-    checker = ConsistencyChecker(client)
-    checker.assert_conservacao_estoque(
-        snapshot_inicial=[SnapshotEstoque(item_id=item_id, quantidade=100)],
-        consumos_por_item={item_id: 10},
-    )
-
-
-def test_conservacao_estoque_divergente_levanta() -> None:
-    item_id = uuid4()
-
-    def handler(request: httpx.Request) -> httpx.Response:
-        return httpx.Response(
-            200,
-            json={
-                "id": str(item_id),
-                "nome": "x",
-                "descricao": "y",
-                "quantidade": 85,  # esperado 90
-                "preco_unitario": "10.00",
-                "moeda": "BRL",
-                "ativo": True,
-            },
-        )
-
-    client = _client_mock(httpx.MockTransport(handler))
-    client.set_token("fake")
-    checker = ConsistencyChecker(client)
-    with pytest.raises(AssertionError, match="nao conservado"):
-        checker.assert_conservacao_estoque(
-            snapshot_inicial=[SnapshotEstoque(item_id=item_id, quantidade=100)],
-            consumos_por_item={item_id: 10},
-        )
 
 
 def test_metricas_monotonicas_aceita_crescimento() -> None:

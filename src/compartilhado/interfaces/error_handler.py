@@ -12,7 +12,6 @@ from src.compartilhado.dominio.exceptions import (
     EntidadeNaoEncontradaException,
     EstoqueInsuficienteException,
     FalhaAutenticacaoException,
-    FalhaAutorizacaoException,
     TransicaoStatusInvalidaException,
     ViolacaoRegraDeNegocioException,
 )
@@ -30,7 +29,6 @@ _EXCEPTION_STATUS_MAP: dict[type[DomainException], int] = {
     EstoqueInsuficienteException: 409,
     EntidadeDuplicadaException: 409,
     FalhaAutenticacaoException: 401,
-    FalhaAutorizacaoException: 403,
 }
 
 

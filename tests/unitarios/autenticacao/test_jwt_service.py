@@ -38,13 +38,6 @@ class TestJWTService:
         assert "email" not in payload
         assert "papel" not in payload
 
-    def test_gerar_token_backward_compat(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
-        uid = uuid4()
-        token = svc.gerar_token(uid, "a@b.com", "admin")
-        payload = svc.validar_token(token)
-        assert payload["type"] == "access"
-
     def test_token_expirado(self) -> None:
         svc = JWTService(chave_secreta=_CHAVE, expiracao_minutos=-1)
         token = svc.gerar_access_token(uuid4(), "a@b.com", "admin")

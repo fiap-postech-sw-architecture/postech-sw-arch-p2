@@ -26,30 +26,16 @@ class Sessao:
 
 class _StorageProtocol(Protocol):
     # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
-    def get(self, key: str, default: object = None) -> object:
+    # assinaturas positional-only (`/`) e minimas (so o que o StateStore usa)
+    # para que um dict puro satisfaca o protocolo estruturalmente
+    def get(self, key: str, /) -> object:
         pass
 
-    def __setitem__(self, key: str, value: object) -> None:
+    def __setitem__(self, key: str, value: object, /) -> None:
         pass
 
     def clear(self) -> None:
         pass
-
-
-class _DictStorage:
-    """Backing store in-memory, usado em testes e como fallback."""
-
-    def __init__(self) -> None:
-        self._data: dict[str, object] = {}
-
-    def get(self, key: str, default: object = None) -> object:
-        return self._data.get(key, default)
-
-    def __setitem__(self, key: str, value: object) -> None:
-        self._data[key] = value
-
-    def clear(self) -> None:
-        self._data.clear()
 
 
 _KEY_SESSAO = "sessao"
@@ -59,7 +45,12 @@ class StateStore:
     """Acesso tipado ao storage. Uma instancia por processo UI."""
 
     def __init__(self, user_storage: _StorageProtocol | None = None) -> None:
-        self._user = user_storage or _DictStorage()
+        # fallback dict puro: testes e CLIs (seed_demo) nao tem nicegui storage
+        # (anotado para o mypy nao inferir o literal vazio como dict[Never, Never])
+        fallback: dict[str, object] = {}
+        self._user: _StorageProtocol = (
+            user_storage if user_storage is not None else fallback
+        )
 
     # ----- sessao -----
 

@@ -4,7 +4,7 @@ O challenge exige que a consulta de status informe a situacao da OS no
 vocabulario dele (RF-021) e a notificacao por e-mail usa o mesmo rotulo
 no assunto/corpo (RF-024). Como ``aplicacao`` nao pode importar
 ``interfaces`` (contrato de camadas, ADR-015), o dict + funcao moraram
-aqui e ``interfaces/presenters.py`` reexporta — os imports existentes de
+aqui.
 schemas e testes continuam validos.
 
 Os valores persistidos de ``StatusOrdem`` continuam snake_case

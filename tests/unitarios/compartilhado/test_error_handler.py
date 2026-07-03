@@ -15,7 +15,6 @@ from src.compartilhado.dominio.exceptions import (
     EntidadeNaoEncontradaException,
     EstoqueInsuficienteException,
     FalhaAutenticacaoException,
-    FalhaAutorizacaoException,
     TransicaoStatusInvalidaException,
     ViolacaoRegraDeNegocioException,
 )
@@ -44,7 +43,6 @@ _CASOS_EXCECAO = [
     pytest.param(EstoqueInsuficienteException(), 409, id="estoque-insuficiente-409"),
     pytest.param(EntidadeDuplicadaException(), 409, id="entidade-duplicada-409"),
     pytest.param(FalhaAutenticacaoException(), 401, id="autenticacao-401"),
-    pytest.param(FalhaAutorizacaoException(), 403, id="autorizacao-403"),
 ]
 
 

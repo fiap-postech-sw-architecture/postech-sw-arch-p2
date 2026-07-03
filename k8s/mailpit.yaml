@@ -22,7 +22,7 @@ spec:
     spec:
       containers:
         - name: mailpit
-          image: axllent/mailpit
+          image: axllent/mailpit:v1.30  # pin de minor — sem tag flutuava no latest
           imagePullPolicy: IfNotPresent
           ports:
             - name: smtp

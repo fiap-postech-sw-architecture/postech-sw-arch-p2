@@ -116,20 +116,8 @@ class TestMain:
                     "src.compartilhado.infraestrutura.logging.configurar_logging"
                 ) as mock_logging,
                 patch(
-                    "src.cliente_veiculo.infraestrutura.mapping.iniciar_mapeamentos"
-                ) as mock_cliente,
-                patch(
-                    "src.catalogo_servicos.infraestrutura.mapping.iniciar_mapeamentos"
-                ) as mock_catalogo,
-                patch(
-                    "src.estoque.infraestrutura.mapping.iniciar_mapeamentos"
-                ) as mock_estoque,
-                patch(
-                    "src.ordem_servico.infraestrutura.mapping.iniciar_mapeamentos"
-                ) as mock_os,
-                patch(
-                    "src.autenticacao.infraestrutura.mapping.iniciar_mapeamentos"
-                ) as mock_auth,
+                    "src.compartilhado.infraestrutura.bootstrap.iniciar_todos_mapeamentos"
+                ) as mock_mapeamentos,
                 patch(
                     "src.compartilhado.infraestrutura.database.criar_engine"
                 ) as mock_engine,
@@ -157,11 +145,7 @@ class TestMain:
                 async with lifespan(app):
                     pass
                 mock_logging.assert_called_once()
-                mock_cliente.assert_called_once()
-                mock_catalogo.assert_called_once()
-                mock_estoque.assert_called_once()
-                mock_os.assert_called_once()
-                mock_auth.assert_called_once()
+                mock_mapeamentos.assert_called_once()
                 mock_engine.assert_called_once()
                 mock_factory.assert_called_once()
                 mock_configurar.assert_called_once()

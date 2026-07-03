@@ -15,9 +15,6 @@ class ItemEstoqueRepository(Protocol):
     ) -> ItemEstoque | None:
         pass
 
-    def obter_por_ids(self, ids: list[UUID]) -> list[ItemEstoque]:
-        pass
-
     def salvar(self, item: ItemEstoque) -> None:
         pass
 

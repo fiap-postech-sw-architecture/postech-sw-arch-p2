@@ -213,6 +213,12 @@ def test_skip_locked_nao_duplica_em_concorrencia(engine: Engine) -> None:
     for t in threads:
         t.join()
 
+    # Passada final single-thread: SKIP LOCKED permite que um worker PULE uma
+    # linha momentaneamente lockada por outro na mesma passada — o relay real
+    # drena em loop. A propriedade sob teste e a NAO-duplicacao na corrida;
+    # sem esta drenagem o teste flakava em runner lento (issue #160, 19/20).
+    worker()
+
     # SKIP LOCKED garante que cada linha foi entregue no maximo 1x.
     assert len(entregues) == len(set(entregues)) == 20
 

@@ -44,11 +44,11 @@ def obter_usuario_atual(
             )
         jti = payload.get("jti")
         if jti is not None:
-            from src.autenticacao.infraestrutura.token_revogado_repository import (
-                TokenRevogadoSQLAlchemyRepository,
+            from src.autenticacao.interfaces.dependencies import (
+                obter_token_revogado_repo,
             )
 
-            token_repo = TokenRevogadoSQLAlchemyRepository(session=session)
+            token_repo = obter_token_revogado_repo(session)
             if token_repo.esta_revogado(str(jti)):
                 raise HTTPException(
                     status_code=status.HTTP_401_UNAUTHORIZED,

@@ -8,22 +8,18 @@ Toda chamada ao backend passa por aqui. Responsabilidades:
 
 from __future__ import annotations
 
-import base64
-import binascii
 import contextlib
 import json
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
 
 import httpx
+import jwt
 
 from ui.estado import Papel, Sessao, StateStore, obter_store
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
-
-# JWT compact serialization: header.payload.signature
-_JWT_SEGMENTOS = 3
 
 
 # ----- excecoes tipadas -----
@@ -532,17 +528,18 @@ def _extrair_detail(resposta: httpx.Response) -> str | None:
 
 
 def _extrair_papel_do_jwt(token: str) -> Papel | None:
-    """Decodifica payload do JWT sem verificar assinatura."""
+    """Decodifica payload do JWT sem verificar assinatura (deliberado).
+
+    A UI confia no backend que emitiu o token e so usa o papel para
+    exibicao/roteamento local — a autorizacao real e verificada pelo
+    backend, que valida a assinatura a cada request.
+    """
     try:
-        partes = token.split(".")
-        if len(partes) != _JWT_SEGMENTOS:
-            return None
-        padded = partes[1] + "=" * (-len(partes[1]) % 4)
-        payload = json.loads(base64.urlsafe_b64decode(padded))
-        papel = payload.get("papel")
-        if isinstance(papel, str) and papel in {"admin", "atendente", "mecanico"}:
-            return cast("Papel", papel)
-    except (ValueError, json.JSONDecodeError, binascii.Error, KeyError):
-        # Token malformado, base64 invalido, ou JSON quebrado — fail soft.
+        payload = jwt.decode(token, options={"verify_signature": False})
+    except jwt.InvalidTokenError:
+        # Token malformado (segmentos, base64 ou JSON quebrados) — fail soft.
         return None
+    papel = payload.get("papel")
+    if isinstance(papel, str) and papel in {"admin", "atendente", "mecanico"}:
+        return cast("Papel", papel)
     return None

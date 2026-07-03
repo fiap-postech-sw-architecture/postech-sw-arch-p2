@@ -5,10 +5,10 @@
 Guia passo a passo para preparar uma máquina Linux do zero até rodar o projeto. Tempo estimado: 20-40 min com download da rede.
 
 - **Fase 1** (~15 min): clone-ready -- build essentials, GitHub CLI, Docker Engine.
-- **Fase 2** (~5 min): dev-ready -- uv, Python 3.12 (opcional, uv resolve).
+- **Fase 2** (~5 min): dev-ready -- uv, Python 3.14 (opcional, uv resolve).
 - **Fase 3** (opcional): Selenium para testes E2E.
 
-> Stack do projeto: Python 3.12 - FastAPI - SQLAlchemy 2 - PostgreSQL 16 - Alembic - uv - Docker Compose v2 - pytest - ruff - mypy.
+> Stack do projeto: Python 3.14 - FastAPI - SQLAlchemy 2 - PostgreSQL 16 - Alembic - uv - Docker Compose v2 - pytest - ruff - mypy.
 
 > Os comandos são para **Ubuntu 22.04+ / Debian 12+** (apt). Para Fedora/RHEL/Arch, ajuste o gerenciador (`dnf`/`pacman`) e o nome dos pacotes -- a estrutura é idêntica.
 
@@ -303,7 +303,7 @@ Tudo respondendo sem erro = pronto para a fase 2.
 uv é o gerenciador escolhido pelo projeto ([ADR-014](../arquitetura/adr/014-gerenciador-pacotes-uv.md)). Vantagens vs `pip + venv`:
 
 - Lock file determinístico (`uv.lock`) com hashes SHA-256.
-- Gerencia o próprio Python: `uv sync` baixa o Python 3.12 automaticamente.
+- Gerencia o próprio Python: `uv sync` baixa o Python 3.14 automaticamente.
 - 10-100x mais rápido que pip.
 - `uv run <cmd>` executa no venv sem `activate`.
 
@@ -354,11 +354,11 @@ uv --version
 
 ---
 
-## 5. Python 3.12 (opcional)
+## 5. Python 3.14 (opcional)
 
 ### Por que talvez você não precise
 
-`pyproject.toml` exige `requires-python = ">=3.12"`. Se você já instalou o `uv`, `uv sync` baixa o Python 3.12 automaticamente em `~/.local/share/uv/python` -- sem precisar mexer no sistema. **Esta é a forma recomendada.**
+`pyproject.toml` exige `requires-python = ">=3.12"`. Se você já instalou o `uv`, `uv sync` baixa o Python 3.14 automaticamente em `~/.local/share/uv/python` -- sem precisar mexer no sistema. **Esta é a forma recomendada.**
 
 Instale no sistema **só se** quiser usar `python3.12` direto (fora do `uv run ...`).
 

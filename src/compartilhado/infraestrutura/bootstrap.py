@@ -50,5 +50,9 @@ def iniciar_todos_mapeamentos() -> None:
     iniciar_os()
     iniciar_auth()
 
+    # Tabelas Core da outbox: sem agregado mapeado, nao entram via
+    # iniciar_mapeamentos de contexto algum — o import registra no metadata.
+    import src.compartilhado.infraestrutura.outbox_mapping  # noqa: F401
+
     # codeql[py/unused-global-variable] -- flag guard init-once
     _mapeamentos_registrados = True

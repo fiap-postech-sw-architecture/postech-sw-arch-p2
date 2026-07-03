@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Requisitos](README.md)
 
-> **Versão**: 1.1 — Fase 2 (membros de `StatusOrdem` alinhados ao casing do código — StrEnum UPPER_SNAKE; novos termos `Contato` e `Situação`).
+> **Versão**: 1.2 — Fase 2 (v1.1: casing de `StatusOrdem` + `Contato`/`Situação`; v1.2: termos de LGPD, autenticação e integração — `ConsentimentoCliente`, `DocumentoAnonimizado`, `PlacaAnonimizada`, `TokenRevogado`, `IntegrationEvent`).
 
 Termos do domínio mapeados para identificadores no código, seguindo o modelo híbrido (ADR-009): termos de negócio em português sem acentos, sufixos de padrão técnico em inglês.
 
@@ -42,6 +42,9 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 | CPF | `CPF` | Objeto de valor com validação algorítmica. Implementa o protocolo `Documento`. |
 | CNPJ | `CNPJ` | Objeto de valor com validação algorítmica. Implementa o protocolo `Documento`. |
 | Documento (protocolo) | `Documento` | Protocol Python que define `formatado() -> str` e `mascarado() -> str`. Implementado por CPF e CNPJ. Específico do contexto Cliente. |
+| Consentimento | `ConsentimentoCliente` | Entidade raiz do seu próprio agregado trivial: registro LGPD de consentimento por tipo, com concessão e revogação datadas. |
+| Documento anonimizado | `DocumentoAnonimizado` | Objeto de valor tombstone gravado pela anonimização LGPD no lugar do CPF/CNPJ. Deliberadamente NÃO implementa `Documento` por subclasse — `isinstance` retorna False por design. |
+| Placa anonimizada | `PlacaAnonimizada` | Objeto de valor tombstone por veículo (`ANONIMIZADO:{id}`), preservando a UNIQUE da coluna na anonimização em cascata. |
 
 ## Contexto: Catálogo de Serviços (Suporte)
 
@@ -63,6 +66,7 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 | Termo do Domínio | Identificador no Código | Definição |
 |---|---|---|
 | Usuário | `Usuario` | Entidade que representa um operador do sistema (admin, atendente ou mecânico). |
+| Token revogado | `TokenRevogado` | Entidade raiz do seu próprio agregado trivial: denylist de JTI que invalida access/refresh tokens antes do `exp` (logout e rotação). |
 | Papel | `Papel` | Enum que define os papéis de acesso: `Admin`, `Atendente`, `Mecanico`. RBAC aplicado por mapa de permissões (`src/autenticacao/interfaces/middleware.py`), com `Admin` herdando os demais; coberto pela matriz RBAC dos testes. Usado no payload JWT. |
 
 ## Termos Compartilhados
@@ -80,6 +84,7 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 | AggregateRoot | Estende Entity. Raiz do agregado com gestão de eventos de domínio pendentes. |
 | ValueObject | Classe base imutável (`frozen=True`). Igualdade por todos os campos. |
 | DomainEvent | Evento imutável (`frozen=True`) com `ocorrido_em` e `agregado_id`. |
+| IntegrationEvent | Estende DomainEvent: evento durável que cruza o processo — gravado na outbox transacional pela UnitOfWork e entregue pelo relay (ADR-022). |
 | Repository | Porta de persistência por agregado. Sufixo EN sobre nome PT (ex: `OrdemDeServicoRepository`). |
 | Service | Serviço de aplicação ou domínio. Sufixo EN (ex: `CatalogoService`). |
 | Port | Interface de comunicação entre contextos, definida pelo consumidor (ex: `EstoquePort`). |

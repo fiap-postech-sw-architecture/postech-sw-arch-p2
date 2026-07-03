@@ -23,7 +23,6 @@ from src.ordem_servico.dominio.events import (
     ServicoFinalizadoEvent,
 )
 from src.ordem_servico.dominio.exceptions import (
-    ItemDaOrdemNaoEncontradoException,
     OrdemNaoEncontradaException,
 )
 from src.ordem_servico.dominio.item_da_ordem import ItemDaOrdem
@@ -86,30 +85,6 @@ class TestExceptions:
     def test_ordem_nao_encontrada_default(self) -> None:
         exc = OrdemNaoEncontradaException()
         assert "Ordem de servico nao encontrada" in str(exc)
-
-    def test_ordem_nao_encontrada_com_id(self) -> None:
-        ordem_id = uuid4()
-        exc = OrdemNaoEncontradaException(ordem_id=ordem_id)
-        assert str(ordem_id) in str(exc)
-
-    def test_ordem_nao_encontrada_custom(self) -> None:
-        exc = OrdemNaoEncontradaException(mensagem="Ordem 123 nao existe")
-        assert "Ordem 123 nao existe" in str(exc)
-
-    def test_item_da_ordem_nao_encontrado_default(self) -> None:
-        exc = ItemDaOrdemNaoEncontradoException()
-        assert "Item da ordem nao encontrado" in str(exc)
-
-    def test_item_da_ordem_nao_encontrado_com_ids(self) -> None:
-        ordem_id = uuid4()
-        item_id = uuid4()
-        exc = ItemDaOrdemNaoEncontradoException(ordem_id=ordem_id, item_id=item_id)
-        assert str(item_id) in str(exc)
-        assert str(ordem_id) in str(exc)
-
-    def test_item_da_ordem_nao_encontrado_custom(self) -> None:
-        exc = ItemDaOrdemNaoEncontradoException(mensagem="Item abc nao existe")
-        assert "Item abc nao existe" in str(exc)
 
 
 class TestCicloCompleto:

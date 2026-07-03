@@ -15,9 +15,11 @@ Os endpoints de OS delegam aos use cases via factories lazy-importadas
 do contexto Ordem de Servico. As factories em
 ``ordem_servico/interfaces/dependencies`` mantem o wiring com
 infraestrutura centralizado no composition root, seguindo o mesmo
-padrao dos outros routers. O import lazy dentro do handler preserva a
-direcao do onion (compartilhado nao importa ordem_servico em tempo de
-load).
+padrao dos outros routers. O wiring de use case usa import
+lazy dentro do handler; os response models (``ordem_servico/interfaces/
+schemas.py``) sao importados em tempo de load — dependencia de interface
+aceita e restrita a este modulo (o dominio/aplicacao de compartilhado
+segue sem conhecer contexto algum).
 """
 
 from __future__ import annotations

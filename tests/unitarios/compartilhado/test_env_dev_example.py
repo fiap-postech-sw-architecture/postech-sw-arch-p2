@@ -1,7 +1,7 @@
 """Trava o conteudo critico de ``.env.dev.example``.
 
 Regressao pinada: o dev que roda o projeto pela primeira vez copia
-``.env.dev.example`` para ``.env.dev`` (ver ``Makefile`` / ``run.sh``). Se
+``.env.dev.example`` para ``.env.dev`` (ver ``Makefile``). Se
 esse exemplo nao tiver ``ENCRYPTION_KEY`` com valor valido, o backend gera
 uma chave Fernet efemera em memoria a cada startup — e dados cifrados no DB
 (CPF/CNPJ) ficam ilegiveis apos o primeiro restart, o que resulta em

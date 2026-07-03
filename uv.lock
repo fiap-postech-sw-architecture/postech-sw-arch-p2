@@ -2386,7 +2386,6 @@ dependencies = [
 full-test = [
     { name = "httpx" },
     { name = "pytest" },
-    { name = "pytest-xdist" },
     { name = "python-dotenv" },
     { name = "sqlalchemy" },
 ]
@@ -2446,7 +2445,6 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'test'", specifier = ">=8.0" },
     { name = "pytest-cov", marker = "extra == 'test'", specifier = ">=6.0" },
     { name = "pytest-selenium", marker = "extra == 'ui'", specifier = ">=4.1" },
-    { name = "pytest-xdist", marker = "extra == 'full-test'", specifier = ">=3.5" },
     { name = "pytest-xdist", marker = "extra == 'test'", specifier = ">=3.0" },
     { name = "python-dotenv", marker = "extra == 'full-test'", specifier = ">=1.0" },
     { name = "pyyaml", marker = "extra == 'test'", specifier = ">=6" },

@@ -11,6 +11,8 @@ fica ``false`` no ``k8s/configmap.yaml``).
 from __future__ import annotations
 
 import os
+import signal
+import threading
 from datetime import UTC, datetime
 
 import structlog
@@ -20,28 +22,11 @@ _log = structlog.get_logger(__name__)
 
 def _bootstrap_mappings() -> None:
     """Registra os mappings imperativos + tabelas Core da outbox."""
-    from src.autenticacao.infraestrutura.mapping import (
-        iniciar_mapeamentos as iniciar_auth,
-    )
-    from src.catalogo_servicos.infraestrutura.mapping import (
-        iniciar_mapeamentos as iniciar_catalogo,
-    )
-    from src.cliente_veiculo.infraestrutura.mapping import (
-        iniciar_mapeamentos as iniciar_cliente,
-    )
-    from src.estoque.infraestrutura.mapping import (
-        iniciar_mapeamentos as iniciar_estoque,
-    )
-    from src.ordem_servico.infraestrutura.mapping import (
-        iniciar_mapeamentos as iniciar_os,
+    from src.compartilhado.infraestrutura.bootstrap import (
+        iniciar_todos_mapeamentos,
     )
 
-    iniciar_cliente()
-    iniciar_catalogo()
-    iniciar_estoque()
-    iniciar_os()
-    iniciar_auth()
-    import src.compartilhado.infraestrutura.outbox_mapping  # noqa: F401
+    iniciar_todos_mapeamentos()
 
 
 def main() -> None:
@@ -78,12 +63,20 @@ def main() -> None:
     metricas_ativas = configurar_metricas(engine)
     if not metricas_ativas:
         _log.info("relay sem metricas OTel (RELAY_METRICS_ENABLED desligado)")
+    # Como PID 1 do container, o processo IGNORA SIGTERM sem handler — todo
+    # rollout esperava os 30s de terminationGracePeriodSeconds e morria por
+    # SIGKILL sem rodar o finally. O Event encerra o loop no proximo ciclo
+    # (a entrega e at-least-once; kill abrupto ja era seguro por design).
+    encerrar = threading.Event()
+    signal.signal(signal.SIGTERM, lambda *_: encerrar.set())
+    signal.signal(signal.SIGINT, lambda *_: encerrar.set())
     try:
         executar_relay(
             engine,
             handlers=construir_mapa_handlers(engine),
             nome_handler=NOME_HANDLER_EMAIL,
             relogio=lambda: datetime.now(UTC),
+            parar=encerrar.is_set,
         )
     finally:
         engine.dispose()

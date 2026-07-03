@@ -4,22 +4,18 @@
 dataclass) num ``OutboxRegistro`` com ``payload`` JSON-serializavel:
 ``UUID`` viram ``str`` e ``datetime`` viram ISO-8601. A funcao e pura
 (sem I/O) para ser exercitada em unit test; o INSERT real e
-responsabilidade da infraestrutura (``outbox_mapping.inserir_na_outbox``).
-
-``OutboxPort`` e o contrato que a ``UnitOfWork`` consome para enfileirar
-os registros na mesma transacao do estado.
+responsabilidade da infraestrutura (``outbox_mapping.inserir_na_outbox``),
+chamada diretamente pela ``UnitOfWork`` na mesma transacao do estado.
 """
 
 from __future__ import annotations
 
 from dataclasses import dataclass, fields
 from datetime import datetime
-from typing import TYPE_CHECKING, Any, Protocol
+from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 if TYPE_CHECKING:
-    from collections.abc import Sequence
-
     from src.compartilhado.dominio.integration_event import IntegrationEvent
 
 
@@ -57,12 +53,3 @@ def serializar_integration_event(evento: IntegrationEvent) -> OutboxRegistro:
         tipo=type(evento).__name__,
         payload=payload,
     )
-
-
-class OutboxPort(Protocol):
-    """Enfileira ``IntegrationEvent`` na outbox dentro da transacao corrente."""
-
-    # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
-    def enfileirar(self, eventos: Sequence[IntegrationEvent]) -> None:
-        """Insere os eventos na ``outbox`` usando a transacao em andamento."""
-        pass

@@ -228,7 +228,7 @@ def iniciar_mapeamentos() -> None:
         # Decorators empilhados: ``load`` (target, context) e ``refresh``
         # (target, context, attrs) tem aridades diferentes -> ``*_args`` absorve
         # a diferenca. O ``refresh`` e necessario porque populate_existing=True
-        # (repositorio, ramo com_lock/obter_por_ids) e session.refresh disparam
+        # (repositorio, ramo com_lock) e session.refresh disparam
         # ``refresh``, nao ``load``: sem ele o VO Dinheiro ficaria stale apos a
         # releitura sob lock (#117).
         # _preco_valor / _preco_moeda sao injetados em runtime pelo

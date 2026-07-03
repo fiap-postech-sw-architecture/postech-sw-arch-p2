@@ -126,13 +126,8 @@ class CriarCliente:
 
         contato = Contato(valor=dto.contato)
         cliente = Cliente.criar(nome=dto.nome, documento=documento, contato=contato)
-        self._salvar_com_commit(cliente)
+        _salvar_com_commit(self._uow, self._repo, cliente)
         return _cliente_dto(cliente)
-
-    def _salvar_com_commit(self, cliente: Cliente) -> None:
-        with self._uow:
-            self._repo.salvar(cliente)
-            self._uow.commit()
 
 
 class ListarClientes:
@@ -174,13 +169,8 @@ class AtualizarCliente:
     def executar(self, cliente_id: UUID, dto: AtualizarClienteDTO) -> ClienteDTO:
         cliente = _obter_cliente_ou_falhar(self._repo, cliente_id)
         cliente.atualizar(nome=dto.nome, contato=Contato(valor=dto.contato))
-        self._salvar_com_commit(cliente)
+        _salvar_com_commit(self._uow, self._repo, cliente)
         return _cliente_dto(cliente)
-
-    def _salvar_com_commit(self, cliente: Cliente) -> None:
-        with self._uow:
-            self._repo.salvar(cliente)
-            self._uow.commit()
 
 
 class DesativarCliente:
@@ -207,12 +197,7 @@ class DesativarCliente:
                 mensagem="Cliente possui ordem de servico ativa"
             )
         cliente.desativar()
-        self._salvar_com_commit(cliente)
-
-    def _salvar_com_commit(self, cliente: Cliente) -> None:
-        with self._uow:
-            self._repo.salvar(cliente)
-            self._uow.commit()
+        _salvar_com_commit(self._uow, self._repo, cliente)
 
 
 class AdicionarVeiculo:
@@ -241,13 +226,8 @@ class AdicionarVeiculo:
         if self._repo.placa_existe(placa, excluir_cliente_id=cliente_id):
             raise PlacaDuplicadaException()
         veiculo = cliente.adicionar_veiculo(placa, dto.marca, dto.modelo, dto.ano)
-        self._salvar_com_commit(cliente)
+        _salvar_com_commit(self._uow, self._repo, cliente)
         return _veiculo_dto(veiculo)
-
-    def _salvar_com_commit(self, cliente: Cliente) -> None:
-        with self._uow:
-            self._repo.salvar(cliente)
-            self._uow.commit()
 
 
 class ListarVeiculos:
@@ -310,3 +290,12 @@ def _obter_cliente_ou_falhar(repo: ClienteRepository, cliente_id: UUID) -> Clien
     if cliente is None:
         raise ClienteNaoEncontradoException()
     return cliente
+
+
+def _salvar_com_commit(
+    uow: UnitOfWork, repo: ClienteRepository, cliente: Cliente
+) -> None:
+    """Persiste o agregado dentro da UnitOfWork e confirma a transacao."""
+    with uow:
+        repo.salvar(cliente)
+        uow.commit()

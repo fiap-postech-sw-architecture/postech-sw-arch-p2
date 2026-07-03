@@ -77,6 +77,10 @@ class TestEvents:
         if event_cls is OrdemCriadaEvent:
             kwargs["cliente_id"] = uuid4()
             kwargs["veiculo_id"] = uuid4()
+        if event_cls is OrdemCanceladaEvent:
+            # motivo virou kw_only obrigatorio (evento sem dado nao e
+            # construivel por engano — finding DDD-tatico do fechamento).
+            kwargs["motivo"] = "cancelada em teste"
         e = event_cls(**kwargs)
         with pytest.raises(AttributeError):
             e.agregado_id = uuid4()  # type: ignore[misc]
