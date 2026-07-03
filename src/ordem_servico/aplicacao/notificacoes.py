@@ -71,8 +71,13 @@ _STATUS_POR_EVENTO: dict[type[DomainEvent], StatusOrdem] = {
 }
 
 # Forma minima local@dominio.tld; extrai o primeiro candidato do texto
-# livre do contato (que pode misturar nome e telefone).
-_EMAIL_RE = re.compile(r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}")
+# livre do contato (que pode misturar nome e telefone). O dominio e casado
+# label a label (`.` fora da classe, so como separador) para eliminar o
+# backtracking polinomial (hotspot S5852 do SonarQube); o input ja chega
+# limitado a 255 chars pelo VO Contato.
+_EMAIL_RE = re.compile(
+    r"[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}"
+)
 
 
 def _extrair_email(contato: str) -> str | None:

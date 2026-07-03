@@ -22,6 +22,8 @@ class Placa(ValueObject):
     def __post_init__(self) -> None:
         valor = self.valor.upper().replace("-", "")
         if not (_PADRAO_ANTIGA.match(valor) or _PADRAO_MERCOSUL.match(valor)):
-            msg = f"Placa invalida: {self.valor!r}"
+            # Sem ecoar o valor: placa e PII e o handler global de ValueError
+            # devolve str(exc) no corpo do 422 (TD-033/issue #126).
+            msg = "Placa invalida"
             raise ValueError(msg)
         object.__setattr__(self, "valor", valor)

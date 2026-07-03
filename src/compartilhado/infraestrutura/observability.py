@@ -29,7 +29,10 @@ if TYPE_CHECKING:
 _log = structlog.get_logger(__name__)
 
 # Porta 4317 = OTLP/gRPC do Jaeger all-in-one (k8s/jaeger.yaml e servico
-# `jaeger` do docker-compose.yml usam o mesmo nome DNS).
+# `jaeger` do docker-compose.yml usam o mesmo nome DNS). `http://` aqui e
+# trafego intra-cluster (o DNS `jaeger` nao resolve fora); um collector
+# externo entra via OTEL_EXPORTER_OTLP_ENDPOINT com https, que desliga o
+# modo insecure automaticamente (hotspot SonarQube revisado como seguro).
 _ENDPOINT_PADRAO = "http://jaeger:4317"
 _VALORES_VERDADEIROS = frozenset({"true", "1"})
 
@@ -115,6 +118,9 @@ def configurar_otel(app: FastAPI, engine: Engine) -> bool:
         BatchSpanProcessor(
             OTLPSpanExporter(
                 endpoint=endpoint,
+                # Insecure so quando o proprio endpoint declara http:// --
+                # default intra-cluster; https via env liga TLS (ver
+                # _ENDPOINT_PADRAO).
                 insecure=endpoint.startswith("http://"),
             )
         )

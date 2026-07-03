@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 from typing import TYPE_CHECKING
 
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
 from src.compartilhado.dominio.exceptions import (
@@ -71,6 +72,28 @@ def registrar_error_handlers(app: FastAPI) -> None:
             status_code=status_code,
             content=_criar_envelope(exc.codigo, exc.mensagem, request_id),
         )
+
+    @app.exception_handler(RequestValidationError)
+    async def _request_validation_handler(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        # O detail default do FastAPI/Pydantic ecoa o `input` cru (e um `ctx`
+        # de conteudo variavel) de cada campo invalido -- PII enviada num campo
+        # malformado voltaria no corpo do 422 (TD-033). Mantemos o contrato
+        # `{"detail": [...]}` (a UI consome a lista) mas cada item carrega so o
+        # trio estavel type/loc/msg: as msgs do Pydantic descrevem a REGRA
+        # violada, nao o valor recebido.
+        request_id = _obter_request_id(request)
+        detalhes = [
+            {"type": erro.get("type"), "loc": erro.get("loc"), "msg": erro.get("msg")}
+            for erro in exc.errors()
+        ]
+        logger.warning(
+            "Erro de validacao de schema tratado como 422 (request_id=%s): %s",
+            request_id,
+            [(d["type"], d["loc"]) for d in detalhes],
+        )
+        return JSONResponse(status_code=422, content={"detail": detalhes})
 
     @app.exception_handler(ValueError)
     async def _value_error_handler(request: Request, exc: ValueError) -> JSONResponse:

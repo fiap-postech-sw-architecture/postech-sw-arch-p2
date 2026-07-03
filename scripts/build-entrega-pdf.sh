@@ -38,7 +38,8 @@ for f in "$SRC" "$SEGURANCA" "$EXTRAS" scripts/rewrite-md-links.py \
   docs/entrega/fase2/evidencias/b3b-jaeger-trace.png \
   docs/entrega/fase2/evidencias/b4-mailpit-emails.png \
   docs/entrega/fase2/evidencias/b5-prometheus-outbox.png \
-  docs/entrega/fase2/evidencias/b6-sonarqube-quality-gate.png; do
+  docs/entrega/fase2/evidencias/b6-sonarqube-quality-gate.png \
+  docs/entrega/fase2/evidencias/b6b-sonarqube-hotspots-zerados.png; do
   [ -f "$f" ] || { echo "erro: arquivo obrigatorio ausente: $f" >&2; exit 1; }
 done
 
@@ -134,9 +135,19 @@ awk '
 
 ![outbox_entregue_total=15 e outbox_pendentes=0](${PWD}/docs/entrega/fase2/evidencias/b5-prometheus-outbox.png)
 
-## B6 — Quality Gate do SonarQube (scan de fechamento)
+## B6 — SonarQube: scan de fechamento, antes e depois
 
-![Quality Gate Passed, coverage 93.6%](${PWD}/docs/entrega/fase2/evidencias/b6-sonarqube-quality-gate.png)
+**Antes** — primeira análise da HEAD final: Quality Gate Passed com **3 security
+hotspots** a revisar.
+
+![Antes: Quality Gate Passed, 3 hotspots a revisar](${PWD}/docs/entrega/fase2/evidencias/b6-sonarqube-quality-gate.png)
+
+**Depois** — hotspots tratados no fluxo da ferramenta (1 corrigido no código —
+regex de e-mail sem backtracking polinomial, S5852; 2 revisados como seguros —
+OTLP intra-cluster) e reanálise: **0 hotspots**, gate mantido Passed, coverage
+93,6%. Detalhes na seção SonarQube do Anexo A.
+
+![Depois: 0 hotspots a revisar, Quality Gate Passed](${PWD}/docs/entrega/fase2/evidencias/b6b-sonarqube-hotspots-zerados.png)
 ANEXOB
 
   printf '\n\n<div style="break-before:page;"></div>\n\n# Anexo C — Funcionalidades Extras da Fase 2\n\n'

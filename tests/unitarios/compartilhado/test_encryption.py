@@ -27,11 +27,11 @@ class TestEncryptionService:
         assert c1 != c2
 
     def test_singleton_retorna_mesma_instancia(self) -> None:
-        EncryptionService._instance = None
+        # Reset de _instance vem da fixture autouse do conftest raiz
+        # (_reset_encryption_singleton); nenhum reset manual aqui.
         a = EncryptionService.instance()
         b = EncryptionService.instance()
         assert a is b
-        EncryptionService._instance = None
 
     def test_hash_deterministic_retorna_hex(self) -> None:
         enc = EncryptionService()

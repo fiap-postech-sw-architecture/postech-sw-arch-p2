@@ -70,3 +70,14 @@ class TestCPF:
         r = repr(cpf)
         assert "***.***.***-19" in r
         assert CPF_VALIDO not in r
+
+
+class TestMensagemSemPii:
+    """Guard TD-033/issue #126: mensagem de CPF invalido nao ecoa o numero."""
+
+    def test_mensagem_de_cpf_invalido_nao_contem_o_numero(self) -> None:
+        with pytest.raises(ValueError, match="CPF invalido") as exc_info:
+            CPF(numero="111.444.777-04")
+        assert "111" not in str(exc_info.value)
+        assert "777" not in str(exc_info.value)
+        assert str(exc_info.value) == "CPF invalido"

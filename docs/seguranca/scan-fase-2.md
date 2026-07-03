@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Segurança](README.md)
 
-> **Versão**: 2.0 — bateria de fechamento **reexecutada na HEAD final da fase 2** (commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826), 02/07/2026), já sobre **Python 3.14** ([PR #150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150)). Sucede a versão 1.0 (12/06/2026), que cobria só `src/`+`ui/` e não reexecutou trivy; esta versão fecha o escopo — `src/`+`relay/` no SAST, deps de runtime na SCA, imagem 3.14 no scan de container, segredos, CodeQL e DAST — e incorpora os PRs de segurança posteriores a 12/06. Complementa o [relatório de vulnerabilidades](relatorio-vulnerabilidades.md) da fase 1, que permanece válido para o baseline OWASP API Top 10 do MVP.
+> **Versão**: 2.1 — adiciona a **sétima camada**: SonarQube como scan manual de fechamento (TD-010/[ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md)) executado em 02/07/2026, com Quality Gate **Passed** e os 3 security hotspots levados a zero (1 corrigido no código, 2 revisados como seguros com justificativa) — antes/depois no Anexo B do documento de entrega. Versão 2.0 — bateria de fechamento **reexecutada na HEAD final da fase 2** (commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826), 02/07/2026), já sobre **Python 3.14** ([PR #150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150)). Sucede a versão 1.0 (12/06/2026), que cobria só `src/`+`ui/` e não reexecutou trivy; esta versão fecha o escopo — `src/`+`relay/` no SAST, deps de runtime na SCA, imagem 3.14 no scan de container, segredos, CodeQL e DAST — e incorpora os PRs de segurança posteriores a 12/06. Complementa o [relatório de vulnerabilidades](relatorio-vulnerabilidades.md) da fase 1, que permanece válido para o baseline OWASP API Top 10 do MVP.
 
 ## Escopo
 
@@ -29,6 +29,7 @@ Diferentemente da bateria de 12/06 — um scan local pontual — a bateria de fe
 | gitleaks | Segredos | árvore de trabalho (`gitleaks dir`) com allowlist | **0 leaks** |
 | CodeQL | SAST semântico | python + javascript-typescript (default setup) | **`Analyze` verde** — sem alertas de segurança ativos |
 | OWASP ZAP | DAST baseline | API viva via OpenAPI (stack compose) | **0 FAIL** — 2 WARN aceitos como IGNORE ([`.zap/rules.tsv`](../../.zap/rules.tsv)) |
+| SonarQube (Community, local) | Análise estática + hotspots | `src/` (7.4k LoC, coverage importado) | **Quality Gate Passed** — 0 security, 0 reliability, coverage 93.6%; **hotspots 3 → 0** (1 FIXED, 2 SAFE) |
 
 Referência da última execução verde: check-runs do commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826) — `security`, `pip-audit (CVE em dependências)`, `gitleaks (segredos)`, `trivy (CVE na imagem)`, `Analyze (python)`, `Analyze (javascript-typescript)` e o `full-test-ci` (que hospeda o DAST) todos `success`.
 
@@ -107,6 +108,19 @@ O ZAP baseline (scan passivo) roda continuamente no [`full-test-ci`](../../.gith
 | 90004 | Cross-Origin-Resource-Policy Header | IGNORE — superfície interna do cluster de demo |
 
 **Resultado na HEAD final**: **0 FAIL** — nenhum achado novo além dos 2 WARN aceitos; o `full-test-ci` fechou verde no commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826). Baseline de referência da fase 1: 65 PASS / 0 FAIL / 2 WARN (49 URLs via OpenAPI). Paridade local via `make dast`.
+
+## SonarQube (scan manual de fechamento)
+
+O SonarQube **não é gate de CI** por decisão registrada (TD-010, [ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md)): repo privado torna o SonarCloud pago e um servidor self-hosted é desproporcional ao MVP. Ele roda como **scan manual de fechamento de fase** — SonarQube Community local (docker) + `sonar-scanner` com o [`sonar-project.properties`](../../sonar-project.properties) versionado e o `coverage.xml` da suíte unitária importado.
+
+**Execução de fechamento da fase 2 (02/07/2026)** — Quality Gate **Passed**: Security **0** (rating A), Reliability **0** (A), Maintainability 147 code smells (A, informativo), Coverage **93,6%**, Duplications **0,0%**. A primeira análise apontou **3 security hotspots** ("to review" — pontos de atenção, não vulnerabilidades confirmadas), todos tratados no fluxo de revisão da própria ferramenta:
+
+| Hotspot | Regra | Tratamento |
+|---|---|---|
+| Regex de extração de e-mail com backtracking polinomial (`notificacoes.py`) | S5852 (DoS) | **Corrigido no código**: domínio casado label a label (`.` fora da classe de caracteres) elimina o backtracking; input já limitado a 255 chars pelo VO `Contato`. Teste adversarial em `TestExtrairEmail`. Revisado como **FIXED** |
+| `http://jaeger:4317` como endpoint OTLP default (`observability.py`, 2 ocorrências) | S5332 (encrypt-data) | **Revisado como SAFE**: tráfego OTLP gRPC intra-cluster (o DNS `jaeger` só resolve dentro do cluster/compose); um collector externo entra via `OTEL_EXPORTER_OTLP_ENDPOINT` com `https`, que desliga o modo insecure automaticamente |
+
+**Resultado final: 0 hotspots a revisar**, Quality Gate mantido **Passed**. O antes/depois está nas evidências visuais do Anexo B do documento de entrega ([`b6-sonarqube-quality-gate.png`](../entrega/fase2/evidencias/b6-sonarqube-quality-gate.png) → [`b6b-sonarqube-hotspots-zerados.png`](../entrega/fase2/evidencias/b6b-sonarqube-hotspots-zerados.png)).
 
 ## Itens de Segurança Endereçados na Fase 2
 

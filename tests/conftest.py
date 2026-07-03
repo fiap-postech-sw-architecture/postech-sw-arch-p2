@@ -22,6 +22,16 @@ def _reset_rate_limiter() -> None:
     limiter.reset()
 
 
+@pytest.fixture(autouse=True)
+def _reset_encryption_singleton() -> None:
+    # Sem o reset, o primeiro teste da sessao que tocar o servico congela a
+    # ENCRYPTION_KEY vigente para todos os seguintes (order-dependence latente,
+    # TD-032/issue #127 -- mesma classe do gotcha cache_logger_on_first_use).
+    from src.compartilhado.infraestrutura.encryption import EncryptionService
+
+    EncryptionService._instance = None
+
+
 def pytest_sessionstart(session: pytest.Session) -> None:
     if getattr(session.config.option, "collectonly", False):
         return

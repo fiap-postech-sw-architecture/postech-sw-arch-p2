@@ -8,6 +8,7 @@ import pytest
 import structlog
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import BaseModel, Field
 
 from src.compartilhado.dominio.exceptions import (
     EntidadeDuplicadaException,
@@ -153,3 +154,59 @@ def test_handler_422_value_error_mascara_pii(pipeline_buffer: io.StringIO) -> No
 
     saida = pipeline_buffer.getvalue()
     assert "987.654.321-00" not in saida
+
+
+class _PlacaSchema(BaseModel):
+    """Schema minimo para exercitar o 422 de validacao do Pydantic."""
+
+    placa: str = Field(max_length=8)
+
+
+def _criar_app_com_schema() -> TestClient:
+    # Em escopo de modulo (nao local): com `from __future__ import annotations`
+    # o FastAPI resolve o tipo do body via get_type_hints, que so enxerga
+    # globals do modulo.
+    app = FastAPI()
+    registrar_error_handlers(app)
+
+    @app.post("/veiculos")
+    def _endpoint(body: _PlacaSchema) -> dict[str, str]:
+        return {"placa": body.placa}
+
+    return TestClient(app, raise_server_exceptions=False)
+
+
+class TestRequestValidationSemEcoDeInput:
+    """422 de schema (Pydantic) nao ecoa o input cru (TD-033, issue #126).
+
+    O detail default do FastAPI carrega `input` (valor recebido), `ctx` e
+    `url`; o handler custom reduz cada item ao trio estavel type/loc/msg.
+    """
+
+    def test_422_de_schema_mantem_contrato_detail_sem_input(self) -> None:
+        client = _criar_app_com_schema()
+        resposta = client.post("/veiculos", json={"placa": "ZZZ-99999"})
+
+        assert resposta.status_code == 422
+        corpo = resposta.json()
+        assert "ZZZ-99999" not in resposta.text  # valor nunca volta no corpo
+        detalhes = corpo["detail"]
+        assert isinstance(detalhes, list)
+        assert detalhes
+        assert set(detalhes[0]) == {"type", "loc", "msg"}
+        assert detalhes[0]["type"] == "string_too_long"
+        assert detalhes[0]["loc"] == ["body", "placa"]
+
+    def test_422_de_schema_loga_warning_sem_o_valor(self) -> None:
+        client = _criar_app_com_schema()
+        registros = io.StringIO()
+        handler = logging.StreamHandler(registros)
+        logger = logging.getLogger("src.compartilhado.interfaces.error_handler")
+        logger.addHandler(handler)
+        try:
+            client.post("/veiculos", json={"placa": "ZZZ-99999"})
+        finally:
+            logger.removeHandler(handler)
+        log = registros.getvalue()
+        assert "string_too_long" in log
+        assert "ZZZ-99999" not in log

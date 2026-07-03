@@ -242,3 +242,30 @@ class TestMapaDeEventosDeTransicao:
         }
 
         assert eventos_de_transicao == set(_STATUS_POR_EVENTO)
+
+
+class TestExtrairEmail:
+    """Regex de extracao reescrita sem backtracking polinomial (S5852)."""
+
+    @pytest.mark.parametrize(
+        ("contato", "esperado"),
+        [
+            ("Fulano <fulano@example.com> (11) 99999-0000", "fulano@example.com"),
+            ("suporte@sub.dominio.com.br", "suporte@sub.dominio.com.br"),
+            ("a+tag@b-c.io", "a+tag@b-c.io"),
+            ("sem arroba nenhum", None),
+            ("quebrado@dominio", None),  # sem TLD
+            ("quebrado@.com", None),  # label vazio antes do TLD
+        ],
+    )
+    def test_extrai_primeiro_email_ou_none(
+        self, contato: str, esperado: str | None
+    ) -> None:
+        assert notificacoes_modulo._extrair_email(contato) == esperado
+
+    def test_input_adversarial_nao_explode(self) -> None:
+        # Probe de ReDoS: dominio de labels curtos sem TLD final forcava
+        # backtracking polinomial na regex antiga. Com labels deterministicos
+        # o resultado e imediato (e None).
+        adversarial = "a@" + "a." * 120 + "!"
+        assert notificacoes_modulo._extrair_email(adversarial) is None
