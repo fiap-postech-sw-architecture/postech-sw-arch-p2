@@ -77,6 +77,7 @@ _CHAVES_SENSIVEIS = frozenset(
     {
         "password",
         "senha",
+        "senha_hash",
         "token",
         "secret",
         "authorization",

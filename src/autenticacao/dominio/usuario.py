@@ -15,8 +15,11 @@ class Usuario(AggregateRoot):
     # falhar alto em vez de criar silenciosamente um ADMIN. `kw_only` o torna
     # obrigatorio mesmo vindo depois de campos com default (`id`, `_email`,
     # `_senha_hash`); todos os call sites ja o passam por palavra-chave.
-    _email: str = ""
-    _senha_hash: str = ""
+    # repr=False: o __repr__ default aparece em tracebacks/logs — e-mail e
+    # PII e o hash bcrypt nao tem mascara por valor no scrubber (finding da
+    # revisao de entrega, defesa em profundidade).
+    _email: str = field(default="", repr=False)
+    _senha_hash: str = field(default="", repr=False)
     _papel: Papel = field(kw_only=True)
 
     def __post_init__(self) -> None:

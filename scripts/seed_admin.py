@@ -40,6 +40,11 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 
+# Barrados fora de development/test (mesma semantica ambiente-sensivel do
+# validar_segredos_no_startup): em producao nenhum valor publico vira senha
+# real (#95), mas em dev/demo os valores commitados (k8s/secret.yaml,
+# docker-compose.yml) sao o proposito do ambiente — sem essa distincao o seed
+# do cluster kind falhava silencioso e o demo subia sem usuario algum.
 _PLACEHOLDERS_PROIBIDOS = frozenset(
     {
         "troque-esta-senha",
@@ -47,8 +52,7 @@ _PLACEHOLDERS_PROIBIDOS = frozenset(
         "changeme",
         "password",
         "admin",
-        # Valor demo publico do repo (k8s/secret.yaml, docker-compose.yml).
-        # Esta commitado e portanto nao e segredo -- nunca pode virar senha real.
+        # Valor demo publico do repo -- nunca pode virar senha real em producao.
         "pytstop-admin-demo-2026",
     }
 )
@@ -93,8 +97,12 @@ def ler_config(env: dict[str, str] | None = None) -> tuple[str, str, str]:
     if not admin_password:
         msg = "variavel ADMIN_PASSWORD nao definida."
         raise _ConfigError(msg)
-    if admin_password.lower() in _PLACEHOLDERS_PROIBIDOS:
-        msg = "ADMIN_PASSWORD usa placeholder publico - troque antes de rodar o seed."
+    ambiente_demo = environment in {"development", "test"}
+    if not ambiente_demo and admin_password.lower() in _PLACEHOLDERS_PROIBIDOS:
+        msg = (
+            "ADMIN_PASSWORD usa placeholder publico - proibido fora de "
+            "development/test; troque antes de rodar o seed."
+        )
         raise _ConfigError(msg)
     if len(admin_password) < _SENHA_MIN_LEN:
         msg = f"ADMIN_PASSWORD deve ter pelo menos {_SENHA_MIN_LEN} caracteres."

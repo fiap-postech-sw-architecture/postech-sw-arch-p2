@@ -174,6 +174,7 @@ class TestScrubChavesSensiveis:
         [
             "password",
             "senha",
+            "senha_hash",
             "token",
             "secret",
             "authorization",

@@ -73,3 +73,15 @@ class TestMensagemSemPii:
         assert "XYZ" not in str(exc_info.value)
         assert "99999" not in str(exc_info.value)
         assert str(exc_info.value) == "Placa invalida"
+
+
+class TestReprSemPii:
+    """Finding da revisao de entrega: repr default expunha a placa crua."""
+
+    def test_repr_mascara_a_placa(self) -> None:
+        placa = Placa(valor="ABC1D23")
+        assert repr(placa) == "Placa(valor='AB*****')"
+        assert "ABC1D23" not in repr(placa)
+
+    def test_mascarado_preserva_tamanho(self) -> None:
+        assert Placa(valor="ABC1234").mascarado() == "AB*****"
