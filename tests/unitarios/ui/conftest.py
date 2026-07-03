@@ -2,10 +2,15 @@
 
 from __future__ import annotations
 
+import sys
 from importlib.util import find_spec
 from pathlib import Path
+from typing import TYPE_CHECKING
 
 import pytest
+
+if TYPE_CHECKING:
+    from collections.abc import Iterator
 
 _NICEGUI_STORAGE_DIR = Path(".nicegui")
 _BROWSER_TESTING_DISPONIVEL = (
@@ -45,3 +50,30 @@ def _reset_ui_storage() -> None:
     from ui.estado import StateStore, configurar_store
 
     configurar_store(StateStore())
+
+
+@pytest.fixture(autouse=True)
+def _preservar_sys_modules_ui() -> Iterator[None]:
+    """Restaura os modulos ``ui*`` que o Screen do NiceGUI 3 corrompe.
+
+    O fixture ``screen`` (via ``main_file``) reimporta o app e deixa em
+    ``sys.modules["ui"]`` um stub sem ``__file__`` no lugar do pacote do
+    projeto; qualquer ``monkeypatch.setattr("ui...")`` de teste seguinte na
+    MESMA sessao falha com AttributeError. O CI nao ve (roda ``-m "not
+    lento"``); numa sessao local mista (rapidos + lentos), sem este guard,
+    13 testes quebram.
+
+    Nota: restaurar os modulos originais desfaz a evicao que o plugin do
+    NiceGUI usa para re-registrar rotas ``@ui.page`` -- nova cobertura de
+    Screen deve continuar DENTRO do unico teste consolidado (ver
+    test_login.py), nao em testes de browser adicionais.
+    """
+    snapshot = {
+        nome: modulo
+        for nome, modulo in sys.modules.items()
+        if nome == "ui" or nome.startswith("ui.")
+    }
+    yield
+    for nome, modulo in snapshot.items():
+        if sys.modules.get(nome) is not modulo:
+            sys.modules[nome] = modulo

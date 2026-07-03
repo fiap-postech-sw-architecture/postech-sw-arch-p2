@@ -61,3 +61,15 @@ class TestPlaca:
         a = Placa(valor="ABC1234")
         b = Placa(valor="ABC-1234")
         assert hash(a) == hash(b)
+
+
+class TestMensagemSemPii:
+    """Guard TD-033/issue #126: o handler global ecoa str(exc) no corpo do 422,
+    entao mensagens de invariante de VO com PII NAO podem interpolar o valor."""
+
+    def test_mensagem_de_placa_invalida_nao_contem_o_valor(self) -> None:
+        with pytest.raises(ValueError, match="Placa invalida") as exc_info:
+            Placa(valor="XYZ-99999")
+        assert "XYZ" not in str(exc_info.value)
+        assert "99999" not in str(exc_info.value)
+        assert str(exc_info.value) == "Placa invalida"

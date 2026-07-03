@@ -36,23 +36,37 @@ _CPF_PATTERN = re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b")
 _CNPJ_PATTERN = re.compile(r"\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b")
 _EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
 
-# Telefone BR FORMATADO: exige separador estrutural (hifen no bloco local
-# 4-4/5-4) + DDD (2 digitos, com ou sem parenteses, com prefixo +55 opcional).
-# So casa numeros com a FORMA de telefone -- precos (`1500.00`), ids (`12345`),
-# anos (`2026`) e portas (`8000`) nao tem o split `\d{4,5}-\d{4}` e ficam
-# intactos (guard contra falso-positivo; conjunto LGPD inclui telefone).
+# Telefone BR: duas formas estruturais, escolhidas para nao gerar falso-positivo
+# em precos (`1500.00`), ids (`12345`), anos (`2026`), portas (`8000`) e CEPs
+# (`12345-678`) -- nenhum deles tem o split `\d{4,5}-\d{4}` nem prefixo `+55`:
+#   1. DDD (com/sem parenteses) + separador OPCIONAL + bloco local com hifen
+#      4-4/5-4 -- cobre `(11)99999-0000` e `1199999-0000` alem dos formatados.
+#      Colateral aceito (direcao LGPD-safe): ids numericos hifenizados com
+#      shape 6+4 (`123456-7890`) tambem sao mascarados -- nenhum log site
+#      atual emite esse formato (ordens usam UUID).
+#   2. `+55` seguido de 10-11 digitos corridos -- cobre `+5511999990000` (o
+#      prefixo de pais e estrutura suficiente; nada legitimo em log tem essa
+#      forma). `+55 11999990000` (com espaco) e `11999990000` (sem nada) tem
+#      11 digitos corridos com shape de CPF e caem no _CPF_PATTERN acima
+#      antes desta regex; campos NOMEADOS telefone/celular/contato sao
+#      mascarados pela denylist abaixo.
 _TELEFONE_PATTERN = re.compile(
     r"(?<!\d)"  # nao precedido de digito (evita capturar parte de numero maior)
-    r"(?:\+55\s?)?"  # codigo do pais opcional
+    r"(?:"
+    r"(?:\+55[\s.-]?)?"  # codigo do pais opcional
     r"(?:\(\d{2}\)|\d{2})"  # DDD com ou sem parenteses
-    r"\s"  # separador obrigatorio entre DDD e numero
+    r"[\s.-]?"  # separador opcional entre DDD e numero
     r"9?\d{4}-\d{4}"  # 8 ou 9 digitos com hifen 4-4/5-4
+    r"|"
+    r"\+55[\s.-]?\d{10,11}"  # +55 com numero corrido (sem hifen local)
+    r")"
     r"(?!\d)"  # nao seguido de digito
 )
 
-# Denylist de chaves: quando o NOME do campo indica segredo, o valor inteiro e
-# mascarado -- independente de casar regex de PII. Cobre credenciais que nao tem
-# forma fixa (tokens, segredos) e que nao devem aparecer em log algum.
+# Denylist de chaves: quando o NOME do campo indica segredo ou PII, o valor
+# inteiro e mascarado -- independente de casar regex. Cobre credenciais sem
+# forma fixa (tokens, segredos) e PII cujo valor pode nao ter estrutura
+# detectavel (telefone sem formatacao, contato em texto livre) -- issue #99.
 _CHAVES_SENSIVEIS = frozenset(
     {
         "password",
@@ -63,6 +77,10 @@ _CHAVES_SENSIVEIS = frozenset(
         "refresh_token",
         "access_token",
         "api_key",
+        "telefone",
+        "celular",
+        "phone",
+        "contato",
     }
 )
 

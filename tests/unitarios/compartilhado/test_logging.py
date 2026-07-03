@@ -124,6 +124,12 @@ class TestScrubTelefone:
             "+55 11 99999-0000",
             "+55 (11) 99999-0000",
             "11 99999-0000",
+            # Sem espaco apos o DDD (issue #99): separador agora e opcional.
+            "(11)99999-0000",
+            "1199999-0000",
+            # +55 com numero corrido, sem hifen local (issue #99).
+            "+5511999990000",
+            "+55 11999990000",
         ],
     )
     def test_telefone_formatado_mascarado(self, telefone: str) -> None:
@@ -141,6 +147,8 @@ class TestScrubTelefone:
             "ordem 998877",  # numero de ordem
             "ano 2026",
             "porta 8000",
+            "cep 12345-678",  # bloco local 5-3 nao casa o split 4-4/5-4
+            "id longo 123456789012345",  # 15 digitos corridos sem +55
         ],
     )
     def test_nao_telefone_preservado(self, nao_telefone: str) -> None:
@@ -148,6 +156,14 @@ class TestScrubTelefone:
         event_dict: dict[str, object] = {"event": nao_telefone}
         result = scrub_pii(None, "info", event_dict)
         assert str(result["event"]) == nao_telefone
+
+    def test_telefone_11_digitos_corrido_mascarado(self) -> None:
+        # 11 digitos corridos tem o shape de CPF e caem no _CPF_PATTERN --
+        # mascarado por valor de qualquer forma (issue #99). Campos NOMEADOS
+        # telefone/celular/contato caem na denylist de chaves.
+        event_dict: dict[str, object] = {"event": "retorno 11999990000"}
+        result = scrub_pii(None, "info", event_dict)
+        assert "11999990000" not in str(result["event"])
 
 
 class TestScrubChavesSensiveis:
@@ -164,6 +180,11 @@ class TestScrubChavesSensiveis:
             "refresh_token",
             "access_token",
             "api_key",
+            # PII sem forma detectavel por regex (issue #99): mascara por nome.
+            "telefone",
+            "celular",
+            "phone",
+            "contato",
         ],
     )
     def test_chave_sensivel_mascara_valor(self, chave: str) -> None:
