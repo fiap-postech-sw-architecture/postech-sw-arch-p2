@@ -56,8 +56,15 @@ rewrite "$SRC"       "${TMP}/body.md"   docs/entrega/fase2
 rewrite "$SEGURANCA" "${TMP}/anexoA.md" docs/seguranca
 rewrite "$EXTRAS"    "${TMP}/anexoC.md" docs/entrega/fase2
 
-# 2) CAPA ABNT (quebra de pagina apos).
+# 2) CAPA ABNT (quebra de pagina apos) + CSS de tabela (colunas estreitas de
+#    ID/PR nao roubam espaco do texto; celulas quebram palavra a palavra).
 cat > "$COMBINADO" <<CAPA
+<style>
+  table { width: 100%; border-collapse: collapse; font-size: 9pt; }
+  th, td { padding: 3pt 5pt; vertical-align: top; overflow-wrap: break-word; }
+  th { text-align: left; }
+</style>
+
 <div style="text-align:center; min-height:23cm; display:flex; flex-direction:column; justify-content:space-between; break-after:page;">
 
 <div>
@@ -69,6 +76,8 @@ cat > "$COMBINADO" <<CAPA
 </div>
 
 <div>
+
+<img src="${PWD}/logo-pytstop.png" alt="Logo PytStop" style="width:4.5cm; margin: 0 auto 0.8cm auto; display:block;"/>
 
 # Tech Challenge — Fase 2
 
@@ -171,6 +180,6 @@ npx -y @mermaid-js/mermaid-cli -i "$TMP_MMD" -o "$TMP_PNG" -w 1400 -b white
 
 # 6) PDF.
 pandoc "$COMBINADO" -o "$OUT" --pdf-engine=weasyprint -V lang=pt-BR \
-  --metadata title="PytStop — Entrega Fase 2"
+  --metadata pagetitle="PytStop — Entrega Fase 2"
 
 echo ">> PDF gerado em $OUT"
