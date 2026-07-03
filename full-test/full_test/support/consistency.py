@@ -7,9 +7,8 @@ descritiva contendo os valores observados vs esperados.
 Invariantes cobertas:
   1. Maquina de status da OS: transicoes seguem ``MAQUINA_DE_STATUS``
   2. Totais do orcamento: ``orcamento.total == sum(itens.subtotal)``
-  3. Conservacao de estoque: ``qty_inicial - sum(qty_consumida) = qty_final``
-  4. Metricas monotonicas: ``total`` e ``por_status[...]`` nao decrescem
-  5. Status publico: ``/acompanhamento`` devolve o mesmo status do detalhe admin
+  3. Metricas monotonicas: ``total`` e ``por_status[...]`` nao decrescem
+  4. Status publico: ``/acompanhamento`` devolve o mesmo status do detalhe admin
 
 Thread-safety: ``ConsistencyChecker`` usa ``SystemClient``, que NAO e
 thread-safe. Cada journey deve instanciar seu proprio checker (uma instancia
@@ -23,14 +22,11 @@ que mudancas acidentais no dominio sejam detectadas (o teste quebra).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 from full_test.client.errors import NaoEncontradoError
 
 if TYPE_CHECKING:
-    from uuid import UUID
-
     from full_test.client import models
     from full_test.client.system_client import SystemClient
 
@@ -47,14 +43,6 @@ _TRANSICOES_VALIDAS: dict[str, frozenset[str]] = {
     "entregue": frozenset(),
     "cancelada": frozenset(),
 }
-
-
-@dataclass(frozen=True, slots=True)
-class SnapshotEstoque:
-    """Par (item, quantidade) capturado num instante t0 para validar conservacao."""
-
-    item_id: UUID
-    quantidade: int
 
 
 class ConsistencyChecker:
@@ -104,41 +92,6 @@ class ConsistencyChecker:
                     f"Item {item.id} na ordem {ordem.id}: subtotal "
                     f"{item.subtotal_centavos}c != preco*qty {esperado}c "
                     f"({item.preco_unitario_centavos} * {item.quantidade})"
-                )
-
-    # ---------------- estoque ----------------
-
-    def snapshot_estoque(self, itens_ids: list[UUID]) -> list[SnapshotEstoque]:
-        """Captura ``(item_id, quantidade)`` para cada item em ``itens_ids``."""
-        return [
-            SnapshotEstoque(
-                item_id=iid,
-                quantidade=self._client.obter_item_estoque(iid).quantidade,
-            )
-            for iid in itens_ids
-        ]
-
-    def assert_conservacao_estoque(
-        self,
-        *,
-        snapshot_inicial: list[SnapshotEstoque],
-        consumos_por_item: dict[UUID, int],
-    ) -> None:
-        """Para cada item no snapshot: ``qty_inicial - consumo = qty_atual``.
-
-        ``consumos_por_item`` mapeia o total de itens consumidos desde o snapshot
-        (e.g., qty somada em itens adicionados a ordens). Itens sem consumo
-        registrado precisam manter a quantidade inicial.
-        """
-        for snap in snapshot_inicial:
-            consumo = consumos_por_item.get(snap.item_id, 0)
-            esperado = snap.quantidade - consumo
-            atual = self._client.obter_item_estoque(snap.item_id).quantidade
-            if atual != esperado:
-                raise AssertionError(
-                    f"Estoque do item {snap.item_id} nao conservado: "
-                    f"inicial={snap.quantidade}, consumo={consumo}, "
-                    f"esperado={esperado}, atual={atual}"
                 )
 
     # ---------------- metricas ----------------

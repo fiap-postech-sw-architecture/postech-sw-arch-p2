@@ -48,8 +48,10 @@ _CANCELAR = Transicao(
     perigoso=True,
 )
 
-TRANSICOES_POR_STATUS: dict[StatusOrdem, list[Transicao]] = {
-    StatusOrdem.RECEBIDA: [
+# Valores em tuple: constante publica de modulo nao expoe lista mutavel
+# (espelha a disciplina do frozenset da tabela de transicoes do dominio).
+TRANSICOES_POR_STATUS: dict[StatusOrdem, tuple[Transicao, ...]] = {
+    StatusOrdem.RECEBIDA: (
         Transicao(
             acao="diagnostico",
             rotulo="Iniciar diagnostico",
@@ -57,8 +59,8 @@ TRANSICOES_POR_STATUS: dict[StatusOrdem, list[Transicao]] = {
             papeis_autorizados=frozenset({"admin", "mecanico"}),
         ),
         _CANCELAR,
-    ],
-    StatusOrdem.EM_DIAGNOSTICO: [
+    ),
+    StatusOrdem.EM_DIAGNOSTICO: (
         Transicao(
             acao="gerar_orcamento",
             rotulo="Gerar orcamento",
@@ -66,8 +68,8 @@ TRANSICOES_POR_STATUS: dict[StatusOrdem, list[Transicao]] = {
             papeis_autorizados=frozenset({"admin", "mecanico"}),
         ),
         _CANCELAR,
-    ],
-    StatusOrdem.AGUARDANDO_APROVACAO: [
+    ),
+    StatusOrdem.AGUARDANDO_APROVACAO: (
         Transicao(
             acao="aprovar",
             rotulo="Aprovar orcamento",
@@ -75,8 +77,8 @@ TRANSICOES_POR_STATUS: dict[StatusOrdem, list[Transicao]] = {
             papeis_autorizados=frozenset({"admin"}),
         ),
         _CANCELAR,
-    ],
-    StatusOrdem.EM_EXECUCAO: [
+    ),
+    StatusOrdem.EM_EXECUCAO: (
         Transicao(
             acao="finalizar",
             rotulo="Finalizar servico",
@@ -90,8 +92,8 @@ TRANSICOES_POR_STATUS: dict[StatusOrdem, list[Transicao]] = {
             papeis_autorizados=frozenset({"admin", "mecanico"}),
         ),
         _CANCELAR,
-    ],
-    StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR: [
+    ),
+    StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR: (
         Transicao(
             acao="aprovar_complementar",
             rotulo="Aprovar complementar",
@@ -107,17 +109,17 @@ TRANSICOES_POR_STATUS: dict[StatusOrdem, list[Transicao]] = {
             perigoso=True,
         ),
         _CANCELAR,
-    ],
-    StatusOrdem.FINALIZADA: [
+    ),
+    StatusOrdem.FINALIZADA: (
         Transicao(
             acao="entregar",
             rotulo="Registrar entrega",
             endpoint="/entrega",
             papeis_autorizados=frozenset({"admin", "mecanico"}),
         ),
-    ],
-    StatusOrdem.ENTREGUE: [],
-    StatusOrdem.CANCELADA: [],
+    ),
+    StatusOrdem.ENTREGUE: (),
+    StatusOrdem.CANCELADA: (),
 }
 
 

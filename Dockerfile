@@ -7,7 +7,7 @@
 # base image. Os TRES (`.python-version`, builder e runtime) sobem juntos. O
 # bloqueio do 3.14 caiu quando o NiceGUI 3 removeu a dep `vbuild` (que usava o
 # `pkgutil.find_loader`, removido no 3.14).
-FROM ghcr.io/astral-sh/uv:python3.14-bookworm-slim AS builder
+FROM ghcr.io/astral-sh/uv:0.9-python3.14-bookworm-slim AS builder
 
 ENV UV_LINK_MODE=copy \
     UV_COMPILE_BYTECODE=1 \

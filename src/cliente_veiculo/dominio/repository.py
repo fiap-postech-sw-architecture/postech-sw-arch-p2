@@ -36,9 +36,6 @@ class ClienteRepository(Protocol):
     ) -> bool:
         pass
 
-    def obter_dados_pessoais(self, cliente_id: UUID) -> Cliente | None:
-        pass
-
     def anonimizar_dados(self, cliente_id: UUID) -> None:
         pass
 
@@ -48,7 +45,4 @@ class ClienteRepository(Protocol):
     def obter_consentimento(
         self, cliente_id: UUID, tipo: str
     ) -> ConsentimentoCliente | None:
-        pass
-
-    def revogar_consentimento(self, cliente_id: UUID, tipo: str) -> None:
         pass

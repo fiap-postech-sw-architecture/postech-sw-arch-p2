@@ -71,35 +71,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
     git_date = os.environ.get("PYTSTOP_GIT_DATE", "unknown")
     print(f">>> pytstop server | commit {git_sha} | {git_date}", flush=True)
 
-    # Registra os imperative mappings de cada bounded context antes de
-    # aceitar requisicoes. Cada ``iniciar_mapeamentos`` e idempotente
-    # (guard interno via flag booleana), seguro para chamar em warm
-    # restarts e em testes. A ORDEM importa: contexts a montante devem
-    # vir primeiro porque OS referencia clientes/veiculos via FK, e
-    # estoque/catalogo nao podem depender de tabelas ainda ausentes
-    # no metadata. Ao adicionar um novo context, posicione seu
-    # ``iniciar_*()`` ANTES dos contexts que dependem dele.
-    from src.autenticacao.infraestrutura.mapping import (
-        iniciar_mapeamentos as iniciar_auth,
-    )
-    from src.catalogo_servicos.infraestrutura.mapping import (
-        iniciar_mapeamentos as iniciar_catalogo,
-    )
-    from src.cliente_veiculo.infraestrutura.mapping import (
-        iniciar_mapeamentos as iniciar_cliente,
-    )
-    from src.estoque.infraestrutura.mapping import (
-        iniciar_mapeamentos as iniciar_estoque,
-    )
-    from src.ordem_servico.infraestrutura.mapping import (
-        iniciar_mapeamentos as iniciar_os,
+    # Registra os imperative mappings de todos os bounded contexts antes de
+    # aceitar requisicoes (idempotente; a ordem correta entre contexts vive
+    # em ``bootstrap.iniciar_todos_mapeamentos``, ponto unico de verdade).
+    from src.compartilhado.infraestrutura.bootstrap import (
+        iniciar_todos_mapeamentos,
     )
 
-    iniciar_cliente()
-    iniciar_catalogo()
-    iniciar_estoque()
-    iniciar_os()
-    iniciar_auth()
+    iniciar_todos_mapeamentos()
 
     # Configura a session factory global antes de aceitar requisicoes.
     # Sem isso, todo endpoint que depende de ``obter_session`` falha com

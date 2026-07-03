@@ -15,6 +15,20 @@ if TYPE_CHECKING:
         RefreshToken,
         Registrar,
     )
+    from src.autenticacao.dominio.repository import TokenRevogadoRepository
+
+
+def obter_token_revogado_repo(session: Session) -> TokenRevogadoRepository:
+    """Factory do repositorio de tokens revogados (reusada pelo middleware).
+
+    Mantem a construcao do concreto no composition root — o middleware de
+    auth consome via Protocol (finding da revisao arquitetural).
+    """
+    from src.autenticacao.infraestrutura.token_revogado_repository import (
+        TokenRevogadoSQLAlchemyRepository,
+    )
+
+    return TokenRevogadoSQLAlchemyRepository(session=session)
 
 
 def obter_jwt_service() -> JWTService:

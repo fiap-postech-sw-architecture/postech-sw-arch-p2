@@ -52,7 +52,6 @@ ui = [
 full-test = [
     "httpx>=0.27",
     "pytest>=8",
-    "pytest-xdist>=3.5",
     "python-dotenv>=1.0",
     "sqlalchemy>=2.0",
 ]
@@ -188,6 +187,9 @@ containers = [
     "src.estoque",
     "src.ordem_servico",
     "src.autenticacao",
+    # Shared kernel tambem respeita a ordem interna de camadas (finding da
+    # revisao arquitetural de fechamento: estava fora do lint de layers).
+    "src.compartilhado",
 ]
 
 [[tool.importlinter.contracts]]

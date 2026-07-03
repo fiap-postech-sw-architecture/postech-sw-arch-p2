@@ -70,7 +70,7 @@ class OrdemCanceladaEvent(IntegrationEvent):
     o motivo nunca e vazio antes de emitir o evento.
     """
 
-    motivo: str = ""
+    motivo: str = field(kw_only=True)
 
 
 @dataclass(frozen=True)

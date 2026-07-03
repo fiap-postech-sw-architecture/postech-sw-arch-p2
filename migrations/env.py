@@ -14,33 +14,10 @@ if config.config_file_name is not None:
 # Carrega o metadata compartilhado e registra os mapeamentos imperativos de
 # cada bounded context. Sem isso, ``target_metadata`` fica vazio e o Alembic
 # autogenerate nao detecta as tabelas, levando a migrations stub.
-from src.autenticacao.infraestrutura.mapping import (
-    iniciar_mapeamentos as iniciar_auth,
-)
-from src.catalogo_servicos.infraestrutura.mapping import (
-    iniciar_mapeamentos as iniciar_catalogo,
-)
-from src.cliente_veiculo.infraestrutura.mapping import (
-    iniciar_mapeamentos as iniciar_cliente,
-)
+from src.compartilhado.infraestrutura.bootstrap import iniciar_todos_mapeamentos
 from src.compartilhado.infraestrutura.database import metadata
 
-# Registra as tabelas Core da outbox no metadata (sem agregado mapeado,
-# nao entram via iniciar_mapeamentos de nenhum contexto).
-import src.compartilhado.infraestrutura.outbox_mapping  # noqa: F401,E402
-
-from src.estoque.infraestrutura.mapping import (
-    iniciar_mapeamentos as iniciar_estoque,
-)
-from src.ordem_servico.infraestrutura.mapping import (
-    iniciar_mapeamentos as iniciar_os,
-)
-
-iniciar_cliente()
-iniciar_catalogo()
-iniciar_estoque()
-iniciar_os()
-iniciar_auth()
+iniciar_todos_mapeamentos()
 
 target_metadata = metadata
 

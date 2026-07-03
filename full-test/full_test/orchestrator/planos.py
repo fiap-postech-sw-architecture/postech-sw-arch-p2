@@ -20,8 +20,8 @@ Defaults derivados de ``full-e2e-test`` (secao "Run model e escala"):
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import TYPE_CHECKING, Any
+from dataclasses import dataclass
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from full_test.journeys.base import UserJourney
@@ -35,16 +35,11 @@ class DescritorDeJourney:
     ``builder`` sabe instanciar; ``n_instancias`` diz quantas copias paralelas
     criar; ``timeout_s`` e o limite duro aplicado por instancia no
     ``ThreadPoolExecutor`` (ver ``executar.py``).
-
-    ``kwargs_comuns`` e um canal opcional para overrides em tempo de execucao.
-    O builder consome-o junto com os recursos do seed - manter o dict vazio
-    (default) delega todos os kwargs ao builder.
     """
 
     journey_class: type[UserJourney]
     n_instancias: int
     timeout_s: float
-    kwargs_comuns: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True, slots=True)

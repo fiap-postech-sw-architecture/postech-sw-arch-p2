@@ -45,7 +45,7 @@ GIT_SHA  := $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 GIT_DATE := $(shell git show -s --format=%cI HEAD 2>/dev/null || echo unknown)
 DOCKER_COMPOSE := GIT_SHA=$(GIT_SHA) GIT_DATE=$(GIT_DATE) docker compose --env-file .env.dev
 
-.PHONY: lint lint-arch format typecheck security codeql-quality test test-coverage test-integ test-all check all up down seed ui seed-users seed-users-docker seed-demo up-backend env-dev rebuild reset-db
+.PHONY: lint lint-arch format typecheck security codeql-quality test test-coverage test-integ test-all check all up down ui seed-users seed-users-docker seed-demo up-backend rebuild reset-db
 
 # Bootstrap do .env.dev a partir do example. `.env.dev` e gitignored
 # porque pode conter secrets reais; o `.env.dev.example` tem defaults
@@ -59,36 +59,33 @@ DOCKER_COMPOSE := GIT_SHA=$(GIT_SHA) GIT_DATE=$(GIT_DATE) docker compose --env-f
 		echo ">> Edite o arquivo antes de promover para qualquer ambiente nao-local."; \
 	fi
 
-env-dev: .env.dev
-
 up: .env.dev
 	@bash -c 'source scripts/docker-check.sh && bash scripts/kill-stale-ui.sh && $(DOCKER_COMPOSE) up -d'
 
 down: .env.dev
 	@bash -c 'source scripts/docker-check.sh && $(DOCKER_COMPOSE) down'
 
-seed:
-	@bash -c 'set -a; [ -f .env ] && . ./.env; [ -f .env.dev ] && . ./.env.dev; set +a; python scripts/seed_admin.py'
-
+# Gates usam PY_UI_TEST (extras test+ui): em clone fresco sem sync manual,
+# `uv run` puro nao teria ruff/mypy/bandit no ambiente (finding devops).
 lint:
-	$(PY)ruff check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
-	$(PY)ruff format --check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+	$(PY_UI_TEST)ruff check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+	$(PY_UI_TEST)ruff format --check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
 
 # Contratos de arquitetura (ADR-015 / RNF-017): camadas Clean por contexto +
 # proibicao dominio -> infraestrutura. Config em [tool.importlinter] no
 # pyproject.toml.
 lint-arch:
-	$(PY)lint-imports
+	$(PY_UI_TEST)lint-imports
 
 format:
-	$(PY)ruff format src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
-	$(PY)ruff check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py --fix
+	$(PY_UI_TEST)ruff format src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+	$(PY_UI_TEST)ruff check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py --fix
 
 typecheck:
-	$(PY)mypy src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+	$(PY_UI_TEST)mypy src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
 
 security:
-	$(PY)bandit -r src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py -c pyproject.toml --severity-level high
+	$(PY_UI_TEST)bandit -r src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py -c pyproject.toml --severity-level high
 
 # DAST local (TD-011; ADR-011): paridade com o job "DAST — OWASP ZAP baseline"
 # do .github/workflows/full-test-ci.yml. Sobe a stack compose, aguarda

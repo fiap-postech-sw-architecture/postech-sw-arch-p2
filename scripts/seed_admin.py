@@ -4,7 +4,6 @@ Uso (container Docker, automatico via entrypoint.sh):
     RUN_SEED_ON_STARTUP=true docker compose up
 
 Uso (manual, fora do container):
-    make seed                          # carrega .env/.env.dev automaticamente
     python scripts/seed_admin.py       # requer envs exportadas no shell
 
 Variaveis de ambiente obrigatorias:

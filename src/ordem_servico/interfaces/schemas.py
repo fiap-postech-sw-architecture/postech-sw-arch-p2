@@ -20,8 +20,8 @@ from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, computed_field
 
+from src.ordem_servico.aplicacao.situacoes import situacao_de
 from src.ordem_servico.dominio.status import StatusOrdem
-from src.ordem_servico.interfaces.presenters import situacao_de
 
 # Descricao OpenAPI do campo derivado `situacao` (RF-021): lista os
 # rotulos do challenge esperados pelos consumidores da API.

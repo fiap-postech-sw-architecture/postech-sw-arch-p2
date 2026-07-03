@@ -85,9 +85,6 @@ class ClienteSQLAlchemyRepository:
         result = self._session.scalar(stmt)
         return (result or 0) > 0
 
-    def obter_dados_pessoais(self, cliente_id: UUID) -> Cliente | None:
-        return self._session.get(Cliente, cliente_id)
-
     def anonimizar_dados(self, cliente_id: UUID) -> None:
         from sqlalchemy import select, update
 
@@ -160,12 +157,3 @@ class ClienteSQLAlchemyRepository:
             .order_by(consentimentos_table.c.concedido_em.desc())
         )
         return self._session.scalars(stmt).first()
-
-    def revogar_consentimento(self, cliente_id: UUID, tipo: str) -> None:
-        from datetime import UTC, datetime
-
-        consentimento = self.obter_consentimento(cliente_id, tipo)
-        if consentimento is None or not consentimento.ativo:
-            return
-        consentimento.revogar(datetime.now(UTC))
-        self._session.flush()

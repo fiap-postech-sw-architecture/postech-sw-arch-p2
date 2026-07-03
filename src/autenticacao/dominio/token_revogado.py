@@ -8,6 +8,8 @@ from src.compartilhado.dominio.entity import Entity
 
 @dataclass(eq=False)
 class TokenRevogado(Entity):
+    """Raiz do seu proprio agregado trivial (sem eventos), nao filho de Usuario."""
+
     _jti: str = ""
     # Sentinel: __post_init__ guarantees non-None before first use.
     _revogado_em: datetime | None = None

@@ -48,16 +48,34 @@ if grep -q "VIDEO-LINK-FASE-2" "$SRC"; then
   echo "AVISO: VIDEO-LINK-FASE-2 ainda e placeholder -- preencha antes de submeter (issue #123)." >&2
 fi
 
-# 1) Links absolutos por-arquivo (cada um com seu base-dir).
+# 1) Links absolutos por-arquivo (cada um com seu base-dir). O rodape de
+#    navegacao dos .md ("> [↑ Raiz do projeto] · ...") serve ao GitHub, nao ao
+#    PDF — sai aqui, junto com o "---" que o antecede.
 rewrite() {  # <src> <dst> <base-dir>
   python3 scripts/rewrite-md-links.py "$1" "$2" --repo "$REPO" --branch "$BRANCH" --base-dir "$3"
+  python3 - "$2" <<'EOF'
+import sys
+linhas = [l for l in open(sys.argv[1], encoding="utf-8") if not l.startswith("> [↑")]
+while linhas and linhas[-1].strip() in ("", "---"):
+    linhas.pop()
+open(sys.argv[1], "w", encoding="utf-8").writelines(linhas + ["\n"])
+EOF
 }
 rewrite "$SRC"       "${TMP}/body.md"   docs/entrega/fase2
 rewrite "$SEGURANCA" "${TMP}/anexoA.md" docs/seguranca
 rewrite "$EXTRAS"    "${TMP}/anexoC.md" docs/entrega/fase2
 
-# 2) CAPA ABNT (quebra de pagina apos).
+# 2) CAPA ABNT (quebra de pagina apos) + CSS de tabela (colunas estreitas de
+#    ID/PR nao roubam espaco do texto; celulas quebram palavra a palavra).
 cat > "$COMBINADO" <<CAPA
+<style>
+  /* display:table anula o "table { display:block }" do CSS default do pandoc,
+     que faz weasyprint ignorar table-layout e as larguras de coluna. */
+  table { display: table; width: 100%; border-collapse: collapse; font-size: 9pt; }
+  th, td { padding: 3pt 5pt; vertical-align: top; overflow-wrap: break-word; }
+  th { text-align: left; }
+</style>
+
 <div style="text-align:center; min-height:23cm; display:flex; flex-direction:column; justify-content:space-between; break-after:page;">
 
 <div>
@@ -69,6 +87,8 @@ cat > "$COMBINADO" <<CAPA
 </div>
 
 <div>
+
+<img src="${PWD}/logo-pytstop.png" alt="Logo PytStop" style="width:4.5cm; margin: 0 auto 0.8cm auto; display:block;"/>
 
 # Tech Challenge — Fase 2
 
@@ -155,22 +175,76 @@ ANEXOB
   tail -n +2 "${TMP}/anexoC.md"
 } >> "$COMBINADO"
 
-# 5) Mermaid -> PNG (o bloco vive na secao 6 do corpo).
-python3 - "$COMBINADO" "$TMP_MMD" "$TMP_PNG" <<'EOF'
+# 5) Mermaid -> PNG, um por bloco (infra na secao 7 + antes/depois da
+#    evolucao de camadas). A subsecao de evolucao ganha quebra de pagina para
+#    abrir em pagina propria, fechando o corpo antes dos anexos.
+python3 - "$COMBINADO" "$TMP" <<'EOF'
 import re, sys
-md, mmd, png = sys.argv[1:4]
+md, tmp = sys.argv[1:3]
 src = open(md, encoding="utf-8").read()
-m = re.search(r"```mermaid\n(.*?)```", src, re.S)
-if m is None:
-    sys.exit("erro: bloco ```mermaid``` nao encontrado no markdown combinado")
-open(mmd, "w", encoding="utf-8").write(m.group(1))
-src = src.replace(m.group(0), f"![Diagrama de arquitetura da fase 2]({png})")
+blocos = list(re.finditer(r"```mermaid\n(.*?)```", src, re.S))
+if not blocos:
+    sys.exit("erro: nenhum bloco ```mermaid``` no markdown combinado")
+for n, m in enumerate(blocos, 1):
+    open(f"{tmp}/diagrama-{n}.mmd", "w", encoding="utf-8").write(m.group(1))
+    src = src.replace(m.group(0), f"![Diagrama {n} — ver fonte Mermaid no repositório]({tmp}/diagrama-{n}.png)")
+src = src.replace(
+    "### Evolução das camadas",
+    '<div style="break-before:page;"></div>\n\n### Evolução das camadas',
+)
 open(md, "w", encoding="utf-8").write(src)
 EOF
-npx -y @mermaid-js/mermaid-cli -i "$TMP_MMD" -o "$TMP_PNG" -w 1400 -b white
+for mmd in "$TMP"/diagrama-*.mmd; do
+  npx -y @mermaid-js/mermaid-cli -i "$mmd" -o "${mmd%.mmd}.png" -w 1400 -b white
+done
 
-# 6) PDF.
-pandoc "$COMBINADO" -o "$OUT" --pdf-engine=weasyprint -V lang=pt-BR \
-  --metadata title="PytStop — Entrega Fase 2"
+# 6) HTML intermediario + larguras de coluna + PDF. O passo Python fixa a
+#    largura das colunas de codigo curto (ID, PR, Artefato) em TODAS as
+#    tabelas de uma vez — sem ele o layout automatico distribuia espaco
+#    igualmente e espremia as colunas de texto.
+TMP_HTML="${TMP}/entrega.html"
+pandoc "$COMBINADO" -o "$TMP_HTML" -s -V lang=pt-BR \
+  --metadata pagetitle="PytStop — Entrega Fase 2"
+python3 - "$TMP_HTML" <<'EOF'
+import re
+import sys
+
+LARGURAS = {
+    "ID": "4em",
+    "PR": "5.5em",
+    "PR (issue)": "6em",
+    "Artefato": "5.5em",
+    "Onda": "4em",
+}
+
+html = open(sys.argv[1], encoding="utf-8").read()
+
+# Pandoc emite <colgroup> com fatias iguais (25%/25%/... ) nas tabelas cujo
+# markdown tem linhas longas; essas larguras vencem as dos <th> e igualam
+# todas as colunas. Fora eles: o layout automatico ja estreita as colunas
+# curtas por conta propria.
+html = re.sub(r"<colgroup>.*?</colgroup>", "", html, flags=re.S)
+
+def ajustar_ths(m: re.Match[str]) -> str:
+    th = m.group(0)
+    texto = re.sub(r"<[^>]+>", "", m.group(1)).strip()
+    largura = LARGURAS.get(texto)
+    if largura is None or "width" in th:
+        return th
+    return th.replace("<th", f'<th style="width:{largura}"', 1)
+
+def ajustar_tabela(m: re.Match[str]) -> str:
+    tabela = re.sub(r"<th(?=[\s>])[^>]*>(.*?)</th>", ajustar_ths, m.group(0), flags=re.S)
+    if tabela == m.group(0):
+        return tabela
+    # Sem layout fixo o algoritmo automatico redistribui a sobra e a coluna
+    # volta a engordar; com ele a largura do <th> vale ao pe da letra e as
+    # colunas de texto dividem o resto meio a meio.
+    return tabela.replace("<table", '<table style="table-layout:fixed"', 1)
+
+html = re.sub(r"<table.*?</table>", ajustar_tabela, html, flags=re.S)
+open(sys.argv[1], "w", encoding="utf-8").write(html)
+EOF
+weasyprint "$TMP_HTML" "$OUT"
 
 echo ">> PDF gerado em $OUT"

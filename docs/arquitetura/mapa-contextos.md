@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Arquitetura](README.md)
 
-> **Versão**: 1.0 — Fase 1 MVP.
+> **Versão**: 1.1 — Fase 2. Corrige assinaturas de portas (`ClientePort`, `EstoquePort`), o agregado Cliente/Veículo e adiciona o caminho assíncrono (outbox + relay).
 
 5 contextos delimitados com padrões de integração DDD. Decisão de organização: [ADR-007](adr/007-organizacao-contextos-delimitados.md).
 
@@ -38,7 +38,7 @@ graph LR
 | Contexto | Classificação | Agregados | Responsabilidade |
 |---|---|---|---|
 | **Ordem de Serviço** | Principal | `OrdemDeServico` | Ciclo de vida da OS (7+1 status), geração de orçamento, orquestração cross-contexto |
-| **Cliente + Veículo** | Suporte | `Cliente`, `Veiculo` | Cadastro e validação de clientes (CPF/CNPJ) e seus veículos |
+| **Cliente + Veículo** | Suporte | `Cliente` (raiz; `Veiculo` é entidade filha) | Cadastro e validação de clientes (CPF/CNPJ) e seus veículos |
 | **Catálogo de Serviços** | Suporte | `ServicoOferecido` | Tipos de serviço disponíveis com preços |
 | **Estoque** | Principal | `ItemEstoque` | Peças e insumos com reserva pessimista e controle de quantidade |
 | **Autenticação** | Genérico | `Usuario` | JWT, credenciais, RBAC. Substituível por Auth0/Keycloak. |
@@ -50,12 +50,14 @@ graph LR
 **Fornecedor**: Cliente + Veículo
 **Consumidor**: Ordem de Serviço
 
-O contexto Cliente fornece dados para a criação de OS. A porta `ClientePort` (definida pelo consumidor) expõe:
+O contexto Cliente fornece dados para a criação de OS e para notificações. A porta `ClientePort` (definida pelo consumidor) expõe:
 - `cliente_existe(cliente_id) -> bool`
 - `veiculo_pertence_ao_cliente(cliente_id, veiculo_id) -> bool`
-- `obter_veiculo_por_placa_e_documento(placa, documento) -> tuple[UUID, UUID] | None`
+- `obter_contato(cliente_id) -> ClienteContatoDTO | None` — resolve o destinatário do e-mail (RF-024)
+- `obter_clientes_em_lote(cliente_ids) -> dict[UUID, ClienteResumoDTO]` — enriquece projeções sem N+1
+- `obter_veiculos_em_lote(veiculo_ids) -> dict[UUID, VeiculoResumoDTO]` — idem, para placas
 
-Operações de leitura — não recebem `UnitOfWork`.
+Operações de leitura — não recebem `UnitOfWork`. A consulta pública por placa+documento (acompanhamento sem login) não passa por esta porta — ver o trade-off em [Consulta Reversa](#consulta-reversa-downstream--upstream).
 
 ### Open Host Service (OHS) / Linguagem Publicada
 
@@ -64,12 +66,17 @@ Operações de leitura — não recebem `UnitOfWork`.
 
 Catálogo expõe serviços via `CatalogoPort`:
 - `obter_servico(servico_id) -> ServicoOferecidoDTO | None`
+- `obter_servicos_em_lote(servico_ids) -> dict[UUID, ServicoOferecidoDTO]` — enriquece projeções sem N+1
 
-Estoque expõe reserva/liberação via `EstoquePort`:
-- `reservar(itens, udt) -> None` — recebe `UnitOfWork` para atomicidade
-- `liberar(itens, udt) -> None` — recebe `UnitOfWork` para atomicidade
+Estoque expõe reserva/liberação/consulta via `EstoquePort`:
+- `reservar(item_estoque_id, quantidade) -> None`
+- `liberar(item_estoque_id, quantidade) -> None`
+- `obter_item(item_estoque_id) -> ItemEstoqueDTO | None` — preço da peça consumida
+- `obter_itens_em_lote(item_estoque_ids) -> dict[UUID, ItemEstoqueDTO]` — enriquece projeções sem N+1
 
-A Linguagem Publicada é o `ServicoOferecidoDTO` — tipo compartilhado que desacopla os contextos.
+Os adaptadores são construídos com a sessão da requisição (session-scoped): a atomicidade vem da transação compartilhada, não de um `UnitOfWork` passado por parâmetro.
+
+A Linguagem Publicada é o conjunto de DTOs imutáveis do módulo de portas (`ServicoOferecidoDTO`, `ItemEstoqueDTO`, `ClienteResumoDTO`, `ClienteContatoDTO`, `VeiculoResumoDTO`) — tipos compartilhados que desacoplam os contextos.
 
 ### Consulta Reversa (Downstream → Upstream)
 
@@ -83,6 +90,8 @@ A porta `OrdemDeServicoPort` é definida pelos contextos consumidores (Cliente, 
 Operações de leitura — não recebem `UnitOfWork`. O adaptador vive na infraestrutura do contexto consumidor e consulta o repositório de OS.
 
 > **Trade-off**: essa porta reversa cria uma dependência cíclica no nível de infraestrutura (adapters). No monolito MVP, isso é aceitável — os contextos de domínio permanecem desacoplados. Em evolução para microsserviços, essa consulta seria substituída por eventos de domínio ou eventual consistency.
+>
+> Exceção pragmática da mesma natureza: a consulta pública de acompanhamento (`OrdemDeServicoRepository.obter_por_placa_e_documento`) é implementada na infraestrutura de OS como join somente-leitura nas tabelas `clientes` e `veiculos` do contexto vizinho — não atravessa o domínio de Cliente+Veículo nem passa pela `ClientePort`.
 
 ### Middleware (Cross-Cutting)
 
@@ -137,7 +146,27 @@ graph TD
     AOS_EST --> OS_APP
 ```
 
-Toda comunicação é in-process via portas e adaptadores. Adaptadores vivem na camada de infraestrutura. A raiz de composição (`main.py`) faz o wiring de DI — único ponto que importa implementações concretas.
+A comunicação **síncrona** entre contextos é in-process via portas e adaptadores. Adaptadores vivem na camada de infraestrutura. A raiz de composição (`main.py`) faz o wiring de DI — único ponto que importa implementações concretas. O caminho assíncrono (notificações) é durável e cruza processos — seção a seguir.
+
+## Integração Assíncrona (Fase 2)
+
+A notificação ao cliente na mudança de status da OS (RF-024) sai do ciclo request/response por um caminho durável:
+
+```mermaid
+graph LR
+    DE[DomainEvent] --> IE[IntegrationEvent]
+    IE -->|UnitOfWork, mesma tx| OB[(outbox)]
+    OB --> RL[Relay]
+    RL -->|at-least-once| H[Handler de notificacao]
+    H --> EP[EmailPort]
+```
+
+1. O agregado emite `DomainEvent`; os fatos que cruzam contextos são `IntegrationEvent` (especialização durável).
+2. A `UnitOfWork` grava os `IntegrationEvent`s na tabela `outbox` **na mesma transação** do estado de negócio (Transactional Outbox — elimina o dual-write).
+3. Um processo *relay* dedicado lê a outbox e entrega aos handlers — semântica at-least-once, com idempotência garantida pela tabela `processed_events` (única por `outbox_id` + handler).
+4. O handler de notificação resolve o destinatário via `ClientePort.obter_contato` e envia pelo `EmailPort` — porta de saída para SMTP, realizada por adaptador na infraestrutura de OS.
+
+Detalhes: [ADR-022](adr/fase2/022-transactional-outbox-relay.md) e [eventos de domínio](eventos-de-dominio.md).
 
 ## Código Compartilhado
 

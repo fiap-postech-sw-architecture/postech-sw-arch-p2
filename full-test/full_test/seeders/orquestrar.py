@@ -49,7 +49,6 @@ def seed_completo(*, resetar: bool = False) -> dict[str, object]:
         "servicos": servicos,
         "itens_estoque": itens,
         "admin_access_token": admin_tokens.access_token,
-        "admin_refresh_token": admin_tokens.refresh_token,
     }
 
 

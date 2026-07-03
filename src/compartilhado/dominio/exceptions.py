@@ -36,8 +36,3 @@ class EntidadeDuplicadaException(DomainException):
 class FalhaAutenticacaoException(DomainException):
     def __init__(self, mensagem: str = "Falha na autenticacao") -> None:
         super().__init__(codigo="FALHA_AUTENTICACAO", mensagem=mensagem)
-
-
-class FalhaAutorizacaoException(DomainException):
-    def __init__(self, mensagem: str = "Falha na autorizacao") -> None:
-        super().__init__(codigo="FALHA_AUTORIZACAO", mensagem=mensagem)

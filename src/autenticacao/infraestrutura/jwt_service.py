@@ -50,9 +50,6 @@ class JWTService:
         }
         return jwt.encode(payload, self._chave_secreta, algorithm=_ALGORITMO)
 
-    def gerar_token(self, usuario_id: UUID, email: str, papel: str) -> str:
-        return self.gerar_access_token(usuario_id=usuario_id, email=email, papel=papel)
-
     def validar_token(self, token: str) -> dict[str, object]:
         try:
             return jwt.decode(

@@ -90,7 +90,7 @@ def main() -> int:
     print(f">> logando como admin: {admin.email}")
 
     # Store in-memory standalone — nao precisamos do ``nicegui.app.storage``
-    # pra rodar em CLI; o StateStore sem backend cai pro _DictStorage.
+    # pra rodar em CLI; o StateStore sem backend cai pra um dict in-memory.
     store = StateStore()
     configurar_store(store)
 

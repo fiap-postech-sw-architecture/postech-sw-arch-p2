@@ -15,15 +15,12 @@ from __future__ import annotations
 
 from abc import ABC, abstractmethod
 from datetime import UTC, datetime
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING
 
 from full_test.journeys.resultado import ResultadoJourney, StatusJourney
 from full_test.support.logger import StepLogger
 
 if TYPE_CHECKING:
-    from collections.abc import Callable
-
-    from full_test.client.system_client import SystemClient
     from full_test.seeders.config import FullTestConfig
 
 
@@ -43,11 +40,9 @@ class UserJourney(ABC):
         *,
         config: FullTestConfig,
         instance_id: str,
-        system_client_factory: Callable[..., SystemClient] | None = None,
     ) -> None:
         self._config = config
         self._instance_id = instance_id
-        self._system_client_factory: Callable[..., Any] | None = system_client_factory
         self.log = StepLogger(journey_name=self.nome_journey, instance_id=instance_id)
 
     @property

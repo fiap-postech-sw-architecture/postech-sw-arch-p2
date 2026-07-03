@@ -42,9 +42,7 @@ def upgrade() -> None:
             nullable=False,
             server_default="pendente",
         ),
-        sa.Column(
-            "tentativas", sa.Integer(), nullable=False, server_default="0"
-        ),
+        sa.Column("tentativas", sa.Integer(), nullable=False, server_default="0"),
         sa.Column(
             "proxima_tentativa_em",
             sa.DateTime(timezone=True),
@@ -81,9 +79,7 @@ def upgrade() -> None:
             nullable=False,
             server_default=sa.text("now()"),
         ),
-        sa.UniqueConstraint(
-            "outbox_id", "handler", name="uq_processed_events"
-        ),
+        sa.UniqueConstraint("outbox_id", "handler", name="uq_processed_events"),
     )
 
 

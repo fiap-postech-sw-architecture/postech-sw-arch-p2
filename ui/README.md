@@ -107,17 +107,6 @@ Caminho recomendado: **Git Bash + `make`**. O setup do zero está em
 via winget; passo 8 cobre `uv` e Git Bash). Apos esse setup, os `make`
 abaixo rodam normalmente no Git Bash.
 
-**Alternativa sem `make`:** o repo traz `./run.sh`, um bash fallback que
-espelha os principais targets do Makefile. Roda em Git Bash sem instalar
-nada extra alem de Git for Windows + Docker Desktop:
-
-```bash
-./run.sh up              # make up
-./run.sh reset-db        # make reset-db
-./run.sh seed-demo       # make seed-demo
-./run.sh help            # lista os targets suportados
-```
-
 PowerShell e CMD puros **não** são suportados (os recipes dependem de bash).
 WSL2 funciona identico a Linux -- veja [`docs/setup/linux.md`](../docs/setup/linux.md).
 

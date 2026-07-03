@@ -12,6 +12,8 @@ if TYPE_CHECKING:
 
 @dataclass(eq=False)
 class ConsentimentoCliente(Entity):
+    """Raiz do seu proprio agregado trivial (sem eventos), nao filho de Cliente."""
+
     _cliente_id: UUID | None = None
     _tipo: str = ""
     _concedido_em: datetime | None = None

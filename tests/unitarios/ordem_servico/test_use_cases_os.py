@@ -45,7 +45,6 @@ from src.ordem_servico.dominio.events import (
 )
 from src.ordem_servico.dominio.exceptions import (
     ClienteNaoEncontradoException,
-    ItemDaOrdemNaoEncontradoException,
     OrdemNaoEncontradaException,
     VeiculoNaoEncontradoException,
 )
@@ -1226,17 +1225,6 @@ class TestObterMetricasComTempo:
         uc = ObterMetricas(repo=repo)
         result = uc.executar()
         assert result.tempo_medio_execucao_minutos is None
-
-
-class TestItemDaOrdemNaoEncontradoException:
-    def test_mensagem_padrao(self) -> None:
-        exc = ItemDaOrdemNaoEncontradoException()
-        assert exc.mensagem == "Item da ordem nao encontrado"
-        assert exc.codigo == "ENTIDADE_NAO_ENCONTRADA"
-
-    def test_mensagem_customizada(self) -> None:
-        exc = ItemDaOrdemNaoEncontradoException(mensagem="Item especifico")
-        assert exc.mensagem == "Item especifico"
 
 
 class TestListarOrdensContar:

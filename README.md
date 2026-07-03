@@ -62,7 +62,7 @@ flowchart TB
             cfg["ConfigMap + Secret"]
             hpa["HPA — CPU e memória"]
             mailpit["Mailpit (ADR-018)<br/>Deployment + Service ClusterIP"]
-            jaeger["Jaeger all-in-one (ADR-020)<br/>onda final condicional"]
+            jaeger["Jaeger all-in-one (ADR-020)<br/>tracing — deploy opcional"]
             relay["Relay de eventos (ADR-022)<br/>Deployment — outbox→SMTP"]
             redis["Redis (ADR-023)<br/>Deployment + Service — rate limit"]
             prometheus["Prometheus (ADR-024)<br/>Deployment + Service — métricas do relay"]

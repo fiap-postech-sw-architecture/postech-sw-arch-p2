@@ -91,8 +91,10 @@ class OrdemDeServicoRepository(Protocol):
         pass
 
     def calcular_tempo_medio_execucao(self) -> float | None:
-        """Tempo medio (segundos) entre ``aprovar_orcamento`` e ``finalizar_servico``.
+        """Tempo medio (MINUTOS) entre ``criado_em`` e ``atualizado_em``.
 
-        Retorna ``None`` se nao houver ordens finalizadas.
+        Media sobre ordens FINALIZADA/ENTREGUE (proxy do ciclo completo da
+        OS; o DTO downstream se chama ``tempo_medio_execucao_minutos``).
+        Retorna ``None`` se nao houver ordens nesses estados.
         """
         pass
