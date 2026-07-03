@@ -2,7 +2,9 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Segurança](README.md)
 
-> **Versão**: 2.1 — adiciona a **sétima camada**: SonarQube como scan manual de fechamento (TD-010/[ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md)) executado em 02/07/2026, com Quality Gate **Passed** e os 3 security hotspots levados a zero (1 corrigido no código, 2 revisados como seguros com justificativa) — antes/depois no Anexo B do documento de entrega. Versão 2.0 — bateria de fechamento **reexecutada na HEAD final da fase 2** (commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826), 02/07/2026), já sobre **Python 3.14** ([PR #150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150)). Sucede a versão 1.0 (12/06/2026), que cobria só `src/`+`ui/` e não reexecutou trivy; esta versão fecha o escopo — `src/`+`relay/` no SAST, deps de runtime na SCA, imagem 3.14 no scan de container, segredos, CodeQL e DAST — e incorpora os PRs de segurança posteriores a 12/06. Complementa o [relatório de vulnerabilidades](relatorio-vulnerabilidades.md) da fase 1, que permanece válido para o baseline OWASP API Top 10 do MVP.
+> **Versão**: 2.1 — adiciona a **sétima camada**: SonarQube como scan manual de fechamento (TD-010/[ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md)) executado em 02/07/2026, com Quality Gate **Passed** e os 3 security hotspots levados a zero (1 corrigido no código, 2 revisados como seguros com justificativa) — antes/depois no Anexo B do documento de entrega.
+>
+> **Versão 2.0** — bateria de fechamento **reexecutada na HEAD final da fase 2** (commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826), 02/07/2026), já sobre **Python 3.14** ([PR #150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150)). Sucede a versão 1.0 (12/06/2026), que cobria só `src/`+`ui/` e não reexecutou trivy; esta versão fecha o escopo — `src/`+`relay/` no SAST, deps de runtime na SCA, imagem 3.14 no scan de container, segredos, CodeQL e DAST — e incorpora os PRs de segurança posteriores a 12/06. Complementa o [relatório de vulnerabilidades](relatorio-vulnerabilidades.md) da fase 1, que permanece válido para o baseline OWASP API Top 10 do MVP.
 
 ## Escopo
 
@@ -29,7 +31,7 @@ Diferentemente da bateria de 12/06 — um scan local pontual — a bateria de fe
 | gitleaks | Segredos | árvore de trabalho (`gitleaks dir`) com allowlist | **0 leaks** |
 | CodeQL | SAST semântico | python + javascript-typescript (default setup) | **`Analyze` verde** — sem alertas de segurança ativos |
 | OWASP ZAP | DAST baseline | API viva via OpenAPI (stack compose) | **0 FAIL** — 2 WARN aceitos como IGNORE ([`.zap/rules.tsv`](../../.zap/rules.tsv)) |
-| SonarQube (Community, local) | Análise estática + hotspots | `src/` (7.4k LoC, coverage importado) | **Quality Gate Passed** — 0 security, 0 reliability, coverage 95,3%; **hotspots 3 → 0** (1 FIXED, 2 SAFE) |
+| SonarQube (Community, local) | Análise estática + hotspots | `src/` (7,4k LoC, cobertura importada) | **Quality Gate Passed** — 0 security, 0 reliability, coverage 95,3%; **hotspots 3 → 0** (1 FIXED, 2 SAFE) |
 
 Referência da última execução verde: check-runs do commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826) — `security`, `pip-audit (CVE em dependências)`, `gitleaks (segredos)`, `trivy (CVE na imagem)`, `Analyze (python)`, `Analyze (javascript-typescript)` e o `full-test-ci` (que hospeda o DAST) todos `success`.
 
@@ -69,7 +71,7 @@ Este resultado limpo é o **estado consolidado** de duas ondas de upgrade poster
 | NiceGUI 3 | Upgrade `nicegui 2.24 → 3.14` — removeu a transitiva `vbuild` (que usava `pkgutil.find_loader`, extinto no Python 3.14), destravando a migração 3.14 | [#149](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/149) |
 | Pisos de deps + Terraform action | Alinha pisos de `pwdlib`/`testcontainers`; `setup-terraform@v4` | [#151](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/151) |
 
-Versões-chave resolvidas no `uv.lock` da HEAD final: `pyjwt 2.13.0`, `starlette 1.3.1`, `cryptography 49.0.0`, `fastapi 0.139.0`, `urllib3 2.7.0`, `idna 3.18`, `mako 1.3.12`, `redis 8.0.1`. A suíte completa (1593 testes unitários + 163 de integração, contagem via `pytest --collect-only`) segue verde após os bumps, validando ausência de regressão.
+Versões-chave resolvidas no `uv.lock` da HEAD final: `pyjwt 2.13.0`, `starlette 1.3.1`, `cryptography 49.0.0`, `fastapi 0.139.0`, `urllib3 2.7.0`, `idna 3.18`, `mako 1.3.12`, `redis 8.0.1`. A suíte completa (1.617 testes unitários + 163 de integração, contagem via `pytest --collect-only`) segue verde após os bumps, validando ausência de regressão.
 
 ## Scan de Imagem (trivy)
 
