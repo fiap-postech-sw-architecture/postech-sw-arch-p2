@@ -266,7 +266,7 @@ class TestRouter:
             assert resp.status_code == 201
             assert resp.json()["tipo"] == "marketing"
 
-    def test_revogar_consentimento_endpoint(self) -> None:
+    def test_revogar_consentimento(self) -> None:
         app = _criar_app()
         with patch(
             "src.cliente_veiculo.interfaces.router.obter_revogar_consentimento"
@@ -371,6 +371,65 @@ class TestLgpdAuditoriaEAutorizacao:
                 resp = client.get(f"/api/v1/clientes/{_ID}/dados-pessoais")
         assert resp.status_code == 200
         assert any(e["event"] == "dados_pessoais_exportados_via_admin" for e in logs)
+
+    def test_registrar_consentimento_emite_auditoria(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Registro de consentimento (base legal LGPD) audita ator + alvo (#168)."""
+        import structlog.testing
+
+        from src.cliente_veiculo.interfaces import router as router_mod
+
+        monkeypatch.setattr(
+            router_mod, "_log", structlog.get_logger("test_lgpd"), raising=False
+        )
+        app = self._app_com_papel("admin")
+        with patch(
+            "src.cliente_veiculo.interfaces.router.obter_registrar_consentimento"
+        ) as m:
+            m.return_value = MagicMock(executar=MagicMock(return_value=_CONSENTIMENTO))
+            client = TestClient(app)
+            with structlog.testing.capture_logs() as logs:
+                resp = client.post(
+                    f"/api/v1/clientes/{_ID}/consentimento", json={"tipo": "marketing"}
+                )
+        assert resp.status_code == 201
+        evento = next(
+            e for e in logs if e["event"] == "consentimento_registrado_via_admin"
+        )
+        assert evento["cliente_id"] == str(_ID)
+        assert evento["tipo"] == "marketing"
+        assert evento["ator"] == "ator-123"
+
+    def test_revogar_consentimento_emite_auditoria(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Revogacao de consentimento audita ator + alvo apos o efeito (#168)."""
+        import structlog.testing
+
+        from src.cliente_veiculo.interfaces import router as router_mod
+
+        monkeypatch.setattr(
+            router_mod, "_log", structlog.get_logger("test_lgpd"), raising=False
+        )
+        app = self._app_com_papel("admin")
+        with patch(
+            "src.cliente_veiculo.interfaces.router.obter_revogar_consentimento"
+        ) as m:
+            m.return_value = MagicMock()
+            client = TestClient(app)
+            with structlog.testing.capture_logs() as logs:
+                resp = client.delete(
+                    f"/api/v1/clientes/{_ID}/consentimento?tipo=Marketing"
+                )
+        assert resp.status_code == 204
+        evento = next(
+            e for e in logs if e["event"] == "consentimento_revogado_via_admin"
+        )
+        assert evento["cliente_id"] == str(_ID)
+        # Query param canonicalizado (lowercase+strip) como no registro.
+        assert evento["tipo"] == "marketing"
+        assert evento["ator"] == "ator-123"
 
     def test_export_falho_nao_emite_auditoria(
         self, monkeypatch: pytest.MonkeyPatch

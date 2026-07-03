@@ -35,12 +35,14 @@ class TestObterUsuarioAtual:
         with pytest.raises(HTTPException) as exc:
             obter_usuario_atual(credentials=None, session=_MOCK_SESSION)
         assert exc.value.status_code == 401
+        assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
 
     def test_token_invalido_retorna_401(self) -> None:
         creds = _FakeCredentials(token="invalido")
         with pytest.raises(HTTPException) as exc:
             obter_usuario_atual(credentials=creds, session=_MOCK_SESSION)  # type: ignore[arg-type]
         assert exc.value.status_code == 401
+        assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
 
     def test_token_expirado_retorna_401(self) -> None:
         svc = JWTService(chave_secreta=_CHAVE, expiracao_minutos=-1)
@@ -80,6 +82,26 @@ class TestObterUsuarioAtual:
         with pytest.raises(HTTPException) as exc:
             obter_usuario_atual(credentials=creds, session=_MOCK_SESSION)  # type: ignore[arg-type]
         assert exc.value.status_code == 401
+
+    def test_payload_sem_jti_retorna_401(self) -> None:
+        # Fail-closed (#167): sem jti nao ha como consultar a revogacao --
+        # rejeitar em vez de pular a checagem e aceitar o token.
+        fake_jwt = MagicMock()
+        fake_jwt.validar_token.return_value = {
+            "sub": str(uuid4()),
+            "type": "access",
+        }
+        creds = _FakeCredentials(token="token-sem-jti")
+        with (
+            patch(
+                "src.autenticacao.interfaces.middleware.obter_jwt_service",
+                return_value=fake_jwt,
+            ),
+            pytest.raises(HTTPException) as exc,
+        ):
+            obter_usuario_atual(credentials=creds, session=_MOCK_SESSION)  # type: ignore[arg-type]
+        assert exc.value.status_code == 401
+        assert "jti" in str(exc.value.detail)
 
     def test_token_revogado_retorna_401(self) -> None:
         svc = JWTService(chave_secreta=_CHAVE)

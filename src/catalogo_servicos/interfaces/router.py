@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from dataclasses import asdict
+import dataclasses
 from typing import TYPE_CHECKING
 from uuid import UUID  # noqa: TC003
 
@@ -41,7 +41,7 @@ def criar_servico(
     use_case = obter_criar_servico(session)
     dto = CriarServicoDTO(nome=body.nome, descricao=body.descricao, preco=body.preco)
     result = use_case.executar(dto)
-    return ServicoResponse(**asdict(result))
+    return ServicoResponse(**dataclasses.asdict(result))
 
 
 @router.get("/")
@@ -57,7 +57,7 @@ def listar_servicos(
     items = use_case.executar(offset=offset, limit=limit)
     total = use_case.contar()
     return ServicoListaResponse(
-        items=[ServicoResponse(**asdict(item)) for item in items],
+        items=[ServicoResponse(**dataclasses.asdict(item)) for item in items],
         total=total,
         offset=offset,
         limit=limit,
@@ -74,7 +74,7 @@ def obter_servico(
 ) -> ServicoResponse:
     use_case = obter_obter_servico(session)
     result = use_case.executar(servico_id)
-    return ServicoResponse(**asdict(result))
+    return ServicoResponse(**dataclasses.asdict(result))
 
 
 @router.put("/{servico_id}")
@@ -89,7 +89,7 @@ def atualizar_servico(
         nome=body.nome, descricao=body.descricao, preco=body.preco
     )
     result = use_case.executar(servico_id, dto)
-    return ServicoResponse(**asdict(result))
+    return ServicoResponse(**dataclasses.asdict(result))
 
 
 @router.delete("/{servico_id}", status_code=status.HTTP_204_NO_CONTENT)

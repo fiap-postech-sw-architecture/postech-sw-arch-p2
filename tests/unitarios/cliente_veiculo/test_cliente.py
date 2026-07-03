@@ -155,6 +155,19 @@ class TestCliente:
         with pytest.raises(ValueError, match="Nome do cliente nao pode ser vazio"):
             Cliente(_nome="", _documento=cpf, _contato=Contato(valor="11999999999"))
 
+    def test_criacao_nome_whitespace_invalido(self) -> None:
+        # Whitespace-only passava antes do strip() em __post_init__ (#168).
+        cpf = CPF(numero=CPF_VALIDO)
+        with pytest.raises(ValueError, match="Nome do cliente nao pode ser vazio"):
+            Cliente(_nome="   ", _documento=cpf, _contato=Contato(valor="11999999999"))
+
+    def test_criacao_nome_e_aparado(self) -> None:
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="  Joao  ", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        assert cliente.nome == "Joao"
+
     def test_criacao_documento_none_invalido(self) -> None:
         with pytest.raises(ValueError, match="Documento do cliente e obrigatorio"):
             Cliente(
@@ -168,6 +181,36 @@ class TestCliente:
         )
         with pytest.raises(ValueError, match="Nome do cliente nao pode ser vazio"):
             cliente.atualizar(nome="", contato=Contato(valor="11888888888"))
+
+    def test_atualizar_nome_whitespace_invalido(self) -> None:
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        with pytest.raises(ValueError, match="Nome do cliente nao pode ser vazio"):
+            cliente.atualizar(nome=" \t ", contato=Contato(valor="11888888888"))
+
+    def test_atualizar_nome_e_aparado(self) -> None:
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        cliente.atualizar(nome="  Joao Silva  ", contato=Contato(valor="11888888888"))
+        assert cliente.nome == "Joao Silva"
+
+    def test_atualizar_sem_mudanca_nao_emite_evento(self) -> None:
+        # Short-circuit: PUT idempotente com os mesmos valores nao gera
+        # ClienteAtualizadoEvent (espelha a idempotencia de desativar).
+        from src.cliente_veiculo.dominio.events import ClienteAtualizadoEvent
+
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        cliente.atualizar(nome="Joao", contato=Contato(valor="11999999999"))
+        tipos = [type(e) for e in cliente.coletar_eventos()]
+        assert ClienteAtualizadoEvent not in tipos
+        assert cliente.nome == "Joao"
 
     def test_atualizar_contato_none_invalido(self) -> None:
         # Espelha o guard de __post_init__ (finding DDD-tatico da revisao de
@@ -206,7 +249,9 @@ class TestCliente:
         assert VeiculoRemovidoEvent in tipos
         assert ClienteDesativadoEvent in tipos
 
-    def test_veiculo_adicionado_event_payload_obrigatorio(self) -> None:
+    def test_veiculo_adicionado_event_payload_mascara_placa(self) -> None:
+        # Placa e PII veicular (mesma politica de Placa.__repr__): o payload
+        # do evento carrega o valor mascarado, nunca a placa crua.
         from src.cliente_veiculo.dominio.events import VeiculoAdicionadoEvent
 
         cpf = CPF(numero=CPF_VALIDO)
@@ -221,10 +266,28 @@ class TestCliente:
             for e in cliente.coletar_eventos()
             if isinstance(e, VeiculoAdicionadoEvent)
         )
-        assert evento.placa_valor == "ABC1234"
+        assert evento.placa_valor == placa.mascarado()
+        assert "ABC1234" not in evento.placa_valor
         assert evento.marca == "Fiat"
         assert evento.modelo == "Uno"
         assert evento.ano == 2020
+
+    def test_veiculo_removido_event_payload_mascara_placa(self) -> None:
+        from src.cliente_veiculo.dominio.events import VeiculoRemovidoEvent
+
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        placa = Placa(valor="ABC1234")
+        veiculo = cliente.adicionar_veiculo(placa, "Fiat", "Uno", 2020)
+        cliente.remover_veiculo(veiculo.id)
+
+        evento = next(
+            e for e in cliente.coletar_eventos() if isinstance(e, VeiculoRemovidoEvent)
+        )
+        assert evento.placa_valor == placa.mascarado()
+        assert "ABC1234" not in evento.placa_valor
 
     def test_cliente_atualizado_event_nao_carrega_pii(self) -> None:
         from src.cliente_veiculo.dominio.events import ClienteAtualizadoEvent

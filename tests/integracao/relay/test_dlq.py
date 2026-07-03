@@ -1,35 +1,19 @@
 from __future__ import annotations
 
-from datetime import UTC, datetime
 from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
 
 from src.compartilhado.infraestrutura.outbox_dlq import listar_dead, reenfileirar
+from tests.integracao.outbox_helpers import (
+    inserir_dead as _inserir_dead,
+)
+from tests.integracao.outbox_helpers import (
+    inserir_pendente,
+)
 
 pytestmark = pytest.mark.integracao
-
-
-def _inserir_dead(engine, *, tentativas: int = 5) -> int:
-    with engine.begin() as conn:
-        row = conn.execute(
-            text(
-                "INSERT INTO outbox "
-                "(agregado_id, tipo, payload, status, tentativas, "
-                " proxima_tentativa_em, criado_em, ultimo_erro) "
-                "VALUES (:aid, 'DiagnosticoIniciadoEvent', "
-                " CAST(:payload AS JSONB), 'dead', :t, :agora, :agora, 'boom') "
-                "RETURNING id"
-            ),
-            {
-                "aid": uuid4(),
-                "payload": '{"agregado_id": "x"}',
-                "t": tentativas,
-                "agora": datetime.now(UTC),
-            },
-        ).first()
-        return int(row.id)
 
 
 def test_listar_dead_retorna_linhas_mortas(engine) -> None:
@@ -47,26 +31,8 @@ def test_listar_dead_retorna_linhas_mortas(engine) -> None:
 def test_listar_dead_sinaliza_sucessor_pendente(engine) -> None:
     # dead (id menor) + pendente (id maior) do MESMO agregado -> gap (F4).
     agregado_id = uuid4()
-    agora = datetime.now(UTC)
-    with engine.begin() as conn:
-        dead_id = conn.execute(
-            text(
-                "INSERT INTO outbox (agregado_id, tipo, payload, status, "
-                "tentativas, proxima_tentativa_em, criado_em, ultimo_erro) "
-                "VALUES (:aid, 'DiagnosticoIniciadoEvent', CAST(:p AS JSONB), "
-                "'dead', 5, :agora, :agora, 'boom') RETURNING id"
-            ),
-            {"aid": agregado_id, "p": '{"agregado_id": "x"}', "agora": agora},
-        ).scalar()
-        conn.execute(
-            text(
-                "INSERT INTO outbox (agregado_id, tipo, payload, status, "
-                "tentativas, proxima_tentativa_em, criado_em) "
-                "VALUES (:aid, 'OrcamentoGeradoEvent', CAST(:p AS JSONB), "
-                "'pendente', 0, :agora, :agora)"
-            ),
-            {"aid": agregado_id, "p": '{"agregado_id": "x"}', "agora": agora},
-        )
+    dead_id = _inserir_dead(engine, agregado_id=agregado_id)
+    inserir_pendente(engine, tipo="OrcamentoGeradoEvent", agregado_id=agregado_id)
     alvo = next(m for m in listar_dead(engine) if m["id"] == dead_id)
     assert alvo["tem_sucessores_pendentes"] is True
 

@@ -54,10 +54,10 @@ class ClienteDTO:
 @dataclass(frozen=True, slots=True)
 class ClienteResumoDTO:
     id: UUID
-    nome: str
+    nome: str = field(repr=False)
     documento_mascarado: str
     tipo_documento: str
-    contato: str
+    contato: str = field(repr=False)
     ativo: bool
 
 
@@ -68,7 +68,7 @@ class DadosPessoaisDTO:
     documento_formatado: str = field(repr=False)
     tipo_documento: str
     contato: str = field(repr=False)
-    veiculos: list[dict[str, object]] = field(repr=False)
+    veiculos: list[VeiculoDTO] = field(repr=False)
     ativo: bool
 
 

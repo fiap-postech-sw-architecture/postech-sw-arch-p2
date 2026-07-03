@@ -14,6 +14,7 @@ from src.cliente_veiculo.dominio.exceptions import (
     PlacaDuplicadaException,
     VeiculoNaoEncontradoException,
 )
+from src.cliente_veiculo.dominio.veiculo import Veiculo
 from src.compartilhado.dominio.aggregate_root import AggregateRoot
 
 if TYPE_CHECKING:
@@ -22,7 +23,6 @@ if TYPE_CHECKING:
     from src.cliente_veiculo.dominio.contato import Contato
     from src.cliente_veiculo.dominio.documento import Documento
     from src.cliente_veiculo.dominio.placa import Placa
-    from src.cliente_veiculo.dominio.veiculo import Veiculo
 
 
 @dataclass(eq=False)
@@ -53,6 +53,7 @@ class Cliente(AggregateRoot):
 
     def __post_init__(self) -> None:
         super().__post_init__()
+        self._nome = self._nome.strip()
         if not self._nome:
             msg = "Nome do cliente nao pode ser vazio"
             raise ValueError(msg)
@@ -107,18 +108,16 @@ class Cliente(AggregateRoot):
         self, placa: Placa, marca: str, modelo: str, ano: int
     ) -> Veiculo:
         """Cria e adiciona um Veiculo ao cliente, rejeitando placas duplicadas."""
-        from src.cliente_veiculo.dominio.veiculo import Veiculo as _Veiculo
-
         if any(v.placa == placa for v in self._veiculos):
             raise PlacaDuplicadaException()
-        veiculo = _Veiculo(_placa=placa, _marca=marca, _modelo=modelo, _ano=ano)
+        veiculo = Veiculo(_placa=placa, _marca=marca, _modelo=modelo, _ano=ano)
         self._veiculos.append(veiculo)
         self._registrar_evento(
             VeiculoAdicionadoEvent(
                 agregado_id=self.id,
-                placa_valor=placa.valor,
-                marca=marca,
-                modelo=modelo,
+                placa_valor=placa.mascarado(),
+                marca=veiculo.marca,
+                modelo=veiculo.modelo,
                 ano=ano,
             )
         )
@@ -128,7 +127,7 @@ class Cliente(AggregateRoot):
         """Remove o veiculo identificado por `veiculo_id`; levanta se nao existir."""
         for i, v in enumerate(self._veiculos):
             if v.id == veiculo_id:
-                placa_removida = v.placa.valor
+                placa_removida = v.placa.mascarado()
                 self._veiculos.pop(i)
                 self._registrar_evento(
                     VeiculoRemovidoEvent(
@@ -147,7 +146,12 @@ class Cliente(AggregateRoot):
         self._registrar_evento(ClienteDesativadoEvent(agregado_id=self.id))
 
     def atualizar(self, nome: str, contato: Contato) -> None:
-        """Atualiza nome e contato do cliente. Nome vazio e rejeitado."""
+        """Atualiza nome e contato do cliente. Nome vazio (ou so espacos) e rejeitado.
+
+        No-op silencioso quando nada mudou: nao emite `ClienteAtualizadoEvent`
+        para atualizacoes idempotentes (espelha `desativar`).
+        """
+        nome = nome.strip()
         if not nome:
             msg = "Nome do cliente nao pode ser vazio"
             raise ValueError(msg)
@@ -157,6 +161,8 @@ class Cliente(AggregateRoot):
             # (mesma classe do catch de ServicoOferecido.atualizar, PR #59).
             msg = "Contato do cliente e obrigatorio"
             raise ValueError(msg)
+        if nome == self._nome and contato == self._contato:
+            return
         self._nome = nome
         self._contato = contato
         self._registrar_evento(ClienteAtualizadoEvent(agregado_id=self.id))

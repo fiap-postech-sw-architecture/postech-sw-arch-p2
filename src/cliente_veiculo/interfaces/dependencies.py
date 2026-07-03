@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from src.compartilhado.interfaces.dependencies import obter_session
-
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
@@ -23,8 +21,6 @@ if TYPE_CHECKING:
         ObterCliente,
         RemoverVeiculo,
     )
-
-__all__ = ["obter_session"]
 
 
 def obter_criar_cliente(session: Session) -> CriarCliente:

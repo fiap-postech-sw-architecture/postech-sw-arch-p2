@@ -30,21 +30,6 @@ def _mapeamento_estoque_registrado() -> None:
 
 
 class TestAdapters:
-    def test_estoque_adapter_aceita_session(self) -> None:
-        session = MagicMock()
-        adapter = EstoqueSQLAlchemyAdapter(session=session)
-        assert adapter._session is session
-
-    def test_catalogo_adapter_aceita_session(self) -> None:
-        session = MagicMock()
-        adapter = CatalogoSQLAlchemyAdapter(session=session)
-        assert adapter._session is session
-
-    def test_cliente_adapter_aceita_session(self) -> None:
-        session = MagicMock()
-        adapter = ClienteSQLAlchemyAdapter(session=session)
-        assert adapter._session is session
-
     def test_estoque_metodos_existem(self) -> None:
         assert hasattr(EstoqueSQLAlchemyAdapter, "reservar")
         assert hasattr(EstoqueSQLAlchemyAdapter, "liberar")

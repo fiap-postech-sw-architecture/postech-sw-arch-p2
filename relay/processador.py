@@ -63,6 +63,18 @@ class LinhaOutbox:
     tentativas: int
 
 
+class PayloadInvalidoError(Exception):
+    """Payload da outbox nao reconstruivel: falha DETERMINISTICA de entrega.
+
+    Levantada pelos handlers (``relay/handlers.py``) quando a desserializacao
+    do payload falha (``TypeError``/``ValueError``): o dado e o mesmo em toda
+    tentativa, retry nunca ajudaria. ``processar_linha`` a trata como o "tipo
+    sem handler" — DLQ direto na PRIMEIRA, preservando ``tentativas`` (nao
+    houve tentativa de entrega), sem queimar os 5 retries de backoff num erro
+    de producer/config.
+    """
+
+
 class ConexaoOutbox(Protocol):
     """Fachada dos efeitos sobre a outbox (permite fake em teste)."""
 
@@ -100,10 +112,12 @@ def processar_linha(
 
     Sem handler registrado para o ``tipo`` a linha vai direto para a DLQ
     (config invalida: evento na outbox sem consumidor) preservando
-    ``tentativas`` (nao houve tentativa de entrega). Falha de handler
-    incrementa ``tentativas``; ao atingir o maximo, ``dead``. ``marcar_dead``
-    recebe o valor EXPLICITO de ``tentativas`` (F5) — fonte unica de
-    verdade, identica a ``agendar_retry``.
+    ``tentativas`` (nao houve tentativa de entrega). Payload que nao
+    desserializa (``PayloadInvalidoError``, levantada pelo handler) segue o
+    MESMO caminho: falha deterministica, DLQ direto na primeira, sem retries.
+    Falha de handler incrementa ``tentativas``; ao atingir o maximo, ``dead``.
+    ``marcar_dead`` recebe o valor EXPLICITO de ``tentativas`` (F5) — fonte
+    unica de verdade, identica a ``agendar_retry``.
 
     FENCING DE LEASE (TD-021, ``replicas>1``): a primeira coisa e re-adquirir
     o lock da linha DENTRO desta tx (``bloquear_para_entrega`` =
@@ -136,6 +150,8 @@ def processar_linha(
     if conn.ja_processado(linha.id, nome_handler):
         # Efeito ja aplicado num ciclo anterior (crash apos handler, antes
         # de marcar entregue): nao reinvoca, apenas finaliza a linha.
+        # `metricas.entregue()` NAO incrementa aqui de proposito: o contador
+        # mede handlers executados, e este ciclo nao executou nenhum.
         conn.marcar_entregue(linha.id)
         _log.info(
             "outbox: linha ja processada (idempotente); marcada entregue",
@@ -146,6 +162,22 @@ def processar_linha(
 
     try:
         handler(linha.payload)
+    except PayloadInvalidoError as exc:
+        # Desserializacao e DETERMINISTICA: o payload gravado nao muda entre
+        # tentativas, entao retry so adiaria o inevitavel e queimaria os 5
+        # backoffs. DLQ direto na primeira, preservando `tentativas` (nao
+        # houve tentativa de entrega) — mesmo tratamento do "tipo sem handler".
+        conn.marcar_dead(
+            linha.id, linha.tentativas, redigir_pii_erro(f"{type(exc).__name__}: {exc}")
+        )
+        metricas.dead()
+        _log.error(
+            "outbox: payload nao desserializavel; movendo para DLQ",
+            outbox_id=linha.id,
+            tipo=linha.tipo,
+        )
+        _alertar_dead_com_sucessores(conn, linha)
+        return
     except Exception as exc:  # noqa: BLE001 — falha de handler vira retry/DLQ, nunca derruba o relay
         # Toda excecao de handler e uma falha de entrega (TD-022): conta uma vez
         # aqui, independente de virar retry ou DLQ.
@@ -362,14 +394,17 @@ class ProfundidadeOutbox:
 
 # Uma unica query (barata; os indices de `status` ja existem): quantos eventos
 # `pendente`, ha quanto tempo o mais antigo espera (segundos) e quantos estao em
-# `dead` (DLQ). Fonte UNICA de SQL — o gauge structlog (`emitir_profundidade`) e
-# o ObservableGauge OTel (`relay/metrics.py`, TD-022) consomem o mesmo helper.
+# `dead` (DLQ). O WHERE restringe aos dois status de interesse ANTES de agregar:
+# sem ele a query varre a tabela inteira — dominada por `entregue`, que so
+# cresce — e o custo do gauge subiria com o historico, nao com a fila. Fonte
+# UNICA de SQL — o gauge structlog (`emitir_profundidade`) e o ObservableGauge
+# OTel (`relay/metrics.py`, TD-022) consomem o mesmo helper.
 _SQL_PROFUNDIDADE = (
     "SELECT count(*) FILTER (WHERE status = 'pendente') AS pendentes, "
     "EXTRACT(EPOCH FROM (now() - min(criado_em) "
     "  FILTER (WHERE status = 'pendente'))) AS idade_mais_antigo_s, "
     "count(*) FILTER (WHERE status = 'dead') AS dead "
-    "FROM outbox"
+    "FROM outbox WHERE status IN ('pendente', 'dead')"
 )
 
 
@@ -381,7 +416,9 @@ def consultar_profundidade(engine: Engine) -> ProfundidadeOutbox:
     (``relay/metrics.py``, scrapeado pelo Prometheus) o usam — SQL nao
     duplicado (TD-022/ADR-024).
     """
-    with engine.begin() as conn:
+    # SELECT puro: `connect()` basta (sem tx explicita nem commit); o
+    # rollback implicito do fechamento e no-op para leitura.
+    with engine.connect() as conn:
         row = conn.execute(text(_SQL_PROFUNDIDADE)).one()
     idade = row.idade_mais_antigo_s
     return ProfundidadeOutbox(
@@ -422,9 +459,14 @@ def processar_ciclo(
     1. CLAIM (tx curta): reivindica + aplica lease; o commit libera o lock
        ANTES da entrega.
     2. DELIVER: entrega cada linha em ordem de id, FORA da tx de claim, cada
-       uma na PROPRIA tx curta (``engine.begin()`` por linha). Erro de DB
-       numa linha nao reverte o ``entregue`` das anteriores; crash duplica no
-       maximo a linha em voo (F3).
+       uma na PROPRIA tx curta (``engine.begin()`` por linha) e com
+       ``relogio()`` FRESCO (#164): num lote lento (SMTP), um retry agendado
+       com o relogio do inicio do ciclo encurtaria o backoff das linhas
+       tardias. Erro de DB na tx de uma linha (begin/commit/fachada) e
+       isolado — loga e segue para a proxima, sem reverter o ``entregue`` das
+       anteriores nem abortar as demais; a linha pulada re-elegibiliza quando
+       o lease vencer (at-least-once). Crash duplica no maximo a linha em voo
+       (F3).
 
     FENCING DE LEASE -> ``replicas>1`` SEGURO (TD-021): o lease (visibility
     timeout de ``reivindicar_lote``) atrasa a re-elegibilidade, mas nao e a
@@ -438,18 +480,26 @@ def processar_ciclo(
     configuracao shipada e ``replicas:1`` como default conservador (ver
     ``k8s/relay.yaml``), mas e seguro escalar.
     """
-    agora = relogio()
     with engine.begin() as conn:
-        linhas = reivindicar_lote(conn, agora, limite, lease)
+        linhas = reivindicar_lote(conn, relogio(), limite, lease)
     for linha in linhas:
-        with engine.begin() as conn:
-            fachada = ConexaoOutboxSQL(conn, agora)
-            processar_linha(
-                fachada,
-                linha,
-                handlers=handlers,
-                nome_handler=nome_handler,
-            )
+        # Relogio FRESCO por linha (#164): o `agora` do claim envelhece
+        # enquanto o lote entrega; retry/entregue_em devem refletir o instante
+        # real da transicao desta linha, nao o inicio do ciclo.
+        try:
+            with engine.begin() as conn:
+                fachada = ConexaoOutboxSQL(conn, relogio())
+                processar_linha(
+                    fachada,
+                    linha,
+                    handlers=handlers,
+                    nome_handler=nome_handler,
+                )
+        # Isolamento por linha: um erro de DB na tx desta linha (falha de
+        # handler ja e tratada DENTRO de processar_linha) nao aborta as
+        # demais do lote — loga e segue; o lease re-elegibiliza a pulada.
+        except Exception:  # noqa: BLE001 — blip de DB numa linha nao derruba o ciclo
+            _log.error("outbox_linha_falhou", outbox_id=linha.id, exc_info=True)
     if linhas:
         _log.info("outbox: ciclo processado", linhas=len(linhas))
     return len(linhas)

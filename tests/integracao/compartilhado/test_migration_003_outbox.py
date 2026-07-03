@@ -9,7 +9,6 @@ com o ``upgrade``. ``env.py`` le a URL de ``DATABASE_URL`` (``get_url``).
 
 from __future__ import annotations
 
-import os
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -34,35 +33,28 @@ def _config(database_url: str) -> Config:
     cfg = Config(str(_RAIZ / "alembic.ini"))
     cfg.set_main_option("script_location", str(_RAIZ / "migrations"))
     cfg.set_main_option("sqlalchemy.url", database_url)
+    # Nao deixar o env.py rodar fileConfig: reconfiguraria o logging global
+    # do processo pytest e quebraria asserts de log de testes vizinhos.
+    cfg.attributes["configure_logger"] = False
     return cfg
 
 
 @pytest.fixture
-def postgres_url() -> Generator[str]:
+def postgres_url(monkeypatch: pytest.MonkeyPatch) -> Generator[str]:
     """Sobe um Postgres DEDICADO e exporta DATABASE_URL para o env.py do alembic.
 
     Sempre um container proprio (nunca o banco compartilhado): este teste faz
     ``downgrade base``, que apagaria as tabelas que o ``engine`` da sessao cria
     via ``create_all`` se rodasse no mesmo banco — exatamente o tipo de
-    contaminacao que evitamos isolando o estado.
+    contaminacao que evitamos isolando o estado. ``monkeypatch.setenv``
+    restaura o ambiente no teardown (depois do container encerrar).
     """
     from testcontainers.postgres import PostgresContainer
 
-    anterior = os.environ.get("DATABASE_URL")
     with PostgresContainer("postgres:16") as postgres:
         url = postgres.get_connection_url()
-        os.environ["DATABASE_URL"] = url
-        try:
-            yield url
-        finally:
-            _restaurar_env(anterior)
-
-
-def _restaurar_env(anterior: str | None) -> None:
-    if anterior is None:
-        os.environ.pop("DATABASE_URL", None)
-    else:
-        os.environ["DATABASE_URL"] = anterior
+        monkeypatch.setenv("DATABASE_URL", url)
+        yield url
 
 
 def _tabelas(url: str) -> set[str]:

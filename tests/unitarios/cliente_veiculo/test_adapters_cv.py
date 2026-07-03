@@ -8,11 +8,6 @@ from src.cliente_veiculo.infraestrutura.adapters import (
 
 
 class TestAdaptersClienteVeiculo:
-    def test_init(self) -> None:
-        session = MagicMock()
-        adapter = OrdemDeServicoSQLAlchemyAdapter(session=session)
-        assert adapter._session is session
-
     def test_existe_os_ativa_para_cliente_false(self) -> None:
         session = MagicMock()
         session.scalar.return_value = 0
@@ -50,3 +45,9 @@ class TestAdaptersClienteVeiculo:
         session.scalar.return_value = None
         adapter = OrdemDeServicoSQLAlchemyAdapter(session=session)
         assert adapter.existe_os_para_veiculo(MagicMock()) is False
+
+    def test_estados_terminais_derivados_do_status_ordem(self) -> None:
+        # Derivado do enum de dominio (fonte unica), nao de strings soltas.
+        from src.cliente_veiculo.infraestrutura.adapters import _ESTADOS_TERMINAIS
+
+        assert frozenset({"entregue", "cancelada"}) == _ESTADOS_TERMINAIS

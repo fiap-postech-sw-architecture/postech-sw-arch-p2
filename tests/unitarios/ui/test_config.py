@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import pytest
+
 from ui.config import Config, UsuarioSeed
 
 
@@ -57,3 +59,20 @@ def test_config_git_sha_le_pytstop_git_sha_da_env() -> None:
     sha = "3d94aff26b7ba6830874e6cedbf15b7e40bfc5a4"
     cfg = Config.from_env(env={"PYTSTOP_GIT_SHA": sha})
     assert cfg.git_sha == sha
+
+
+def test_config_ui_port_nao_numerica_tem_mensagem_clara() -> None:
+    """NIT do #174: ``UI_PORT=oitenta`` estourava ``invalid literal for
+    int()`` sem apontar a env var culpada."""
+    with pytest.raises(ValueError, match=r"UI_PORT invalida.*oitenta"):
+        Config.from_env(env={"UI_PORT": "oitenta"})
+
+
+@pytest.mark.parametrize("porta", ["0", "-1", "65536"])
+def test_config_ui_port_fora_do_intervalo_falha(porta: str) -> None:
+    with pytest.raises(ValueError, match="UI_PORT"):
+        Config.from_env(env={"UI_PORT": porta})
+
+
+def test_config_ui_port_valida_passa() -> None:
+    assert Config.from_env(env={"UI_PORT": "9090"}).ui_port == 9090

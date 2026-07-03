@@ -228,6 +228,31 @@ class TestDecisaoOrcamentoExterna:
         assert resp.status_code == 401
         factory.assert_not_called()
 
+    def test_assinatura_nao_ascii_retorna_401(self, token_configurado: str) -> None:
+        # BUG #171: compare_digest com STR nao-ASCII levanta TypeError -> 500.
+        # Comparando em bytes, um header forjado com nao-ASCII e apenas uma
+        # assinatura divergente -> 401. O valor vai em BYTES latin-1 (httpx
+        # exige ASCII em header str); o Starlette decodifica latin-1 e o
+        # handler recebe a str nao-ASCII.
+        import json
+
+        app = _criar_app()
+        ordem_id = uuid4()
+        corpo = json.dumps({"decisao": "aprovada"}).encode("utf-8")
+        headers = self._headers_assinados(ordem_id, token_configurado, corpo)
+        headers_forjados: dict[str, str | bytes] = {
+            **headers,
+            "X-Webhook-Signature": "assinatura-inválida-ñ".encode("latin-1"),
+        }
+        with patch(self._FACTORY) as factory:
+            resp = TestClient(app).post(
+                self._ROTA.format(oid=ordem_id),
+                content=corpo,
+                headers=headers_forjados,  # type: ignore[arg-type]
+            )
+        assert resp.status_code == 401
+        factory.assert_not_called()
+
     def test_timestamp_nao_numerico_retorna_401(self, token_configurado: str) -> None:
         import json
 

@@ -9,9 +9,10 @@ from src.compartilhado.dominio.events import DomainEvent
 class VeiculoAdicionadoEvent(DomainEvent):
     """Evento emitido quando um veiculo e adicionado ao Cliente.
 
-    `placa_valor` nao e PII (placa e publica). Payload carrega apenas dados
-    tecnicos do veiculo; consumidores que precisarem de dados do cliente
-    consultam o agregado via repository.
+    Placa e PII veicular (mesma politica de `Placa.__repr__`): `placa_valor`
+    carrega o valor MASCARADO (`Placa.mascarado()`), nunca a placa crua, para
+    nao propagar PII em mensageria/outbox/logs. Consumidores que precisarem
+    da placa real consultam o agregado via repository.
     """
 
     placa_valor: str
@@ -22,7 +23,11 @@ class VeiculoAdicionadoEvent(DomainEvent):
 
 @dataclass(frozen=True, slots=True, kw_only=True)
 class VeiculoRemovidoEvent(DomainEvent):
-    """Evento emitido quando um veiculo e removido do Cliente."""
+    """Evento emitido quando um veiculo e removido do Cliente.
+
+    `placa_valor` carrega o valor mascarado (placa e PII veicular; ver
+    `VeiculoAdicionadoEvent`).
+    """
 
     placa_valor: str
 

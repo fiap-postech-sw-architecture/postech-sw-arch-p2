@@ -23,6 +23,11 @@ spec:
   # esgotado o limite, o Job falha e o `kubectl wait` do deploy aborta antes
   # de qualquer rollout — schema quebrado nunca chega aos pods.
   backoffLimit: 4
+  # Teto duro de 5 min para o Job inteiro (todas as tentativas): uma migração
+  # presa em lock não fica pendurada indefinidamente — o Job vira Failed e o
+  # watcher de `failed` do deploy aborta. Acima dos 180s do `kubectl wait`
+  # (que expira antes); o deadline cobre o Job órfão de um deploy interrompido.
+  activeDeadlineSeconds: 300
   # Auto-coleta o Job concluído após 10 min (não polui `kubectl get jobs`
   # entre deploys; o delete --ignore-not-found do CD cobre o resto).
   ttlSecondsAfterFinished: 600

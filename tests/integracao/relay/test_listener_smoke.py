@@ -53,9 +53,10 @@ def test_driver_connection_expoe_notifies_e_poll(engine_dedicado: Engine) -> Non
 def test_executar_relay_drena_linha_pendente(engine_dedicado: Engine) -> None:
     """Smoke test end-to-end: insere linha, chama executar_relay, confirma entregue.
 
-    Tambem em ``engine_dedicado``: ``executar_relay`` abre uma conexao raw de
-    LISTEN em autocommit no proprio engine; isolar o pool evita qualquer
-    chance de vazamento de estado para o ``engine`` compartilhado.
+    Tambem em ``engine_dedicado``: ``executar_relay`` abre uma conexao
+    psycopg2 DEDICADA de LISTEN (derivada da URL do engine, fora do pool);
+    isolar o pool evita qualquer chance de vazamento de estado para o
+    ``engine`` compartilhado.
     """
     from relay.listener import executar_relay
 

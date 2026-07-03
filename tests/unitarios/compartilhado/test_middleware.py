@@ -18,6 +18,7 @@ from src.compartilhado.interfaces.middleware import (
     configurar_cors,
     configurar_proxy_headers,
     configurar_rate_limiting,
+    handler_rate_limit_excedido,
 )
 
 
@@ -206,6 +207,60 @@ class TestConfigurarRateLimiting:
         client = TestClient(app)
         resp = client.get("/saude")
         assert resp.status_code == 200
+
+
+class TestHandler429NoEnvelopeDoContrato:
+    """O 429 responde no MESMO envelope de erro dos demais status
+    (``{erro: {codigo, mensagem, id_requisicao}}``) e preserva a injecao de
+    headers do limiter (``Retry-After``/``X-RateLimit-*``)."""
+
+    @staticmethod
+    def _montar_app(*, headers_enabled: bool) -> FastAPI:
+        limiter = Limiter(
+            key_func=lambda: "k",
+            default_limits=["1/minute"],
+            headers_enabled=headers_enabled,
+        )
+        app = FastAPI()
+        app.state.limiter = limiter
+        app.add_middleware(SlowAPIMiddleware)
+        app.add_exception_handler(RateLimitExceeded, handler_rate_limit_excedido)
+        app.add_middleware(SecurityHeadersMiddleware)
+
+        @app.get("/x")
+        def x() -> dict[str, str]:
+            return {"status": "ok"}
+
+        return app
+
+    def test_429_no_envelope_com_id_requisicao_do_request(self) -> None:
+        client = TestClient(self._montar_app(headers_enabled=False))
+        assert client.get("/x").status_code == 200
+
+        resp = client.get("/x")
+
+        assert resp.status_code == 429
+        corpo = resp.json()
+        assert set(corpo["erro"].keys()) == {"codigo", "mensagem", "id_requisicao"}
+        assert corpo["erro"]["codigo"] == "RATE_LIMIT_EXCEDIDO"
+        assert "1 per 1 minute" in corpo["erro"]["mensagem"]
+        # Mesmo request_id estampado no header pelo SecurityHeadersMiddleware.
+        assert corpo["erro"]["id_requisicao"] == resp.headers["X-Request-ID"]
+
+    def test_429_preserva_retry_after_quando_headers_habilitados(self) -> None:
+        client = TestClient(self._montar_app(headers_enabled=True))
+        assert client.get("/x").status_code == 200
+
+        resp = client.get("/x")
+
+        assert resp.status_code == 429
+        assert "Retry-After" in resp.headers
+        assert resp.headers["X-RateLimit-Limit"] == "1"
+
+    def test_configurar_rate_limiting_registra_o_handler_do_envelope(self) -> None:
+        app = _criar_app_com_saude()
+        configurar_rate_limiting(app)
+        assert app.exception_handlers[RateLimitExceeded] is handler_rate_limit_excedido
 
 
 class TestGracefulDegradationRedisIndisponivel:

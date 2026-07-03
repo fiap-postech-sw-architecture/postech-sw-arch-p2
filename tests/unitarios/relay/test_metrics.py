@@ -11,7 +11,11 @@ Contrato coberto:
   com MeterProvider montado, os 3 ObservableGauges + 4 Counters criados no meter
   ``pytstop-relay``, a fachada ``metricas`` vinculada aos counters reais, o
   ``/metrics`` servido na porta certa e os callbacks dos gauges rodando a query
-  de profundidade compartilhada (``consultar_profundidade``).
+  de profundidade compartilhada (``consultar_profundidade``), uma consulta por
+  callback (sem cache);
+- porta invalida (nao numerica) -> ``RuntimeError`` claro no boot; porta
+  ocupada (``OSError`` no ``start_http_server``) -> ``False`` + error acionavel
+  sem derrubar o relay.
 
 Os stubs simulam os modulos otel/prometheus em ``sys.modules`` para que a suite
 rode identica com ou sem o extra ``otel`` instalado (o CI nao instala o extra).
@@ -316,10 +320,10 @@ class TestFlagLigadaComDependencias:
         self, monkeypatch: pytest.MonkeyPatch, otel_stubs: dict
     ) -> None:
         # Os gauges devem ler a profundidade pela MESMA funcao do gauge structlog
-        # (consultar_profundidade) — SQL nao duplicado (TD-022). Alem disso, as 3
-        # callbacks de UM scrape compartilham um unico snapshot (cache TTL): a
-        # coleta dispara as 3 quase simultaneamente -> UMA query, nao tres, e os
-        # 3 gauges coerentes entre si. Espia a query e confere a contagem.
+        # (consultar_profundidade) — SQL nao duplicado (TD-022). Cada callback
+        # consulta DIRETO (o cache TTL+lock por scrape foi removido: 3 queries
+        # baratas por scrape valem menos que a maquinaria). Espia a query e
+        # confere valores e contagem.
         monkeypatch.setenv("RELAY_METRICS_ENABLED", "true")
 
         chamadas = {"n": 0}
@@ -338,17 +342,15 @@ class TestFlagLigadaComDependencias:
         assert configurar_metricas(object()) is True  # type: ignore[arg-type]
 
         gauges = otel_stubs["gauges"]
-        # As 3 callbacks de uma mesma coleta (quase simultaneas) compartilham o
-        # snapshot do cache: uma unica query.
         (pendentes,) = gauges["outbox_pendentes"][0](None)
         (idade,) = gauges["outbox_idade_mais_antigo"][0](None)
         (dead,) = gauges["outbox_dead"][0](None)
         assert pendentes.value == 7
         assert idade.value == 12.5
         assert dead.value == 3
-        assert chamadas["n"] == 1, (
-            "as 3 callbacks de um scrape devem compartilhar UMA query (cache TTL), "
-            f"mas houve {chamadas['n']} chamadas a consultar_profundidade"
+        assert chamadas["n"] == 3, (
+            "cada callback consulta a profundidade direto (sem cache): 3 gauges "
+            f"-> 3 chamadas a consultar_profundidade, mas houve {chamadas['n']}"
         )
 
     def test_gauge_idade_omite_observacao_quando_nao_ha_pendentes(
@@ -372,3 +374,42 @@ class TestFlagLigadaComDependencias:
         # pendentes/dead continuam emitindo (zero e significativo neles).
         (pendentes,) = gauges["outbox_pendentes"][0](None)
         assert pendentes.value == 0
+
+    def test_porta_invalida_falha_no_boot_com_erro_claro(
+        self, monkeypatch: pytest.MonkeyPatch, otel_stubs: dict
+    ) -> None:
+        # Misconfig de porta deve falhar CLARO no boot (nomeando a variavel),
+        # nao estourar com ValueError criptico dentro do int().
+        monkeypatch.setenv("RELAY_METRICS_ENABLED", "true")
+        monkeypatch.setenv("RELAY_METRICS_PORT", "nove-mil-e-cem")
+
+        with pytest.raises(RuntimeError, match="RELAY_METRICS_PORT"):
+            configurar_metricas(object())  # type: ignore[arg-type]
+
+    def test_porta_ocupada_degrada_com_log_acionavel(
+        self, monkeypatch: pytest.MonkeyPatch, otel_stubs: dict
+    ) -> None:
+        # OSError no start_http_server (porta em uso) NAO derruba o boot do
+        # relay (metricas sao acessorio): loga error acionavel, retorna False
+        # e nada e registrado/vinculado (fachada segue no-op).
+        monkeypatch.setenv("RELAY_METRICS_ENABLED", "true")
+
+        def start_ocupado(_porta: int) -> None:
+            raise OSError(98, "address already in use")
+
+        monkeypatch.setattr(
+            sys.modules["prometheus_client"], "start_http_server", start_ocupado
+        )
+
+        with capture_logs() as logs:
+            resultado = configurar_metricas(object())  # type: ignore[arg-type]
+
+        assert resultado is False
+        erros = [log for log in logs if log["log_level"] == "error"]
+        assert len(erros) == 1
+        # A mensagem precisa ser acionavel: apontar a variavel de porta.
+        assert "RELAY_METRICS_PORT" in str(erros[0])
+        # Nenhum instrumento registrado e fachada nao vinculada (no-op).
+        assert otel_stubs["gauges"] == {}
+        assert otel_stubs["counters"] == {}
+        assert metrics_modulo.metricas._entregue is None

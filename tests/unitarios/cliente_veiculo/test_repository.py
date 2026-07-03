@@ -104,3 +104,33 @@ class TestClienteSQLAlchemyRepository:
         session.scalars.return_value.first.return_value = None
         repo = ClienteSQLAlchemyRepository(session=session)
         assert repo.obter_por_documento(CPF(numero="21249722519")) is None
+
+    def test_anonimizar_dados_expira_cliente_e_veiculos_carregados(self) -> None:
+        # #168: a identity map mantinha os Veiculo com a placa real em memoria
+        # apos o raw UPDATE; anonimizar_dados deve expirar cliente E veiculos.
+        session = MagicMock()
+        veiculo_a = MagicMock()
+        veiculo_b = MagicMock()
+        cliente = MagicMock(veiculos=[veiculo_a, veiculo_b])
+        session.get.return_value = cliente
+        session.execute.return_value.scalars.return_value.all.return_value = [
+            uuid4(),
+            uuid4(),
+        ]
+        repo = ClienteSQLAlchemyRepository(session=session)
+
+        repo.anonimizar_dados(uuid4())
+
+        session.expire.assert_any_call(veiculo_a)
+        session.expire.assert_any_call(veiculo_b)
+        session.expire.assert_any_call(cliente)
+
+    def test_anonimizar_dados_sem_cliente_na_identity_map_nao_expira(self) -> None:
+        session = MagicMock()
+        session.get.return_value = None
+        session.execute.return_value.scalars.return_value.all.return_value = []
+        repo = ClienteSQLAlchemyRepository(session=session)
+
+        repo.anonimizar_dados(uuid4())
+
+        session.expire.assert_not_called()

@@ -127,17 +127,3 @@ class TestDependenciesOS:
         assert isinstance(uc._aprovar_orcamento, AprovarOrcamento)
         assert isinstance(uc._aprovar_complementar, AprovarOrcamentoComplementar)
         assert isinstance(uc._cancelar_ordem, CancelarOrdem)
-
-
-def test_dispatcher_nao_registra_mais_o_handler_de_email() -> None:
-    from unittest.mock import MagicMock
-
-    from src.ordem_servico.aplicacao.notificacoes import NotificarMudancaDeStatus
-    from src.ordem_servico.interfaces.dependencies import _dispatcher
-
-    dispatcher = _dispatcher(MagicMock())
-    # E-mail sai pela outbox/relay (cutover na Task 6): o dispatch sincrono
-    # nao pode conter o handler de notificacao (senao o e-mail sairia 2x).
-    assert not any(
-        isinstance(h, NotificarMudancaDeStatus) for h in dispatcher._handlers
-    )

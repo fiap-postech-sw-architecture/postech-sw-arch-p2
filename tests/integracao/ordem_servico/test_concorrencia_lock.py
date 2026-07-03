@@ -29,7 +29,6 @@ fisicas distintas.
 
 from __future__ import annotations
 
-import itertools
 import threading
 from decimal import Decimal
 from typing import TYPE_CHECKING
@@ -39,10 +38,6 @@ from sqlalchemy import text
 from sqlalchemy.exc import OperationalError
 from sqlalchemy.orm import Session as SASession
 
-from src.cliente_veiculo.dominio.cliente import Cliente
-from src.cliente_veiculo.dominio.contato import Contato
-from src.cliente_veiculo.dominio.cpf import CPF
-from src.cliente_veiculo.dominio.placa import Placa
 from src.compartilhado.dominio.dinheiro import Dinheiro
 from src.compartilhado.dominio.exceptions import (
     EstoqueInsuficienteException,
@@ -50,13 +45,17 @@ from src.compartilhado.dominio.exceptions import (
 )
 from src.compartilhado.infraestrutura.unit_of_work import SQLAlchemyUnitOfWork
 from src.estoque.dominio.item_estoque import ItemEstoque
-from src.ordem_servico.aplicacao.dispatcher import EventDispatcher
 from src.ordem_servico.aplicacao.use_cases import IniciarDiagnostico
 from src.ordem_servico.dominio.ordem_de_servico import OrdemDeServico
 from src.ordem_servico.dominio.status import StatusOrdem
 from src.ordem_servico.infraestrutura.adapters import EstoqueSQLAlchemyAdapter
 from src.ordem_servico.infraestrutura.repository import (
     OrdemDeServicoSQLAlchemyRepository,
+)
+from tests.integracao.seed_helpers import (
+    criar_cliente_com_veiculo,
+    criar_ordem_recebida,
+    placa_unica,
 )
 
 if TYPE_CHECKING:
@@ -71,45 +70,17 @@ pytestmark = pytest.mark.integracao
 # ---------------------------------------------------------------------------
 # Seeds (commitados de verdade: as threads usam conexoes/transacoes proprias,
 # entao o estado precisa estar visivel fora da tx do seed). Cleanup escopado
-# por id no finally de cada teste, nunca DELETE global das tabelas.
+# por id no finally de cada teste, nunca DELETE global das tabelas. A factory
+# compartilhada (`tests/integracao/seed_helpers.py`) gera CPF/placa UNICOS por
+# chamada — residuo de um teste anterior cujo cleanup nao rodou nao colide.
 # ---------------------------------------------------------------------------
 
 
-_contador_placa = itertools.count(1)
-
-
-def _placa_unica() -> str:
-    """Placa unica no padrao antigo ``ABC1234`` (3 letras + 4 digitos).
-
-    Cada teste comita seu seed de verdade (as threads usam conexoes
-    proprias), entao reusar placa/CPF fixos colidiria com residuo de um
-    teste anterior cujo cleanup nao rodou (ex.: falha antes do ``finally``).
-    Ids unicos tornam cada teste independente da ordem/limpeza dos demais.
-    Um contador monotonico (4 digitos, 0001-9999) garante unicidade dentro
-    da sessao de teste.
-    """
-    n = next(_contador_placa) % 10000
-    return f"LCK{n:04d}"
-
-
 def _seed_cliente_e_veiculo(engine: Engine) -> tuple[UUID, UUID]:
-    from brutils.cpf import generate as gerar_cpf
-
-    from src.cliente_veiculo.infraestrutura.repository import (
-        ClienteSQLAlchemyRepository,
-    )
-
     with SASession(bind=engine, expire_on_commit=False) as sess:
-        cliente = Cliente(
-            _nome="Cliente Concorrencia",
-            _documento=CPF(numero=gerar_cpf()),  # CPF valido e unico por seed
-            _contato=Contato(valor="11999990000"),
+        cliente = criar_cliente_com_veiculo(
+            sess, nome="Cliente Concorrencia", placa=placa_unica("LCK")
         )
-        ClienteSQLAlchemyRepository(session=sess).salvar(cliente)
-        cliente.adicionar_veiculo(
-            placa=Placa(valor=_placa_unica()), marca="Fiat", modelo="Uno", ano=2020
-        )
-        sess.flush()
         veiculo_id = cliente.veiculos[0].id
         cliente_id = cliente.id
         sess.commit()
@@ -119,9 +90,8 @@ def _seed_cliente_e_veiculo(engine: Engine) -> tuple[UUID, UUID]:
 def _seed_ordem_recebida(engine: Engine) -> UUID:
     cliente_id, veiculo_id = _seed_cliente_e_veiculo(engine)
     with SASession(bind=engine, expire_on_commit=False) as sess:
-        ordem = OrdemDeServico.criar(cliente_id=cliente_id, veiculo_id=veiculo_id)
-        ordem.limpar_eventos()  # nao exercita o evento de criacao na outbox aqui
-        OrdemDeServicoSQLAlchemyRepository(session=sess).salvar(ordem)
+        # limpar_eventos: nao exercita o evento de criacao na outbox aqui.
+        ordem = criar_ordem_recebida(sess, cliente_id=cliente_id, veiculo_id=veiculo_id)
         ordem_id = ordem.id
         sess.commit()
     return ordem_id
@@ -246,10 +216,14 @@ def _esperar_backend_bloqueado(engine: Engine, prazo_s: float = 10.0) -> bool:
     prazo = time.time() + prazo_s
     while time.time() < prazo:
         with engine.connect() as conn:
+            # datname = current_database(): nao casa com um backend bloqueado
+            # de OUTRO banco no mesmo servidor (ex.: suites paralelas contra
+            # o mesmo Postgres externo via TEST_DATABASE_URL).
             bloqueados = conn.execute(
                 text(
                     "SELECT count(*) FROM pg_stat_activity "
-                    "WHERE wait_event_type = 'Lock' AND state = 'active'"
+                    "WHERE datname = current_database() "
+                    "AND wait_event_type = 'Lock' AND state = 'active'"
                 )
             ).scalar()
         if bloqueados and int(bloqueados) >= 1:
@@ -365,7 +339,6 @@ class TestConcorrenciaTransicaoOrdemDeServico:
                 uc = IniciarDiagnostico(
                     repo=OrdemDeServicoSQLAlchemyRepository(session=sess),
                     uow=SQLAlchemyUnitOfWork(session_factory=lambda: sess),
-                    dispatcher=EventDispatcher(handlers=()),
                 )
                 try:
                     uc.executar(ordem_id)

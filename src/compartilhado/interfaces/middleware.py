@@ -5,17 +5,27 @@ from uuid import uuid4
 
 import structlog
 from fastapi import FastAPI
+from limits import parse_many
 from slowapi import Limiter
 from slowapi.util import get_remote_address
 from starlette.middleware.base import BaseHTTPMiddleware, RequestResponseEndpoint
 from starlette.middleware.cors import CORSMiddleware
 from starlette.requests import Request
-from starlette.responses import Response
+from starlette.responses import JSONResponse, Response
 
 _CSP_DEFAULT = "default-src 'none'"
 # Paths that serve Swagger UI / ReDoc / OpenAPI schema. The default CSP blocks
 # the inline scripts and styles those tools rely on, so we skip CSP there.
 _DOCS_PATHS = ("/docs", "/redoc", "/openapi.json")
+
+
+def _caminho_de_docs(path: str) -> bool:
+    """True para o proprio path de docs ou um filho dele (barra obrigatoria).
+
+    Igualdade exata ou prefixo TERMINADO em "/": ``/docs`` e ``/docs/oauth2``
+    casam; ``/docsarquivo`` (prefixo acidental) NAO casa e mantem o CSP.
+    """
+    return any(path == p or path.startswith(p + "/") for p in _DOCS_PATHS)
 
 
 class SecurityHeadersMiddleware(BaseHTTPMiddleware):
@@ -39,7 +49,7 @@ class SecurityHeadersMiddleware(BaseHTTPMiddleware):
             "max-age=31536000; includeSubDomains"
         )
         response.headers["Cache-Control"] = "no-store"
-        if not any(request.url.path.startswith(p) for p in _DOCS_PATHS):
+        if not _caminho_de_docs(request.url.path):
             response.headers["Content-Security-Policy"] = _CSP_DEFAULT
         response.headers["X-Request-ID"] = request_id
         return response
@@ -254,8 +264,19 @@ def _resolver_storage_uri() -> str | None:
 # O limite padrao e lido do env var ``RATE_LIMIT`` em tempo de
 # import — o processo ja deve ter as env vars setadas antes de
 # importar este modulo, o que e verdade no fluxo ``criar_app`` ->
-# ``configurar_rate_limiting``.
+# ``configurar_rate_limiting``. A validacao e EAGER (no import): um
+# valor malformado aborta o boot com mensagem clara, em vez de virar
+# 500 na primeira request rate-limitada (o SlowAPI so parseia o
+# limite lazily na avaliacao).
 _default_limit = os.environ.get("RATE_LIMIT", "60/minute")
+try:
+    parse_many(_default_limit)
+except ValueError as _exc:
+    _msg = (
+        f"RATE_LIMIT invalido: {_default_limit!r}. Use a notacao do pacote "
+        "`limits` (ex.: '60/minute', '100/hour')."
+    )
+    raise RuntimeError(_msg) from _exc
 limiter = Limiter(
     key_func=get_remote_address,
     default_limits=[_default_limit],
@@ -274,6 +295,35 @@ limiter = Limiter(
 )
 
 
+def handler_rate_limit_excedido(request: Request, exc: Exception) -> Response:
+    """429 no envelope de erro do contrato da API (em vez do default do SlowAPI).
+
+    O ``_rate_limit_exceeded_handler`` do SlowAPI responde ``{"error": ...}``,
+    fora do envelope ``{erro: {codigo, mensagem, id_requisicao}}`` que todos
+    os outros status usam (``error_handler.py``). Este handler devolve o
+    envelope do contrato e PRESERVA a injecao de headers do limiter
+    (``Retry-After``/``X-RateLimit-*`` quando ``headers_enabled``), fazendo o
+    mesmo pos-processamento do handler default.
+    """
+    detalhe = getattr(exc, "detail", "limite de requisicoes excedido")
+    response: Response = JSONResponse(
+        status_code=429,
+        content={
+            "erro": {
+                "codigo": "RATE_LIMIT_EXCEDIDO",
+                "mensagem": f"Limite de requisicoes excedido: {detalhe}",
+                "id_requisicao": getattr(request.state, "request_id", "desconhecido"),
+            }
+        },
+    )
+    # Mesmo pos-processamento do handler default do SlowAPI (que tambem chama
+    # o metodo privado _inject_headers do limiter).
+    com_headers: Response = request.app.state.limiter._inject_headers(
+        response, request.state.view_rate_limit
+    )
+    return com_headers
+
+
 def configurar_rate_limiting(app: FastAPI) -> None:
     """Anexa o ``limiter`` compartilhado ao app e instala o SlowAPIMiddleware.
 
@@ -281,15 +331,12 @@ def configurar_rate_limiting(app: FastAPI) -> None:
     quando ``RATE_LIMIT_STORAGE_URI`` esta definido (ex.: ``redis://...``),
     o backend Redis fica ativo e o limite e enforcado de forma agregada
     entre os processos. Sem a variavel, o fallback e ``memory://``
-    (por-processo).
+    (por-processo). O 429 responde no envelope de erro do contrato via
+    ``handler_rate_limit_excedido``.
     """
-    from slowapi import _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded
     from slowapi.middleware import SlowAPIMiddleware
 
     app.state.limiter = limiter
     app.add_middleware(SlowAPIMiddleware)
-    app.add_exception_handler(
-        RateLimitExceeded,
-        _rate_limit_exceeded_handler,  # type: ignore[arg-type]
-    )
+    app.add_exception_handler(RateLimitExceeded, handler_rate_limit_excedido)

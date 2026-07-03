@@ -48,9 +48,11 @@ class ItemEstoqueSQLAlchemyRepository:
         self._session.flush()
 
     def listar(self, offset: int = 0, limit: int = 20) -> list[ItemEstoque]:
+        # Ordena por nome (listagem para humanos); id desempata para manter a
+        # paginacao estavel entre nomes repetidos.
         stmt = (
             select(ItemEstoque)
-            .order_by(itens_estoque_table.c.id)
+            .order_by(itens_estoque_table.c.nome, itens_estoque_table.c.id)
             .offset(offset)
             .limit(limit)
         )

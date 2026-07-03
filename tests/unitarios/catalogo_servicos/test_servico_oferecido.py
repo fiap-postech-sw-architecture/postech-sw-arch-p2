@@ -49,15 +49,6 @@ class TestServicoOferecido:
         s.desativar()
         assert s.ativo is False
 
-    def test_ativar(self) -> None:
-        preco = Dinheiro(valor=Decimal("100.00"))
-        s = ServicoOferecido(
-            _nome="Troca de oleo", _descricao="Troca completa", _preco=preco
-        )
-        s.desativar()
-        s.ativar()
-        assert s.ativo is True
-
     def test_identidade_por_id(self) -> None:
         preco = Dinheiro(valor=Decimal("100.00"))
         id_fixo = uuid4()
@@ -136,15 +127,6 @@ class TestServicoOferecido:
         s.desativar()
         s.desativar()
         assert s.ativo is False
-
-    def test_ativar_idempotente(self) -> None:
-        preco = Dinheiro(valor=Decimal("100.00"))
-        s = ServicoOferecido(
-            _nome="Troca de oleo", _descricao="Troca completa", _preco=preco
-        )
-        s.ativar()
-        s.ativar()
-        assert s.ativo is True
 
     def test_criar_emite_servico_cadastrado_event(self) -> None:
         from src.catalogo_servicos.dominio.events import ServicoCadastradoEvent

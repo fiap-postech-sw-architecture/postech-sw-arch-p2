@@ -18,7 +18,12 @@ if TYPE_CHECKING:
 
     from src.ordem_servico.dominio.status import StatusOrdem
 
+# Minimo de 10 chars e regra da UI, deliberadamente mais estrita que o
+# backend (CancelarOrdemRequest: min_length=1): motivo de cancelamento vai
+# pro historico da OS e "ok"/"x" nao explica nada pro proximo atendente.
+# O maximo de 500 espelha o max_length do backend (evita 422 apos digitar).
 _MOTIVO_TAMANHO_MINIMO = 10
+_MOTIVO_TAMANHO_MAXIMO = 500
 
 
 class BotoesTransicao:
@@ -79,7 +84,11 @@ class BotoesTransicao:
         with ui.dialog() as dialog, ui.card().classes("w-96"):
             ui.label(f"{transicao.rotulo}").classes("text-lg font-bold")
             ui.label(f"Informe o motivo (minimo {_MOTIVO_TAMANHO_MINIMO} caracteres):")
-            motivo = ui.textarea().classes("w-full")
+            motivo = (
+                ui.textarea()
+                .classes("w-full")
+                .props(f"maxlength={_MOTIVO_TAMANHO_MAXIMO} counter")
+            )
 
             def submeter() -> None:
                 if len(motivo.value.strip()) < _MOTIVO_TAMANHO_MINIMO:

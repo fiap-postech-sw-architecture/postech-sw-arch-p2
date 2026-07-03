@@ -8,11 +8,6 @@ from src.catalogo_servicos.infraestrutura.repository import (
 
 
 class TestRepositoryCatalogo:
-    def test_init(self) -> None:
-        session = MagicMock()
-        repo = ServicoOferecidoSQLAlchemyRepository(session=session)
-        assert repo._session is session
-
     def test_obter_por_id(self) -> None:
         session = MagicMock()
         session.get.return_value = None

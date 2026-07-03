@@ -16,6 +16,12 @@ class _ItemFake:
     quantidade: int
     preco_unitario: Dinheiro
 
+    @property
+    def subtotal(self) -> Dinheiro:
+        # Espelha o contrato de ItemDaOrdem.subtotal, consumido por
+        # Orcamento.gerar.
+        return self.preco_unitario * self.quantidade
+
 
 def _agora() -> datetime:
     return datetime.now(UTC)
@@ -123,7 +129,9 @@ class TestOrcamento:
         )
         orc = Orcamento(itens=(linha,), _total=preco, _gerado_em=_agora())
         assert len(orc.itens) == 1
-        assert orc.versao_schema == 1
+        # Default corrente do snapshot: v2 persiste moeda por linha e no
+        # total (snapshots v1 reidratam com fallback BRL no mapping).
+        assert orc.versao_schema == 2
 
     def test_itens_vazio_invalido(self) -> None:
         with pytest.raises(ValueError, match="pelo menos um item"):

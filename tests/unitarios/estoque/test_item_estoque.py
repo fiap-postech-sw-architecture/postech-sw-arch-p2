@@ -36,11 +36,30 @@ class TestItemEstoque:
         assert item.preco_unitario.valor == Decimal("50.00")
         assert item.ativo is True
 
+    def test_criar_factory(self) -> None:
+        item = ItemEstoque.criar(
+            nome="Filtro de oleo",
+            descricao="Filtro para motor",
+            quantidade=10,
+            preco_unitario=Dinheiro(valor=Decimal("50.00")),
+        )
+        assert item.nome == "Filtro de oleo"
+        assert item.descricao == "Filtro para motor"
+        assert item.quantidade == 10
+        assert item.ativo is True
+
     def test_nome_vazio_invalido(self) -> None:
         preco = Dinheiro(valor=Decimal("50.00"))
         with pytest.raises(ValueError, match="Nome do item"):
             ItemEstoque(
                 _nome="", _descricao="Desc", _quantidade=10, _preco_unitario=preco
+            )
+
+    def test_descricao_vazia_invalida(self) -> None:
+        preco = Dinheiro(valor=Decimal("50.00"))
+        with pytest.raises(ValueError, match="Descricao do item"):
+            ItemEstoque(
+                _nome="Item", _descricao="", _quantidade=10, _preco_unitario=preco
             )
 
     def test_quantidade_negativa_invalida(self) -> None:
@@ -184,6 +203,12 @@ class TestItemEstoque:
         novo_preco = Dinheiro(valor=Decimal("75.00"))
         with pytest.raises(ValueError, match="Nome do item nao pode ser vazio"):
             item.atualizar(nome="", descricao="Desc", preco_unitario=novo_preco)
+
+    def test_atualizar_descricao_vazia_invalida(self) -> None:
+        item = _criar_item()
+        novo_preco = Dinheiro(valor=Decimal("75.00"))
+        with pytest.raises(ValueError, match="Descricao do item nao pode ser vazia"):
+            item.atualizar(nome="Novo", descricao="", preco_unitario=novo_preco)
 
     def test_construcao_sem_preco_invalida(self) -> None:
         with pytest.raises(ValueError, match="Preco unitario do item e obrigatorio"):

@@ -31,8 +31,9 @@ o fluxo padrão `make reset-db` já popula. Idempotente.
 
 ### Trocar de papel sem relogar
 
-Dropdown **Trocar papel** no cabeçalho faz logout + login automático com
-outra credencial seed. Útil pra testar RBAC.
+Dropdown **Trocar papel** no cabeçalho faz login automático com outra
+credencial seed e, se o login der certo, revoga a sessão anterior no backend
+(se falhar, a sessão atual é mantida). Útil pra testar RBAC.
 
 ### Páginas
 

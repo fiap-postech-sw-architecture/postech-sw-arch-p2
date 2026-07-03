@@ -72,13 +72,21 @@ class CabecalhoApp:
         from ui.cliente_api import ApiError
 
         api = obter_api()
-        api.logout()
+        # Login novo PRIMEIRO: se falhar (backend fora, seed ausente), a
+        # sessao atual permanece intacta — o logout-antes-do-login deixava o
+        # usuario deslogado sem papel nenhum quando o login novo falhava.
+        sessao_anterior = obter_store().sessao_atual()
         usuario = CONFIG.usuarios_seed[novo_papel]
         try:
             api.login(email=usuario.email, senha=usuario.senha)
-            ui.navigate.reload()
         except ApiError as exc:
             ui.notify(f"Falha ao trocar papel: {exc}", type="negative")
+            return
+        # Login OK (store ja tem a sessao nova): revoga a sessao antiga no
+        # backend (best-effort) pra nao deixar refresh token orfao valido.
+        if sessao_anterior is not None:
+            api.revogar_sessao(sessao_anterior)
+        ui.navigate.reload()
 
     def _logout(self) -> None:
         from ui.app import obter_api

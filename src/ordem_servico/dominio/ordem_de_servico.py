@@ -303,13 +303,17 @@ class OrdemDeServico(AggregateRoot):
 
         Levanta ``ViolacaoRegraDeNegocioException`` se ``motivo`` for vazio
         ou somente espacos: cancelamento sem motivo e anti-padrao de dominio.
+        O evento carrega o motivo normalizado (sem espacos nas bordas).
         """
-        if not motivo or not motivo.strip():
+        motivo_normalizado = (motivo or "").strip()
+        if not motivo_normalizado:
             raise ViolacaoRegraDeNegocioException(
                 mensagem="motivo de cancelamento e obrigatorio (recebido vazio)"
             )
         self._transicionar(StatusOrdem.CANCELADA)
-        self._registrar_evento(OrdemCanceladaEvent(agregado_id=self.id, motivo=motivo))
+        self._registrar_evento(
+            OrdemCanceladaEvent(agregado_id=self.id, motivo=motivo_normalizado)
+        )
 
     def gerar_orcamento_complementar(self) -> None:
         """EM_EXECUCAO -> AGUARDANDO_APROVACAO_COMPLEMENTAR; emite o evento.

@@ -8,11 +8,20 @@ from nicegui import ui
 
 from src.ordem_servico.dominio.status import StatusOrdem
 from ui.auth_guard import exige_autenticacao
-from ui.cliente_api import ApiError, ConflitoEstadoError, ValidacaoError
+from ui.cliente_api import (
+    ApiError,
+    ConflitoEstadoError,
+    NaoAutenticadoError,
+    NaoEncontradoError,
+)
 from ui.componentes.botoes_transicao import BotoesTransicao
 from ui.componentes.cabecalho import CabecalhoApp
+from ui.componentes.listagem import rodape_contagem
+from ui.componentes.notificacoes import notificar_erro_api
 from ui.componentes.picker_recurso import PickerRecurso
 from ui.componentes.stepper_os import StepperOs
+from ui.estado import obter_store
+from ui.formatacao import formatar_dinheiro_br
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -24,12 +33,12 @@ def _centavos_para_reais_label(
     valor_centavos_raw: Any,  # noqa: ANN401  # JSON do backend
     prefixo: str = "R$ ",
 ) -> str:
-    """Formata valor monetario em centavos (int) no padrao ``R$ X.XX``.
+    """Formata valor monetario em centavos (int) no padrao BR ``R$ 1.234,56``.
 
     Backend retorna valores monetarios em centavos sob chaves ``*_centavos``
     (int). Dividir por 100 produz reais. Um ``None``/``""`` vira zero.
     """
-    return f"{prefixo}{int(valor_centavos_raw or 0) / 100:.2f}"
+    return formatar_dinheiro_br(int(valor_centavos_raw or 0) / 100, prefixo)
 
 
 def _campo_ou_placeholder(
@@ -87,6 +96,24 @@ _ESTADOS_PERMITE_ADICAO: frozenset[str] = frozenset(
 )
 _ESTADOS_PERMITE_REMOCAO: frozenset[str] = frozenset({"recebida", "em_diagnostico"})
 
+# Espelho dos ``exigir_papel(...)`` do router do backend
+# (``src/ordem_servico/interfaces/router.py``): criar OS e admin-only;
+# adicionar/remover item e admin+mecanico. A UI desabilita o botao com
+# tooltip (padrao BotoesTransicao) em vez de deixar o clique morrer em 403.
+_PAPEIS_CRIAR_OS: frozenset[str] = frozenset({"admin"})
+_PAPEIS_ALTERAR_ITENS: frozenset[str] = frozenset({"admin", "mecanico"})
+
+
+def _papel_autorizado(papeis: frozenset[str]) -> bool:
+    return (obter_store().papel_atual() or "") in papeis
+
+
+def _bloquear_botao_por_papel(btn: ui.button, papeis: frozenset[str]) -> None:
+    """Desabilita o botao com tooltip de papel (padrao BotoesTransicao)."""
+    btn.props("disable")
+    btn.classes("opacity-50")
+    btn.tooltip(f"Exige papel: {' ou '.join(sorted(papeis))}")
+
 
 def _situacao_para_exibir(ordem: dict[str, Any]) -> str:
     """Rotulo amigavel da OS para DISPLAY (RF-021).
@@ -120,11 +147,13 @@ def pagina_ordens() -> None:
         # Re-renderiza reativamente ao alternar o checkbox.
         mostrar_encerradas.on_value_change(lambda _e: refresh())
 
-        ui.button(
+        botao_nova_os = ui.button(
             "Nova OS",
             icon="add",
             on_click=lambda: _dialog_nova_ordem(refresh),
         ).classes("bg-blue-600 text-white")
+        if not _papel_autorizado(_PAPEIS_CRIAR_OS):
+            _bloquear_botao_por_papel(botao_nova_os, _PAPEIS_CRIAR_OS)
         refresh()
 
 
@@ -139,7 +168,7 @@ def _quantidade_valida(valor: Any) -> int | None:  # noqa: ANN401  # ui.number()
         return None
     try:
         n = int(valor)
-    except (TypeError, ValueError):
+    except TypeError, ValueError:
         return None
     if n < 1:
         return None
@@ -151,6 +180,9 @@ def _renderizar_lista(*, incluir_encerradas: bool = False) -> None:
 
     try:
         dados = obter_api().listar_ordens(incluir_encerradas=incluir_encerradas)
+    except NaoAutenticadoError:
+        ui.navigate.to("/login")
+        return
     except ApiError as exc:
         ui.label(f"Erro: {exc}").classes("text-red-600")
         return
@@ -175,6 +207,7 @@ def _renderizar_lista(*, incluir_encerradas: bool = False) -> None:
             )
             ui.label(_campo_ou_placeholder(ordem, "cliente_nome")).classes("flex-1")
             ui.label(_campo_ou_placeholder(ordem, "veiculo_placa")).classes("font-mono")
+    rodape_contagem(dados)
 
 
 def _coletar_servicos_inline(
@@ -228,7 +261,7 @@ def _coletar_pecas_inline(
     return pecas, None
 
 
-def _dialog_nova_ordem(on_sucesso: Callable[[], None]) -> None:  # noqa: C901, PLR0915
+def _dialog_nova_ordem(on_sucesso: Callable[[], None]) -> None:  # noqa: PLR0915
     from ui.app import obter_api
 
     # Linhas dinamicas opcionais (RF-020): servicos (mao de obra) e pecas
@@ -369,17 +402,14 @@ def _dialog_nova_ordem(on_sucesso: Callable[[], None]) -> None:  # noqa: C901, P
                 dialog.close()
                 ui.notify("OS criada", type="positive")
                 ui.navigate.to(f"/ordens-servico/{resposta['id']}")
-            except ConflitoEstadoError as exc:
-                ui.notify(f"Nao permitido: {exc.detail}", type="warning")
-            except ValidacaoError as exc:
-                msgs = "; ".join(str(d.get("msg", "")) for d in exc.detalhes)
-                ui.notify(f"Invalido: {msgs}", type="negative")
             except ApiError as exc:
-                ui.notify(f"Erro: {exc}", type="negative")
+                notificar_erro_api(exc)
 
         with ui.row().classes("justify-end gap-2 w-full"):
             ui.button("Cancelar", on_click=dialog.close).props("flat")
             ui.button("Criar", on_click=salvar).classes("bg-blue-600 text-white")
+    # Sem delete o dialog acumula no layout a cada abertura.
+    dialog.on("hide", dialog.delete)
     dialog.open()
 
 
@@ -406,6 +436,22 @@ def _renderizar_detalhe(  # noqa: C901, PLR0915  # render coeso de detalhe
 
     try:
         ordem = obter_api().obter_ordem(ordem_id)
+    except NaoAutenticadoError:
+        ui.navigate.to("/login")
+        return
+    except NaoEncontradoError:
+        # 404: id inexistente/removido (ex.: link antigo) — mensagem amigavel
+        # com caminho de volta em vez do "Status inesperado 404" generico.
+        ui.label("OS nao encontrada.").classes("text-xl font-bold text-gray-700")
+        ui.label("A ordem pode ter sido removida ou o link esta incorreto.").classes(
+            "text-gray-500"
+        )
+        ui.button(
+            "Voltar para a listagem",
+            icon="arrow_back",
+            on_click=lambda: ui.navigate.to("/ordens-servico"),
+        ).props("flat")
+        return
     except ApiError as exc:
         ui.label(f"Erro ao carregar OS: {exc}").classes("text-red-600")
         return
@@ -443,13 +489,8 @@ def _renderizar_detalhe(  # noqa: C901, PLR0915  # render coeso de detalhe
                 obter_api().executar_transicao(ordem_id, transicao.endpoint, body)
                 ui.notify(f"Transicao {transicao.rotulo} executada", type="positive")
                 on_refresh()
-            except ValidacaoError as exc:
-                msgs = "; ".join(str(d.get("msg", "")) for d in exc.detalhes)
-                ui.notify(f"Invalido: {msgs}", type="negative")
-            except ConflitoEstadoError as exc:
-                ui.notify(f"Nao permitido: {exc.detail}", type="warning")
             except ApiError as exc:
-                ui.notify(f"Erro: {exc}", type="negative")
+                notificar_erro_api(exc)
 
         BotoesTransicao(status_enum, on_executar=executar)
 
@@ -528,11 +569,13 @@ def _renderizar_itens(
         with ui.row().classes("items-center w-full"):
             ui.label("Servicos").classes("font-bold flex-1")
             if permite_adicao:
-                ui.button(
+                btn_add = ui.button(
                     "Adicionar servico",
                     icon="add",
                     on_click=lambda: _dialog_adicionar_servico(ordem_id, on_refresh),
                 ).props("flat dense")
+                if not _papel_autorizado(_PAPEIS_ALTERAR_ITENS):
+                    _bloquear_botao_por_papel(btn_add, _PAPEIS_ALTERAR_ITENS)
         if status == "em_execucao":
             # Em EM_EXECUCAO adicionar item registra trabalho extra; gere o
             # orcamento complementar (transicao /orcamento-complementar) para
@@ -586,14 +629,18 @@ def _renderizar_grupo_servico(  # noqa: PLR0913  # render coeso de grupo de OS
                 "text-green-700 font-bold"
             )
             if permite_adicao:
-                ui.button(
+                btn_mais = ui.button(
                     icon="add",
                     on_click=lambda sid=servico_id, snome=servico_nome: (
                         _dialog_adicionar_item_de_estoque(
                             ordem_id, sid, snome, on_refresh
                         )
                     ),
-                ).props("flat dense round").tooltip("Adicionar item ao servico")
+                ).props("flat dense round")
+                if _papel_autorizado(_PAPEIS_ALTERAR_ITENS):
+                    btn_mais.tooltip("Adicionar item ao servico")
+                else:
+                    _bloquear_botao_por_papel(btn_mais, _PAPEIS_ALTERAR_ITENS)
         for item in itens_grupo:
             _renderizar_linha_item(
                 ordem_id, item, on_refresh, permite_remocao=permite_remocao
@@ -639,10 +686,12 @@ def _renderizar_linha_item(
             _centavos_para_reais_label(item.get("subtotal_centavos"), prefixo="= R$ ")
         ).classes("font-bold")
         if permite_remocao:
-            ui.button(
+            btn_del = ui.button(
                 icon="delete",
                 on_click=lambda i=item: _remover_item(ordem_id, i["id"], on_refresh),
             ).props("flat dense")
+            if not _papel_autorizado(_PAPEIS_ALTERAR_ITENS):
+                _bloquear_botao_por_papel(btn_del, _PAPEIS_ALTERAR_ITENS)
 
 
 def _remover_item(ordem_id: str, item_id: str, on_refresh: Callable[[], None]) -> None:
@@ -652,10 +701,8 @@ def _remover_item(ordem_id: str, item_id: str, on_refresh: Callable[[], None]) -
         obter_api().remover_item_ordem(ordem_id, item_id)
         ui.notify("Item removido", type="positive")
         on_refresh()
-    except ConflitoEstadoError as exc:
-        ui.notify(f"Nao permitido: {exc.detail}", type="warning")
     except ApiError as exc:
-        ui.notify(f"Erro: {exc}", type="negative")
+        notificar_erro_api(exc)
 
 
 def _dialog_adicionar_servico(  # noqa: C901, PLR0915  # dialog multi-step coeso
@@ -815,6 +862,8 @@ def _dialog_adicionar_servico(  # noqa: C901, PLR0915  # dialog multi-step coeso
         with ui.row().classes("justify-end gap-2 w-full"):
             ui.button("Cancelar", on_click=dialog.close).props("flat")
             ui.button("Salvar", on_click=salvar).classes("bg-blue-600 text-white")
+    # Sem delete o dialog acumula no layout a cada abertura.
+    dialog.on("hide", dialog.delete)
     dialog.open()
 
 
@@ -887,12 +936,12 @@ def _dialog_adicionar_item_de_estoque(
                 dialog.close()
                 ui.notify("Item adicionado", type="positive")
                 on_refresh()
-            except ConflitoEstadoError as exc:
-                ui.notify(f"Nao permitido: {exc.detail}", type="warning")
             except ApiError as exc:
-                ui.notify(f"Erro: {exc}", type="negative")
+                notificar_erro_api(exc)
 
         with ui.row().classes("justify-end gap-2 w-full"):
             ui.button("Cancelar", on_click=dialog.close).props("flat")
             ui.button("Salvar", on_click=salvar).classes("bg-blue-600 text-white")
+    # Sem delete o dialog acumula no layout a cada abertura.
+    dialog.on("hide", dialog.delete)
     dialog.open()

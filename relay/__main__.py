@@ -78,6 +78,10 @@ def main() -> None:
             relogio=lambda: datetime.now(UTC),
             parar=encerrar.is_set,
         )
+        # executar_relay so retorna quando `parar` sinalizou: registra o
+        # encerramento LIMPO para o post-mortem distinguir rollout de crash
+        # (uma excecao pularia este log e apareceria no traceback).
+        _log.info("relay encerrado por sinal")
     finally:
         engine.dispose()
 

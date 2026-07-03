@@ -25,7 +25,8 @@ class UsuarioRepository(Protocol):
 
 class TokenRevogadoRepository(Protocol):
     # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
-    def revogar(self, jti: str) -> None:
+    def revogar(self, jti: str) -> bool:
+        """Revoga o jti. True se revogou agora; False se ja estava revogado."""
         pass
 
     def esta_revogado(self, jti: str) -> bool:

@@ -4,6 +4,7 @@ from typing import TYPE_CHECKING
 
 from sqlalchemy import exists, select
 
+from src.ordem_servico.dominio.status import StatusOrdem
 from src.ordem_servico.infraestrutura.mapping import (
     itens_da_ordem_table,
     ordens_de_servico_table,
@@ -14,8 +15,9 @@ if TYPE_CHECKING:
 
     from sqlalchemy.orm import Session
 
-# OS ativa = qualquer status que nao seja terminal.
-_ESTADOS_TERMINAIS = ("entregue", "cancelada")
+# OS ativa = qualquer status que nao seja terminal. Valores derivados do enum
+# de dominio da OS (fonte unica) em vez de literais que driftariam.
+_ESTADOS_TERMINAIS = (StatusOrdem.ENTREGUE.value, StatusOrdem.CANCELADA.value)
 
 
 class OrdemDeServicoSQLAlchemyAdapter:

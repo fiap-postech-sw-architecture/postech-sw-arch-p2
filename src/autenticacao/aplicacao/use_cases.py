@@ -3,6 +3,8 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 from uuid import UUID
 
+from sqlalchemy.exc import IntegrityError
+
 from src.autenticacao.aplicacao.dtos import TokenDTO, UsuarioDTO
 from src.autenticacao.dominio.exceptions import (
     CredenciaisInvalidasException,
@@ -22,6 +24,13 @@ if TYPE_CHECKING:
     )
     from src.compartilhado.aplicacao.unit_of_work import UnitOfWork
 
+# Hash bcrypt fixo de uma string aleatoria constante (nao corresponde a senha
+# de ninguem). Quando o e-mail nao existe, o Login verifica a senha contra este
+# hash antes de falhar: sem isso, o retorno imediato do ramo "usuario is None"
+# seria um oraculo de timing (CWE-208) revelando quais e-mails estao
+# cadastrados.
+_HASH_DUMMY_TIMING = "$2b$12$avojtsGVsT2GPpVLbG3xj.X1U5TrhWpmU6wFYHA035hvRoejQwVmC"
+
 
 class Registrar:
     def __init__(
@@ -35,13 +44,24 @@ class Registrar:
         self._password_hasher = password_hasher
 
     def executar(self, dto: RegistrarDTO) -> UsuarioDTO:
-        if self._repo.email_existe(dto.email):
+        # E-mail normalizado para lowercase na entrada: armazenar e buscar
+        # sempre em caixa baixa evita duplicatas por caixa e login que falha
+        # conforme a caixa digitada.
+        email = dto.email.lower()
+        if self._repo.email_existe(email):
             raise EmailDuplicadoException()
         senha_hash = self._password_hasher.hash_senha(dto.senha)
-        usuario = Usuario.criar(email=dto.email, senha_hash=senha_hash, papel=dto.papel)
-        with self._uow:
-            self._repo.salvar(usuario)
-            self._uow.commit()
+        usuario = Usuario.criar(email=email, senha_hash=senha_hash, papel=dto.papel)
+        # O guard email_existe acima e check-then-insert: dois registros
+        # concorrentes do mesmo e-mail passam ambos no check e o segundo
+        # estoura o UNIQUE no flush/commit. O IntegrityError vira o mesmo 409
+        # do caminho sequencial em vez de 500.
+        try:
+            with self._uow:
+                self._repo.salvar(usuario)
+                self._uow.commit()
+        except IntegrityError:
+            raise EmailDuplicadoException() from None
         return UsuarioDTO(id=usuario.id, email=usuario.email, papel=usuario.papel.value)
 
 
@@ -57,8 +77,11 @@ class Login:
         self._password_hasher = password_hasher
 
     def executar(self, dto: LoginDTO) -> TokenDTO:
-        usuario = self._repo.obter_por_email(dto.email)
+        usuario = self._repo.obter_por_email(dto.email.lower())
         if usuario is None:
+            # Equaliza o custo com o ramo de senha errada (CWE-208): verifica
+            # contra um hash dummy para o tempo nao denunciar e-mails validos.
+            self._password_hasher.verificar_senha(dto.senha, _HASH_DUMMY_TIMING)
             raise CredenciaisInvalidasException()
         if not self._password_hasher.verificar_senha(dto.senha, usuario.senha_hash):
             raise CredenciaisInvalidasException()
@@ -97,6 +120,10 @@ class Logout:
         usuario nao falha a revogacao do access.
         """
         payload = self._jwt_service.validar_token(token)
+        # Simetria com o gate de acesso (TD-029): so um ACCESS token encerra a
+        # sessao; um refresh valido no header nao pode autenticar o logout.
+        if payload.get("type") != "access":
+            raise TokenInvalidoException(mensagem="Token nao e do tipo access")
         jtis = {str(payload["jti"])}
         if refresh_token is not None:
             jti_refresh = self._jti_refresh_para_revogar(
@@ -114,7 +141,7 @@ class Logout:
         """jti do refresh se for um refresh valido do MESMO usuario; senao None."""
         try:
             payload = self._jwt_service.validar_token(refresh_token)
-        except (TokenExpiradoException, TokenInvalidoException):
+        except TokenExpiradoException, TokenInvalidoException:
             return None
         if payload.get("type") != "refresh" or str(payload.get("sub")) != sub:
             return None
@@ -146,7 +173,12 @@ class RefreshToken:
         if usuario is None:
             raise CredenciaisInvalidasException(mensagem="Usuario nao encontrado")
         with self._uow:
-            self._token_repo.revogar(jti)
+            # Single-use atomico: o check esta_revogado acima e check-then-act
+            # e dois refreshes concorrentes do MESMO token passariam ambos.
+            # `revogar` devolve False quando o jti ja foi consumido -- o
+            # perdedor da corrida recebe 401 em vez de um segundo par valido.
+            if not self._token_repo.revogar(jti):
+                raise TokenRevogadoException()
             self._uow.commit()
         access = self._jwt_service.gerar_access_token(
             usuario_id=usuario.id,

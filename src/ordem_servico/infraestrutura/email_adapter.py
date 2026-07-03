@@ -12,9 +12,10 @@ Em dev/demo o servidor e o Mailpit do docker-compose (UI em
 interface SMTP) e mudanca de configuracao, nao de codigo. Credenciais,
 quando existirem, entram por Secret no cluster (RNF-020).
 
-Falhas de conexao/envio PROPAGAM: a politica de tolerancia (logar e
-seguir) pertence ao handler ``NotificarMudancaDeStatus``, mantendo a
-porta honesta para outros usos.
+Falhas de transporte (conexao, timeout, protocolo) sao traduzidas em
+``FalhaEnvioEmailException`` e PROPAGAM: o handler
+``NotificarMudancaDeStatus`` loga e repassa ao relay da outbox, que dirige
+retry -> backoff -> DLQ (TD-008).
 """
 
 from __future__ import annotations
@@ -23,8 +24,10 @@ import os
 import smtplib
 from email.message import EmailMessage
 
-# Envio sincrono dentro do ciclo da request: timeout curto impede que um
-# SMTP que aceita conexao mas nao responde segure a transicao.
+from src.ordem_servico.aplicacao.ports import FalhaEnvioEmailException
+
+# Envio sincrono no ciclo de entrega do relay: timeout curto impede que um
+# SMTP que aceita conexao mas nao responde prenda o worker da outbox.
 _TIMEOUT_SEGUNDOS = 5
 
 
@@ -32,10 +35,10 @@ class SmtpEmailAdapter:
     """Realiza ``EmailPort`` falando SMTP puro com o servidor configurado.
 
     A configuracao e lida do ambiente DENTRO de ``enviar`` (nao no
-    ``__init__``): o adapter e construido pelo composition root antes da
-    transicao executar, e um ``SMTP_PORT`` mal formado no construtor
-    derrubaria a request inteira — lendo no envio, qualquer misconfig
-    vira falha de envio, logada e engolida pelo handler (RF-024).
+    ``__init__``): o adapter e construido pelo relay a cada entrega
+    (``relay/handlers.py``), e um ``SMTP_PORT`` mal formado no construtor
+    quebraria a montagem do mapa de handlers — lendo no envio, qualquer
+    misconfig vira falha de envio, tratada linha a linha (retry/DLQ).
     """
 
     def enviar(self, destinatario: str, assunto: str, corpo: str) -> None:
@@ -43,8 +46,8 @@ class SmtpEmailAdapter:
 
         Raises:
             ValueError: ``SMTP_PORT`` configurado com valor nao numerico.
-            OSError: falha de conexao/timeout com o servidor SMTP.
-            smtplib.SMTPException: erro de protocolo durante o envio.
+            FalhaEnvioEmailException: falha de conexao/timeout com o
+                servidor SMTP ou erro de protocolo durante o envio.
         """
         host = os.environ.get("SMTP_HOST", "localhost")
         port = int(os.environ.get("SMTP_PORT", "1025"))
@@ -54,5 +57,10 @@ class SmtpEmailAdapter:
         msg["To"] = destinatario
         msg["Subject"] = assunto
         msg.set_content(corpo)
-        with smtplib.SMTP(host, port, timeout=_TIMEOUT_SEGUNDOS) as conexao:
-            conexao.send_message(msg)
+        try:
+            with smtplib.SMTP(host, port, timeout=_TIMEOUT_SEGUNDOS) as conexao:
+                conexao.send_message(msg)
+        except (OSError, smtplib.SMTPException) as exc:
+            # Traduz o transporte concreto para a excecao da porta: a
+            # aplicacao (handler) nao conhece smtplib.
+            raise FalhaEnvioEmailException(str(exc)) from exc

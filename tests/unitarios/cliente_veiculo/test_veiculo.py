@@ -18,7 +18,7 @@ def _congelar_ano_maximo(monkeypatch: pytest.MonkeyPatch) -> None:
     """
     monkeypatch.setattr(
         veiculo_module,
-        "_ano_maximo_permitido",
+        "ano_maximo_permitido",
         lambda: _ANO_CONGELADO + 1,
     )
 
@@ -105,6 +105,32 @@ class TestVeiculo:
     def test_placa_none_invalida(self) -> None:
         with pytest.raises(ValueError, match="Placa do veiculo"):
             Veiculo(_placa=None, _marca="Fiat", _modelo="Uno", _ano=2020)  # type: ignore[arg-type]
+
+    def test_marca_vazia_invalida(self) -> None:
+        placa = Placa(valor="ABC1234")
+        with pytest.raises(ValueError, match="Marca do veiculo nao pode ser vazia"):
+            Veiculo(_placa=placa, _marca="", _modelo="Uno", _ano=2020)
+
+    def test_marca_whitespace_invalida(self) -> None:
+        placa = Placa(valor="ABC1234")
+        with pytest.raises(ValueError, match="Marca do veiculo nao pode ser vazia"):
+            Veiculo(_placa=placa, _marca="   ", _modelo="Uno", _ano=2020)
+
+    def test_modelo_vazio_invalido(self) -> None:
+        placa = Placa(valor="ABC1234")
+        with pytest.raises(ValueError, match="Modelo do veiculo nao pode ser vazio"):
+            Veiculo(_placa=placa, _marca="Fiat", _modelo="", _ano=2020)
+
+    def test_modelo_whitespace_invalido(self) -> None:
+        placa = Placa(valor="ABC1234")
+        with pytest.raises(ValueError, match="Modelo do veiculo nao pode ser vazio"):
+            Veiculo(_placa=placa, _marca="Fiat", _modelo=" \t ", _ano=2020)
+
+    def test_marca_e_modelo_aparados(self) -> None:
+        placa = Placa(valor="ABC1234")
+        v = Veiculo(_placa=placa, _marca=" Fiat ", _modelo=" Uno ", _ano=2020)
+        assert v.marca == "Fiat"
+        assert v.modelo == "Uno"
 
     def test_placa_property_nao_pode_ser_nula(self) -> None:
         placa = Placa(valor="ABC1234")

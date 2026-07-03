@@ -65,12 +65,7 @@ def iniciar_mapeamentos() -> None:
     def _reconstruir_usuario(target: Usuario, _context: object) -> None:
         # _papel_valor is a synthetic attribute injected by SQLAlchemy mapping.
         target.__dict__["_papel"] = Papel(target._papel_valor)  # type: ignore[attr-defined]
-        object.__setattr__(target, "_id_atribuido", True)
         object.__setattr__(target, "_eventos_pendentes", [])
-
-    @event.listens_for(TokenRevogado, "load")
-    def _reconstruir_token(target: TokenRevogado, _context: object) -> None:
-        object.__setattr__(target, "_id_atribuido", True)
 
     @event.listens_for(Usuario, "before_insert")
     @event.listens_for(Usuario, "before_update")

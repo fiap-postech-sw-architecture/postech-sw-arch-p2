@@ -1,12 +1,11 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Protocol, Self, runtime_checkable
+from typing import TYPE_CHECKING, Protocol, Self
 
 if TYPE_CHECKING:
     from types import TracebackType
 
 
-@runtime_checkable
 class UnitOfWork(Protocol):
     # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def __enter__(self) -> Self:

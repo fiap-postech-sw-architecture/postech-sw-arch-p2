@@ -8,14 +8,14 @@ nao-fatal:
 - transicao de status -> e-mail ao cliente com assunto/corpo/destinatario
   corretos;
 - contato sem e-mail valido -> skip + log warning, sem chamar a porta;
-- falha de TRANSPORTE no envio -> logada e PROPAGADA (relay decide retry/DLQ);
+- falha de TRANSPORTE no envio (``FalhaEnvioEmailException``) -> logada e
+  PROPAGADA (relay decide retry/DLQ);
 - ordem/cliente ausentes -> skip + log warning (nao-fatal);
 - evento que nao e de transicao -> ignorado pelo handler.
 """
 
 from __future__ import annotations
 
-import smtplib
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
@@ -28,7 +28,10 @@ from src.ordem_servico.aplicacao.notificacoes import (
     _STATUS_POR_EVENTO,
     NotificarMudancaDeStatus,
 )
-from src.ordem_servico.aplicacao.ports import ClienteContatoDTO
+from src.ordem_servico.aplicacao.ports import (
+    ClienteContatoDTO,
+    FalhaEnvioEmailException,
+)
 from src.ordem_servico.dominio.events import (
     DiagnosticoIniciadoEvent,
     OrdemCriadaEvent,
@@ -141,31 +144,24 @@ class TestNotificarMudancaDeStatus:
         assert any("e-mail" in str(log.get("event", "")) for log in warnings)
 
     def test_falha_de_transporte_no_envio_propaga_e_e_logada(self) -> None:
-        # TD-008: o relay e o unico caller agora; uma falha de transporte
-        # (SMTP fora) PRECISA propagar para o relay dirigir retry -> backoff
-        # -> DLQ. Engolir marcaria a linha `entregue` e perderia o e-mail.
+        # TD-008: o relay e o unico caller; uma falha de transporte (SMTP
+        # fora, timeout, recusa — traduzida pelo adapter em
+        # FalhaEnvioEmailException) PRECISA propagar para o relay dirigir
+        # retry -> backoff -> DLQ. Engolir marcaria a linha `entregue` e
+        # perderia o e-mail. A traducao das excecoes de smtplib e coberta em
+        # test_email_adapter.py.
         ordem, handler, _email_port = _cenario(
-            erro_envio=ConnectionRefusedError("smtp fora do ar")
+            erro_envio=FalhaEnvioEmailException("smtp fora do ar")
         )
 
         with (
             capture_logs() as logs,
-            pytest.raises(ConnectionRefusedError),
+            pytest.raises(FalhaEnvioEmailException),
         ):
             handler(ServicoFinalizadoEvent(agregado_id=ordem.id))
 
         # Mesmo propagando, o handler loga o contexto (ordem/situacao) antes.
         assert any(log.get("exc_info") for log in logs)
-
-    def test_erro_de_protocolo_smtp_no_envio_propaga(self) -> None:
-        # smtplib.SMTPException (erro de protocolo, nao so de conexao) tambem
-        # e transporte -> propaga para o relay.
-        ordem, handler, _email_port = _cenario(
-            erro_envio=smtplib.SMTPException("550 mailbox unavailable")
-        )
-
-        with pytest.raises(smtplib.SMTPException):
-            handler(ServicoFinalizadoEvent(agregado_id=ordem.id))
 
     def test_evento_que_nao_e_transicao_e_ignorado_sem_consultar_repo(self) -> None:
         ordem = OrdemDeServico.criar(cliente_id=uuid4(), veiculo_id=uuid4())

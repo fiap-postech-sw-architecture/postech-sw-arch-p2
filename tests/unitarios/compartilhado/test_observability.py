@@ -339,8 +339,21 @@ class TestRedacaoDePII:
 
     def test_scope_sem_path_redige_so_a_query(self) -> None:
         span = _SpanFake()
-        _redigir_pii_da_span(span, {})
+        _redigir_pii_da_span(span, {"query_string": b"documento=12345678900"})
         assert span.atributos == {"url.query": "REDACTED"}
+
+    def test_scope_sem_query_nao_marca_redacted(self) -> None:
+        # Sem query string nao ha o que redigir: nenhum atributo url.query
+        # (um REDACTED incondicional sugeriria query onde nunca houve).
+        span = _SpanFake()
+        _redigir_pii_da_span(span, {"path": "/api/v1/saude", "query_string": b""})
+        assert "url.query" not in span.atributos
+        assert span.atributos["url.path"] == "/api/v1/saude"
+
+    def test_scope_vazio_e_noop(self) -> None:
+        span = _SpanFake()
+        _redigir_pii_da_span(span, {})
+        assert span.atributos == {}
 
     def test_span_none_nao_quebra(self) -> None:
         # Defensivo: o hook nunca pode derrubar o request por causa do trace.

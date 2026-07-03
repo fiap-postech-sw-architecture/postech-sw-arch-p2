@@ -8,6 +8,12 @@ services:
         # Fallback `unknown` cobre o caso de invocacao manual (sem make).
         GIT_SHA: ${GIT_SHA:-unknown}
         GIT_DATE: ${GIT_DATE:-unknown}
+    # Nome fixo da imagem para o servico `relay` reusar o MESMO build (um
+    # unico build por up/rebuild em vez de dois identicos). Tag local-only,
+    # nunca publicada. Worktrees paralelos: sobrescreva APP_IMAGE no
+    # .env.dev para nao compartilhar a tag entre worktrees.
+    image: ${APP_IMAGE:-pytstop-app:dev}
+    restart: unless-stopped
     ports:
       - "${APP_PORT:-8000}:8000"
     depends_on:
@@ -66,6 +72,7 @@ services:
 
   postgres:
     image: postgres:16
+    restart: unless-stopped
     ports:
       - "127.0.0.1:${DB_PORT:-5432}:5432"
     environment:
@@ -107,11 +114,11 @@ services:
   # vazio). Mesma imagem do app; espelha o k8s/relay.yaml (paridade dev x
   # cluster). Finding da revisao devops de fechamento.
   relay:
-    build:
-      context: .
-      args:
-        GIT_SHA: ${GIT_SHA:-unknown}
-        GIT_DATE: ${GIT_DATE:-unknown}
+    # Reusa por referencia a imagem buildada no servico `app` (image: comum,
+    # sem build proprio): o compose builda uma unica vez e ambos os servicos
+    # sobem do mesmo artefato.
+    image: ${APP_IMAGE:-pytstop-app:dev}
+    restart: unless-stopped
     command: ["python", "-m", "relay"]
     entrypoint: []
     # O HEALTHCHECK embutido na imagem proba /api/v1/saude — o relay nao
@@ -132,21 +139,22 @@ services:
   mailpit:
     # Tag pinada (major) — sem ela o compose flutuava no latest.
     image: axllent/mailpit:v1.30
-    container_name: pytstop-mailpit
+    restart: unless-stopped
     ports:
-      - "${MAILPIT_UI_PORT:-8025}:8025"
+      # Loopback only: UI de inspecao dev, nao exposta pra LAN.
+      - "127.0.0.1:${MAILPIT_UI_PORT:-8025}:8025"
 
   # Contador compartilhado do rate limiter (TD-016): a API usa este Redis
   # como store unico para o limite por janela (RATE_LIMIT_STORAGE_URI no
   # environment do app). Espelha o redis.yaml do cluster (paridade dev x
   # cluster). Sem persistencia: os contadores sao efemeros e expiram com a
-  # janela. Porta publicada no host so para inspecionar (redis-cli); a
-  # comunicacao app<->redis fica na rede interna do compose.
+  # janela. Porta publicada no host (loopback only) so para inspecionar
+  # (redis-cli); a comunicacao app<->redis fica na rede interna do compose.
   redis:
     image: redis:7-alpine
-    container_name: pytstop-redis
+    restart: unless-stopped
     ports:
-      - "${REDIS_PORT:-6379}:6379"
+      - "127.0.0.1:${REDIS_PORT:-6379}:6379"
 
   # Backend de traces de dev/demo (diferencial ADR-020): so sobe com
   # `--profile otel` — o fluxo normal (make up, CI, full-test) nao paga o
@@ -155,7 +163,7 @@ services:
   # com OTEL_ENABLED=true (ver environment do app acima).
   jaeger:
     image: jaegertracing/all-in-one:1
-    container_name: pytstop-jaeger
+    restart: unless-stopped
     profiles: ["otel"]
     environment:
       - COLLECTOR_OTLP_ENABLED=true

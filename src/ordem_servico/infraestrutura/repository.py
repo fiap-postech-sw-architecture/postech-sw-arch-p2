@@ -55,7 +55,7 @@ _PRIORIDADE_STATUS: Final[dict[str, int]] = {
 }
 _PRIORIDADE_ENCERRADAS: Final[int] = 9
 # Regex compatibility com cliente_veiculo: CPF/CNPJ sao armazenados
-# apenas com digitos (ver `cliente_veiculo/dominio/cpf.py:_NAO_DIGITO`),
+# apenas com digitos (ver `cliente_veiculo/dominio/documento.py:_NAO_DIGITO`),
 # e placa e normalizada para uppercase sem hifen (ver
 # `cliente_veiculo/dominio/placa.py:__post_init__`). A consulta por
 # placa+documento precisa aplicar a mesma normalizacao antes do
@@ -67,9 +67,9 @@ class OrdemDeServicoSQLAlchemyRepository:
     """Implementacao SQLAlchemy de ``OrdemDeServicoRepository`` (Protocol de dominio).
 
     Encapsula consultas sobre ``ordens_de_servico``, ``itens_da_ordem``,
-    e — para ``obter_por_placa_e_documento`` — joins com as tabelas
-    ``clientes`` e ``veiculos`` do contexto Cliente+Veiculo (somente
-    leitura, sem atravessar camadas de dominio daquele contexto).
+    e — para ``obter_mais_recente_por_placa_e_documento`` — joins com as
+    tabelas ``clientes`` e ``veiculos`` do contexto Cliente+Veiculo
+    (somente leitura, sem atravessar camadas de dominio daquele contexto).
     """
 
     def __init__(self, session: Session) -> None:
@@ -210,10 +210,11 @@ class OrdemDeServicoSQLAlchemyRepository:
         )
         return (self._session.scalar(stmt) or 0) > 0
 
-    def obter_por_placa_e_documento(
+    def obter_mais_recente_por_placa_e_documento(
         self, placa: str, documento: str
-    ) -> list[OrdemDeServico]:
-        """Lista ordens cujo veiculo bate com ``placa`` E cliente com ``documento``.
+    ) -> OrdemDeServico | None:
+        """Ordem mais recente cujo veiculo bate com ``placa`` E cliente com
+        ``documento``, ou ``None``.
 
         ``documento`` pode ser CPF ou CNPJ (com ou sem mascara); a
         entrada e normalizada para apenas digitos antes do hash, para
@@ -221,7 +222,9 @@ class OrdemDeServicoSQLAlchemyRepository:
         ``placa`` e normalizada para uppercase sem hifen pelo mesmo
         motivo. A comparacao do documento usa
         ``EncryptionService.hash_deterministic`` para lookup por valor
-        sem expor o documento em claro no banco.
+        sem expor o documento em claro no banco. ``ORDER BY criado_em
+        DESC LIMIT 1`` (desempate por ``id``) escolhe a mais recente no
+        banco, sem hidratar o historico completo do par.
         """
         enc = EncryptionService.instance()
         documento_normalizado = _NAO_DIGITO.sub("", documento)
@@ -239,8 +242,13 @@ class OrdemDeServicoSQLAlchemyRepository:
             )
             .where(veiculos_table.c.placa == placa_normalizada)
             .where(clientes_table.c.documento_hash == doc_hash)
+            .order_by(
+                ordens_de_servico_table.c.criado_em.desc(),
+                ordens_de_servico_table.c.id.desc(),
+            )
+            .limit(1)
         )
-        return list(self._session.scalars(stmt))
+        return self._session.scalars(stmt).first()
 
     def calcular_tempo_medio_execucao(self) -> float | None:
         """Tempo medio (minutos) entre criacao e atualizacao de ordens finalizadas.

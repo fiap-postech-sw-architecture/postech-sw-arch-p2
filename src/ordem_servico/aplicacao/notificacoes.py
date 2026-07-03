@@ -1,21 +1,20 @@
 """Notificacao de mudanca de status da OS por e-mail (RF-024 / ADR-018).
 
-Handler registrado no ``EventDispatcher``: a cada evento de TRANSICAO de
-status, resolve o cliente via ``ClientePort`` (cross-context, sem tocar o
-dominio vizinho), extrai o e-mail do campo livre ``contato`` e envia a
-notificacao pela ``EmailPort``.
+Handler invocado pelo relay da outbox (RF-018 / TD-008): a cada evento de
+TRANSICAO de status entregue, resolve o cliente via ``ClientePort``
+(cross-context, sem tocar o dominio vizinho), extrai o e-mail do campo
+livre ``contato`` e envia a notificacao pela ``EmailPort``.
 
-Politica de falha (pos-virada para a outbox, TD-008): este handler agora
-roda exclusivamente pelo relay (o dispatcher sincrono foi esvaziado —
-``dependencies.py`` injeta ``EventDispatcher(handlers=())``). Por isso o
-contrato de erro distingue dois casos:
+Politica de falha: o relay e o unico caller, entao o contrato de erro
+distingue dois casos:
 
 - "nada a entregar" (ordem/cliente/e-mail ausentes): NAO-FATAL — log
   warning e skip; retentar nao resolveria, entao o relay finaliza a linha
   (``entregue``);
-- falha de TRANSPORTE no envio (SMTP fora, timeout, recusa): PROPAGA — o
-  relay traduz em retry -> backoff -> DLQ. Engolir aqui marcaria a linha
-  ``entregue`` e perderia o e-mail sem nenhuma retentativa.
+- falha de TRANSPORTE no envio (``FalhaEnvioEmailException``, levantada
+  pelo adapter): PROPAGA — o relay traduz em retry -> backoff -> DLQ.
+  Engolir aqui marcaria a linha ``entregue`` e perderia o e-mail sem
+  nenhuma retentativa.
 
 Validacao de e-mail: regex simples (RFC-relaxada), por decisao. O campo
 ``contato`` e texto livre ("Maria - maria@x.com / (11) 9..."), entao o
@@ -28,11 +27,11 @@ padrao do scrubber de PII em ``compartilhado/infraestrutura/logging.py``.
 from __future__ import annotations
 
 import re
-import smtplib
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 import structlog
 
+from src.ordem_servico.aplicacao.ports import FalhaEnvioEmailException
 from src.ordem_servico.aplicacao.situacoes import situacao_de
 from src.ordem_servico.dominio.events import (
     DiagnosticoIniciadoEvent,
@@ -58,7 +57,7 @@ _log = structlog.get_logger(__name__)
 # de fora por desenho: criacao nao e atualizacao de status. O guard de
 # exaustividade em ``tests/unitarios/ordem_servico/test_notificacoes.py``
 # obriga decisao explicita para cada novo evento do dominio.
-_STATUS_POR_EVENTO: dict[type[DomainEvent], StatusOrdem] = {
+_STATUS_POR_EVENTO: Final[dict[type[DomainEvent], StatusOrdem]] = {
     DiagnosticoIniciadoEvent: StatusOrdem.EM_DIAGNOSTICO,
     OrcamentoGeradoEvent: StatusOrdem.AGUARDANDO_APROVACAO,
     OrcamentoAprovadoEvent: StatusOrdem.EM_EXECUCAO,
@@ -90,9 +89,9 @@ class NotificarMudancaDeStatus:
     """Handler de eventos de transicao: envia e-mail de situacao ao cliente.
 
     Eventos de transicao carregam apenas ``agregado_id`` (ver docstring de
-    ``dominio/events.py``: handlers re-buscam o agregado); o handler roda
-    pos-commit na mesma session da request, entao a re-busca sai do
-    identity map sem custo extra.
+    ``dominio/events.py``: handlers re-buscam o agregado); o relay abre uma
+    session propria por entrega (``relay/handlers.py``) e o handler
+    re-busca a ordem nela.
     """
 
     def __init__(
@@ -113,8 +112,8 @@ class NotificarMudancaDeStatus:
         dirigir retry/backoff/DLQ (TD-008).
 
         Raises:
-            OSError: falha de conexao/timeout com o servidor SMTP.
-            smtplib.SMTPException: erro de protocolo durante o envio.
+            FalhaEnvioEmailException: falha de transporte no envio,
+                traduzida pelo adapter da ``EmailPort``.
         """
         status_novo = _STATUS_POR_EVENTO.get(type(evento))
         if status_novo is None:
@@ -162,14 +161,14 @@ class NotificarMudancaDeStatus:
             self._email_port.enviar(
                 destinatario=destinatario, assunto=assunto, corpo=corpo
             )
-        except (OSError, smtplib.SMTPException):
-            # Falha de TRANSPORTE (SMTP fora, timeout, recusa): PROPAGA. O
-            # relay (unico caller agora — o dispatcher sincrono foi esvaziado
-            # na virada para a outbox) traduz a excecao em retry -> backoff ->
-            # DLQ. Engolir aqui marcaria a linha `entregue` e perderia o
-            # e-mail sem retry. Os skips acima (ordem/cliente/e-mail ausentes)
-            # seguem nao-fatais por desenho: retentar nao resolve "nada a
-            # enviar", entao a linha e corretamente finalizada.
+        except FalhaEnvioEmailException:
+            # Falha de TRANSPORTE (SMTP fora, timeout, recusa — traduzida
+            # pelo adapter na excecao da porta): PROPAGA. O relay (unico
+            # caller) traduz a excecao em retry -> backoff -> DLQ. Engolir
+            # aqui marcaria a linha `entregue` e perderia o e-mail sem retry.
+            # Os skips acima (ordem/cliente/e-mail ausentes) seguem
+            # nao-fatais por desenho: retentar nao resolve "nada a enviar",
+            # entao a linha e corretamente finalizada.
             _log.exception(
                 "falha ao enviar e-mail de mudanca de status",
                 ordem_id=str(ordem.id),

@@ -176,7 +176,10 @@ async def validar_assinatura_webhook(
     esperado = assinar_payload_webhook(
         segredo, str(ordem_id), x_webhook_timestamp, body
     )
-    if not hmac.compare_digest(esperado, x_webhook_signature):
+    # Comparacao em BYTES: compare_digest com str levanta TypeError se o
+    # header vier com nao-ASCII (viraria 500); em bytes e so assinatura
+    # divergente -> 401 (BUG #171).
+    if not hmac.compare_digest(esperado.encode(), x_webhook_signature.encode()):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Assinatura do webhook invalida",

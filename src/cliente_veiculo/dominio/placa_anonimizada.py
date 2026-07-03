@@ -32,5 +32,13 @@ class PlacaAnonimizada(ValueObject):
         """Sentinela ``"ANONIMIZADO"`` — sem PII para vazar em respostas/logs."""
         return "ANONIMIZADO"
 
+    def mascarado(self) -> str:
+        """Sentinela ``"ANONIMIZADO"`` — paridade com ``Placa.mascarado()``.
+
+        Nao ha PII para ocultar; expor o sentinela mantem o contrato usado
+        por eventos/logs que mascaram a placa incondicionalmente.
+        """
+        return self.valor
+
     def __repr__(self) -> str:
         return f"PlacaAnonimizada(veiculo_id={self.veiculo_id})"

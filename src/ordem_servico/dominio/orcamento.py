@@ -80,12 +80,17 @@ class Orcamento(ValueObject):
     A construcao direta tambem e suportada, mas exige consistencia entre
     ``total`` e a soma dos ``subtotal`` das linhas; valores divergentes
     sao rejeitados em ``__post_init__``.
+
+    ``versao_schema`` versiona o formato do snapshot persistido: a versao
+    2 (corrente) persiste moeda por linha e no total; snapshots 1 podem
+    nao ter moeda e reidratam com fallback BRL (ver
+    ``infraestrutura/mapping.py``).
     """
 
     itens: tuple[LinhaOrcamento, ...] = ()
     _total: Dinheiro | None = None
     _gerado_em: datetime | None = None
-    versao_schema: int = 1
+    versao_schema: int = 2
 
     def __post_init__(self) -> None:
         if not self.itens:
@@ -129,19 +134,15 @@ class Orcamento(ValueObject):
         if not itens_da_ordem:
             msg = "Orcamento.gerar exige pelo menos um item (recebido: sequencia vazia)"
             raise ValueError(msg)
-        linhas: list[LinhaOrcamento] = []
-        for item in itens_da_ordem:
-            preco = item.preco_unitario
-            qtd = item.quantidade
-            subtotal = preco * qtd
-            linhas.append(
-                LinhaOrcamento(
-                    descricao=item.descricao,
-                    quantidade=qtd,
-                    _preco_unitario=preco,
-                    _subtotal=subtotal,
-                )
+        linhas = [
+            LinhaOrcamento(
+                descricao=item.descricao,
+                quantidade=item.quantidade,
+                _preco_unitario=item.preco_unitario,
+                _subtotal=item.subtotal,
             )
+            for item in itens_da_ordem
+        ]
         total = reduce(add, (linha.subtotal for linha in linhas))
         return Orcamento(
             itens=tuple(linhas),

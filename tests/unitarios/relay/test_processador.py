@@ -1,12 +1,22 @@
 from __future__ import annotations
 
+import contextlib
+import itertools
+from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
 from uuid import uuid4
 
 import pytest
+import structlog.testing
+from sqlalchemy.exc import OperationalError
 
 import relay.processador as processador_modulo
-from relay.processador import LinhaOutbox, processar_linha
+from relay.processador import (
+    LinhaOutbox,
+    PayloadInvalidoError,
+    processar_ciclo,
+    processar_linha,
+)
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -182,6 +192,31 @@ def test_sem_handler_vai_para_dlq_preservando_tentativas() -> None:
     assert conn.marcado_entregue == []
 
 
+def test_payload_invalido_vai_direto_para_dlq_na_primeira() -> None:
+    # Desserializacao e DETERMINISTICA: payload malformado (PayloadInvalidoError
+    # do handler) falha igual em toda tentativa — DLQ direto na PRIMEIRA,
+    # preservando tentativas (nao houve tentativa de entrega), sem queimar os
+    # 5 retries de backoff. Mesmo caminho do "tipo sem handler".
+    conn = _ConnFake()
+
+    def handler_payload_invalido(_payload: dict) -> None:
+        raise PayloadInvalidoError(
+            "payload invalido para DiagnosticoIniciadoEvent: ValueError: "
+            "badly formed hexadecimal UUID string"
+        )
+
+    processar_linha(
+        conn,
+        _linha(tentativas=0),  # primeira vez que a linha e vista
+        handlers={"DiagnosticoIniciadoEvent": handler_payload_invalido},
+        nome_handler="email",
+    )
+
+    assert conn.marcado_dead == [(42, 0)]  # dead na 1a, tentativas preservadas
+    assert conn.agendado_retry == []  # NUNCA reagenda um erro deterministico
+    assert conn.marcado_entregue == []
+
+
 # ---------------------------------------------------------------------------
 # Testes de redacao de PII (LGPD): e-mail nao deve aparecer em ultimo_erro
 # ---------------------------------------------------------------------------
@@ -351,6 +386,19 @@ def test_metrica_sem_handler_dispara_so_dead(
     assert metricas_fake.chamadas == ["dead"]
 
 
+def test_metrica_payload_invalido_dispara_so_dead(
+    metricas_fake: _FachadaMetricasFake,
+) -> None:
+    # Payload nao desserializavel -> DLQ direto, como o "tipo sem handler":
+    # so dead, sem falha (nao houve tentativa de entrega no SMTP).
+    def handler_payload_invalido(_payload: dict) -> None:
+        raise PayloadInvalidoError("payload invalido")
+
+    _processar(_ConnFake(), _linha(tentativas=0), handler_payload_invalido)
+
+    assert metricas_fake.chamadas == ["dead"]
+
+
 def test_metrica_idempotente_nao_dispara_contador(
     metricas_fake: _FachadaMetricasFake,
 ) -> None:
@@ -359,3 +407,140 @@ def test_metrica_idempotente_nao_dispara_contador(
     _processar(_ConnFake(ja_processado=True), _linha(), lambda _p: None)
 
     assert metricas_fake.chamadas == []
+
+
+# ---------------------------------------------------------------------------
+# processar_ciclo: relogio fresco por linha (#164) e isolamento de erro de DB
+# por linha do lote
+# ---------------------------------------------------------------------------
+
+
+class _ResultadoFake:
+    def __init__(self, row: tuple | None) -> None:
+        self._row = row
+
+    def first(self) -> tuple | None:
+        return self._row
+
+
+class _ConnSQLFake:
+    """Connection minima para a ConexaoOutboxSQL REAL: responde aos SELECTs do
+    fluxo (fencing ok, nao processado) e captura os parametros dos UPDATEs."""
+
+    def __init__(self, execucoes: list[tuple[str, dict | None]]) -> None:
+        self._execucoes = execucoes
+
+    def execute(self, clausula: object, params: dict | None = None) -> _ResultadoFake:
+        sql = " ".join(str(clausula).split())
+        self._execucoes.append((sql, params))
+        if sql.startswith("SELECT 1 FROM outbox WHERE id"):
+            return _ResultadoFake((1,))  # fencing: re-lock obtido
+        return _ResultadoFake(None)  # processed_events/sucessor: vazio
+
+
+class _EngineBeginFake:
+    """Engine fake: cada begin() entrega uma conexao que loga no mesmo diario."""
+
+    def __init__(self) -> None:
+        self.execucoes: list[tuple[str, dict | None]] = []
+
+    def begin(self) -> contextlib.AbstractContextManager[_ConnSQLFake]:
+        return contextlib.nullcontext(_ConnSQLFake(self.execucoes))
+
+
+def _linhas_do_lote(quantidade: int) -> list[LinhaOutbox]:
+    agregado = uuid4()
+    return [
+        LinhaOutbox(
+            id=indice + 1,
+            agregado_id=agregado,
+            tipo="DiagnosticoIniciadoEvent",
+            payload={"agregado_id": str(uuid4())},
+            tentativas=0,
+        )
+        for indice in range(quantidade)
+    ]
+
+
+def test_relogio_fresco_por_linha_no_retry(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # #164: `relogio()` e lido DENTRO do loop, ao montar a tx de cada linha.
+    # Num lote lento, o retry da linha 2 deve ser agendado a partir do
+    # instante REAL da falha dela (> o da linha 1) — nao do inicio do ciclo,
+    # que encurtaria o backoff das linhas tardias.
+    linhas = _linhas_do_lote(2)
+    monkeypatch.setattr(
+        processador_modulo, "reivindicar_lote", lambda *_a, **_k: linhas
+    )
+    engine = _EngineBeginFake()
+
+    base = datetime(2026, 6, 24, 12, 0, tzinfo=UTC)
+    ticks = itertools.count()
+
+    def relogio() -> datetime:
+        # Avanca 1s por leitura: claim=t0, linha1=t1, linha2=t2.
+        return base + timedelta(seconds=next(ticks))
+
+    def handler_quebrado(_payload: dict) -> None:
+        raise RuntimeError("smtp fora")
+
+    total = processar_ciclo(
+        engine,  # type: ignore[arg-type]  # fake satisfaz a superficie usada
+        handlers={"DiagnosticoIniciadoEvent": handler_quebrado},
+        nome_handler="email",
+        limite=10,
+        lease=timedelta(seconds=60),
+        relogio=relogio,
+    )
+
+    assert total == 2
+    proximas = [
+        params["prox"]
+        for _sql, params in engine.execucoes
+        if params is not None and "prox" in params
+    ]
+    assert len(proximas) == 2  # um agendar_retry por linha
+    # Retry da linha 2 agendado com timestamp ESTRITAMENTE maior que o da
+    # linha 1 (mesmo delay de backoff + relogio fresco por linha).
+    assert proximas[1] > proximas[0]
+    assert proximas[1] - proximas[0] == timedelta(seconds=1)
+
+
+def test_erro_de_db_numa_linha_nao_aborta_as_demais(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Um erro de DB na tx de UMA linha (begin/commit/fachada) e isolado: loga
+    # `outbox_linha_falhou` e segue para as demais do lote — a linha pulada
+    # volta quando o lease vencer (at-least-once).
+    linhas = _linhas_do_lote(3)
+    monkeypatch.setattr(
+        processador_modulo, "reivindicar_lote", lambda *_a, **_k: linhas
+    )
+    entregues: list[int] = []
+
+    def processar_linha_fake(
+        _fachada: object, linha: LinhaOutbox, **_kwargs: Any
+    ) -> None:
+        if linha.id == 2:
+            raise OperationalError("UPDATE outbox", {}, Exception("conexao perdida"))
+        entregues.append(linha.id)
+
+    monkeypatch.setattr(processador_modulo, "processar_linha", processar_linha_fake)
+    engine = _EngineBeginFake()
+
+    with structlog.testing.capture_logs() as logs:
+        total = processar_ciclo(
+            engine,  # type: ignore[arg-type]
+            handlers={},
+            nome_handler="email",
+            limite=10,
+            lease=timedelta(seconds=60),
+            relogio=lambda: datetime.now(UTC),
+        )
+
+    assert total == 3  # o ciclo reporta o lote reivindicado inteiro
+    assert entregues == [1, 3]  # linhas 1 e 3 processadas apesar do erro na 2
+    falhas = [log for log in logs if log.get("event") == "outbox_linha_falhou"]
+    assert len(falhas) == 1
+    assert falhas[0].get("outbox_id") == 2

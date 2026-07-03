@@ -2,7 +2,10 @@
 name = "pytstop"
 version = "0.2.0"
 description = "Sistema Integrado de Atendimento e Execucao de Servicos"
-requires-python = ">=3.12"
+# Alinhado ao runtime real (3.14: .python-version, Dockerfiles, CI e mypy
+# abaixo): manter >=3.12 fazia o resolver carregar wheels/markers de versoes
+# que nada no projeto executa.
+requires-python = ">=3.14"
 dependencies = [
     "fastapi>=0.115",
     "uvicorn[standard]>=0.32",
@@ -23,7 +26,6 @@ dependencies = [
 test = [
     "pytest>=8.0",
     "pytest-cov>=6.0",
-    "pytest-xdist>=3.0",
     "testcontainers[postgres,redis]>=4.14.2",
     "polyfactory>=2.0",
     "httpx>=0.27",
@@ -90,7 +92,9 @@ where = ["."]
 include = ["src*"]
 
 [tool.ruff]
-target-version = "py313"
+# Casa com requires-python/mypy (3.14): py313 deixava o pyupgrade/lint
+# aquem da sintaxe que o runtime ja suporta.
+target-version = "py314"
 line-length = 88
 
 [tool.ruff.lint]
@@ -122,6 +126,11 @@ select = [
     "LOG014",  # exc-info-outside-except-handler
 ]
 fixable = ["ALL"]
+
+[tool.ruff.lint.flake8-type-checking]
+# Campos de modelos Pydantic sao avaliados em runtime: mover o import da
+# annotation para TYPE_CHECKING quebraria a validacao (TC001 falso-positivo).
+runtime-evaluated-base-classes = ["pydantic.BaseModel"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["src", "ui", "relay"]
@@ -270,12 +279,11 @@ ignore_missing_imports = true
 
 [tool.pytest.ini_options]
 markers = [
-    "serial: testes que nao podem rodar em paralelo",
     "integracao: testes de integracao",
     "e2e: testes end-to-end",
     "lento: testes que demoram mais de 1s",
-    "slow: roda contra instancia viva (docker compose); nao entra em unit-tests puros",
-    "slowest: tem sleep obrigatorio >= 1s dentro da journey; NAO entra em CI — rodar apenas em make full-test",
+    "slow: [full-test/tests/ apenas] roda contra instancia viva (docker compose); nao entra em unit-tests puros",
+    "slowest: [full-test/tests/ apenas] tem sleep obrigatorio >= 1s dentro da journey; NAO entra em CI — rodar apenas em make full-test",
     "nicegui_main_file(path): registrado pelo plugin nicegui.testing (nicegui 3, substituiu o module_under_test do nicegui 2); declarado aqui para sobreviver a coleta sem o extra `ui` instalado (--strict-markers)",
 ]
 addopts = "--strict-markers"

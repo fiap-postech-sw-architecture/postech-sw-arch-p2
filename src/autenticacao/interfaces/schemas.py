@@ -33,7 +33,9 @@ class RefreshRequest(BaseModel):
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
-    token_type: str = "bearer"
+    # Sem default: o valor vem do TokenDTO da aplicacao (fonte unica do
+    # "bearer"); um default aqui duplicaria e mascararia divergencias.
+    token_type: str
 
 
 class UsuarioResponse(BaseModel):

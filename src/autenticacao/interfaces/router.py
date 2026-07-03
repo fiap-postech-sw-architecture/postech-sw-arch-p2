@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Body, Depends, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.requests import Request  # noqa: TC002
 
@@ -30,7 +30,9 @@ if TYPE_CHECKING:
 
 router = APIRouter(prefix="/api/v1/autenticacao", tags=["Autenticacao"])
 
-_bearer_scheme_required = HTTPBearer()
+# auto_error=False: o HTTPBearer default responde 403 sem WWW-Authenticate
+# para header ausente; o 401 manual abaixo espelha `obter_usuario_atual`.
+_bearer_scheme = HTTPBearer(auto_error=False)
 
 
 @router.post("/login")
@@ -46,6 +48,7 @@ def login(
     return TokenResponse(
         access_token=result.access_token,
         refresh_token=result.refresh_token,
+        token_type=result.token_type,
     )
 
 
@@ -67,10 +70,16 @@ def registrar(
 @limiter.limit("10/minute")
 def logout(
     request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme_required),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     refresh_token: str | None = Body(default=None, embed=True),
     session: Session = Depends(obter_session),
 ) -> dict[str, str]:
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de autenticacao nao fornecido",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     # refresh_token e OPCIONAL no corpo (issue #118): quando enviado, o logout
     # revoga tambem o refresh e encerra a sessao por completo (CWE-613). Corpo
     # ausente mantem o comportamento anterior (revoga so o access) — sem 422
@@ -91,4 +100,5 @@ def refresh(
     return TokenResponse(
         access_token=result.access_token,
         refresh_token=result.refresh_token,
+        token_type=result.token_type,
     )

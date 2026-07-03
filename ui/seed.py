@@ -234,7 +234,10 @@ def gerar_dados_teste(  # noqa: C901, PLR0912, PLR0915  # script linear de seed
     existentes_clientes = {
         c["nome"]: c for c in api.listar_clientes(limit=100).get("items", [])
     }
-    ids_clientes: list[str] = []
+    # ``None`` como placeholder de cliente que falhou: mantem o alinhamento
+    # posicional com ``_CLIENTES`` — sem ele, uma falha no cliente 1 fazia os
+    # veiculos dos indices seguintes caírem no cliente errado.
+    ids_clientes: list[str | None] = []
     for i, cliente in enumerate(_CLIENTES):
         on_progresso(2 + i * 2, f"Cliente {cliente['nome']}")
         if cliente["nome"] in existentes_clientes:
@@ -247,6 +250,7 @@ def gerar_dados_teste(  # noqa: C901, PLR0912, PLR0915  # script linear de seed
             rel.clientes_criados += 1
         except ApiError as exc:
             rel.avisos.append(f"Cliente {cliente['nome']}: {exc}")
+            ids_clientes.append(None)
 
     # 2. Veiculos — idempotente por placa. Clientes ja existentes em
     # producao nao sao tocados porque suas placas nao batem com as do seed.
@@ -255,6 +259,8 @@ def gerar_dados_teste(  # noqa: C901, PLR0912, PLR0915  # script linear de seed
         if idx_cliente >= len(ids_clientes):
             continue
         cid = ids_clientes[idx_cliente]
+        if cid is None:
+            continue  # cliente correspondente falhou na criacao
         try:
             veiculos_existentes = api.listar_veiculos(cid)
             if any(v.get("placa") == veiculo["placa"] for v in veiculos_existentes):
@@ -311,47 +317,54 @@ def gerar_dados_teste(  # noqa: C901, PLR0912, PLR0915  # script linear de seed
     # re-run acumule OS (8, 16, 24, ...).
     on_progresso(65, "Criando OS em estados variados...")
     try:
-        total_existente = int(api.listar_ordens(limit=1).get("total", 0))
+        # incluir_encerradas=True: 3 das 8 OS do seed terminam encerradas
+        # (FINALIZADA/ENTREGUE/CANCELADA) e o default do backend as exclui do
+        # ``total`` — contar so as abertas fazia o guard nunca disparar e cada
+        # re-run acumulava mais 8 OS.
+        total_existente = int(
+            api.listar_ordens(limit=1, incluir_encerradas=True).get("total", 0)
+        )
     except ApiError as exc:
         rel.avisos.append(f"Nao consegui contar OS existentes: {exc}")
         total_existente = 0
+    clientes_ok = [cid for cid in ids_clientes if cid is not None]
     if total_existente >= _QTD_ORDENS:
         rel.avisos.append(
             f"{total_existente} OS ja existem (>= {_QTD_ORDENS} esperadas); pulando."
         )
-    elif ids_clientes and ids_servicos:
-        rel.ordens_criadas += _criar_os_recebida(api, ids_clientes[0], rel)
+    elif clientes_ok and ids_servicos:
+        rel.ordens_criadas += _criar_os_recebida(api, clientes_ok[0], rel)
         on_progresso(70, "OS #2 — RECEBIDA (com item)")
         rel.ordens_criadas += _criar_os_recebida_com_item(
-            api, ids_clientes[1 % len(ids_clientes)], ids_servicos[0], rel
+            api, clientes_ok[1 % len(clientes_ok)], ids_servicos[0], rel
         )
         on_progresso(74, "OS #3 — EM_DIAGNOSTICO")
         rel.ordens_criadas += _criar_os_em_diagnostico(
-            api, ids_clientes[2 % len(ids_clientes)], ids_servicos[0], rel
+            api, clientes_ok[2 % len(clientes_ok)], ids_servicos[0], rel
         )
         on_progresso(78, "OS #4 — AGUARDANDO_APROVACAO")
         rel.ordens_criadas += _criar_os_aguardando_aprovacao(
             api,
-            ids_clientes[3 % len(ids_clientes)],
+            clientes_ok[3 % len(clientes_ok)],
             ids_servicos[0],
             ids_servicos[1],
             rel,
         )
         on_progresso(82, "OS #5 — EM_EXECUCAO")
         rel.ordens_criadas += _criar_os_em_execucao(
-            api, ids_clientes[0], ids_servicos, ids_itens, rel
+            api, clientes_ok[0], ids_servicos, ids_itens, rel
         )
         on_progresso(88, "OS #6 — FINALIZADA")
         rel.ordens_criadas += _criar_os_finalizada(
-            api, ids_clientes[4 % len(ids_clientes)], ids_servicos, rel
+            api, clientes_ok[4 % len(clientes_ok)], ids_servicos, rel
         )
         on_progresso(92, "OS #7 — ENTREGUE")
         rel.ordens_criadas += _criar_os_entregue(
-            api, ids_clientes[5 % len(ids_clientes)], ids_servicos, rel
+            api, clientes_ok[5 % len(clientes_ok)], ids_servicos, rel
         )
         on_progresso(96, "OS #8 — CANCELADA")
         rel.ordens_criadas += _criar_os_cancelada(
-            api, ids_clientes[6 % len(ids_clientes)], rel
+            api, clientes_ok[6 % len(clientes_ok)], rel
         )
 
     on_progresso(100, "Concluido")

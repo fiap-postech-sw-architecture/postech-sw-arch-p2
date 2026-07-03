@@ -88,8 +88,8 @@ make format        # auto-formata codigo
 make all           # format + check + integracao
 ```
 
-Ao rodar `pytest` diretamente, ruff/mypy/bandit executam automaticamente
-antes dos testes. Para pular os pre-checks: `pytest --no-lint`.
+O gate de lint/type/security roda via `make check` (e nos jobs dedicados
+do CI) — `pytest` executa apenas os testes (a flag `--no-lint` foi removida).
 
 Para gerar o arquivo consumido por CI/Sonar localmente, use `make test-coverage`.
 Esse alvo roda os testes unitários não lentos com os extras `test` e `ui`, imprime

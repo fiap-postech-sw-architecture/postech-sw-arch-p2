@@ -31,6 +31,9 @@ class Usuario(AggregateRoot):
         if not local or not domain or "." not in domain:
             msg = "Email invalido"
             raise ValueError(msg)
+        if not self._senha_hash:
+            msg = "Senha hash nao pode ser vazia"
+            raise ValueError(msg)
 
     @property
     def email(self) -> str:

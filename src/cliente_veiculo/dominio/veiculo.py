@@ -10,11 +10,11 @@ if TYPE_CHECKING:
     from src.cliente_veiculo.dominio.placa import Placa
     from src.cliente_veiculo.dominio.placa_anonimizada import PlacaAnonimizada
 
-_ANO_PRIMEIRO_CARRO = 1886
+ANO_PRIMEIRO_CARRO = 1886
 _ANOS_FUTURO_PERMITIDO = 1  # veiculo pode ser de ate o proximo ano-modelo
 
 
-def _ano_maximo_permitido() -> int:
+def ano_maximo_permitido() -> int:
     """Indirecao para permitir que testes congelem a data sem patchar `datetime`."""
     return datetime.now(UTC).year + _ANOS_FUTURO_PERMITIDO
 
@@ -23,9 +23,10 @@ def _ano_maximo_permitido() -> int:
 class Veiculo(Entity):
     """Entidade Veiculo. Faz parte do agregado Cliente.
 
-    Invariante: `placa` obrigatoria e `ano` entre 1887 e o proximo ano-modelo.
-    Validacoes sao aplicadas em `__post_init__`. Identidade via UUID herdado de
-    `Entity` (igualdade por id, nao por valor).
+    Invariantes: `placa` obrigatoria; `marca` e `modelo` nao vazios (valores
+    sao aparados com `strip()` antes de validar/persistir); `ano` entre 1887 e
+    o proximo ano-modelo. Validacoes sao aplicadas em `__post_init__`.
+    Identidade via UUID herdado de `Entity` (igualdade por id, nao por valor).
     """
 
     # Defaults sentinels: None/0 ficam nos campos apenas para permitir que o
@@ -40,10 +41,18 @@ class Veiculo(Entity):
         if self._placa is None:
             msg = "Placa do veiculo e obrigatoria"
             raise ValueError(msg)
-        ano_maximo = _ano_maximo_permitido()
-        if self._ano <= _ANO_PRIMEIRO_CARRO or self._ano > ano_maximo:
+        self._marca = self._marca.strip()
+        if not self._marca:
+            msg = "Marca do veiculo nao pode ser vazia"
+            raise ValueError(msg)
+        self._modelo = self._modelo.strip()
+        if not self._modelo:
+            msg = "Modelo do veiculo nao pode ser vazio"
+            raise ValueError(msg)
+        ano_maximo = ano_maximo_permitido()
+        if self._ano <= ANO_PRIMEIRO_CARRO or self._ano > ano_maximo:
             msg = (
-                f"Ano deve ser entre {_ANO_PRIMEIRO_CARRO + 1} e {ano_maximo}: "
+                f"Ano deve ser entre {ANO_PRIMEIRO_CARRO + 1} e {ano_maximo}: "
                 f"{self._ano}"
             )
             raise ValueError(msg)

@@ -2,13 +2,17 @@ name: CI
 
 on:
   push:
-    branches: [dev-start, main]
+    branches: [main]
   pull_request:
     branches: [main]
 
 env:
   PYTHONDONTWRITEBYTECODE: "1"
   DATABASE_URL: "postgresql://pytstop:pytstop@localhost:5432/pytstop_test"
+  # O fixture `engine` da integracao aceita SOMENTE TEST_DATABASE_URL (sem
+  # fallback para DATABASE_URL — o teardown faz drop_all e nao pode herdar um
+  # banco dev por acidente). No CI as duas apontam para o MESMO service.
+  TEST_DATABASE_URL: "postgresql://pytstop:pytstop@localhost:5432/pytstop_test"
   JWT_SECRET: "ci-test-secret-key-not-for-production"
   ENCRYPTION_KEY: ""
   ENVIRONMENT: "test"
@@ -16,6 +20,7 @@ env:
 jobs:
   lint:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -27,15 +32,18 @@ jobs:
         run: uv lock --check
       - name: Install dependencies from lockfile
         run: uv sync --extra test --extra ui --frozen
+      # Escopo espelha `make lint` (inclui relay/ e scripts/): antes o CI
+      # varria so src/ ui/ tests/ e deixava relay/scripts sem gate de lint.
       - name: Ruff check
-        run: uv run ruff check src/ ui/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+        run: uv run ruff check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
       - name: Ruff format check
-        run: uv run ruff format --check src/ ui/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+        run: uv run ruff format --check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
       - name: Architecture contracts (import-linter)
         run: uv run lint-imports
 
   type-check:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -45,11 +53,13 @@ jobs:
           cache-dependency-glob: "uv.lock"
       - name: Install dependencies from lockfile
         run: uv sync --extra test --extra ui --frozen
+      # Escopo espelha `make typecheck` (inclui relay/ e scripts/).
       - name: Mypy
-        run: uv run mypy src/ ui/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+        run: uv run mypy src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
 
   security:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -66,6 +76,7 @@ jobs:
 
   test:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     services:
       postgres:
         image: postgres:16
@@ -92,7 +103,6 @@ jobs:
       - name: Run unit tests with coverage
         run: |
           uv run pytest tests/unitarios/ \
-            --no-lint \
             --cov=src \
             --cov-fail-under=95 \
             --cov-report=term-missing \
@@ -103,7 +113,6 @@ jobs:
       - name: Run UI unit tests with separate coverage gate
         run: |
           uv run pytest tests/unitarios/ui/ \
-            --no-lint \
             --cov=ui \
             --cov-report=term-missing \
             --cov-fail-under=95 \
@@ -114,7 +123,6 @@ jobs:
         run: |
           set +e
           uv run pytest tests/integracao/ \
-            --no-lint \
             -x \
             --tb=short
           rc=$?
@@ -133,6 +141,7 @@ jobs:
 
   sbom:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7

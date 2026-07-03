@@ -20,6 +20,12 @@ def _validar_nome(nome: str) -> None:
         raise ValueError(msg)
 
 
+def _validar_descricao(descricao: str) -> None:
+    if not descricao:
+        msg = f"Descricao do item nao pode ser vazia (recebido: {descricao!r})"
+        raise ValueError(msg)
+
+
 def _validar_quantidade_nao_negativa(quantidade: int) -> None:
     if quantidade < 0:
         msg = f"Quantidade nao pode ser negativa (recebido: {quantidade})"
@@ -41,7 +47,7 @@ class ItemEstoque(AggregateRoot):
     reserva/liberacao. Invariantes verificados na construcao e revalidados
     nos metodos que alteram estado:
 
-    - ``nome`` nao vazio
+    - ``nome`` e ``descricao`` nao vazios
     - ``quantidade`` >= 0
     - ``preco_unitario`` obrigatorio (``Dinheiro`` nao nulo)
     """
@@ -56,8 +62,21 @@ class ItemEstoque(AggregateRoot):
     def __post_init__(self) -> None:
         super().__post_init__()
         _validar_nome(self._nome)
+        _validar_descricao(self._descricao)
         _validar_quantidade_nao_negativa(self._quantidade)
         _validar_preco_obrigatorio(self._preco_unitario)
+
+    @classmethod
+    def criar(
+        cls, *, nome: str, descricao: str, quantidade: int, preco_unitario: Dinheiro
+    ) -> ItemEstoque:
+        """Factory de cadastro: constroi o item sem expor os campos privados."""
+        return cls(
+            _nome=nome,
+            _descricao=descricao,
+            _quantidade=quantidade,
+            _preco_unitario=preco_unitario,
+        )
 
     @property
     def nome(self) -> str:
@@ -141,6 +160,7 @@ class ItemEstoque(AggregateRoot):
     def atualizar(self, nome: str, descricao: str, preco_unitario: Dinheiro) -> None:
         """Atualiza nome, descricao e preco. Reaplica invariantes."""
         _validar_nome(nome)
+        _validar_descricao(descricao)
         _validar_preco_obrigatorio(preco_unitario)
         self._nome = nome
         self._descricao = descricao

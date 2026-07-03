@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from decimal import ROUND_HALF_UP, Decimal
+from decimal import ROUND_HALF_UP, Decimal, InvalidOperation
 
 from src.compartilhado.dominio.value_object import ValueObject
 
@@ -23,13 +23,19 @@ class Dinheiro(ValueObject):
 
     def __post_init__(self) -> None:
         if not isinstance(self.valor, Decimal):
-            object.__setattr__(self, "valor", Decimal(str(self.valor)))
+            try:
+                object.__setattr__(self, "valor", Decimal(str(self.valor)))
+            except InvalidOperation as exc:
+                msg = "valor monetario invalido"
+                raise ValueError(msg) from exc
 
         if not self.valor.is_finite():
             msg = "Valor monetario deve ser finito"
             raise ValueError(msg)
 
         quantizado = self.valor.quantize(_DUAS_CASAS, rounding=ROUND_HALF_UP)
+        # Normaliza zero negativo (-0.00 -> 0.00) antes das validacoes.
+        quantizado += Decimal(0)
         object.__setattr__(self, "valor", quantizado)
 
         if self.valor < 0:
@@ -38,6 +44,8 @@ class Dinheiro(ValueObject):
 
         moeda_valida = (
             len(self.moeda) == _TAMANHO_CODIGO_MOEDA
+            # isascii: isalpha/isupper aceitam letras acentuadas; ISO 4217 e A-Z.
+            and self.moeda.isascii()
             and self.moeda.isalpha()
             and self.moeda.isupper()
         )
@@ -45,12 +53,21 @@ class Dinheiro(ValueObject):
             msg = f"Moeda deve ter 3 letras maiusculas: {self.moeda}"
             raise ValueError(msg)
 
+    @property
+    def em_centavos(self) -> int:
+        """Valor em centavos inteiros (exato: ``valor`` ja esta quantizado)."""
+        return int(self.valor * 100)
+
     def __add__(self, outro: Dinheiro) -> Dinheiro:
+        if not isinstance(outro, Dinheiro):
+            return NotImplemented
         self._validar_mesma_moeda(outro)
         return Dinheiro(valor=self.valor + outro.valor, moeda=self.moeda)
 
     # codeql[py/unexpected-raise-in-special-method] -- invariante: nao fica negativo
     def __sub__(self, outro: Dinheiro) -> Dinheiro:
+        if not isinstance(outro, Dinheiro):
+            return NotImplemented
         self._validar_mesma_moeda(outro)
         resultado = self.valor - outro.valor
         if resultado < 0:

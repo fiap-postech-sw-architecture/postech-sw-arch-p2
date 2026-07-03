@@ -23,13 +23,15 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v7
 
-      - name: Setup Python
-        uses: actions/setup-python@v6
+      # Paridade com ci.yml: setup-uv instala uv + Python 3.14 e cacheia o
+      # ambiente pelo uv.lock. O par antigo (setup-python + `pip install uv`)
+      # nao cacheava nada e flutuava na versao do uv.
+      - name: Setup uv
+        uses: astral-sh/setup-uv@v7
         with:
           python-version: "3.14"
-
-      - name: Install uv
-        run: pip install uv
+          enable-cache: true
+          cache-dependency-glob: "uv.lock"
 
       - name: Sync deps
         run: uv sync --extra full-test --frozen
@@ -50,16 +52,18 @@ jobs:
           sed -i 's|^RUN_SEED_ON_STARTUP=.*|RUN_SEED_ON_STARTUP=true|' .env.dev
           sed -i "s|^ENCRYPTION_KEY=.*|ENCRYPTION_KEY=${ENCRYPTION_KEY}|" .env.dev
 
+      # ADMIN_*/RUN_*_ON_STARTUP chegam ao container via .env.dev (env_file
+      # do compose, materializado no step anterior) — como shell env aqui
+      # eram letra morta: o compose so interpola no environment/ports, nao
+      # repassa envs avulsas ao container.
       - name: Start stack
         env:
-          ADMIN_EMAIL: full-test-admin@pytstop.dev
-          ADMIN_PASSWORD: ChangeMeStrong123!
-          RUN_MIGRATIONS_ON_STARTUP: "true"
-          RUN_SEED_ON_STARTUP: "true"
-          # RF-022: pino o token do webhook para o container app. O harness
-          # le o MESMO valor via ORCAMENTO_WEBHOOK_TOKEN no step "Run plano CI",
-          # garantindo paridade — sem isso o app cairia no default de demo do
-          # compose e a journey fase2 nao teria como reproduzir o token.
+          # RF-022: pino o token do webhook para o container app (o compose
+          # interpola ORCAMENTO_WEBHOOK_TOKEN no environment do app). O
+          # harness le o MESMO valor via ORCAMENTO_WEBHOOK_TOKEN no step
+          # "Run plano completo", garantindo paridade — sem isso o app cairia
+          # no default de demo do compose e a journey fase2 nao teria como
+          # reproduzir o token.
           ORCAMENTO_WEBHOOK_TOKEN: ci-webhook-orcamento-token
         run: docker compose up -d
 

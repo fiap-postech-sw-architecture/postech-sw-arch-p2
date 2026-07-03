@@ -9,7 +9,9 @@ class CriarServicoRequest(BaseModel):
 
     nome: str = Field(min_length=1, max_length=255)
     descricao: str = Field(min_length=1, max_length=5000)
-    preco: Decimal = Field(gt=0)
+    # max_digits/decimal_places espelham a coluna Numeric(10, 2): rejeita no
+    # schema (422) o que estouraria a precisao no banco.
+    preco: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
 
 
 class AtualizarServicoRequest(BaseModel):
@@ -17,7 +19,7 @@ class AtualizarServicoRequest(BaseModel):
 
     nome: str = Field(min_length=1, max_length=255)
     descricao: str = Field(min_length=1, max_length=5000)
-    preco: Decimal = Field(gt=0)
+    preco: Decimal = Field(gt=0, max_digits=10, decimal_places=2)
 
 
 class ServicoResponse(BaseModel):

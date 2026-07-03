@@ -163,3 +163,31 @@ class TestDinheiro:
         d = Dinheiro(valor=10.5)  # type: ignore[arg-type]
         assert isinstance(d.valor, Decimal)
         assert d.valor == Decimal("10.50")
+
+    def test_soma_com_nao_dinheiro_retorna_not_implemented(self) -> None:
+        d = Dinheiro(valor=Decimal("10.00"))
+        assert d.__add__(5) is NotImplemented  # type: ignore[arg-type]
+        with pytest.raises(TypeError):
+            _ = d + 5  # type: ignore[operator]
+
+    def test_subtracao_com_nao_dinheiro_retorna_not_implemented(self) -> None:
+        d = Dinheiro(valor=Decimal("10.00"))
+        assert d.__sub__("1.00") is NotImplemented  # type: ignore[arg-type]
+        with pytest.raises(TypeError):
+            _ = d - 1  # type: ignore[operator]
+
+    def test_moeda_nao_ascii_invalida(self) -> None:
+        # isalpha/isupper aceitam letras acentuadas; ISO 4217 exige A-Z.
+        with pytest.raises(ValueError, match="maiusculas"):
+            Dinheiro(valor=Decimal("10"), moeda="RÉA")
+
+    def test_valor_string_invalida_vira_value_error(self) -> None:
+        # Decimal("abc") levantaria decimal.InvalidOperation (nao ValueError):
+        # o VO converte para o contrato de invariante do dominio.
+        with pytest.raises(ValueError, match="valor monetario invalido"):
+            Dinheiro(valor="abc")  # type: ignore[arg-type]
+
+    def test_zero_negativo_normalizado(self) -> None:
+        d = Dinheiro(valor=Decimal("-0.001"))
+        assert d.valor == Decimal("0.00")
+        assert str(d.valor) == "0.00"  # sem sinal: -0.00 e normalizado

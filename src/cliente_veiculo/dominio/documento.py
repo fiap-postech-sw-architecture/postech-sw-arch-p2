@@ -1,6 +1,28 @@
 from __future__ import annotations
 
-from typing import Protocol
+import re
+from typing import TYPE_CHECKING, Protocol
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
+
+_NAO_DIGITO = re.compile(r"\D")
+
+
+def normalizar_e_validar(
+    numero: str, rotulo: str, validador: Callable[[str], bool]
+) -> str:
+    """Remove mascara e valida com o validador brutils; ValueError se invalido.
+
+    Helper unico compartilhado por CPF e CNPJ: a normalizacao (descarte de
+    tudo que nao e digito) e identica, mudando apenas o validador (`is_valid`
+    de `brutils.cpf`/`brutils.cnpj`) e o rotulo da mensagem de erro.
+    """
+    normalizado = _NAO_DIGITO.sub("", numero)
+    if not validador(normalizado):
+        msg = f"{rotulo} invalido"
+        raise ValueError(msg)
+    return normalizado
 
 
 class Documento(Protocol):

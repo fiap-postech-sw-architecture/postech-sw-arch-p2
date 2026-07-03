@@ -28,7 +28,6 @@ from sqlalchemy import (
     String,
     Table,
     Text,
-    UniqueConstraint,
     Uuid,
     text,
 )
@@ -88,18 +87,23 @@ Index(
     outbox_table.c.status,
 )
 
+# (outbox_id, handler) e a identidade natural da linha: PK composta na
+# metadata substitui a UNIQUE uq_processed_events (o INSERT ... ON CONFLICT
+# DO NOTHING do relay nao nomeia arbiter, entao segue valido com qualquer
+# constraint unica — PK inclusa).
+# A migration 008 promove (outbox_id, handler) a PK no banco real
+# (substituindo a UNIQUE uq_processed_events da migration 003).
 processed_events_table = Table(
     "processed_events",
     metadata,
-    Column("outbox_id", BigInteger, nullable=False),
-    Column("handler", String(255), nullable=False),
+    Column("outbox_id", BigInteger, primary_key=True),
+    Column("handler", String(255), primary_key=True),
     Column(
         "processado_em",
         DateTime(timezone=True),
         nullable=False,
         default=lambda: datetime.now(UTC),
     ),
-    UniqueConstraint("outbox_id", "handler", name="uq_processed_events"),
 )
 
 

@@ -16,8 +16,15 @@ omit =
     tests/*
     */migrations/*
     */__init__.py
-    # UI render modules exercised por Screen/Playwright (opt-in `-m lento`
-    # localmente + suite E2E em Task 5.8a); excluidos do gate unitario.
+    # Ports de dominio sao Protocols PUROS (interfaces sem logica): linha de
+    # Protocol so "cobre" via import, e o unico teste que os importava era um
+    # hasattr vacuo (removido no #173). 4 dos 5 ja estavam em 0% com o gate
+    # verde; excluir todos torna o gate honesto em vez de premiar import morto.
+    src/*/dominio/repository.py
+    # UI render modules ficam fora do gate unitario: a cobertura real deles e
+    # 1 teste Screen lento (opt-in `-m lento`, ver tests/unitarios/ui) + as
+    # jornadas MANUAIS documentadas em tests/e2e_ui/jornadas.md. Nao ha suite
+    # Playwright automatizada.
     ui/paginas/*
     ui/componentes/*
     ui/app.py

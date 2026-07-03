@@ -5,7 +5,13 @@ from uuid import UUID
 import pytest
 
 from src.autenticacao.aplicacao.dtos import LoginDTO, RegistrarDTO
-from src.autenticacao.aplicacao.use_cases import Login, Logout, RefreshToken, Registrar
+from src.autenticacao.aplicacao.use_cases import (
+    _HASH_DUMMY_TIMING,
+    Login,
+    Logout,
+    RefreshToken,
+    Registrar,
+)
 from src.autenticacao.dominio.exceptions import (
     CredenciaisInvalidasException,
     EmailDuplicadoException,
@@ -16,23 +22,7 @@ from src.autenticacao.dominio.papel import Papel
 from src.autenticacao.dominio.usuario import Usuario
 from src.autenticacao.infraestrutura.jwt_service import JWTService
 from src.autenticacao.infraestrutura.password_hasher import PasswordHasher, hash_senha
-
-
-class FakeUnitOfWork:
-    def __init__(self) -> None:
-        self.committed = False
-
-    def __enter__(self) -> FakeUnitOfWork:
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        pass
-
-    def commit(self) -> None:
-        self.committed = True
-
-    def rollback(self) -> None:
-        pass
+from tests.unitarios.fakes import FakeUnitOfWork
 
 
 class FakeUsuarioRepository:
@@ -59,8 +49,11 @@ class FakeTokenRevogadoRepository:
     def __init__(self) -> None:
         self._revogados: set[str] = set()
 
-    def revogar(self, jti: str) -> None:
+    def revogar(self, jti: str) -> bool:
+        if jti in self._revogados:
+            return False
         self._revogados.add(jti)
+        return True
 
     def esta_revogado(self, jti: str) -> bool:
         return jti in self._revogados
@@ -71,12 +64,14 @@ class FakePasswordHasher:
 
     def __init__(self) -> None:
         self.hashed: list[str] = []
+        self.verificados: list[str] = []
 
     def hash_senha(self, senha: str) -> str:
         self.hashed.append(senha)
         return f"hashed::{senha}"
 
     def verificar_senha(self, senha_plana: str, senha_hash: str) -> bool:
+        self.verificados.append(senha_hash)
         return senha_hash == f"hashed::{senha_plana}"
 
 
@@ -153,6 +148,49 @@ class TestRegistrar:
         with pytest.raises(EmailDuplicadoException):
             uc.executar(dto)
 
+    def test_email_normalizado_para_lowercase(self) -> None:
+        # E-mail e armazenado em caixa baixa; registrar de novo com outra
+        # caixa e duplicata (#167).
+        repo = FakeUsuarioRepository()
+        uow = FakeUnitOfWork()
+        uc = Registrar(repo=repo, uow=uow, password_hasher=PasswordHasher())
+        result = uc.executar(
+            RegistrarDTO(
+                email="User@Test.COM", senha="senhaforte1234", papel=Papel.ADMIN
+            )
+        )
+        assert result.email == "user@test.com"
+        assert repo.obter_por_email("user@test.com") is not None
+        with pytest.raises(EmailDuplicadoException):
+            uc.executar(
+                RegistrarDTO(
+                    email="uSeR@tEsT.com", senha="senhaforte1234", papel=Papel.ADMIN
+                )
+            )
+
+    def test_integrity_error_no_commit_vira_email_duplicado(self) -> None:
+        # Corrida check-then-insert (#167): email_existe passa nos dois
+        # registros concorrentes e o segundo estoura o UNIQUE no flush/commit.
+        # O IntegrityError deve virar o mesmo 409 do caminho sequencial.
+        from sqlalchemy.exc import IntegrityError
+
+        class RepoQueEstouraUnique(FakeUsuarioRepository):
+            def salvar(self, usuario: Usuario) -> None:
+                raise IntegrityError(
+                    "INSERT", {}, Exception("duplicate key: usuarios.email")
+                )
+
+        uow = FakeUnitOfWork()
+        uc = Registrar(
+            repo=RepoQueEstouraUnique(), uow=uow, password_hasher=PasswordHasher()
+        )
+        with pytest.raises(EmailDuplicadoException):
+            uc.executar(
+                RegistrarDTO(
+                    email="race@test.com", senha="senhaforte1234", papel=Papel.ADMIN
+                )
+            )
+
     def test_usa_o_password_hasher_injetado(self) -> None:
         # Prova a inversao de dependencia (TD-019): o use case delega ao port
         # injetado, sem importar a infraestrutura de hashing.
@@ -222,6 +260,33 @@ class TestLogin:
         uc = Login(repo=repo, jwt_service=jwt_svc, password_hasher=PasswordHasher())
         with pytest.raises(CredenciaisInvalidasException):
             uc.executar(LoginDTO(email="test@test.com", senha="erradaerrada1"))
+
+    def test_login_com_email_em_caixa_mista(self) -> None:
+        # O login normaliza o e-mail para lowercase antes da busca (#167):
+        # quem se registrou como user@test.com entra digitando USER@Test.com.
+        repo = FakeUsuarioRepository()
+        repo.salvar(
+            Usuario.criar(
+                email="user@test.com",
+                senha_hash=hash_senha("senhaforte1234"),
+                papel=Papel.ADMIN,
+            )
+        )
+        jwt_svc = JWTService(chave_secreta="test-secret")
+        uc = Login(repo=repo, jwt_service=jwt_svc, password_hasher=PasswordHasher())
+        result = uc.executar(LoginDTO(email="USER@Test.com", senha="senhaforte1234"))
+        assert result.access_token
+
+    def test_email_inexistente_verifica_hash_dummy(self) -> None:
+        # CWE-208 (#167): com e-mail desconhecido o use case ainda paga um
+        # verify de senha (contra o hash dummy fixo) antes do 401 -- o tempo de
+        # resposta nao pode denunciar quais e-mails existem.
+        repo = FakeUsuarioRepository()
+        hasher = FakePasswordHasher()
+        uc = Login(repo=repo, jwt_service=FakeJWTService(), password_hasher=hasher)
+        with pytest.raises(CredenciaisInvalidasException):
+            uc.executar(LoginDTO(email="naoexiste@x.com", senha="qualquercoisa12"))
+        assert hasher.verificados == [_HASH_DUMMY_TIMING]
 
     def test_usa_os_ports_injetados(self) -> None:
         # Prova a inversao (TD-019): o Login delega a verificacao ao
@@ -314,6 +379,20 @@ class TestLogout:
         )
         with pytest.raises(TokenRevogadoException):
             refresh_uc.executar(refresh)
+
+    def test_logout_com_refresh_token_no_header_e_rejeitado(self) -> None:
+        # Simetria com o gate de acesso (TD-029, #167): so um ACCESS token
+        # autentica o logout; um refresh valido no header -> 401.
+        from uuid import uuid4
+
+        jwt_svc = JWTService(chave_secreta="test-secret")
+        token_repo = FakeTokenRevogadoRepository()
+        uow = FakeUnitOfWork()
+        refresh = jwt_svc.gerar_refresh_token(uuid4())
+        uc = Logout(jwt_service=jwt_svc, token_repo=token_repo, uow=uow)
+        with pytest.raises(TokenInvalidoException, match="Token nao e do tipo access"):
+            uc.executar(refresh)
+        assert not token_repo.esta_revogado(str(jwt_svc.validar_token(refresh)["jti"]))
 
     def test_refresh_de_outro_usuario_nao_e_revogado(self) -> None:
         # A revogacao do refresh e best-effort e escopada ao dono: um refresh
@@ -421,4 +500,53 @@ class TestRefreshToken:
         with pytest.raises(
             CredenciaisInvalidasException, match="Usuario nao encontrado"
         ):
+            uc.executar(refresh)
+
+    def test_segundo_uso_do_mesmo_refresh_e_rejeitado(self) -> None:
+        # Single-use (#167): reusar o refresh apos a rotacao -> 401.
+        repo = FakeUsuarioRepository()
+        usuario = Usuario.criar(
+            email="test@test.com",
+            senha_hash=hash_senha("senhaforte1234"),
+            papel=Papel.ADMIN,
+        )
+        repo.salvar(usuario)
+        jwt_svc = JWTService(chave_secreta="test-secret")
+        uc = RefreshToken(
+            jwt_service=jwt_svc,
+            token_repo=FakeTokenRevogadoRepository(),
+            usuario_repo=repo,
+            uow=FakeUnitOfWork(),
+        )
+        refresh = jwt_svc.gerar_refresh_token(usuario.id)
+        uc.executar(refresh)
+        with pytest.raises(TokenRevogadoException):
+            uc.executar(refresh)
+
+    def test_corrida_de_uso_simultaneo_do_refresh_e_rejeitada(self) -> None:
+        # Corrida do single-use (#167): dois refreshes concorrentes passam
+        # ambos no pre-check `esta_revogado` (aqui simulado por um fake que
+        # sempre responde False); a atomicidade vem do `revogar` devolver
+        # False para o perdedor -- que recebe TokenRevogadoException.
+        class RepoComJanelaDeCorrida(FakeTokenRevogadoRepository):
+            def esta_revogado(self, jti: str) -> bool:
+                return False
+
+        repo = FakeUsuarioRepository()
+        usuario = Usuario.criar(
+            email="test@test.com",
+            senha_hash=hash_senha("senhaforte1234"),
+            papel=Papel.ADMIN,
+        )
+        repo.salvar(usuario)
+        jwt_svc = JWTService(chave_secreta="test-secret")
+        uc = RefreshToken(
+            jwt_service=jwt_svc,
+            token_repo=RepoComJanelaDeCorrida(),
+            usuario_repo=repo,
+            uow=FakeUnitOfWork(),
+        )
+        refresh = jwt_svc.gerar_refresh_token(usuario.id)
+        uc.executar(refresh)
+        with pytest.raises(TokenRevogadoException):
             uc.executar(refresh)

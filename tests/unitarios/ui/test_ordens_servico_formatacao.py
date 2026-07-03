@@ -19,25 +19,29 @@ from ui.paginas.ordens_servico import (
 
 class TestCentavosParaReaisLabel:
     def test_converte_centavos_para_reais_com_prefixo_default(self) -> None:
-        assert _centavos_para_reais_label(28500) == "R$ 285.00"
+        assert _centavos_para_reais_label(28500) == "R$ 285,00"
 
     def test_prefixo_customizavel(self) -> None:
-        assert _centavos_para_reais_label(5000, prefixo="= R$ ") == "= R$ 50.00"
+        assert _centavos_para_reais_label(5000, prefixo="= R$ ") == "= R$ 50,00"
 
     def test_zero_centavos(self) -> None:
-        assert _centavos_para_reais_label(0) == "R$ 0.00"
+        assert _centavos_para_reais_label(0) == "R$ 0,00"
 
     def test_valor_none_vira_zero(self) -> None:
         """Chave ausente no payload do backend → default 0, nao explode."""
-        assert _centavos_para_reais_label(None) == "R$ 0.00"
+        assert _centavos_para_reais_label(None) == "R$ 0,00"
 
     def test_valor_pequeno_mantem_duas_casas(self) -> None:
-        """1 centavo = R$ 0.01 — confere arredondamento/formatacao."""
-        assert _centavos_para_reais_label(1) == "R$ 0.01"
+        """1 centavo = R$ 0,01 — confere arredondamento/formatacao."""
+        assert _centavos_para_reais_label(1) == "R$ 0,01"
 
     def test_valor_com_uma_casa_decimal_em_reais(self) -> None:
-        """10 centavos = R$ 0.10 (nao ``0.1``)."""
-        assert _centavos_para_reais_label(10) == "R$ 0.10"
+        """10 centavos = R$ 0,10 (nao ``0,1``)."""
+        assert _centavos_para_reais_label(10) == "R$ 0,10"
+
+    def test_padrao_brasileiro_com_separador_de_milhar(self) -> None:
+        """123456789 centavos = R$ 1.234.567,89 (milhar '.', decimal ',')."""
+        assert _centavos_para_reais_label(123456789) == "R$ 1.234.567,89"
 
 
 class TestTotalOrcamentoLabel:
@@ -45,7 +49,7 @@ class TestTotalOrcamentoLabel:
         """Bug 1: backend usa chave ``total_centavos``. O codigo antigo lia
         ``orcamento.get("total", 0)`` — essa chave nunca existe no payload, e
         por isso todos os orcamentos apareciam como R$ 0,00."""
-        assert _total_orcamento_label({"total_centavos": 28500}) == "Total: R$ 285.00"
+        assert _total_orcamento_label({"total_centavos": 28500}) == "Total: R$ 285,00"
 
     def test_chave_obsoleta_total_nao_afeta_resultado(self) -> None:
         """Regressao: se um desenvolvedor reintroduzir a leitura de ``total``
@@ -53,12 +57,12 @@ class TestTotalOrcamentoLabel:
         payload com ambas as chaves ainda deve usar ``total_centavos``, nunca
         ``total``."""
         payload = {"total_centavos": 28500, "total": 999}
-        assert _total_orcamento_label(payload) == "Total: R$ 285.00"
+        assert _total_orcamento_label(payload) == "Total: R$ 285,00"
 
     def test_total_centavos_ausente_vira_zero(self) -> None:
         """Orcamento recem-gerado sem itens ainda pode vir sem
         ``total_centavos``. Nao deve explodir, mostra zero."""
-        assert _total_orcamento_label({}) == "Total: R$ 0.00"
+        assert _total_orcamento_label({}) == "Total: R$ 0,00"
 
     def test_ordens_com_item_unico_exibe_valor_coerente(self) -> None:
         """Shape realista do backend (um item, quantidade 1)."""
@@ -73,7 +77,7 @@ class TestTotalOrcamentoLabel:
                 }
             ],
         }
-        assert _total_orcamento_label(payload) == "Total: R$ 50.00"
+        assert _total_orcamento_label(payload) == "Total: R$ 50,00"
 
 
 class TestCampoOuPlaceholder:

@@ -54,14 +54,13 @@ spec:
                 name: pytstop-config
             - secretRef:
                 name: pytstop-secrets
-          # Caminho do heartbeat explicito no container (alinhado ao default
-          # do ConfigMap): a probe abaixo le este mesmo arquivo. As envs de
-          # metricas (TD-022/ADR-024) ligam o /metrics: RELAY_METRICS_ENABLED
-          # gateia a instrumentacao OTel (relay/metrics.py) e RELAY_METRICS_PORT
-          # casa com a `containerPort: 9100` e o Service `pytstop-relay-metrics`.
+          # RELAY_HEARTBEAT vem SO do ConfigMap (envFrom acima) — a copia
+          # literal que existia aqui duplicava a fonte e podia divergir do
+          # caminho que as probes leem. As envs de metricas (TD-022/ADR-024)
+          # ligam o /metrics: RELAY_METRICS_ENABLED gateia a instrumentacao
+          # OTel (relay/metrics.py) e RELAY_METRICS_PORT casa com a
+          # `containerPort: 9100` e o Service `pytstop-relay-metrics`.
           env:
-            - name: RELAY_HEARTBEAT
-              value: /tmp/relay-heartbeat
             - name: RELAY_METRICS_ENABLED
               value: "true"
             - name: RELAY_METRICS_PORT
@@ -71,11 +70,28 @@ spec:
           ports:
             - name: metrics
               containerPort: 9100
+          # Readiness com o MESMO exec do liveness, janela menor: sem ela o
+          # pod nasceria Ready na hora e o Service de metrics apontaria para
+          # um relay que ainda nem escreveu o primeiro heartbeat. Nao ha
+          # trafego de negocio a proteger — o ganho e o endpoint /metrics so
+          # entrar no Service com o loop de fato rodando.
+          readinessProbe:
+            exec:
+              command:
+                - python
+                - -c
+                - "import os,sys,time; p=os.getenv('RELAY_HEARTBEAT','/tmp/relay-heartbeat'); sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p) < 60 else 1)"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 5
           # Liveness por HEARTBEAT (F6), nao por `kill -0 1`: um SMTP travado
           # ou loop preso mantem o PID 1 vivo, mas para de atualizar o
           # heartbeat. A probe falha se o arquivo nao existir ou estiver mais
           # velho que 60s (>= 2 ciclos de poll de 5s + margem) -> o kubelet
           # reinicia o pod. So um relay vivo E progredindo passa.
+          # timeoutSeconds explicito (default 1s): o exec sobe um interprete
+          # Python inteiro — num no sob pressao 1s mata a probe por timeout
+          # e reinicia um relay saudavel.
           livenessProbe:
             exec:
               command:
@@ -84,6 +100,7 @@ spec:
                 - "import os,sys,time; p=os.getenv('RELAY_HEARTBEAT','/tmp/relay-heartbeat'); sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p) < 60 else 1)"
             initialDelaySeconds: 15
             periodSeconds: 20
+            timeoutSeconds: 5
           resources:
             requests:
               cpu: 50m

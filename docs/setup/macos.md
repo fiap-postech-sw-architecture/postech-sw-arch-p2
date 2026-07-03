@@ -429,7 +429,7 @@ uv run python -c "import selenium; print(selenium.__version__)"
 ### Rodar os testes lentos
 
 ```bash
-uv run pytest tests/unitarios/ui/componentes/ -m lento -v --no-lint
+uv run pytest tests/unitarios/ui/componentes/ -m lento -v
 ```
 
 Primeira execução baixa o chromedriver. Cache em `~/Library/Caches/selenium/` (ou `~/.cache/selenium/`).

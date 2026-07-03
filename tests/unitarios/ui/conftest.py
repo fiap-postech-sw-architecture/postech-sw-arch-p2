@@ -31,12 +31,17 @@ if not _BROWSER_TESTING_DISPONIVEL:
 
 
 @pytest.fixture(autouse=True)
-def _preservar_storage_nicegui() -> None:
+def _preservar_storage_nicegui() -> Iterator[None]:
     snapshots = {
-        path: path.read_bytes()
-        for path in _NICEGUI_STORAGE_DIR.glob("storage-user-*.json")
+        path: path.read_bytes() for path in _NICEGUI_STORAGE_DIR.glob("storage-*.json")
     }
     yield
+    # Arquivos storage-*.json CRIADOS pelo teste (fora do snapshot inicial)
+    # sao removidos — antes vazavam para a working tree; os pre-existentes
+    # tem o conteudo restaurado byte a byte.
+    for path in _NICEGUI_STORAGE_DIR.glob("storage-*.json"):
+        if path not in snapshots:
+            path.unlink(missing_ok=True)
     if not snapshots:
         return
     _NICEGUI_STORAGE_DIR.mkdir(exist_ok=True)

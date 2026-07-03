@@ -56,14 +56,11 @@ def iniciar_mapeamentos() -> None:
         valor = target._preco_valor  # type: ignore[attr-defined]
         moeda = target._preco_moeda  # type: ignore[attr-defined]
         object.__setattr__(target, "_preco", Dinheiro(valor=valor, moeda=moeda))
-        # Preserva o guard de imutabilidade de id em instancias carregadas
-        # (SQLAlchemy nao invoca __post_init__).
-        object.__setattr__(target, "_id_atribuido", True)
         # __init__ nao roda no load (reconstituicao via __new__), entao o campo
         # init=False _eventos_pendentes nao existe na instancia. Semeia vazio
-        # para paridade com cliente_veiculo/mapping.py e para _registrar_evento
-        # nao estourar AttributeError quando o agregado emitir eventos em
-        # mutacoes (desativar/atualizar).
+        # para paridade com cliente_veiculo/mapping.py e para a infraestrutura
+        # que varre eventos pendentes (UoW/outbox) nao estourar AttributeError.
+        # Hoje so a factory `criar` emite evento; mutacoes nao emitem.
         object.__setattr__(target, "_eventos_pendentes", [])
 
     @event.listens_for(ServicoOferecido, "before_insert")

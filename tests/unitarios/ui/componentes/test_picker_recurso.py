@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from typing import TYPE_CHECKING, Any
+
 import pytest
 
 from ui.cliente_api import (
@@ -12,10 +14,15 @@ from ui.cliente_api import (
     RateLimitExcedidoError,
     ValidacaoError,
 )
-from ui.componentes.picker_recurso import CacheRecursos, PickerRecurso
+from ui.componentes.picker_recurso import PickerRecurso
+
+if TYPE_CHECKING:
+    from collections.abc import Callable
 
 
-def _picker_sem_widget(rotulo: str, cache: CacheRecursos) -> PickerRecurso:
+def _picker_sem_widget(
+    rotulo: str, fetcher: Callable[[], list[dict[str, Any]]]
+) -> PickerRecurso:
     """Constroi PickerRecurso sem chamar __init__ (que dispara NiceGUI).
 
     Permite testar a logica de _obter_opcoes em isolamento, sem subir
@@ -25,21 +32,40 @@ def _picker_sem_widget(rotulo: str, cache: CacheRecursos) -> PickerRecurso:
     picker._campo_id = "id"
     picker._campo_label = "nome"
     picker._rotulo = rotulo
-    picker._cache = cache
+    picker._fetcher = fetcher
     return picker
 
 
 def test_obter_opcoes_retorna_dict_no_caminho_feliz() -> None:
-    cache = CacheRecursos(
-        ttl_seg=30,
+    picker = _picker_sem_widget(
+        rotulo="Cliente",
         fetcher=lambda: [
             {"id": "u-1", "nome": "Alfa"},
             {"id": "u-2", "nome": "Beta"},
         ],
     )
-    picker = _picker_sem_widget(rotulo="Cliente", cache=cache)
 
     assert picker._obter_opcoes() == {"u-1": "Alfa", "u-2": "Beta"}
+
+
+def test_obter_opcoes_chama_fetcher_direto_a_cada_chamada() -> None:
+    """Sem cache (removido no #174): o fetcher e a fonte a cada render/refresh.
+
+    O antigo ``CacheRecursos`` por instancia nunca tinha hit (pickers vivem
+    dentro de dialogs recriados a cada abertura) — este teste pina o contrato
+    novo: N chamadas => N fetches.
+    """
+    chamadas = 0
+
+    def fetch() -> list[dict[str, str]]:
+        nonlocal chamadas
+        chamadas += 1
+        return [{"id": "1", "nome": "Alfa"}]
+
+    picker = _picker_sem_widget(rotulo="Cliente", fetcher=fetch)
+    picker._obter_opcoes()
+    picker._obter_opcoes()
+    assert chamadas == 2
 
 
 # Travamos o contrato "qualquer subclasse de ApiError cai no branch": se
@@ -71,10 +97,7 @@ def test_obter_opcoes_captura_qualquer_subclasse_de_api_error(
         lambda msg, **kw: notifies.append((msg, kw)),
     )
 
-    picker = _picker_sem_widget(
-        rotulo="Cliente",
-        cache=CacheRecursos(ttl_seg=30, fetcher=fetcher_falho),
-    )
+    picker = _picker_sem_widget(rotulo="Cliente", fetcher=fetcher_falho)
 
     assert picker._obter_opcoes() == {}
     assert len(notifies) == 1
@@ -104,21 +127,19 @@ def test_obter_opcoes_propaga_excecoes_nao_api(
         lambda msg, **_: notifies.append(msg),
     )
 
-    picker = _picker_sem_widget(
-        rotulo="Cliente",
-        cache=CacheRecursos(ttl_seg=30, fetcher=fetcher_buggy),
-    )
+    picker = _picker_sem_widget(rotulo="Cliente", fetcher=fetcher_buggy)
 
     with pytest.raises(ValueError, match="bug interno"):
         picker._obter_opcoes()
     assert notifies == []
 
 
-def test_cache_nao_e_envenenado_por_fetcher_falho() -> None:
-    """Invariante facil de quebrar num refactor: se `CacheRecursos.obter`
-    setar `_cache = []` antes do `fetcher()` levantar, o segundo fetch
-    veria o cache vazio em vez de re-tentar.
-    """
+def test_fetcher_falho_nao_impede_retentativa(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """Offline na primeira chamada nao pode 'grudar': a proxima chamada
+    re-busca e retorna os dados (equivalente ao antigo teste de cache
+    nao-envenenado, agora sem cache)."""
     chamadas = 0
 
     def fetch() -> list[dict[str, str]]:
@@ -128,88 +149,15 @@ def test_cache_nao_e_envenenado_por_fetcher_falho() -> None:
             raise BackendInacessivelError("http://localhost:8000")
         return [{"id": "1", "nome": "Alfa"}]
 
-    cache = CacheRecursos(ttl_seg=30, fetcher=fetch)
-    with pytest.raises(BackendInacessivelError):
-        cache.obter()
-    assert cache.obter() == [{"id": "1", "nome": "Alfa"}]
-    assert chamadas == 2
-
-
-def test_refresh_chama_obter_opcoes_e_propaga_vazio_em_offline(
-    monkeypatch: pytest.MonkeyPatch,
-) -> None:
-    """`_refresh` invalida o cache e re-busca; em offline, deve passar
-    pelo branch ApiError (sem crash) e produzir dict vazio. O teste
-    verifica que o caminho passa pelo notify (ja monkeypatchado), sem
-    propagar excecao."""
-
-    chamadas = 0
-
-    def fetch() -> list[dict[str, str]]:
-        nonlocal chamadas
-        chamadas += 1
-        if chamadas == 1:
-            return [{"id": "1", "nome": "Alfa"}]
-        raise BackendInacessivelError("http://localhost:8000")
-
     notifies: list[str] = []
     monkeypatch.setattr(
         "ui.componentes.picker_recurso.ui.notify",
         lambda msg, **_: notifies.append(msg),
     )
 
-    picker = _picker_sem_widget(
-        rotulo="Servico",
-        cache=CacheRecursos(ttl_seg=30, fetcher=fetch),
-    )
-    # primeira chamada popula cache
-    assert picker._obter_opcoes() == {"1": "Alfa"}
-    # invalida cache pra forcar re-fetch (que vai falhar)
-    picker._cache.invalidar()
+    picker = _picker_sem_widget(rotulo="Servico", fetcher=fetch)
     assert picker._obter_opcoes() == {}
+    assert picker._obter_opcoes() == {"1": "Alfa"}
+    assert chamadas == 2
     assert len(notifies) == 1
     assert "Servico" in notifies[0]
-
-
-def test_cache_retorna_itens_frescos_na_primeira_chamada() -> None:
-    calls = 0
-
-    def fetch() -> list[dict[str, str]]:
-        nonlocal calls
-        calls += 1
-        return [{"id": "1", "nome": "Alfa"}]
-
-    cache = CacheRecursos(ttl_seg=30, fetcher=fetch)
-    items = cache.obter()
-    assert items == [{"id": "1", "nome": "Alfa"}]
-    assert calls == 1
-
-
-def test_cache_reutiliza_antes_de_expirar() -> None:
-    calls = 0
-
-    def fetch() -> list[dict[str, str]]:
-        nonlocal calls
-        calls += 1
-        return []
-
-    cache = CacheRecursos(ttl_seg=30, fetcher=fetch)
-    cache.obter()
-    cache.obter()
-    cache.obter()
-    assert calls == 1
-
-
-def test_cache_invalidar_forca_refetch() -> None:
-    calls = 0
-
-    def fetch() -> list[dict[str, str]]:
-        nonlocal calls
-        calls += 1
-        return []
-
-    cache = CacheRecursos(ttl_seg=30, fetcher=fetch)
-    cache.obter()
-    cache.invalidar()
-    cache.obter()
-    assert calls == 2

@@ -27,7 +27,7 @@ Pirâmide de testes adaptada para DDD com Onion Architecture (evoluída para Cle
 /________________\ Value Objects, Entities, Aggregates, Services
 ```
 
-A distribuição **atual** da suíte é fortemente concentrada em testes unitários, com integração cobrindo as fronteiras de infraestrutura e a camada E2E/BDD ainda não implementada (apenas um smoke test de saúde em `tests/e2e/`):
+A distribuição **atual** da suíte é fortemente concentrada em testes unitários, com integração cobrindo as fronteiras de infraestrutura e a camada E2E/BDD ainda não implementada (o diretório `tests/e2e/` foi removido; o antigo smoke de saúde virou teste unitário do app completo em `tests/unitarios/compartilhado/test_saude.py`):
 
 | Nível       | Proporção atual | Tempo de execução | Infraestrutura       | Ferramentas                   |
 |-------------|-----------------|-------------------|----------------------|-------------------------------|
@@ -150,7 +150,7 @@ FastAPI TestClient com testcontainers para PostgreSQL real.
 
 ## 7. Testes E2E / BDD (planejado)
 
-> **Status: planejado, não entregue.** Esta seção descreve o *roadmap* da camada E2E/BDD, não o estado atual do código. A decisão está registrada em [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md), ainda com Status **"Proposta"**, e o débito correspondente é o [TD-013](../tech-debt/README.md) (deliberadamente adiado para depois do MVP). Hoje `tests/e2e/` contém apenas um smoke test de saúde (`test_saude.py`); **não há** `pytest-bdd` no `pyproject.toml` nem arquivos `.feature`. Promover esta camada a entregue exige uma issue própria (adicionar a dependência, escrever os feature files/steps e promover a ADR-013 a "Aceita").
+> **Status: planejado, não entregue.** Esta seção descreve o *roadmap* da camada E2E/BDD, não o estado atual do código. A decisão está registrada em [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md), ainda com Status **"Proposta"**, e o débito correspondente é o [TD-013](../tech-debt/README.md) (deliberadamente adiado para depois do MVP). Hoje **não existe** `tests/e2e/` (o antigo smoke de saúde virou teste unitário do app completo em `tests/unitarios/compartilhado/test_saude.py`); **não há** `pytest-bdd` no `pyproject.toml` nem arquivos `.feature`. Promover esta camada a entregue exige uma issue própria (adicionar a dependência, escrever os feature files/steps e promover a ADR-013 a "Aceita").
 
 ### Abordagem proposta
 

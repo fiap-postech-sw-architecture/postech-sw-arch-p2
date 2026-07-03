@@ -12,6 +12,7 @@ from typing import ClassVar
 
 import pytest
 
+from src.ordem_servico.aplicacao.ports import FalhaEnvioEmailException
 from src.ordem_servico.infraestrutura.email_adapter import SmtpEmailAdapter
 
 
@@ -94,9 +95,9 @@ class TestSmtpEmailAdapter:
     def test_porta_mal_configurada_falha_no_envio_e_nao_na_construcao(
         self, fake_smtp: type[_FakeSMTP], monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """Misconfig de env vira falha de ENVIO (engolida pelo handler),
-        nunca falha de construcao no composition root — que derrubaria a
-        request da transicao inteira antes do use case rodar.
+        """Misconfig de env vira falha de ENVIO (tratada por linha no relay),
+        nunca falha de construcao — que quebraria a montagem do mapa de
+        handlers do relay antes de qualquer entrega.
         """
         monkeypatch.setenv("SMTP_PORT", "nao-numerica")
 
@@ -106,12 +107,12 @@ class TestSmtpEmailAdapter:
             adapter.enviar(destinatario="x@y.com", assunto="a", corpo="b")
         assert fake_smtp.instancias == []
 
-    def test_falha_de_conexao_propaga_para_o_caller(
+    def test_falha_de_conexao_traduz_para_excecao_da_porta(
         self, monkeypatch: pytest.MonkeyPatch
     ) -> None:
-        """O adapter NAO engole falhas: a tolerancia a falha e
-        responsabilidade do handler de notificacao (defesa em camada
-        unica evita esconder erros de outros usos futuros da porta).
+        """O adapter NAO engole falhas: traduz o transporte concreto
+        (``OSError``) em ``FalhaEnvioEmailException`` e propaga — a
+        aplicacao trata a falha sem conhecer smtplib.
         """
 
         def smtp_que_recusa(*_args: object, **_kwargs: object) -> object:
@@ -120,5 +121,24 @@ class TestSmtpEmailAdapter:
         monkeypatch.setattr(smtplib, "SMTP", smtp_que_recusa)
 
         adapter = SmtpEmailAdapter()
-        with pytest.raises(ConnectionRefusedError):
+        with pytest.raises(FalhaEnvioEmailException) as excinfo:
             adapter.enviar(destinatario="x@y.com", assunto="a", corpo="b")
+        # Causa original preservada para diagnostico no log do relay.
+        assert isinstance(excinfo.value.__cause__, ConnectionRefusedError)
+
+    def test_erro_de_protocolo_smtp_traduz_para_excecao_da_porta(
+        self, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """``smtplib.SMTPException`` (erro de protocolo, nao de conexao)
+        tambem e transporte -> mesma traducao para a excecao da porta.
+        """
+
+        def smtp_que_falha(*_args: object, **_kwargs: object) -> object:
+            raise smtplib.SMTPException("550 mailbox unavailable")
+
+        monkeypatch.setattr(smtplib, "SMTP", smtp_que_falha)
+
+        adapter = SmtpEmailAdapter()
+        with pytest.raises(FalhaEnvioEmailException) as excinfo:
+            adapter.enviar(destinatario="x@y.com", assunto="a", corpo="b")
+        assert isinstance(excinfo.value.__cause__, smtplib.SMTPException)

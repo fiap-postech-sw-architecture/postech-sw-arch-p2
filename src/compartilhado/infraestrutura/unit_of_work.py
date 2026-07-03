@@ -51,8 +51,8 @@ class SQLAlchemyUnitOfWork:
         insere na ``outbox``; emite ``pg_notify('outbox_novo')``
         (transacional -- so chega ao relay no COMMIT). Apos o commit: remove
         do agregado APENAS os ``IntegrationEvent`` enfileirados -- os domain
-        events puros permanecem em ``_eventos_pendentes`` para o
-        ``_despachar_pos_commit`` sincrono dos use cases (F9).
+        events puros permanecem em ``_eventos_pendentes`` disponiveis para
+        consumidores sincronos in-process (hoje nenhum registrado; F9).
         """
         agregados = self._agregados_pendentes()
         por_agregado = {

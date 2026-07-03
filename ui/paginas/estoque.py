@@ -7,15 +7,37 @@ from typing import TYPE_CHECKING, Any
 from nicegui import ui
 
 from ui.auth_guard import exige_autenticacao
-from ui.cliente_api import ApiError
+from ui.cliente_api import ApiError, NaoAutenticadoError
 from ui.componentes.cabecalho import CabecalhoApp
 from ui.componentes.dialogo_confirmacao import confirmar
+from ui.componentes.listagem import rodape_contagem
+from ui.componentes.notificacoes import notificar_erro_api
+from ui.formatacao import formatar_dinheiro_br
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 
 _LIMITE_BAIXO = 5
+
+
+def _quantidade_estoque_valida(valor: Any) -> int | None:  # noqa: ANN401  # ui.number
+    """Normaliza ``ui.number().value`` de quantidade de estoque em int >= 0.
+
+    Mesmo padrao de ``_quantidade_valida`` (ordens_servico), mas aceitando
+    zero (estoque zerado e estado legitimo). Campo vazio/invalido retorna
+    ``None`` pra caller notificar — antes ``int(value or 0)`` zerava o
+    estoque silenciosamente quando o usuario apagava o campo e salvava.
+    """
+    if valor is None or valor == "":
+        return None
+    try:
+        n = int(valor)
+    except TypeError, ValueError:
+        return None
+    if n < 0:
+        return None
+    return n
 
 
 @ui.page("/estoque")
@@ -46,6 +68,9 @@ def _renderizar(on_refresh: Callable[[], None]) -> None:
 
     try:
         dados = obter_api().listar_estoque()
+    except NaoAutenticadoError:
+        ui.navigate.to("/login")
+        return
     except ApiError as exc:
         ui.label(f"Erro: {exc}").classes("text-red-600")
         return
@@ -58,7 +83,7 @@ def _renderizar(on_refresh: Callable[[], None]) -> None:
         with ui.card().classes(classes):
             with ui.row().classes("items-center gap-4 w-full"):
                 ui.label(item["nome"]).classes("font-bold flex-1")
-                ui.label(f"R$ {float(item.get('preco_unitario', 0)):.2f}").classes(
+                ui.label(formatar_dinheiro_br(item.get("preco_unitario"))).classes(
                     "text-sm"
                 )
                 _controle_quantidade(item, on_refresh)
@@ -74,6 +99,7 @@ def _renderizar(on_refresh: Callable[[], None]) -> None:
                 ui.label(item["descricao"]).classes("text-xs text-gray-600")
             if quantidade <= _LIMITE_BAIXO:
                 ui.label("Estoque baixo").classes("text-xs text-yellow-800")
+    rodape_contagem(dados)
 
 
 def _controle_quantidade(item: dict[str, Any], on_refresh: Callable[[], None]) -> None:
@@ -84,10 +110,15 @@ def _controle_quantidade(item: dict[str, Any], on_refresh: Callable[[], None]) -
         min=0,
         step=1,
     ).classes("w-24")
-    ui.button(
-        icon="save",
-        on_click=lambda: _ajustar(item_id, int(qty_input.value or 0), on_refresh),
-    ).props("flat dense")
+
+    def salvar_quantidade() -> None:
+        qtd = _quantidade_estoque_valida(qty_input.value)
+        if qtd is None:
+            ui.notify("Informe uma quantidade valida (>= 0).", type="warning")
+            return
+        _ajustar(item_id, qtd, on_refresh)
+
+    ui.button(icon="save", on_click=salvar_quantidade).props("flat dense")
 
 
 def _ajustar(
@@ -125,7 +156,9 @@ def _dialog_item(item: dict[str, Any] | None, on_sucesso: Callable[[], None]) ->
         ).classes("w-full")
         preco = ui.number(
             "Preco unitario",
-            value=float((item or {}).get("preco_unitario", 0)),
+            # Backend exige preco_unitario > 0; 0.01 e o minimo real — antes o
+            # default 0 de "Novo item" ja nascia invalido (422 garantido).
+            value=float((item or {}).get("preco_unitario") or 0.01),
             min=0.01,
             step=0.01,
         ).classes("w-full")
@@ -146,7 +179,14 @@ def _dialog_item(item: dict[str, Any] | None, on_sucesso: Callable[[], None]) ->
                 "preco_unitario": preco.value,
             }
             if qty_field is not None:
-                body["quantidade"] = int(qty_field.value or 0)
+                qtd = _quantidade_estoque_valida(qty_field.value)
+                if qtd is None:
+                    ui.notify(
+                        "Informe uma quantidade inicial valida (>= 0).",
+                        type="warning",
+                    )
+                    return
+                body["quantidade"] = qtd
             try:
                 if item:
                     obter_api().atualizar_item_estoque(item["id"], body)
@@ -156,11 +196,13 @@ def _dialog_item(item: dict[str, Any] | None, on_sucesso: Callable[[], None]) ->
                 ui.notify("Salvo", type="positive")
                 on_sucesso()
             except ApiError as exc:
-                ui.notify(f"Erro: {exc}", type="negative")
+                notificar_erro_api(exc)
 
         with ui.row().classes("justify-end gap-2 w-full"):
             ui.button("Cancelar", on_click=dialog.close).props("flat")
             ui.button("Salvar", on_click=salvar).classes("bg-blue-600 text-white")
+    # Sem delete o dialog acumula no layout a cada abertura.
+    dialog.on("hide", dialog.delete)
     dialog.open()
 
 

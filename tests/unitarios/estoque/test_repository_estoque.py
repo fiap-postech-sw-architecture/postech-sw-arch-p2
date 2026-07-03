@@ -26,11 +26,6 @@ def _mapeamento_estoque_registrado() -> None:
 
 
 class TestRepositoryEstoque:
-    def test_init(self) -> None:
-        session = MagicMock()
-        repo = ItemEstoqueSQLAlchemyRepository(session=session)
-        assert repo._session is session
-
     def test_obter_por_id(self) -> None:
         session = MagicMock()
         session.get.return_value = None

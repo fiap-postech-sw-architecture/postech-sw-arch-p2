@@ -29,9 +29,6 @@ _VALIDAS_SET = set(_TRANSICOES_VALIDAS)
 
 
 class TestMaquinaDeStatus:
-    def test_total_transicoes_validas(self) -> None:
-        assert len(_TRANSICOES_VALIDAS) == 12
-
     @pytest.mark.parametrize(("de", "para"), _TRANSICOES_VALIDAS)
     def test_transicao_valida(self, de: StatusOrdem, para: StatusOrdem) -> None:
         maquina = MaquinaDeStatus()

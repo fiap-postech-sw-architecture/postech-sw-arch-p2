@@ -213,6 +213,38 @@ def test_guard_idempotencia_ordens_pula_criacao_se_ja_existem_suficientes() -> N
     assert any("OS ja existem" in a for a in rel.avisos)
 
 
+def test_guard_idempotencia_conta_com_incluir_encerradas() -> None:
+    """Fix 5 do #174: 3 das 8 OS do seed terminam encerradas (FINALIZADA/
+    ENTREGUE/CANCELADA) e o default do backend as exclui do ``total`` — o
+    guard contava 5 e re-runs acumulavam mais 8 OS. A contagem precisa pedir
+    ``incluir_encerradas=True``."""
+    api = _api_padrao_feliz()
+    api.listar_veiculos.return_value = [{"id": "v1", "placa": "ABC1D23"}]
+
+    gerar_dados_teste(api, on_progresso=lambda *_: None)
+
+    api.listar_ordens.assert_called_once_with(limit=1, incluir_encerradas=True)
+
+
+def test_cliente_falho_nao_desloca_veiculos_dos_demais() -> None:
+    """NIT do #174: cliente que falha na criacao entra como ``None`` na lista
+    de ids — sem o placeholder, os veiculos dos indices seguintes caiam no
+    cliente errado (desalinhamento posicional com _VEICULOS)."""
+    api = _api_padrao_feliz()
+    # Primeiro cliente falha; demais criados com id posicional.
+    side_effects: list[Any] = [{"id": f"c{i}"} for i in range(len(_CLIENTES))]
+    side_effects[0] = ApiError("documento invalido")
+    api.criar_cliente.side_effect = side_effects
+
+    gerar_dados_teste(api, on_progresso=lambda *_: None)
+
+    # Nenhum veiculo do cliente 0 (indices 0/1 de _VEICULOS) foi criado, e os
+    # dos outros clientes foram para os ids CORRETOS (c1, c2, ...).
+    clientes_com_veiculo = {c.args[0] for c in api.adicionar_veiculo.call_args_list}
+    esperados = {f"c{idx}" for idx, _ in _VEICULOS if idx != 0 and idx < len(_CLIENTES)}
+    assert clientes_com_veiculo == esperados
+
+
 def test_relatorio_seed_resumo_formata_texto() -> None:
     rel = RelatorioSeed(
         clientes_criados=2,

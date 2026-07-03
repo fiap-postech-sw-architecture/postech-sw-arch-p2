@@ -88,10 +88,10 @@ class EnriquecerOrdemDeServico:
         servicos_por_id = self._catalogo_port.obter_servicos_em_lote(servico_ids)
         itens_estoque_por_id = self._estoque_port.obter_itens_em_lote(estoque_ids)
 
-        itens_enriquecidos = [
+        itens_enriquecidos = tuple(
             self._enriquecer_item(item, servicos_por_id, itens_estoque_por_id)
             for item in ordem.itens
-        ]
+        )
         return replace(
             ordem,
             itens=itens_enriquecidos,

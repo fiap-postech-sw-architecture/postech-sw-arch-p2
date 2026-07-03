@@ -104,6 +104,25 @@ resource "kubernetes_stateful_set" "postgres" {
             failure_threshold     = 6
           }
 
+          # Liveness deliberadamente folgada (period 30s x 5 falhas = ate
+          # ~2min30 de tolerancia): so reinicia um postgres realmente
+          # travado; quem tira o pod do Service durante initdb/recovery e a
+          # readiness acima. Mesmo pg_isready via TCP.
+          liveness_probe {
+            exec {
+              command = [
+                "/bin/sh",
+                "-c",
+                "pg_isready -h 127.0.0.1 -U \"$POSTGRES_USER\" -d \"$POSTGRES_DB\"",
+              ]
+            }
+
+            initial_delay_seconds = 30
+            period_seconds        = 30
+            timeout_seconds       = 3
+            failure_threshold     = 5
+          }
+
           # Valores modestos para cluster local de demo; o limite de
           # memoria acomoda os 128MB default de shared_buffers do
           # postgres:16 com folga para work_mem.

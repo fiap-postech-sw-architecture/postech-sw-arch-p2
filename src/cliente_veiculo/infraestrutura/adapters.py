@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Final
 
 from sqlalchemy import exists, select
 
+from src.ordem_servico.dominio.status import StatusOrdem
 from src.ordem_servico.infraestrutura.mapping import ordens_de_servico_table
 
 if TYPE_CHECKING:
@@ -11,7 +12,11 @@ if TYPE_CHECKING:
 
     from sqlalchemy.orm import Session
 
-_ESTADOS_TERMINAIS = {"entregue", "cancelada"}
+# Derivado de StatusOrdem (fonte unica) em vez de strings soltas — espelha
+# _ESTADOS_TERMINAIS de ordem_servico/infraestrutura/repository.py.
+_ESTADOS_TERMINAIS: Final[frozenset[str]] = frozenset(
+    {StatusOrdem.ENTREGUE.value, StatusOrdem.CANCELADA.value}
+)
 
 
 class OrdemDeServicoSQLAlchemyAdapter:

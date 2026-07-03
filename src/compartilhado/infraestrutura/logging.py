@@ -109,8 +109,9 @@ def _mask_cpf(match: re.Match[str]) -> str:
 
 
 def _mask_cnpj(match: re.Match[str]) -> str:
+    # Digitos do CNPJ NN.NNN.NNN/NNNN-NN: o terceiro grupo e raw[5:8].
     raw = match.group().replace(".", "").replace("/", "").replace("-", "")
-    return f"**.***.{raw[4:7]}/****-**"
+    return f"**.***.{raw[5:8]}/****-**"
 
 
 def _mask_email(match: re.Match[str]) -> str:
@@ -148,6 +149,9 @@ def _scrub_value(value: Any, depth: int) -> Any:  # noqa: ANN401
         return [_scrub_value(item, depth + 1) for item in value]
     if isinstance(value, tuple):
         return tuple(_scrub_value(item, depth + 1) for item in value)
+    if isinstance(value, (set, frozenset)):
+        limpo = {_scrub_value(item, depth + 1) for item in value}
+        return limpo if isinstance(value, set) else frozenset(limpo)
     return value
 
 
@@ -175,7 +179,7 @@ _MAX_ERRO_LEN = 200
 
 
 def redigir_pii_erro(erro: str) -> str:
-    """Remove PII (CPF, CNPJ, e-mail) de strings de erro antes de persistir.
+    """Remove PII (CPF, CNPJ, e-mail, telefone) de strings de erro.
 
     Complementa o scrubber de log (``scrub_pii``): aquele actua no pipeline
     de structlog em memoria; esta funcao actua em strings que serao gravadas

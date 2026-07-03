@@ -1,14 +1,15 @@
+from datetime import datetime
 from typing import Literal
 from uuid import UUID
 
 from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 from src.cliente_veiculo.dominio.veiculo import (
-    _ANO_PRIMEIRO_CARRO,
-    _ano_maximo_permitido,
+    ANO_PRIMEIRO_CARRO,
+    ano_maximo_permitido,
 )
 
-_ANO_MINIMO = _ANO_PRIMEIRO_CARRO + 1
+_ANO_MINIMO = ANO_PRIMEIRO_CARRO + 1
 
 
 class CriarClienteRequest(BaseModel):
@@ -35,7 +36,7 @@ class AdicionarVeiculoRequest(BaseModel):
     """Payload de entrada para adicao de veiculo a um cliente.
 
     O limite maximo do campo `ano` e resolvido dinamicamente pela regra do
-    dominio (`_ano_maximo_permitido()`), garantindo que o schema e o agregado
+    dominio (`ano_maximo_permitido()`), garantindo que o schema e o agregado
     `Veiculo` falhem consistentemente com o mesmo range — incluindo nos testes
     que congelam o ano maximo via monkeypatch.
     """
@@ -50,7 +51,7 @@ class AdicionarVeiculoRequest(BaseModel):
     @field_validator("ano")
     @classmethod
     def _ano_nao_excede_dominio(cls, v: int) -> int:
-        limite = _ano_maximo_permitido()
+        limite = ano_maximo_permitido()
         if v > limite:
             msg = f"ano deve ser menor ou igual a {limite}"
             raise ValueError(msg)
@@ -108,7 +109,7 @@ class DadosPessoaisResponse(BaseModel):
     documento_formatado: str
     tipo_documento: str
     contato: str
-    veiculos: list[dict[str, object]]
+    veiculos: list[VeiculoResponse]
     ativo: bool
 
 
@@ -122,6 +123,17 @@ class ConsentimentoRequest(BaseModel):
         examples=["tratamento_dados", "marketing", "compartilhamento"],
     )
 
+    @field_validator("tipo")
+    @classmethod
+    def _normalizar_tipo(cls, v: str) -> str:
+        # Canonicaliza o tipo (lowercase + strip) para que "Marketing" e
+        # "marketing " contem como o MESMO consentimento no par cliente+tipo.
+        normalizado = v.strip().lower()
+        if not normalizado:
+            msg = "tipo de consentimento nao pode ser vazio"
+            raise ValueError(msg)
+        return normalizado
+
 
 class ConsentimentoResponse(BaseModel):
     """Representacao de consentimento LGPD."""
@@ -129,6 +141,6 @@ class ConsentimentoResponse(BaseModel):
     id: UUID
     cliente_id: UUID
     tipo: str
-    concedido_em: str
-    revogado_em: str | None
+    concedido_em: datetime
+    revogado_em: datetime | None
     ativo: bool

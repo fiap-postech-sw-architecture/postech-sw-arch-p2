@@ -3,21 +3,25 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import TYPE_CHECKING
 
-from src.cliente_veiculo.aplicacao.use_cases import _tipo_documento
+from src.cliente_veiculo.aplicacao.dtos import (
+    ConsentimentoDTO,
+    DadosPessoaisDTO,
+)
+from src.cliente_veiculo.aplicacao.use_cases import (
+    obter_cliente_ou_falhar,
+    tipo_documento,
+    veiculo_dto,
+)
 from src.cliente_veiculo.dominio.consentimento import ConsentimentoCliente
 from src.cliente_veiculo.dominio.exceptions import (
-    ClienteNaoEncontradoException,
     ConsentimentoNaoEncontradoException,
 )
+from src.compartilhado.dominio.exceptions import ViolacaoRegraDeNegocioException
 
 if TYPE_CHECKING:
     from uuid import UUID
 
-    from src.cliente_veiculo.aplicacao.dtos import (
-        ConsentimentoDTO,
-        DadosPessoaisDTO,
-        RegistrarConsentimentoDTO,
-    )
+    from src.cliente_veiculo.aplicacao.dtos import RegistrarConsentimentoDTO
     from src.cliente_veiculo.dominio.repository import ClienteRepository
     from src.compartilhado.aplicacao.unit_of_work import UnitOfWork
 
@@ -27,27 +31,14 @@ class ExportarDadosPessoais:
         self._repo = repo
 
     def executar(self, cliente_id: UUID) -> DadosPessoaisDTO:
-        from src.cliente_veiculo.aplicacao.dtos import DadosPessoaisDTO
-
-        cliente = self._repo.obter_por_id(cliente_id)
-        if cliente is None:
-            raise ClienteNaoEncontradoException()
+        cliente = obter_cliente_ou_falhar(self._repo, cliente_id)
         return DadosPessoaisDTO(
             id=cliente.id,
             nome=cliente.nome,
             documento_formatado=cliente.documento.formatado(),
-            tipo_documento=_tipo_documento(cliente),
+            tipo_documento=tipo_documento(cliente),
             contato=cliente.contato.valor,
-            veiculos=[
-                {
-                    "id": str(v.id),
-                    "placa": v.placa.valor,
-                    "marca": v.marca,
-                    "modelo": v.modelo,
-                    "ano": v.ano,
-                }
-                for v in cliente.veiculos
-            ],
+            veiculos=[veiculo_dto(v) for v in cliente.veiculos],
             ativo=cliente.ativo,
         )
 
@@ -58,9 +49,7 @@ class ExcluirDadosPessoais:
         self._uow = uow
 
     def executar(self, cliente_id: UUID) -> None:
-        cliente = self._repo.obter_por_id(cliente_id)
-        if cliente is None:
-            raise ClienteNaoEncontradoException()
+        obter_cliente_ou_falhar(self._repo, cliente_id)
         with self._uow:
             self._repo.anonimizar_dados(cliente_id)
             self._uow.commit()
@@ -74,11 +63,15 @@ class RegistrarConsentimento:
     def executar(
         self, cliente_id: UUID, dto: RegistrarConsentimentoDTO
     ) -> ConsentimentoDTO:
-        from src.cliente_veiculo.aplicacao.dtos import ConsentimentoDTO
-
-        cliente = self._repo.obter_por_id(cliente_id)
-        if cliente is None:
-            raise ClienteNaoEncontradoException()
+        obter_cliente_ou_falhar(self._repo, cliente_id)
+        existente = self._repo.obter_consentimento(cliente_id, dto.tipo)
+        if existente is not None and existente.ativo:
+            # Grant-grant do mesmo tipo: ja existe consentimento ativo para o
+            # par cliente+tipo. Levanta violacao de regra (409 no mapeamento
+            # de erros existente) em vez de criar registro ativo duplicado.
+            raise ViolacaoRegraDeNegocioException(
+                mensagem="Consentimento ativo ja existe para este tipo"
+            )
         agora = datetime.now(tz=UTC)
         consentimento = ConsentimentoCliente(
             _cliente_id=cliente_id,

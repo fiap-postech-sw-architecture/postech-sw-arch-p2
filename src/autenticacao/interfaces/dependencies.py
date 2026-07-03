@@ -37,7 +37,12 @@ def obter_jwt_service() -> JWTService:
         msg = "JWT_SECRET nao configurado"
         raise RuntimeError(msg)
     expiracao = int(os.environ.get("JWT_EXPIRATION_MINUTES", "30"))
-    return JWTService(chave_secreta=chave, expiracao_minutos=expiracao)
+    refresh_expiracao = int(os.environ.get("JWT_REFRESH_EXPIRATION_MINUTES", "10080"))
+    return JWTService(
+        chave_secreta=chave,
+        expiracao_minutos=expiracao,
+        refresh_expiracao_minutos=refresh_expiracao,
+    )
 
 
 def obter_registrar(session: Session) -> Registrar:

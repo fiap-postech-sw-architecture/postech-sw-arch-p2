@@ -10,11 +10,18 @@ em nivel de modulo (lazy singleton), descartado no shutdown via
 ``encerrar_engine_admin`` (chamado pelo ``lifespan`` do app). A CLI
 (processo curto) cria o seu proprio Engine — so o endpoint, de vida longa,
 usa o cache.
+
+Excecao arquitetural aceita (mesmo racional do ``router_publico``): este
+modulo de INTERFACE do kernel compartilhado importa ``exigir_papel`` do
+contexto ``autenticacao`` — dependencia kernel->contexto restrita a esta
+camada de borda; dominio/aplicacao de compartilhado seguem sem conhecer
+contexto algum.
 """
 
 from __future__ import annotations
 
 import os
+import threading
 from typing import TYPE_CHECKING, Any
 
 import structlog
@@ -35,19 +42,27 @@ router = APIRouter(prefix="/api/v1/admin/outbox", tags=["admin"])
 # Engine cacheado em nivel de modulo (F8): construido na primeira chamada,
 # reusado nas seguintes. Evita churn do pool por request.
 _engine_admin: Engine | None = None
+_engine_lock = threading.Lock()
 
 
 def _engine() -> Engine:
-    """Retorna o Engine admin cacheado, construindo-o na primeira chamada."""
+    """Retorna o Engine admin cacheado, construindo-o na primeira chamada.
+
+    Double-checked locking: o fast path (engine ja criado) nao paga o lock;
+    a criacao e serializada para nao construir dois Engines (e dois pools)
+    sob requests admin concorrentes no primeiro acesso.
+    """
     global _engine_admin  # noqa: PLW0603 — singleton de modulo deliberado
     if _engine_admin is None:
-        url = os.environ.get("DATABASE_URL")
-        if not url:
-            raise HTTPException(
-                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                detail="DATABASE_URL nao configurada",
-            )
-        _engine_admin = criar_engine(url)
+        with _engine_lock:
+            if _engine_admin is None:
+                url = os.environ.get("DATABASE_URL")
+                if not url:
+                    raise HTTPException(
+                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                        detail="DATABASE_URL nao configurada",
+                    )
+                _engine_admin = criar_engine(url)
     return _engine_admin
 
 

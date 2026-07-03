@@ -11,7 +11,10 @@ from src.autenticacao.dominio.exceptions import (
     TokenInvalidoException,
 )
 from src.autenticacao.dominio.papel import Papel
-from src.autenticacao.interfaces.dependencies import obter_jwt_service
+from src.autenticacao.interfaces.dependencies import (
+    obter_jwt_service,
+    obter_token_revogado_repo,
+)
 from src.compartilhado.interfaces.dependencies import obter_session
 
 if TYPE_CHECKING:
@@ -30,6 +33,7 @@ def obter_usuario_atual(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Token de autenticacao nao fornecido",
+            headers={"WWW-Authenticate": "Bearer"},
         )
     try:
         jwt_service = obter_jwt_service()
@@ -41,24 +45,30 @@ def obter_usuario_atual(
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
                 detail="Token nao e do tipo access",
+                headers={"WWW-Authenticate": "Bearer"},
             )
+        # Fail-closed: um payload sem jti nao consegue provar que NAO foi
+        # revogado -- rejeitar em vez de pular a checagem de revogacao.
         jti = payload.get("jti")
-        if jti is not None:
-            from src.autenticacao.interfaces.dependencies import (
-                obter_token_revogado_repo,
+        if jti is None:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token sem identificador (jti)",
+                headers={"WWW-Authenticate": "Bearer"},
             )
-
-            token_repo = obter_token_revogado_repo(session)
-            if token_repo.esta_revogado(str(jti)):
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Token revogado",
-                )
+        token_repo = obter_token_revogado_repo(session)
+        if token_repo.esta_revogado(str(jti)):
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token revogado",
+                headers={"WWW-Authenticate": "Bearer"},
+            )
         return payload
     except (TokenExpiradoException, TokenInvalidoException) as e:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail=str(e.mensagem),
+            headers={"WWW-Authenticate": "Bearer"},
         ) from None
 
 

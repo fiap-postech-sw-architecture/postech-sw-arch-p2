@@ -194,16 +194,31 @@ class ClientePort(Protocol):
         pass
 
 
+class FalhaEnvioEmailException(Exception):  # noqa: N818 -- sufixo Exception e a convencao do repo (ADR-009)
+    """Falha de transporte ao enviar e-mail pela ``EmailPort``.
+
+    Levantada pelos adapters no lugar das excecoes do transporte concreto
+    (ex.: ``OSError``/``smtplib.SMTPException`` no adapter SMTP), para que
+    a aplicacao trate falha de envio sem conhecer o mecanismo de entrega.
+    """
+
+
 class EmailPort(Protocol):
     """Porta de envio de e-mail (RF-024 / ADR-018).
 
     Declarada no contexto consumidor (OrdemDeServico) e realizada na
     borda por ``infraestrutura/email_adapter.py`` (SMTP generico).
-    Implementacoes DEVEM propagar falhas de envio: a tolerancia a falha
-    (logar e seguir) e politica do handler de notificacao, nao da porta.
+    Implementacoes DEVEM traduzir falhas de transporte em
+    ``FalhaEnvioEmailException`` e propaga-la: a politica de tratamento
+    (log + repasse ao relay para retry/DLQ) e do handler de notificacao,
+    nao da porta.
     """
 
     # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def enviar(self, destinatario: str, assunto: str, corpo: str) -> None:
-        """Envia um e-mail texto-plano para ``destinatario``."""
+        """Envia um e-mail texto-plano para ``destinatario``.
+
+        Raises:
+            FalhaEnvioEmailException: falha de transporte no envio.
+        """
         pass

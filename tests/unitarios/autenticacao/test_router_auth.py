@@ -29,6 +29,7 @@ def _criar_app() -> FastAPI:
 _TOKEN_NS = SimpleNamespace(
     access_token="access-abc",
     refresh_token="refresh-xyz",
+    token_type="bearer",
 )
 
 _USUARIO_NS = SimpleNamespace(
@@ -55,6 +56,9 @@ class TestAuthRouter:
             data = resp.json()
             assert data["access_token"] == "access-abc"
             assert data["refresh_token"] == "refresh-xyz"
+            # token_type propagado do DTO da aplicacao (fonte unica), nao
+            # de um default duplicado no schema.
+            assert data["token_type"] == "bearer"
 
     def test_registrar(self) -> None:
         app = _criar_app()
@@ -112,6 +116,22 @@ class TestAuthRouter:
                 headers={"Authorization": "Bearer token-fake-123"},
             )
             assert resp.status_code == 200
+
+    def test_logout_sem_header_retorna_401(self) -> None:
+        # HTTPBearer(auto_error=False) + 401 manual (#167): header ausente e
+        # falta de AUTENTICACAO (401 com WWW-Authenticate e mensagem PT), nao
+        # o 403 generico do HTTPBearer default.
+        app = _criar_app()
+        with patch("src.autenticacao.interfaces.router.obter_logout") as mock_factory:
+            mock_uc = MagicMock()
+            mock_factory.return_value = mock_uc
+
+            client = TestClient(app)
+            resp = client.post("/api/v1/autenticacao/logout")
+            assert resp.status_code == 401
+            assert resp.json()["detail"] == "Token de autenticacao nao fornecido"
+            assert resp.headers["WWW-Authenticate"] == "Bearer"
+            mock_uc.executar.assert_not_called()
 
     def test_refresh(self) -> None:
         app = _criar_app()

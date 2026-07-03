@@ -91,6 +91,20 @@ def test_value_error_mensagem_vazia_preserva_envelope() -> None:
     assert body["erro"]["mensagem"] == ""
 
 
+def test_value_error_com_pii_na_mensagem_redigida_no_corpo() -> None:
+    # O handler nao pode ecoar str(exc) cru: uma invariante de VO que inclui
+    # o valor recebido (CPF/e-mail) vazaria PII no corpo do 422.
+    client = _criar_app_com_excecao(
+        ValueError("CPF invalido: 123.456.789-00 (contato joao@example.com)")
+    )
+    resp = client.get("/test")
+    assert resp.status_code == 422
+    corpo = resp.text
+    assert "123.456.789-00" not in corpo
+    assert "joao@example.com" not in corpo
+    assert resp.json()["erro"]["codigo"] == "VALOR_INVALIDO"
+
+
 def test_value_error_request_id_fallback_quando_ausente() -> None:
     client = _criar_app_com_excecao(ValueError("CPF invalido"))
     resp = client.get("/test")
@@ -194,6 +208,9 @@ class TestRequestValidationSemEcoDeInput:
         assert set(detalhes[0]) == {"type", "loc", "msg"}
         assert detalhes[0]["type"] == "string_too_long"
         assert detalhes[0]["loc"] == ["body", "placa"]
+        # `id_requisicao` e chave IRMA de `detail` (correlacao com logs sem
+        # quebrar o contrato da UI, que segue lendo a lista).
+        assert corpo["id_requisicao"] == "desconhecido"
 
     def test_422_de_schema_loga_warning_sem_o_valor(self) -> None:
         client = _criar_app_com_schema()

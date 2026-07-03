@@ -25,7 +25,10 @@ data:
   # JWT_SECRET/ENCRYPTION_KEY/ORCAMENTO_WEBHOOK_TOKEN fortes e nao-demo via
   # SealedSecrets/External Secrets (RFC-002 §6), nao os literais commitados.
   ENVIRONMENT: "development"
-  CORS_ORIGINS: "http://localhost:3000"
+  # Origem real da UI dev (NiceGUI em UI_PORT=8080, ver docker-compose.yml);
+  # o valor antigo (localhost:3000) era resquicio de scaffold e nao casava
+  # com nenhum front do projeto.
+  CORS_ORIGINS: "http://localhost:8080"
   JWT_EXPIRATION_MINUTES: "30"
   # Pool de conexoes por replica (RNF-024). Pior caso do HPA para a API:
   # (DB_POOL_SIZE + DB_MAX_OVERFLOW) * maxReplicas = (5 + 10) * 5 = 75.

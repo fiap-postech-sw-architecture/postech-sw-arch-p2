@@ -22,19 +22,13 @@ class OrdemCriadaEvent(DomainEvent):
     """Evento emitido quando uma nova ``OrdemDeServico`` e criada.
 
     ``agregado_id`` (herdado) identifica a ordem; ``cliente_id`` e
-    ``veiculo_id`` permitem a handlers downstream evitar uma busca extra.
+    ``veiculo_id`` viajam no payload para que consumidores futuros nao
+    precisem re-buscar o agregado. Hoje nenhum handler consome este
+    evento: criacao nao e atualizacao de status (RF-024).
     """
 
-    cliente_id: UUID = field(default=None, repr=False)  # type: ignore[assignment]
-    veiculo_id: UUID = field(default=None, repr=False)  # type: ignore[assignment]
-
-    def __post_init__(self) -> None:
-        if self.cliente_id is None:
-            msg = "cliente_id e obrigatorio em OrdemCriadaEvent (recebido: None)"
-            raise ValueError(msg)
-        if self.veiculo_id is None:
-            msg = "veiculo_id e obrigatorio em OrdemCriadaEvent (recebido: None)"
-            raise ValueError(msg)
+    cliente_id: UUID = field(kw_only=True, repr=False)
+    veiculo_id: UUID = field(kw_only=True, repr=False)
 
 
 @dataclass(frozen=True)

@@ -10,13 +10,15 @@ from __future__ import annotations
 
 import contextlib
 import json
+import threading
 from http import HTTPStatus
 from typing import TYPE_CHECKING, Any, cast
+from weakref import WeakKeyDictionary
 
 import httpx
 import jwt
 
-from ui.estado import Papel, Sessao, StateStore, obter_store
+from ui.estado import PAPEIS_VALIDOS, Papel, Sessao, StateStore, obter_store
 
 if TYPE_CHECKING:
     from collections.abc import Mapping
@@ -73,6 +75,13 @@ class ConflitoEstadoError(ApiError):
         self.detail = detail
 
 
+class NaoEncontradoError(ApiError):
+    """404 — recurso inexistente ou removido."""
+
+    def __init__(self, detail: str | None = None) -> None:
+        super().__init__(detail or "Recurso nao encontrado")
+
+
 class BackendIndisponivelError(ApiError):
     """5xx."""
 
@@ -91,6 +100,45 @@ _ROTAS_SEM_REFRESH = frozenset(
     {"/api/v1/autenticacao/refresh", "/api/v1/autenticacao/login"}
 )
 
+# Lock de refresh por StateStore: ``obter_api()`` cria um ClienteApi novo a
+# cada chamada, entao um lock por instancia nao serializaria nada — a unidade
+# compartilhada entre handlers concorrentes e o store. WeakKey pra nao segurar
+# stores de teste vivos pra sempre.
+_REFRESH_LOCKS: WeakKeyDictionary[StateStore, threading.Lock] = WeakKeyDictionary()
+_REFRESH_LOCKS_GUARD = threading.Lock()
+
+
+def _refresh_lock_do_store(store: StateStore) -> threading.Lock:
+    with _REFRESH_LOCKS_GUARD:
+        lock = _REFRESH_LOCKS.get(store)
+        if lock is None:
+            lock = threading.Lock()
+            _REFRESH_LOCKS[store] = lock
+        return lock
+
+
+def criar_http_client(
+    base_url: str,
+    *,
+    transport: httpx.BaseTransport | None = None,
+    timeout: float = 10.0,
+) -> httpx.Client:
+    """Constroi o ``httpx.Client`` com a configuracao padrao do ClienteApi.
+
+    Exposto pra que ``ui.app`` crie UM client compartilhado de processo
+    (httpx.Client e thread-safe e reusa conexoes) em vez de um por request.
+
+    follow_redirects=True: FastAPI/Starlette emite 307 pra rotas com
+    trailing slash diferente (ex. /api/v1/clientes -> /api/v1/clientes/).
+    Seguir automaticamente evita "Status inesperado 307" em helpers.
+    """
+    return httpx.Client(
+        base_url=base_url.rstrip("/"),
+        transport=transport,
+        timeout=timeout,
+        follow_redirects=True,
+    )
+
 
 class ClienteApi:
     def __init__(
@@ -99,17 +147,14 @@ class ClienteApi:
         store: StateStore | None = None,
         transport: httpx.BaseTransport | None = None,
         timeout: float = 10.0,
+        http_client: httpx.Client | None = None,
     ) -> None:
         self._base_url = base_url.rstrip("/")
         self._store = store or obter_store()
-        # follow_redirects=True: FastAPI/Starlette emite 307 pra rotas com
-        # trailing slash diferente (ex. /api/v1/clientes -> /api/v1/clientes/).
-        # Seguir automaticamente evita "Status inesperado 307" em helpers.
-        self._client = httpx.Client(
-            base_url=self._base_url,
-            transport=transport,
-            timeout=timeout,
-            follow_redirects=True,
+        # ``http_client`` injetado (ui.app) e compartilhado — quem cria fecha.
+        # Sem injecao (testes com ``transport``), cria um proprio.
+        self._client = http_client or criar_http_client(
+            self._base_url, transport=transport, timeout=timeout
         )
 
     # ----- metodos publicos por verbo -----
@@ -143,10 +188,13 @@ class ClienteApi:
 
     def login(self, *, email: str, senha: str) -> None:
         """Faz login e salva sessao decodificando papel do JWT."""
-        resposta = self._client.post(
-            "/api/v1/autenticacao/login",
-            json={"email": email, "senha": senha},
-        )
+        try:
+            resposta = self._client.post(
+                "/api/v1/autenticacao/login",
+                json={"email": email, "senha": senha},
+            )
+        except httpx.TransportError as exc:
+            raise BackendInacessivelError(self._base_url) from exc
         if resposta.status_code != HTTPStatus.OK:
             raise NaoAutenticadoError(f"Login falhou: {resposta.status_code}")
         body = resposta.json()
@@ -168,16 +216,26 @@ class ClienteApi:
 
     def logout(self) -> None:
         """Logout best-effort. Limpa sessao local mesmo se backend falhar."""
-        token = self._store.token_atual()
-        if token:
-            # Notificar o backend e best-effort: falha de rede/5xx nao deve
-            # impedir limpeza local da sessao.
-            with contextlib.suppress(Exception):
-                self._client.post(
-                    "/api/v1/autenticacao/logout",
-                    headers={"Authorization": f"Bearer {token}"},
-                )
+        sessao = self._store.sessao_atual()
+        if sessao:
+            self.revogar_sessao(sessao)
         self._store.limpar_sessao()
+
+    def revogar_sessao(self, sessao: Sessao) -> None:
+        """Revoga uma sessao especifica no backend, sem tocar o store local.
+
+        Best-effort: falha de rede/5xx nao deve impedir o fluxo do chamador.
+        O backend so revoga o refresh token quando ele vem no body
+        (``refresh_token`` opcional em POST /logout, issue #118) — sem o body
+        o logout invalidava apenas o access token e o refresh continuava
+        utilizavel ate expirar.
+        """
+        with contextlib.suppress(Exception):
+            self._client.post(
+                "/api/v1/autenticacao/logout",
+                headers={"Authorization": f"Bearer {sessao.access_token}"},
+                json={"refresh_token": sessao.refresh_token},
+            )
 
     def tentar_login_sem_salvar(self, *, email: str, senha: str) -> int | None:
         """Testa credenciais sem alterar estado da sessao UI.
@@ -195,7 +253,7 @@ class ClienteApi:
                 "/api/v1/autenticacao/login",
                 json={"email": email, "senha": senha},
             )
-        except (httpx.ConnectError, httpx.TimeoutException):
+        except httpx.TransportError:
             return None
         return resposta.status_code
 
@@ -433,7 +491,10 @@ class ClienteApi:
             resposta = self._client.request(
                 metodo, path, headers=headers, params=params, json=json_body
             )
-        except (httpx.ConnectError, httpx.TimeoutException) as exc:
+        except httpx.TransportError as exc:
+            # TransportError cobre connect/timeout/protocolo/leitura — qualquer
+            # falha de transporte vira a mesma mensagem amigavel de backend
+            # fora do ar, em vez de um traceback httpx cru na pagina.
             raise BackendInacessivelError(self._base_url) from exc
 
         if (
@@ -442,7 +503,7 @@ class ClienteApi:
             and path not in _ROTAS_SEM_REFRESH
             and self._store.refresh_token_atual()
         ):
-            if self._tentar_refresh():
+            if self._tentar_refresh(token_expirado=token):
                 return self._request(
                     metodo,
                     path,
@@ -456,37 +517,54 @@ class ClienteApi:
 
         return self._interpretar_resposta(resposta)
 
-    def _tentar_refresh(self) -> bool:
-        """Executa POST /refresh uma vez. Retorna True se atualizou tokens."""
-        refresh_token = self._store.refresh_token_atual()
-        if not refresh_token:
-            return False
-        try:
-            resposta = self._client.post(
-                "/api/v1/autenticacao/refresh",
-                json={"refresh_token": refresh_token},
+    def _tentar_refresh(self, token_expirado: str | None = None) -> bool:
+        """Executa POST /refresh serializado por store. True se ha tokens novos.
+
+        Serializacao via lock por store: dois handlers concorrentes que tomam
+        401 com o mesmo access token expirado nao podem postar o mesmo refresh
+        token duas vezes — com rotacao single-use no backend, o segundo POST
+        falharia e derrubaria a sessao. Sob o lock, re-le o estado atual:
+        se outro thread ja renovou (access token mudou), reaproveita a sessao
+        nova sem gastar outra rotacao.
+        """
+        with _refresh_lock_do_store(self._store):
+            if token_expirado is not None and self._store.token_atual() not in (
+                None,
+                token_expirado,
+            ):
+                # Outro thread renovou enquanto esperavamos o lock.
+                return True
+            # Re-le o refresh token DENTRO do lock — nunca postar valor stale.
+            refresh_token = self._store.refresh_token_atual()
+            if not refresh_token:
+                return False
+            try:
+                resposta = self._client.post(
+                    "/api/v1/autenticacao/refresh",
+                    json={"refresh_token": refresh_token},
+                )
+            except httpx.TransportError:
+                return False
+            if resposta.status_code != HTTPStatus.OK:
+                return False
+            body = resposta.json()
+            # Preserva email e papel atuais; so troca os tokens. Se papel estiver
+            # ausente (sessao corrompida), aborta o refresh em vez de escolher um
+            # default — qualquer escolha aqui pode escalar privilegios
+            # indevidamente.
+            email = self._store.email_atual()
+            papel = self._store.papel_atual()
+            if email is None or papel is None:
+                return False
+            self._store.salvar_sessao(
+                Sessao(
+                    access_token=body["access_token"],
+                    refresh_token=body["refresh_token"],
+                    email=email,
+                    papel=papel,
+                )
             )
-        except (httpx.ConnectError, httpx.TimeoutException):
-            return False
-        if resposta.status_code != HTTPStatus.OK:
-            return False
-        body = resposta.json()
-        # Preserva email e papel atuais; so troca os tokens. Se papel estiver
-        # ausente (sessao corrompida), aborta o refresh em vez de escolher um
-        # default — qualquer escolha aqui pode escalar privilegios indevidamente.
-        email = self._store.email_atual()
-        papel = self._store.papel_atual()
-        if email is None or papel is None:
-            return False
-        self._store.salvar_sessao(
-            Sessao(
-                access_token=body["access_token"],
-                refresh_token=body["refresh_token"],
-                email=email,
-                papel=papel,
-            )
-        )
-        return True
+            return True
 
     def _interpretar_resposta(
         self, resposta: httpx.Response
@@ -497,22 +575,52 @@ class ClienteApi:
                 return {}
             return resposta.json()  # type: ignore[no-any-return]
         if status == HTTPStatus.UNAUTHORIZED:
+            # 401 que chegou ate aqui e terminal (refresh ja tentado, sem
+            # refresh token ou rota sem refresh): limpa a sessao pra UI nao
+            # reter tokens mortos no storage — o handler da pagina captura
+            # NaoAutenticadoError e redireciona pro /login.
+            self._store.limpar_sessao()
             raise NaoAutenticadoError("Nao autenticado")
         if status == HTTPStatus.FORBIDDEN:
             detail = _extrair_detail(resposta)
             raise AcessoNegadoError(detail)
+        if status == HTTPStatus.NOT_FOUND:
+            raise NaoEncontradoError(_extrair_detail(resposta))
         if status == HTTPStatus.CONFLICT:
             raise ConflitoEstadoError(_extrair_detail(resposta) or "")
         if status == HTTPStatus.UNPROCESSABLE_ENTITY:
-            body = resposta.json()
-            detalhes = body.get("detail", []) if isinstance(body, dict) else []
-            raise ValidacaoError(detalhes if isinstance(detalhes, list) else [])
+            raise ValidacaoError(_detalhes_validacao(resposta))
         if status == HTTPStatus.TOO_MANY_REQUESTS:
-            retry = int(resposta.headers.get("Retry-After", "60"))
-            raise RateLimitExcedidoError(retry_after=retry)
+            raise RateLimitExcedidoError(retry_after=_retry_after(resposta))
         if status >= HTTPStatus.INTERNAL_SERVER_ERROR:
             raise BackendIndisponivelError(f"Erro {status}")
         raise ApiError(f"Status inesperado {status}")
+
+
+def _detalhes_validacao(resposta: httpx.Response) -> list[dict[str, Any]]:
+    """Extrai o ``detail`` de um 422 com fallback pra body nao-JSON.
+
+    Proxy/gateway pode emitir 422 sem JSON — lista vazia em vez de estourar
+    ``JSONDecodeError`` mascarando o erro original.
+    """
+    try:
+        body = resposta.json()
+    except json.JSONDecodeError:
+        return []
+    detalhes = body.get("detail", []) if isinstance(body, dict) else []
+    return detalhes if isinstance(detalhes, list) else []
+
+
+def _retry_after(resposta: httpx.Response) -> int:
+    """Le o header Retry-After de um 429.
+
+    Pode vir como HTTP-date (RFC 9110) ou lixo — nesses casos cai no default
+    de 60s em vez de ValueError.
+    """
+    try:
+        return int(resposta.headers.get("Retry-After", "60"))
+    except ValueError:
+        return 60
 
 
 def _extrair_detail(resposta: httpx.Response) -> str | None:
@@ -540,6 +648,6 @@ def _extrair_papel_do_jwt(token: str) -> Papel | None:
         # Token malformado (segmentos, base64 ou JSON quebrados) — fail soft.
         return None
     papel = payload.get("papel")
-    if isinstance(papel, str) and papel in {"admin", "atendente", "mecanico"}:
+    if isinstance(papel, str) and papel in PAPEIS_VALIDOS:
         return cast("Papel", papel)
     return None

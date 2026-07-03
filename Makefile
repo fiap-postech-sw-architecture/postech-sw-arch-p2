@@ -45,7 +45,7 @@ GIT_SHA  := $(shell git rev-parse HEAD 2>/dev/null || echo unknown)
 GIT_DATE := $(shell git show -s --format=%cI HEAD 2>/dev/null || echo unknown)
 DOCKER_COMPOSE := GIT_SHA=$(GIT_SHA) GIT_DATE=$(GIT_DATE) docker compose --env-file .env.dev
 
-.PHONY: lint lint-arch format typecheck security codeql-quality test test-coverage test-integ test-all check all up down ui seed-users seed-users-docker seed-demo up-backend rebuild reset-db
+.PHONY: lint lint-arch format typecheck security codeql-quality test test-coverage test-integ test-all test-lento check all up down ui seed-users seed-users-docker seed-demo up-backend rebuild reset-db
 
 # Bootstrap do .env.dev a partir do example. `.env.dev` e gitignored
 # porque pode conter secrets reais; o `.env.dev.example` tem defaults
@@ -65,11 +65,18 @@ up: .env.dev
 down: .env.dev
 	@bash -c 'source scripts/docker-check.sh && $(DOCKER_COMPOSE) down'
 
+# Alvos Python dos gates, em variavel unica (antes eram 6 listas repetidas,
+# com drift real CI<->Makefile). PY_PATHS: todo o codigo executavel (app, UI,
+# relay, scripts operacionais e o script da skill de entrega) — mypy/bandit.
+# PY_PATHS_COM_TESTS acrescenta tests/ — so o ruff lida com a suite.
+PY_PATHS := src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+PY_PATHS_COM_TESTS := $(PY_PATHS) tests/
+
 # Gates usam PY_UI_TEST (extras test+ui): em clone fresco sem sync manual,
 # `uv run` puro nao teria ruff/mypy/bandit no ambiente (finding devops).
 lint:
-	$(PY_UI_TEST)ruff check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
-	$(PY_UI_TEST)ruff format --check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+	$(PY_UI_TEST)ruff check $(PY_PATHS_COM_TESTS)
+	$(PY_UI_TEST)ruff format --check $(PY_PATHS_COM_TESTS)
 
 # Contratos de arquitetura (ADR-015 / RNF-017): camadas Clean por contexto +
 # proibicao dominio -> infraestrutura. Config em [tool.importlinter] no
@@ -78,14 +85,14 @@ lint-arch:
 	$(PY_UI_TEST)lint-imports
 
 format:
-	$(PY_UI_TEST)ruff format src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
-	$(PY_UI_TEST)ruff check src/ ui/ relay/ scripts/ tests/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py --fix
+	$(PY_UI_TEST)ruff format $(PY_PATHS_COM_TESTS)
+	$(PY_UI_TEST)ruff check $(PY_PATHS_COM_TESTS) --fix
 
 typecheck:
-	$(PY_UI_TEST)mypy src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py
+	$(PY_UI_TEST)mypy $(PY_PATHS)
 
 security:
-	$(PY_UI_TEST)bandit -r src/ ui/ relay/ scripts/ .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py -c pyproject.toml --severity-level high
+	$(PY_UI_TEST)bandit -r $(PY_PATHS) -c pyproject.toml --severity-level high
 
 # DAST local (TD-011; ADR-011): paridade com o job "DAST — OWASP ZAP baseline"
 # do .github/workflows/full-test-ci.yml. Sobe a stack compose, aguarda
@@ -95,11 +102,15 @@ security:
 # (gitignorados; nunca tocam os relatorios versionados em docs/seguranca/).
 # FORA do agregado `check`: precisa de Docker e e lento. macOS+Colima exige
 # `export DOCKER_HOST=unix://$$HOME/.colima/default/docker.sock` antes.
+# APP_PORT vem de .env/.env.dev (worktrees paralelos): o recipe sourceia os
+# arquivos antes de calcular APP_PORT_EFFECTIVE (idioma de seed-users/seed-demo)
+# — senao o ZAP miraria a 8000 default mesmo com a stack publicada em outra porta.
 .PHONY: dast
 dast: .env.dev
 	@bash -c 'source scripts/docker-check.sh && \
 		echo ">> subindo stack (app + postgres) para o ZAP baseline..." && \
 		$(DOCKER_COMPOSE) up -d && \
+		{ set -a; [ -f .env ] && . ./.env; [ -f .env.dev ] && . ./.env.dev; set +a; } && \
 		APP_PORT_EFFECTIVE=$${APP_PORT:-8000} && \
 		echo ">> aguardando http://localhost:$${APP_PORT_EFFECTIVE}/api/v1/saude responder 200..." && \
 		for i in $$(seq 1 60); do \
@@ -134,7 +145,7 @@ codeql-quality:
 	@bash scripts/codeql_quality.sh
 
 # Args comuns da suite unitaria, compartilhados por `test` e `test-coverage`.
-PYTEST_UNIT_ARGS := tests/unitarios/ -x -q --no-lint --cov=src -m "not lento"
+PYTEST_UNIT_ARGS := tests/unitarios/ -x -q --cov=src -m "not lento"
 
 # Usa PY_UI_TEST (extras test+ui): tests/unitarios/ inclui tests/unitarios/ui/,
 # cujos imports puxam nicegui/httpx (optional-dependencies do extra `ui`). Sem os
@@ -147,13 +158,13 @@ test-coverage:
 	$(PY_UI_TEST)pytest $(PYTEST_UNIT_ARGS) --cov-report=term-missing --cov-report=xml:coverage.xml
 
 test-integ:
-	$(PY)pytest tests/integracao/ -x -q --no-lint --tb=short
+	$(PY)pytest tests/integracao/ -x -q --tb=short
 
 test-all:
-	$(PY)pytest tests/ -x -q --no-lint -m "not lento"
+	$(PY)pytest tests/ -x -q -m "not lento"
 
 test-lento:
-	$(PY_UI_TEST)pytest tests/ -q --no-lint -m "lento"
+	$(PY_UI_TEST)pytest tests/ -q -m "lento"
 
 check: lint lint-arch typecheck security test
 	@echo "All checks passed"
@@ -231,6 +242,7 @@ reset-db: .env.dev
 		echo ">> rebuildando imagens e subindo stack do zero..." && \
 		$(DOCKER_COMPOSE) up -d --build && \
 		echo ">> aguardando /api/v1/saude responder 200..." && \
+		{ set -a; [ -f .env ] && . ./.env; [ -f .env.dev ] && . ./.env.dev; set +a; } && \
 		APP_PORT_EFFECTIVE=$${APP_PORT:-8000} && \
 		UI_PORT_EFFECTIVE=$${UI_PORT:-8080} && \
 		for i in $$(seq 1 30); do \
@@ -291,7 +303,14 @@ full-test-teardown: .env.dev
 	$(DOCKER_COMPOSE) down -v
 	rm -rf full-test/reports
 
-full-test: full-test-up full-test-seed full-test-run full-test-teardown
+# Encadeado via $(MAKE) no recipe, NAO via lista de pre-requisitos: sob
+# `make -j` os pre-requisitos rodam em paralelo e o teardown (que nao
+# depende do run) podia derrubar a stack no meio dos testes. Linhas de
+# recipe sao sequenciais por construcao; full-test-run ja puxa up+seed pela
+# cadeia linear de dependencias (que o -j respeita).
+full-test:
+	$(MAKE) full-test-run
+	$(MAKE) full-test-teardown
 
 # ---- SBOM (TD-012; ADR-012) ----
 # Fonte unica do SBOM CycloneDX: o job `sbom` do CI roda este mesmo alvo
@@ -311,15 +330,16 @@ sbom:
 # Espelho local do workflow de CD (.github/workflows/cd.yml): o pipeline
 # executa o que o desenvolvedor executa (DevOps, Aula 03). Mesmos passos,
 # mesma ordem -- terraform apply (cluster kind + postgres), build da imagem
-# com tag por SHA, kind load, metrics-server, manifests de k8s/, set image
-# e rollout. Diferencas deliberadas vs o runner:
+# com tag por SHA, kind load, metrics-server, manifests de k8s/ aplicados
+# ja com a tag do SHA (sed, mesmo padrao do Job de migracao) e rollout.
+# Diferencas deliberadas vs o runner:
 #   - a imagem nao passa pelo GHCR: build local + `kind load` direto
 #     (mesmo racional do ADR-019 -- sem PAT pessoal);
 #   - todo kubectl usa `--context kind-$(K8S_CLUSTER)` explicito, sem
 #     mudar o current-context da sua maquina (o runner e descartavel e
 #     usa `kubectl config use-context`).
 # A tag repete o SHA do HEAD: alteracoes NAO commitadas reusam a tag e o
-# set image vira no-op -- commite, ou force com
+# apply nao gera rollout novo -- commite, ou force com
 # `kubectl --context kind-pytstop -n pytstop rollout restart deployment/pytstop-api`.
 # `K8S_CLUSTER` alimenta tambem o `-var cluster_name` do terraform, entao
 # `make k8s-up K8S_CLUSTER=foo` cria cluster/contexto proprios (branches
@@ -346,17 +366,34 @@ k8s-up:
 	$(KUBECTL) -n kube-system get deployment metrics-server -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -q kubelet-insecure-tls || \
 		$(KUBECTL) patch deployment metrics-server -n kube-system --type json \
 			-p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
-	@echo ">> aplicando manifests do app (k8s/)..."
+	@echo ">> aplicando manifests do app (k8s/) com a tag $(K8S_TAG)..."
 	$(KUBECTL) apply -f k8s/namespace.yaml
-	$(KUBECTL) apply -f k8s/
+	# Tag do SHA desde o primeiro apply (mesmo padrao de sed do Job de
+	# migracao): deployment/relay nunca passam pela tag `dev`, dispensando o
+	# antigo `kubectl set image`. O glob nao desce em k8s/jobs/ (a parte).
+	for f in k8s/*.yaml; do \
+		sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|$(K8S_TAG)|" "$$f" | $(KUBECTL) apply -f - || exit 1; \
+	done
 	@echo ">> migracao via Job dedicado antes do rollout (TD-015)..."
 	# Migracao via Job dedicado antes do rollout (TD-015): resolve a corrida com N replicas
 	$(KUBECTL) -n $(K8S_NS) delete job pytstop-migrate --ignore-not-found
 	sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|$(K8S_TAG)|" k8s/jobs/migration-job.yaml | $(KUBECTL) -n $(K8S_NS) apply -f -
-	$(KUBECTL) -n $(K8S_NS) wait --for=condition=complete --timeout=180s job/pytstop-migrate || { echo ">> ERRO: migracao (pytstop-migrate) falhou ou expirou; abortando o deploy antes do rollout."; $(KUBECTL) -n $(K8S_NS) logs job/pytstop-migrate --tail=50 || true; exit 1; }
-	$(KUBECTL) -n $(K8S_NS) set image deployment/pytstop-api api=$(K8S_TAG)
+	# Espera com falha rapida (espelha o cd.yml): watchers de `complete` e
+	# `failed` em paralelo; o primeiro a resolver encerra a espera — um Job
+	# que esgota o backoffLimit aborta em segundos, sem segurar os 180s do
+	# timeout do `complete`. O arbitro do desfecho e o status real do Job.
+	# Poll `kill -0` no lugar do `wait -n` do cd.yml: /bin/sh (dash) e o
+	# bash 3.2 do macOS nao tem `wait -n`.
+	@$(KUBECTL) -n $(K8S_NS) wait --for=condition=complete --timeout=180s job/pytstop-migrate & ok=$$!; \
+	$(KUBECTL) -n $(K8S_NS) wait --for=condition=failed --timeout=180s job/pytstop-migrate 2>/dev/null & bad=$$!; \
+	while kill -0 $$ok 2>/dev/null && kill -0 $$bad 2>/dev/null; do sleep 1; done; \
+	kill $$ok $$bad 2>/dev/null; \
+	if [ "$$($(KUBECTL) -n $(K8S_NS) get job pytstop-migrate -o jsonpath='{.status.succeeded}')" != "1" ]; then \
+		echo ">> ERRO: migracao (pytstop-migrate) falhou ou expirou; abortando o deploy antes do rollout."; \
+		$(KUBECTL) -n $(K8S_NS) logs job/pytstop-migrate --tail=50 || true; \
+		exit 1; \
+	fi
 	$(KUBECTL) -n $(K8S_NS) rollout status deployment/pytstop-api --timeout=300s
-	$(KUBECTL) -n $(K8S_NS) set image deployment/pytstop-relay relay=$(K8S_TAG)
 	$(KUBECTL) -n $(K8S_NS) rollout status deployment/pytstop-relay --timeout=300s
 	@echo ">> deploy concluido: $(K8S_TAG) no cluster kind-$(K8S_CLUSTER)."
 

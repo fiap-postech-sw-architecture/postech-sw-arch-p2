@@ -1,11 +1,12 @@
 """DTOs da camada de aplicacao do contexto Ordem de Servico.
 
 Contratos imutaveis de entrada (comandos) e saida (projecoes de leitura)
-dos casos de uso. Todos sao ``@dataclass(frozen=True, slots=True)`` e
+dos casos de uso. Todos sao ``@dataclass(frozen=True, slots=True)``,
 usam tipos primitivos ou outros DTOs — nenhum value object de dominio
-(``Dinheiro``, ``StatusOrdem``, etc.) vaza atraves dessas fronteiras.
-Valores monetarios sao expostos em centavos para eliminar ambiguidade
-de precisao decimal no API.
+(``Dinheiro``, ``StatusOrdem``, etc.) vaza atraves dessas fronteiras —
+e colecoes somente-leitura (``tuple``/``Mapping``), coerentes com o
+``frozen``. Valores monetarios sao expostos em centavos para eliminar
+ambiguidade de precisao decimal no API.
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
+    from collections.abc import Mapping
     from datetime import datetime
     from uuid import UUID
 
@@ -124,7 +126,7 @@ class OrcamentoDTO:
 
     total_centavos: int
     gerado_em: datetime
-    itens: list[LinhaOrcamentoDTO]
+    itens: tuple[LinhaOrcamentoDTO, ...]
 
 
 @dataclass(frozen=True, slots=True)
@@ -141,7 +143,7 @@ class OrdemDeServicoDTO:
     cliente_id: UUID
     veiculo_id: UUID
     status: str
-    itens: list[ItemDaOrdemDTO]
+    itens: tuple[ItemDaOrdemDTO, ...]
     orcamento: OrcamentoDTO | None
     criado_em: datetime
     atualizado_em: datetime
@@ -178,8 +180,12 @@ class AcompanhamentoDTO:
 
 @dataclass(frozen=True, slots=True)
 class MetricasDTO:
-    """Projecao de metricas agregadas: total, contagem por status e tempo medio."""
+    """Projecao de metricas agregadas: total, contagem por status e tempo medio.
+
+    ``por_status`` e anotado como ``Mapping`` (leitura): o DTO e frozen e
+    consumidores nao devem mutar a contagem.
+    """
 
     total: int
-    por_status: dict[str, int]
+    por_status: Mapping[str, int]
     tempo_medio_execucao_minutos: float | None = None

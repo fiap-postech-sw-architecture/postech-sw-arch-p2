@@ -9,6 +9,7 @@ from src.cliente_veiculo.interfaces.schemas import (
     AdicionarVeiculoRequest,
     AtualizarClienteRequest,
     ClienteResponse,
+    ConsentimentoRequest,
     CriarClienteRequest,
     VeiculoResponse,
 )
@@ -83,11 +84,21 @@ class TestAdicionarVeiculoRequest:
     ) -> None:
         from src.cliente_veiculo.interfaces import schemas as schemas_module
 
-        monkeypatch.setattr(schemas_module, "_ano_maximo_permitido", lambda: 2031)
+        monkeypatch.setattr(schemas_module, "ano_maximo_permitido", lambda: 2031)
         with pytest.raises(ValidationError, match="ano deve ser menor ou igual a 2031"):
             AdicionarVeiculoRequest(
                 placa="ABC1234", marca="Fiat", modelo="Uno", ano=2050
             )
+
+
+class TestConsentimentoRequest:
+    def test_normaliza_tipo_lowercase_e_strip(self) -> None:
+        req = ConsentimentoRequest(tipo="  Marketing ")
+        assert req.tipo == "marketing"
+
+    def test_rejeita_tipo_whitespace(self) -> None:
+        with pytest.raises(ValidationError):
+            ConsentimentoRequest(tipo="   ")
 
 
 class TestResponses:

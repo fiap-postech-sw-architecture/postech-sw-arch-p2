@@ -12,6 +12,7 @@ from src.cliente_veiculo.aplicacao.dtos import (
     AdicionarVeiculoDTO,
     AtualizarClienteDTO,
     CriarClienteDTO,
+    RegistrarConsentimentoDTO,
 )
 from src.cliente_veiculo.interfaces.dependencies import (
     obter_adicionar_veiculo,
@@ -161,22 +162,35 @@ def remover_veiculo(
     uc.executar(cliente_id, veiculo_id)
 
 
+def _exportar_dados_pessoais_e_auditar(
+    cliente_id: UUID,
+    usuario: dict[str, object],
+    session: Session,
+    via: str,
+) -> DadosPessoaisResponse:
+    """Executa o export LGPD e registra a trilha de auditoria (#76).
+
+    Compartilhado pelos dois GETs de dados pessoais; `via` distingue a rota
+    de origem no log. O audit e emitido APOS o efeito (404 nao audita).
+    """
+    uc = obter_exportar_dados(session)
+    result = uc.executar(cliente_id)
+    _log.info(
+        "dados_pessoais_exportados_via_admin",
+        cliente_id=str(cliente_id),
+        ator=ator_de(usuario),
+        via=via,
+    )
+    return DadosPessoaisResponse(**dataclasses.asdict(result))
+
+
 @router.get("/{cliente_id}/dados-pessoais")
 def obter_dados_pessoais(
     cliente_id: UUID,
     usuario: dict[str, object] = Depends(exigir_papel("admin", "atendente")),
     session: Session = Depends(obter_session),
 ) -> DadosPessoaisResponse:
-    uc = obter_exportar_dados(session)
-    result = uc.executar(cliente_id)
-    # Auditoria LGPD (#76): export de PII registra ator + alvo APOS o efeito.
-    _log.info(
-        "dados_pessoais_exportados_via_admin",
-        cliente_id=str(cliente_id),
-        ator=ator_de(usuario),
-        via="obter",
-    )
-    return DadosPessoaisResponse(**dataclasses.asdict(result))
+    return _exportar_dados_pessoais_e_auditar(cliente_id, usuario, session, "obter")
 
 
 @router.get("/{cliente_id}/dados-pessoais/exportar")
@@ -185,16 +199,7 @@ def exportar_dados_pessoais(
     usuario: dict[str, object] = Depends(exigir_papel("admin", "atendente")),
     session: Session = Depends(obter_session),
 ) -> DadosPessoaisResponse:
-    uc = obter_exportar_dados(session)
-    result = uc.executar(cliente_id)
-    # Auditoria LGPD (#76): export de PII registra ator + alvo APOS o efeito.
-    _log.info(
-        "dados_pessoais_exportados_via_admin",
-        cliente_id=str(cliente_id),
-        ator=ator_de(usuario),
-        via="exportar",
-    )
-    return DadosPessoaisResponse(**dataclasses.asdict(result))
+    return _exportar_dados_pessoais_e_auditar(cliente_id, usuario, session, "exportar")
 
 
 @router.delete(
@@ -227,30 +232,39 @@ def registrar_consentimento(
     usuario: dict[str, object] = Depends(exigir_papel("admin", "atendente")),
     session: Session = Depends(obter_session),
 ) -> ConsentimentoResponse:
-    from src.cliente_veiculo.aplicacao.dtos import RegistrarConsentimentoDTO
-
     uc = obter_registrar_consentimento(session)
     dto = RegistrarConsentimentoDTO(tipo=body.tipo)
     result = uc.executar(cliente_id, dto)
-    return ConsentimentoResponse(
-        id=result.id,
-        cliente_id=result.cliente_id,
+    # Auditoria LGPD (#76): base legal (consentimento) registra ator + alvo
+    # APOS o efeito, no mesmo padrao do export de dados pessoais.
+    _log.info(
+        "consentimento_registrado_via_admin",
+        cliente_id=str(cliente_id),
         tipo=result.tipo,
-        concedido_em=result.concedido_em.isoformat(),
-        revogado_em=(result.revogado_em.isoformat() if result.revogado_em else None),
-        ativo=result.ativo,
+        ator=ator_de(usuario),
     )
+    return ConsentimentoResponse(**dataclasses.asdict(result))
 
 
 @router.delete(
     "/{cliente_id}/consentimento",
     status_code=status.HTTP_204_NO_CONTENT,
 )
-def revogar_consentimento_endpoint(
+def revogar_consentimento(
     cliente_id: UUID,
     tipo: str = Query(min_length=1, max_length=50),
     usuario: dict[str, object] = Depends(exigir_papel("admin", "atendente")),
     session: Session = Depends(obter_session),
 ) -> None:
+    # Mesma canonicalizacao do ConsentimentoRequest.tipo: garante que o grant
+    # registrado em lowercase seja encontrado na revogacao.
+    tipo = tipo.strip().lower()
     uc = obter_revogar_consentimento(session)
     uc.executar(cliente_id, tipo)
+    # Auditoria LGPD (#76): revogacao registra ator + alvo APOS o efeito.
+    _log.info(
+        "consentimento_revogado_via_admin",
+        cliente_id=str(cliente_id),
+        tipo=tipo,
+        ator=ator_de(usuario),
+    )

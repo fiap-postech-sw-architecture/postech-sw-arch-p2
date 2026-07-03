@@ -60,7 +60,11 @@ def _redigir_pii_da_span(span: object, scope: object) -> None:
     set_attribute = getattr(span, "set_attribute", None)
     if not callable(set_attribute):
         return
-    set_attribute("url.query", _QUERY_REDIGIDA)
+    query = scope.get("query_string", b"") if isinstance(scope, dict) else b""
+    if query:
+        # So marca REDACTED quando havia query de fato; sem query nao ha o
+        # que redigir e o atributo nao e escrito.
+        set_attribute("url.query", _QUERY_REDIGIDA)
     path = scope.get("path", "") if isinstance(scope, dict) else ""
     if isinstance(path, str) and path:
         # http.target (conv. antiga) carregava path + "?" + query; url.path

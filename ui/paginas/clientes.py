@@ -8,9 +8,11 @@ from typing import TYPE_CHECKING, Any
 from nicegui import context, ui
 
 from ui.auth_guard import exige_autenticacao
-from ui.cliente_api import ApiError, ValidacaoError
+from ui.cliente_api import ApiError, NaoAutenticadoError, ValidacaoError
 from ui.componentes.cabecalho import CabecalhoApp
 from ui.componentes.dialogo_confirmacao import confirmar
+from ui.componentes.listagem import rodape_contagem
+from ui.componentes.notificacoes import notificar_erro_api
 
 if TYPE_CHECKING:
     from collections.abc import Callable
@@ -49,12 +51,15 @@ def _renderizar_tabela(on_refresh: Callable[[], None]) -> None:
     api = obter_api()
     try:
         dados = api.listar_clientes()
+    except NaoAutenticadoError:
+        ui.navigate.to("/login")
+        return
     except ApiError as exc:
         ui.label(f"Erro ao listar: {exc}").classes("text-red-600")
         return
 
     for cliente in dados.get("items", []):
-        with ui.expansion(cliente["nome"], icon="person").classes("w-full"):
+        with ui.expansion(cliente["nome"], icon="person").classes("w-full") as expansao:
             with ui.row().classes("gap-4 items-start"):
                 with ui.column().classes("gap-1"):
                     # Backend retorna `documento_mascarado` por LGPD. O documento
@@ -101,7 +106,27 @@ def _renderizar_tabela(on_refresh: Callable[[], None]) -> None:
                             c, on_refresh
                         ),
                     )
-            _renderizar_veiculos(cliente["id"], on_refresh)
+            # Lazy load: veiculos so sao buscados quando a expansion abre pela
+            # primeira vez — renderizar a lista inteira disparava 1 GET de
+            # veiculos por cliente (N+1) mesmo com tudo colapsado.
+            veiculos_container = ui.column().classes("w-full")
+            carregado = {"feito": False}
+
+            def carregar_veiculos(
+                cid: str = cliente["id"],
+                container: ui.column = veiculos_container,
+                estado: dict[str, bool] = carregado,
+            ) -> None:
+                if estado["feito"]:
+                    return
+                estado["feito"] = True
+                with container:
+                    _renderizar_veiculos(cid, on_refresh)
+
+            expansao.on_value_change(
+                lambda e, carregar=carregar_veiculos: carregar() if e.value else None
+            )
+    rodape_contagem(dados)
 
 
 def _dialog_editar(cliente: dict[str, Any], on_sucesso: Callable[[], None]) -> None:
@@ -123,11 +148,14 @@ def _dialog_editar(cliente: dict[str, Any], on_sucesso: Callable[[], None]) -> N
                 ui.notify("Cliente atualizado", type="positive")
                 on_sucesso()
             except ApiError as exc:
-                ui.notify(f"Erro: {exc}", type="negative")
+                notificar_erro_api(exc)
 
         with ui.row().classes("justify-end gap-2 w-full"):
             ui.button("Cancelar", on_click=dialog.close).props("flat")
             ui.button("Salvar", on_click=salvar).classes("bg-blue-600 text-white")
+    # Sem delete o dialog acumula no layout a cada abertura (padrao
+    # dialogo_confirmacao).
+    dialog.on("hide", dialog.delete)
     dialog.open()
 
 
@@ -193,6 +221,21 @@ def _remover_veiculo(
         ui.notify(f"Erro: {exc}", type="negative")
 
 
+def _ano_valido(valor: Any) -> int | None:  # noqa: ANN401  # ui.number().value
+    """Normaliza ``ui.number().value`` do ano em int.
+
+    NiceGUI deixa o input como ``None``/``""`` quando o usuario apaga o campo
+    e ``int(None)`` levanta TypeError (mesmo padrao de ``_quantidade_valida``
+    em ordens_servico). Retorna ``None`` quando invalido pra caller notificar.
+    """
+    if valor is None or valor == "":
+        return None
+    try:
+        return int(valor)
+    except TypeError, ValueError:
+        return None
+
+
 def _dialog_adicionar_veiculo(cliente_id: str, on_sucesso: Callable[[], None]) -> None:
     from datetime import UTC, datetime
 
@@ -211,6 +254,10 @@ def _dialog_adicionar_veiculo(cliente_id: str, on_sucesso: Callable[[], None]) -
         def salvar() -> None:
             from ui.app import obter_api
 
+            ano_int = _ano_valido(ano.value)
+            if ano_int is None:
+                ui.notify("Informe um ano valido.", type="warning")
+                return
             try:
                 obter_api().adicionar_veiculo(
                     cliente_id,
@@ -218,18 +265,20 @@ def _dialog_adicionar_veiculo(cliente_id: str, on_sucesso: Callable[[], None]) -
                         "placa": placa.value,
                         "marca": marca.value,
                         "modelo": modelo.value,
-                        "ano": int(ano.value),
+                        "ano": ano_int,
                     },
                 )
                 dialog.close()
                 ui.notify("Veiculo adicionado", type="positive")
                 on_sucesso()
             except ApiError as exc:
-                ui.notify(f"Erro: {exc}", type="negative")
+                notificar_erro_api(exc)
 
         with ui.row().classes("justify-end gap-2 w-full"):
             ui.button("Cancelar", on_click=dialog.close).props("flat")
             ui.button("Salvar", on_click=salvar).classes("bg-blue-600 text-white")
+    # Sem delete o dialog acumula no layout a cada abertura.
+    dialog.on("hide", dialog.delete)
     dialog.open()
 
 
@@ -271,6 +320,8 @@ def _dialog_criar(on_sucesso: Callable[[], None]) -> None:
             ui.button("Cancelar", on_click=dialog.close).props("flat")
             ui.button("Salvar", on_click=salvar).classes("bg-blue-600 text-white")
 
+    # Sem delete o dialog acumula no layout a cada abertura.
+    dialog.on("hide", dialog.delete)
     dialog.open()
 
 
