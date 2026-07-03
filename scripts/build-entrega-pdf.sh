@@ -144,8 +144,9 @@ hotspots** a revisar.
 
 **Depois** — hotspots tratados no fluxo da ferramenta (1 corrigido no código —
 regex de e-mail sem backtracking polinomial, S5852; 2 revisados como seguros —
-OTLP intra-cluster) e reanálise: **0 hotspots**, gate mantido Passed, coverage
-93,6%. Detalhes na seção SonarQube do Anexo A.
+OTLP intra-cluster), universo de cobertura alinhado ao gate e reanálise:
+**0 hotspots**, gate mantido Passed, coverage 95,3%. Detalhes na seção
+SonarQube do Anexo A.
 
 ![Depois: 0 hotspots a revisar, Quality Gate Passed](${PWD}/docs/entrega/fase2/evidencias/b6b-sonarqube-hotspots-zerados.png)
 ANEXOB
