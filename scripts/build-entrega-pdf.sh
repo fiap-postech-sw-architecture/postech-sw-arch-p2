@@ -48,9 +48,18 @@ if grep -q "VIDEO-LINK-FASE-2" "$SRC"; then
   echo "AVISO: VIDEO-LINK-FASE-2 ainda e placeholder -- preencha antes de submeter (issue #123)." >&2
 fi
 
-# 1) Links absolutos por-arquivo (cada um com seu base-dir).
+# 1) Links absolutos por-arquivo (cada um com seu base-dir). O rodape de
+#    navegacao dos .md ("> [↑ Raiz do projeto] · ...") serve ao GitHub, nao ao
+#    PDF — sai aqui, junto com o "---" que o antecede.
 rewrite() {  # <src> <dst> <base-dir>
   python3 scripts/rewrite-md-links.py "$1" "$2" --repo "$REPO" --branch "$BRANCH" --base-dir "$3"
+  python3 - "$2" <<'EOF'
+import sys
+linhas = [l for l in open(sys.argv[1], encoding="utf-8") if not l.startswith("> [↑")]
+while linhas and linhas[-1].strip() in ("", "---"):
+    linhas.pop()
+open(sys.argv[1], "w", encoding="utf-8").writelines(linhas + ["\n"])
+EOF
 }
 rewrite "$SRC"       "${TMP}/body.md"   docs/entrega/fase2
 rewrite "$SEGURANCA" "${TMP}/anexoA.md" docs/seguranca
@@ -166,19 +175,28 @@ ANEXOB
   tail -n +2 "${TMP}/anexoC.md"
 } >> "$COMBINADO"
 
-# 5) Mermaid -> PNG (o bloco vive na secao 6 do corpo).
-python3 - "$COMBINADO" "$TMP_MMD" "$TMP_PNG" <<'EOF'
+# 5) Mermaid -> PNG, um por bloco (infra na secao 7 + antes/depois da
+#    evolucao de camadas). A subsecao de evolucao ganha quebra de pagina para
+#    abrir em pagina propria, fechando o corpo antes dos anexos.
+python3 - "$COMBINADO" "$TMP" <<'EOF'
 import re, sys
-md, mmd, png = sys.argv[1:4]
+md, tmp = sys.argv[1:3]
 src = open(md, encoding="utf-8").read()
-m = re.search(r"```mermaid\n(.*?)```", src, re.S)
-if m is None:
-    sys.exit("erro: bloco ```mermaid``` nao encontrado no markdown combinado")
-open(mmd, "w", encoding="utf-8").write(m.group(1))
-src = src.replace(m.group(0), f"![Diagrama de arquitetura da fase 2]({png})")
+blocos = list(re.finditer(r"```mermaid\n(.*?)```", src, re.S))
+if not blocos:
+    sys.exit("erro: nenhum bloco ```mermaid``` no markdown combinado")
+for n, m in enumerate(blocos, 1):
+    open(f"{tmp}/diagrama-{n}.mmd", "w", encoding="utf-8").write(m.group(1))
+    src = src.replace(m.group(0), f"![Diagrama {n} — ver fonte Mermaid no repositório]({tmp}/diagrama-{n}.png)")
+src = src.replace(
+    "### Evolução das camadas",
+    '<div style="break-before:page;"></div>\n\n### Evolução das camadas',
+)
 open(md, "w", encoding="utf-8").write(src)
 EOF
-npx -y @mermaid-js/mermaid-cli -i "$TMP_MMD" -o "$TMP_PNG" -w 1400 -b white
+for mmd in "$TMP"/diagrama-*.mmd; do
+  npx -y @mermaid-js/mermaid-cli -i "$mmd" -o "${mmd%.mmd}.png" -w 1400 -b white
+done
 
 # 6) HTML intermediario + larguras de coluna + PDF. O passo Python fixa a
 #    largura das colunas de codigo curto (ID, PR, Artefato) em TODAS as

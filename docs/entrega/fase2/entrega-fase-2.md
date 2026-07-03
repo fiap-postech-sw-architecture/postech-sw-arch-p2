@@ -256,9 +256,42 @@ flowchart TB
 
 No fluxo acima, a CI atua como gate no PR (antes do merge); no push à `main`, CI e CD disparam em paralelo — a seta sequencial representa a ordem lógica (qualidade antes do deploy), não uma dependência entre workflows.
 
+### Evolução das camadas — da Onion (fase 1) à Clean Architecture (fase 2)
+
+A fase 1 organizava cada contexto delimitado em quatro camadas no modelo Onion ([ADR-003](../../arquitetura/adr/003-arquitetura-ddd-onion.md)): `dominio/`, `aplicacao/`, `infraestrutura/` e `interfaces/`, com a regra de dependência apontando para dentro, ports declarados em `aplicacao/` e adapters concretos na borda — mas sem ordem formal entre `interfaces/` e `infraestrutura/`.
+
+<!-- fonte: ADR-003 — camadas da fase 1 -->
+```mermaid
+flowchart TB
+    subgraph borda["Borda — interfaces/ e infraestrutura/, sem subdivisão formal"]
+        direction TB
+        i1["interfaces/<br/>routers FastAPI, schemas"]
+        n1["infraestrutura/<br/>ORM, repositórios, PostgreSQL"]
+        subgraph app1["aplicacao/ — casos de uso, DTOs, ports, UnitOfWork"]
+            dom1["dominio/ — entidades, agregados, value objects, eventos"]
+        end
+    end
+```
+
+A refatoração da fase 2 ([ADR-015](../../arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md), RNF-017) adotou a Clean Architecture sem rewrite: o núcleo ports & adapters permaneceu válido, e a mudança formalizou a nomenclatura de Martin e subdividiu a borda — `interfaces/` virou a camada de **Adaptadores de Interface** (controllers e presenters) e `infraestrutura/` a de **Frameworks & Drivers** (gateways SQLAlchemy, ORM, conexão com o banco), cada uma com papel e regras próprios.
+
+<!-- fonte: ADR-015 — camadas da fase 2 -->
+```mermaid
+flowchart TB
+    subgraph fd["Frameworks & Drivers — infraestrutura/ (gateways SQLAlchemy, ORM, PostgreSQL, SMTP)"]
+        subgraph ad["Adaptadores de Interface — interfaces/ (controllers FastAPI, presenters Pydantic)"]
+            subgraph uc["Casos de Uso — aplicacao/ (use cases, DTOs, ports, UnitOfWork)"]
+                ent["Entidades — dominio/<br/>entidades, agregados, value objects, eventos"]
+            end
+        end
+    end
+```
+
+A regra de dependência deixou de ser convenção e virou gate: o [import-linter](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/pyproject.toml) roda na CI com três contratos — camadas `interfaces → aplicacao → dominio` em todos os contextos (inclusive o shared kernel), proibição de `dominio/` e `aplicacao/` importarem `infraestrutura/`, e independência entre contextos delimitados ([ADR-015](../../arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md)).
+
 ## 8. Conteúdo do PDF de submissão
 
-O PDF entregue no portal do aluno é gerado a partir deste documento pelo [`scripts/build-entrega-pdf.sh`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/scripts/build-entrega-pdf.sh), que acrescenta uma **capa ABNT** no início, renderiza o diagrama Mermaid como imagem, converte os links relativos em absolutos e anexa os apêndices de evidência. A seção 9 (Pendências) é um checklist interno da equipe e **não** é incluída no PDF submetido.
+O PDF entregue no portal do aluno é gerado a partir deste documento pelo [`scripts/build-entrega-pdf.sh`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/scripts/build-entrega-pdf.sh), que acrescenta uma **capa ABNT** no início, renderiza os diagramas Mermaid como imagens, converte os links relativos em absolutos e anexa os apêndices de evidência. A seção 9 (Pendências) é um checklist interno da equipe e **não** é incluída no PDF submetido.
 
 O PDF contém os três itens exigidos pelo enunciado:
 
