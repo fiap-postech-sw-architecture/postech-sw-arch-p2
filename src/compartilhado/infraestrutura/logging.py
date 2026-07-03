@@ -34,7 +34,13 @@ def adicionar_versao_imagem(
 
 _CPF_PATTERN = re.compile(r"\b\d{3}\.?\d{3}\.?\d{3}-?\d{2}\b")
 _CNPJ_PATTERN = re.compile(r"\b\d{2}\.?\d{3}\.?\d{3}/?\d{4}-?\d{2}\b")
-_EMAIL_PATTERN = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Z|a-z]{2,}\b")
+# Dominio casado label a label (`.` fora da classe) -- mesma correcao S5852 da
+# regex de e-mail de notificacoes.py; aqui a superficie e maior (o scrubber
+# roda sobre o event_dict inteiro, tracebacks inclusos, sem cap de tamanho).
+# O `[A-Z|a-z]` antigo ainda embutia um `|` literal na classe do TLD.
+_EMAIL_PATTERN = re.compile(
+    r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}\b"
+)
 
 # Telefone BR: duas formas estruturais, escolhidas para nao gerar falso-positivo
 # em precos (`1500.00`), ids (`12345`), anos (`2026`), portas (`8000`) e CEPs
