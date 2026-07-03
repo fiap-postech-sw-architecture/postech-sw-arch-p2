@@ -77,3 +77,17 @@ class TestUsuario:
     def test_email_sem_dominio_invalido(self) -> None:
         with pytest.raises(ValueError, match="Email invalido"):
             Usuario(_email="user@", _senha_hash="x", _papel=Papel.ADMIN)
+
+
+class TestReprSemPii:
+    """Finding da revisao de entrega: repr default vazava e-mail e hash."""
+
+    def test_repr_nao_expoe_email_nem_hash(self) -> None:
+        usuario = Usuario(
+            _email="fulano@example.com",
+            _senha_hash="$2b$12$hash-sensivel",
+            _papel=Papel.ADMIN,
+        )
+        texto = repr(usuario)
+        assert "fulano@example.com" not in texto
+        assert "$2b$12$" not in texto

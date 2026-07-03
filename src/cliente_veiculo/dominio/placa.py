@@ -27,3 +27,12 @@ class Placa(ValueObject):
             msg = "Placa invalida"
             raise ValueError(msg)
         object.__setattr__(self, "valor", valor)
+
+    def mascarado(self) -> str:
+        """Placa com o meio oculto (``ABC1D23`` -> ``AB*****``)."""
+        return self.valor[:2] + "*" * (len(self.valor) - 2)
+
+    def __repr__(self) -> str:
+        # Placa e PII veicular: o __repr__ default vazaria o valor cru em
+        # tracebacks/logs (padrao dos VOs CPF/CNPJ/Contato).
+        return f"Placa(valor='{self.mascarado()}')"

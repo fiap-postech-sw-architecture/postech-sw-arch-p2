@@ -164,7 +164,7 @@ kubectl --context kind-pytstop -n pytstop port-forward svc/jaeger 16686:16686   
 kubectl --context kind-pytstop -n pytstop port-forward svc/prometheus 9090:9090     # Prometheus UI (métricas do relay)
 ```
 
-Admin de demo do cluster (seed no boot): `admin@pytstop.dev` / `pytstop-admin-demo-2026` (valores de demonstração comitados — [`k8s/secret.yaml`](k8s/secret.yaml)).
+Admin de demo do cluster (seed roda no Job `pytstop-migrate` durante o deploy): `admin@pytstop.dev` / `pytstop-admin-demo-2026` (valores de demonstração comitados — [`k8s/secret.yaml`](k8s/secret.yaml)).
 
 ## Provisionamento com Terraform
 

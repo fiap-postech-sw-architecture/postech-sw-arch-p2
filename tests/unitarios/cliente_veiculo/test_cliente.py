@@ -169,6 +169,17 @@ class TestCliente:
         with pytest.raises(ValueError, match="Nome do cliente nao pode ser vazio"):
             cliente.atualizar(nome="", contato=Contato(valor="11888888888"))
 
+    def test_atualizar_contato_none_invalido(self) -> None:
+        # Espelha o guard de __post_init__ (finding DDD-tatico da revisao de
+        # entrega): sem o guard o agregado aceitava contato None em memoria e
+        # o erro so aparecia no flush.
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        with pytest.raises(ValueError, match="Contato do cliente e obrigatorio"):
+            cliente.atualizar(nome="Novo Nome", contato=None)  # type: ignore[arg-type]
+
     def test_eventos_emitidos_nas_transicoes_de_estado(self) -> None:
         from src.cliente_veiculo.dominio.events import (
             ClienteAtualizadoEvent,

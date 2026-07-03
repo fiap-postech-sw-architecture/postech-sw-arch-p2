@@ -59,8 +59,9 @@ class TestLerConfig:
             ler_config(env)
 
     @pytest.mark.parametrize("placeholder", sorted(_PLACEHOLDERS_PROIBIDOS))
-    def test_rejeita_placeholders_publicos(self, placeholder: str) -> None:
+    def test_rejeita_placeholders_publicos_em_producao(self, placeholder: str) -> None:
         env = {
+            "ENVIRONMENT": "production",
             "ADMIN_EMAIL": "admin@pytstop.dev",
             "ADMIN_PASSWORD": placeholder,
             "DATABASE_URL": "postgresql://u:p@h/d",
@@ -68,18 +69,44 @@ class TestLerConfig:
         with pytest.raises(_ConfigError, match="placeholder"):
             ler_config(env)
 
-    def test_rejeita_valor_demo_publico_do_repo(self) -> None:
+    def test_rejeita_valor_demo_publico_em_producao(self) -> None:
         # Regressao do #95: o ADMIN_PASSWORD demo commitado (k8s/secret.yaml,
-        # docker-compose.yml) e publico -- nunca pode virar senha real. Teste
-        # explicito (o parametrizado acima ja cobre via frozenset; este falha
-        # se alguem remover o valor da denylist).
+        # docker-compose.yml) e publico -- nunca pode virar senha real em
+        # producao. Teste explicito (o parametrizado acima ja cobre via
+        # frozenset; este falha se alguem remover o valor da denylist).
         env = {
+            "ENVIRONMENT": "production",
             "ADMIN_EMAIL": "admin@pytstop.dev",
             "ADMIN_PASSWORD": "pytstop-admin-demo-2026",
             "DATABASE_URL": "postgresql://u:p@h/d",
         }
         with pytest.raises(_ConfigError, match="placeholder"):
             ler_config(env)
+
+    def test_aceita_valor_demo_em_development(self) -> None:
+        # Regressao do finding devops da revisao da entrega: a denylist barrava
+        # o valor demo tambem em development, o seed do Job caia no
+        # "best-effort: skip" e o cluster kind subia SEM usuario algum (login
+        # 401 no roteiro do video). Em dev/test o valor demo e o proposito.
+        env = {
+            "ENVIRONMENT": "development",
+            "ADMIN_EMAIL": "admin@pytstop.dev",
+            "ADMIN_PASSWORD": "pytstop-admin-demo-2026",
+            "DATABASE_URL": "postgresql://u:p@h/d",
+        }
+        _, _, senha = ler_config(env)
+        assert senha == "pytstop-admin-demo-2026"
+
+    def test_aceita_valor_demo_sem_environment_definido(self) -> None:
+        # Default de ENVIRONMENT e development (paridade com o Job do cluster,
+        # que herda o configmap com ENVIRONMENT=development).
+        env = {
+            "ADMIN_EMAIL": "admin@pytstop.dev",
+            "ADMIN_PASSWORD": "pytstop-admin-demo-2026",
+            "DATABASE_URL": "postgresql://u:p@h/d",
+        }
+        _, _, senha = ler_config(env)
+        assert senha == "pytstop-admin-demo-2026"
 
     def test_rejeita_senha_whitespace(self) -> None:
         env = {

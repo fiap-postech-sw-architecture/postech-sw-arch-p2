@@ -151,6 +151,12 @@ class Cliente(AggregateRoot):
         if not nome:
             msg = "Nome do cliente nao pode ser vazio"
             raise ValueError(msg)
+        if contato is None:
+            # Espelha o guard de __post_init__: sem isso o agregado aceitaria
+            # estado invalido em memoria e o erro so apareceria no flush
+            # (mesma classe do catch de ServicoOferecido.atualizar, PR #59).
+            msg = "Contato do cliente e obrigatorio"
+            raise ValueError(msg)
         self._nome = nome
         self._contato = contato
         self._registrar_evento(ClienteAtualizadoEvent(agregado_id=self.id))
