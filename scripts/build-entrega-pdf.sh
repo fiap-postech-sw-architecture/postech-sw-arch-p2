@@ -31,7 +31,14 @@ COMBINADO="${TMP}/entrega-completo.md"
 TMP_MMD="${TMP}/diagrama.mmd"
 TMP_PNG="${TMP}/diagrama.png"
 
-for f in "$SRC" "$SEGURANCA" "$EXTRAS" scripts/rewrite-md-links.py; do
+for f in "$SRC" "$SEGURANCA" "$EXTRAS" scripts/rewrite-md-links.py \
+  docs/entrega/fase2/evidencias/b1-ci-cd-verde.png \
+  docs/entrega/fase2/evidencias/b2-hpa-escalando.png \
+  docs/entrega/fase2/evidencias/b3a-jaeger-busca.png \
+  docs/entrega/fase2/evidencias/b3b-jaeger-trace.png \
+  docs/entrega/fase2/evidencias/b4-mailpit-emails.png \
+  docs/entrega/fase2/evidencias/b5-prometheus-outbox.png \
+  docs/entrega/fase2/evidencias/b6-sonarqube-quality-gate.png; do
   [ -f "$f" ] || { echo "erro: arquivo obrigatorio ausente: $f" >&2; exit 1; }
 done
 
@@ -101,18 +108,35 @@ awk '
   tail -n +2 "${TMP}/anexoA.md"
 
   printf '\n\n<div style="break-before:page;"></div>\n\n# Anexo B — Evidências Visuais\n\n'
-  cat <<'ANEXOB'
-> Capturas da demonstração no cluster kind, na mesma sequência do roteiro do vídeo.
-> Gerar com a stack no ar (`make cd-local`) e inserir as imagens antes de submeter.
+  cat <<ANEXOB
+> Capturas da demonstração no cluster kind (\`make cd-local\`), na mesma sequência
+> do roteiro do vídeo. Fontes versionadas em \`docs/entrega/fase2/evidencias/\`.
 
-| # | Evidência | Como capturar |
-|---|---|---|
-| B1 | Run verde do CD na `main` | GitHub Actions → `full-test (ci)` / `cd` |
-| B2 | HPA escalando 1→N | `kubectl -n pytstop get hpa -w` sob carga (roteiro, bloco 5) |
-| B3 | Trace no Jaeger | http://localhost:16686 → `pytstop-api` → trace com spans fastapi+sqlalchemy |
-| B4 | E-mail no Mailpit | http://localhost:8025 → caixa com um e-mail por transição de OS |
-| B5 | Métricas no Prometheus | http://localhost:9090 → `outbox_entregue_total` > 0 e `outbox_pendentes` = 0 |
-| B6 | Quality Gate do SonarQube | painel do projeto → Passed + cobertura |
+## B1 — Pipeline verde na \`main\`
+
+![CI, CD, Security, CodeQL e full-test verdes na main](${PWD}/docs/entrega/fase2/evidencias/b1-ci-cd-verde.png)
+
+## B2 — HPA escalando 1→5 sob carga
+
+![kubectl: HPA pytstop-api com 5 replicas sob carga](${PWD}/docs/entrega/fase2/evidencias/b2-hpa-escalando.png)
+
+## B3 — Traces no Jaeger
+
+![Busca no Jaeger: traces das transicoes de OS](${PWD}/docs/entrega/fase2/evidencias/b3a-jaeger-busca.png)
+
+![Trace da aprovacao com 18 spans fastapi+sqlalchemy](${PWD}/docs/entrega/fase2/evidencias/b3b-jaeger-trace.png)
+
+## B4 — E-mails no Mailpit (um por transição de OS)
+
+![Mailpit com 15 e-mails de transicao](${PWD}/docs/entrega/fase2/evidencias/b4-mailpit-emails.png)
+
+## B5 — Métricas do outbox no Prometheus
+
+![outbox_entregue_total=15 e outbox_pendentes=0](${PWD}/docs/entrega/fase2/evidencias/b5-prometheus-outbox.png)
+
+## B6 — Quality Gate do SonarQube (scan de fechamento)
+
+![Quality Gate Passed, coverage 93.6%](${PWD}/docs/entrega/fase2/evidencias/b6-sonarqube-quality-gate.png)
 ANEXOB
 
   printf '\n\n<div style="break-before:page;"></div>\n\n# Anexo C — Funcionalidades Extras da Fase 2\n\n'
