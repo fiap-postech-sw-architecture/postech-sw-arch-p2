@@ -356,10 +356,11 @@ RBAC_ESPERADO: dict[tuple[str, str], dict[Papel, int | frozenset[int]]] = {
         Papel.MECANICO: 200,
         Papel.ADMIN: 200,
     },
-    ("GET", "/api/v1/acompanhamento"): {
-        # Endpoint publico — nunca 401. 404 quando o par placa+documento
-        # nao casa (shape constante, ver ``router_publico.py:65-74``).
-        # 422 se os query params nao passarem nos limites de tamanho.
+    ("POST", "/api/v1/acompanhamento"): {
+        # Endpoint publico — nunca 401. POST com placa/documento no CORPO
+        # (issue #180: PII fora da URL). 404 quando o par placa+documento
+        # nao casa (shape constante, ver ``router_publico.py``).
+        # 422 se o corpo nao passar nos limites de tamanho.
         # 429 aceito: rate limit 10/min por IP, atingido se muitas journeys
         # paralelas consultam /acompanhamento na mesma janela.
         Papel.ANON: frozenset({200, 404, 422, 429}),
@@ -378,6 +379,11 @@ def total_celulas() -> int:
 # Payloads minimos por endpoint — apenas o necessario para nao disparar 422
 # antes do 401/403. Quando a chave nao existe, ``None`` (sem body) e o padrao.
 _PAYLOADS_MINIMOS: dict[tuple[str, str], dict[str, object]] = {
+    # Consulta publica: placa/documento no corpo (issue #180, PII fora da URL).
+    ("POST", "/api/v1/acompanhamento"): {
+        "placa": "ABC1234",
+        "documento": "12345678909",
+    },
     ("POST", "/api/v1/autenticacao/login"): {
         "email": "x@x.com",
         "senha": "x" * 12,
@@ -441,10 +447,6 @@ _PAYLOADS_MINIMOS: dict[tuple[str, str], dict[str, object]] = {
 _QUERY_PARAMS: dict[tuple[str, str], dict[str, str]] = {
     # ``tipo`` e obrigatorio na query; sem isso e 422 mesmo autorizado.
     ("DELETE", "/api/v1/clientes/{id}/consentimento"): {"tipo": "marketing"},
-    ("GET", "/api/v1/acompanhamento"): {
-        "placa": "ABC1234",
-        "documento": "12345678909",
-    },
 }
 
 
