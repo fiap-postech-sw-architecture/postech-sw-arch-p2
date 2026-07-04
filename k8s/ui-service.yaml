@@ -1,0 +1,19 @@
+# Service da UI de demonstracao. ClusterIP: a UI e acessada por port-forward
+# na gravacao do video (`kubectl port-forward svc/pytstop-ui 8080:8080`),
+# mesmo padrao do Mailpit/Jaeger -- sem Ingress/TLS, que seria exagero para a
+# demo local no kind.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pytstop-ui
+  namespace: pytstop
+  labels:
+    app: pytstop-ui
+spec:
+  type: ClusterIP
+  selector:
+    app: pytstop-ui
+  ports:
+    - name: http
+      port: 8080
+      targetPort: 8080

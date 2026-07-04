@@ -160,7 +160,7 @@ Cada requisito da fase 2 ([gap analysis](https://github.com/fiap-postech-sw-arch
 | RNF-017 | [#12](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/12) | Clean Architecture formalizada e verificada | Contratos de camadas em `[tool.importlinter]` (`pyproject.toml`), verificados na CI (step *Architecture contracts*, `lint-imports`; paridade local via `make lint-arch`); [ADR-015](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md) |
 | RNF-018 | [#13](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/13)–[#17](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/17) (transversal) | Testes dos fluxos críticos mantidos na evolução | Gate de 95% em `.coveragerc` (1.617 testes unitários + 163 de integração na HEAD final); cobertura de 95,3% em `src/` medida no fechamento (Anexo A) — CI verde na main ([run 28637221227](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/28637221227)) |
 | RNF-019 | [#18](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/18) | Dockerfile e docker-compose revisados (healthcheck do app) | `HEALTHCHECK` no `Dockerfile` + bloco `healthcheck` do serviço `app` no `docker-compose.yml`, ambos probando `/api/v1/saude` |
-| RNF-020 | [#19](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/19) | Manifests K8s: Deployment, Service, ConfigMap, Secret, HPA | [`k8s/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/k8s) — `namespace.yaml`, `deployment.yaml`, `service.yaml`, `configmap.yaml`, `secret.yaml`, `hpa.yaml`, `jobs/migration-job.yaml`, `mailpit.yaml`, `jaeger.yaml`, `relay.yaml`, `redis.yaml`, `prometheus.yaml` |
+| RNF-020 | [#19](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/19) | Manifests K8s: Deployment, Service, ConfigMap, Secret, HPA | [`k8s/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/k8s) — `namespace.yaml`, `deployment.yaml`, `service.yaml`, `configmap.yaml`, `secret.yaml`, `hpa.yaml`, `jobs/migration-job.yaml`, `mailpit.yaml`, `jaeger.yaml`, `relay.yaml`, `redis.yaml`, `prometheus.yaml`, `ui-{deployment,service,configmap}.yaml` (UI no cluster, issue #186) |
 | RNF-021 | [#20](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/20) | IaC: Terraform provisiona cluster e banco, documentado | [`infra/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/infra) — cluster kind + namespace + Secret + StatefulSet PostgreSQL + Service num único apply; recursos documentados em `infra/README.md` |
 | RNF-022 | [#21](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/21) | CI/CD: build, testes, imagem, deploy de banco e app, manifests | [`.github/workflows/cd.yml`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/.github/workflows/cd.yml) + alvos `make k8s-up`/`k8s-smoke`/`cd-local` espelhando o workflow |
 | RNF-023 | [#19](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/19) | HPA-readiness: probes e resources no Deployment | Liveness/readiness em `/api/v1/saude` + requests/limits em `k8s/deployment.yaml`; metrics-server instalado pelo fluxo de deploy |
@@ -238,6 +238,7 @@ flowchart TB
             relay["Relay de eventos (ADR-022)<br/>Deployment — outbox→SMTP"]
             redis["Redis (ADR-023)<br/>Deployment + Service — rate limit"]
             prometheus["Prometheus (ADR-024)<br/>Deployment + Service — métricas do relay"]
+            ui["UI de demonstração (NiceGUI)<br/>Deployment + Service ClusterIP<br/>BACKEND_URL → pytstop-api"]
         end
     end
 
@@ -245,6 +246,7 @@ flowchart TB
     cfg -.->|"env vars"| app
     hpa -->|"escala réplicas"| app
     ms -.->|"métricas de CPU e memória"| hpa
+    ui -->|"consome a API no cluster"| svc
     app -->|"SQL via DATABASE_URL"| pg
     app -->|"grava outbox + NOTIFY"| pg
     relay -->|"LISTEN/NOTIFY + claim outbox"| pg
@@ -255,6 +257,8 @@ flowchart TB
 ```
 
 No fluxo acima, a CI atua como gate no PR (antes do merge); no push à `main`, CI e CD disparam em paralelo — a seta sequencial representa a ordem lógica (qualidade antes do deploy), não uma dependência entre workflows.
+
+A demo pode ser conduzida inteiramente no cluster: a UI de simulação (NiceGUI, [issue #186](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/186)) sobe como o Deployment `pytstop-ui` e consome a API pelo Service interno `pytstop-api:8000` — `make cd-local` a implanta junto com o resto, e `kubectl -n pytstop port-forward svc/pytstop-ui 8080:8080` a expõe em `http://localhost:8080`. Alternativamente, o `docker-compose.yml` sobe a mesma UI localmente (`make up`); o passo a passo dos dois caminhos está no [README](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/README.md#ui-de-simula%C3%A7%C3%A3o) e no [`k8s/README.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/k8s/README.md).
 
 ### Evolução das camadas — da Onion (fase 1) à Clean Architecture (fase 2)
 

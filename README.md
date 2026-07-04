@@ -158,11 +158,14 @@ Pré-requisitos: [Terraform >= 1.7](https://developer.hashicorp.com/terraform/in
 Passo a passo manual equivalente (provisionar, carregar imagem, aplicar manifests, conferir e acessar — incluindo a validação do HPA sob carga e os traces no Jaeger): [`k8s/README.md`](k8s/README.md).
 
 ```bash
+kubectl --context kind-pytstop -n pytstop port-forward svc/pytstop-ui 8080:8080     # UI NiceGUI: http://localhost:8080/login
 kubectl --context kind-pytstop -n pytstop port-forward svc/pytstop-api 18000:8000   # Swagger: http://localhost:18000/docs
 kubectl --context kind-pytstop -n pytstop port-forward svc/mailpit 8025:8025        # Mailpit UI
 kubectl --context kind-pytstop -n pytstop port-forward svc/jaeger 16686:16686       # Jaeger UI
 kubectl --context kind-pytstop -n pytstop port-forward svc/prometheus 9090:9090     # Prometheus UI (métricas do relay)
 ```
+
+A UI NiceGUI roda **no próprio cluster** (issue #186): o Deployment `pytstop-ui` consome a API pelo Service interno `pytstop-api:8000`, então a demo inteira — UI + APIs — vive no kind. Faça o port-forward acima e abra `http://localhost:8080/login` (mesmo admin de demo abaixo). A UI também continua disponível localmente via compose (`make up`, seção acima).
 
 Admin de demo do cluster (seed roda no Job `pytstop-migrate` durante o deploy): `admin@pytstop.dev` / `pytstop-admin-demo-2026` (valores de demonstração comitados — [`k8s/secret.yaml`](k8s/secret.yaml)).
 
@@ -226,15 +229,25 @@ Roteiro de gravação (deploy, CI/CD, APIs, HPA, traces): [`docs/entrega/fase2/r
 | Debugging do dev loop (Colima, JWT_SECRET, 500s comuns) | [`docs/debugging-guide.md`](docs/debugging-guide.md) |
 | Manifests Kubernetes e validação do HPA | [`k8s/README.md`](k8s/README.md) |
 | Terraform (recursos, variáveis, troubleshooting) | [`infra/README.md`](infra/README.md) |
-| UI NiceGUI (sandbox dev-only) | [`ui/README.md`](ui/README.md) |
+| UI NiceGUI (simulação da API) | [`ui/README.md`](ui/README.md) |
 | Worktrees paralelos (rodar 2+ branches sem conflito de portas) | [`docs/setup/worktrees-paralelos.md`](docs/setup/worktrees-paralelos.md) |
 
 ## UI de Simulação
 
-Sandbox em Python puro (NiceGUI) para testes manuais integrados da API.
-**Dev-only** -- não entra no Dockerfile do backend nem recebe manifest K8s.
+Front em Python puro (NiceGUI) para testes manuais integrados da API — imagem
+própria (`ui/Dockerfile`), não entra no Dockerfile do backend. Roda de duas
+formas:
+
+- **No cluster kind** (issue #186): Deployment `pytstop-ui` +
+  `k8s/ui-{deployment,service,configmap}.yaml`, com `BACKEND_URL` apontando
+  para o Service interno `pytstop-api:8000`. Sobe junto no `make cd-local`;
+  acesse por `kubectl -n pytstop port-forward svc/pytstop-ui 8080:8080` →
+  `http://localhost:8080/login`. A demo inteira (UI + APIs) fica no k8s.
+- **Localmente via compose**: `make up` sobe a UI em `http://localhost:8080`
+  batendo no backend do compose (`BACKEND_URL=http://app:8000`).
+
 Coexiste com o Swagger UI (`/docs`): Swagger é referência crua da API, a UI
-de simulação é sandbox integrado. Guia completo: [`ui/README.md`](ui/README.md).
+de simulação é o front integrado. Guia completo: [`ui/README.md`](ui/README.md).
 
 ## Variáveis de Ambiente
 

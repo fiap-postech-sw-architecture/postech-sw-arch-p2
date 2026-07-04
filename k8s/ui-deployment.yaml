@@ -1,0 +1,92 @@
+# UI de demonstracao (NiceGUI) como workload do cluster -- a demo inteira
+# (UI + APIs) roda no kind, sem depender do docker-compose. A UI e stateless
+# (a sessao vive no storage do NiceGUI, por pod) e nao e requisito do desafio
+# (o enunciado aceita Postman/Swagger), entao 1 replica basta, sem HPA.
+#
+# Imagem propria (ui/Dockerfile, non-root uid 1001), distinta da API. O CD
+# troca a tag `dev` pela tag imutavel do SHA (mesmo sed do -app). Nao depende
+# da migracao (so fala HTTP com a API), entao sobe no grupo de apoio, junto
+# com os demais servicos -- nao atras do Job de migracao.
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: pytstop-ui
+  namespace: pytstop
+  labels:
+    app: pytstop-ui
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: pytstop-ui
+  template:
+    metadata:
+      labels:
+        app: pytstop-ui
+    spec:
+      # Mesmo hardening dos demais workloads (TD-024): non-root, sem
+      # escalonamento de privilegio, rootfs read-only, seccomp default.
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 1001
+        runAsGroup: 1001
+        fsGroup: 1001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ui
+          # O CD troca esta tag pela tag imutavel do SHA (ADR-019). `dev` e a
+          # tag do fluxo local: build de ui/Dockerfile + `kind load`.
+          image: ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-ui:dev
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8080
+          envFrom:
+            - configMapRef:
+                name: pytstop-ui-config
+          # Readiness/liveness batem na propria pagina (a UI responde 200 em
+          # `/`, redirecionando para /login). Um timeout folgado cobre o cold
+          # start do NiceGUI sob o limite de CPU.
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          resources:
+            requests:
+              cpu: 50m
+              memory: 128Mi
+            limits:
+              cpu: 250m
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop:
+                - ALL
+          # rootfs read-only: o NiceGUI grava `.nicegui/` (storage de sessao)
+          # no CWD /app e o Python usa /tmp -- ambos montados como emptyDir
+          # gravavel, o resto da imagem fica imutavel.
+          volumeMounts:
+            - name: nicegui-storage
+              mountPath: /app/.nicegui
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: nicegui-storage
+          emptyDir: {}
+        - name: tmp
+          emptyDir: {}

@@ -1,0 +1,14 @@
+# Configuracao da UI de demonstracao (NiceGUI) no cluster. O unico valor que
+# muda entre compose e cluster e o BACKEND_URL: no compose aponta para o
+# servico `app`; aqui aponta para o Service interno `pytstop-api` (DNS do
+# cluster), de modo que as chamadas da UI batem na API DENTRO do cluster.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pytstop-ui-config
+  namespace: pytstop
+  labels:
+    app: pytstop-ui
+data:
+  BACKEND_URL: "http://pytstop-api:8000"
+  UI_PORT: "8080"
