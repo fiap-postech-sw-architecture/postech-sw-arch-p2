@@ -187,7 +187,7 @@ def test_double_refresh_concorrente_usa_uma_unica_rotacao(
     def chamar(api: ClienteApi) -> None:
         try:
             resultados.append(api.get("/api/v1/clientes"))
-        except BaseException as exc:  # teste captura tudo pra reportar
+        except Exception as exc:  # teste captura falhas de thread pra reportar
             erros.append(exc)
 
     t1 = threading.Thread(target=chamar, args=(api_a,))

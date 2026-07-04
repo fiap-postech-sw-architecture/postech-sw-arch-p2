@@ -97,9 +97,13 @@ where = ["."]
 include = ["src*"]
 
 [tool.ruff]
-# Casa com requires-python/mypy (3.14): py313 deixava o pyupgrade/lint
-# aquem da sintaxe que o runtime ja suporta.
-target-version = "py314"
+# Runtime e 3.14 (requires-python/mypy), mas o target do ruff fica em py313
+# DE PROPOSITO: com py314 o `ruff format` remove os parenteses de
+# `except (A, B):` (PEP 758), sintaxe que tooling externo ainda nao parseia --
+# SonarQube do scan de fechamento (ADR-011) e revisores automaticos a acusam
+# como SyntaxError. Manter py313 preserva `except (A, B):`, compativel com todo
+# o tooling, sem impacto no runtime 3.14.
+target-version = "py313"
 line-length = 88
 
 [tool.ruff.lint]

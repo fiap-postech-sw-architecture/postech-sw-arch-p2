@@ -10,15 +10,15 @@ import structlog.testing
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.compartilhado.interfaces import router_publico
 from src.compartilhado.interfaces.dependencies import obter_session
 from src.compartilhado.interfaces.middleware import limiter
-from src.compartilhado.interfaces.router_publico import router
 
 
 def _criar_app() -> FastAPI:
     app = FastAPI()
     app.state.limiter = limiter
-    app.include_router(router)
+    app.include_router(router_publico.router)
     # Stub da session para os testes — nao e usada no mock do use case.
     # codeql[py/unnecessary-lambda] -- FastAPI dependency_overrides exige o lambda
     app.dependency_overrides[obter_session] = lambda: MagicMock()
@@ -308,10 +308,8 @@ class TestDecisaoOrcamentoExterna:
         # configurar_logging em outro teste da sessao), capture_logs nao intercepta
         # o `_log` module-level ja cacheado. Um proxy novo torna o capture
         # deterministico em qualquer ordem da suite.
-        import src.compartilhado.interfaces.router_publico as router_publico_modulo
-
         monkeypatch.setattr(
-            router_publico_modulo, "_log", structlog.get_logger("test_webhook_auth")
+            router_publico, "_log", structlog.get_logger("test_webhook_auth")
         )
         app = _criar_app()
         ordem_id = uuid4()

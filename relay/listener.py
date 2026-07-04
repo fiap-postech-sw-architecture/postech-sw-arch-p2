@@ -319,7 +319,7 @@ def executar_relay(
                     # Consome as notificacoes acumuladas (coalesce): um unico
                     # drain cobre todas.
                     conexao.notifies.clear()
-            except dbapi.Error, OSError:
+            except (dbapi.Error, OSError):
                 _log.warning("listen_conexao_perdida", exc_info=True)
                 _fechar_listen(conexao)
                 substituta = _reconectar_listen(engine, parar=parar)

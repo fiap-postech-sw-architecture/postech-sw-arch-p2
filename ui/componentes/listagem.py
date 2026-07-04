@@ -18,7 +18,7 @@ def rodape_contagem(dados: dict[str, Any]) -> None:
     itens = dados.get("items", [])
     try:
         total = int(dados.get("total") or 0)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return
     if total > len(itens):
         ui.label(f"Mostrando {len(itens)} de {total} registros.").classes(

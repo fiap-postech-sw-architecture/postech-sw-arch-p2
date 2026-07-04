@@ -56,7 +56,7 @@ def detectar_repo(base_dir: Path) -> str | None:
         nome = out.stdout.strip()
         if nome:
             return nome
-    except subprocess.CalledProcessError, FileNotFoundError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         # gh ausente ou falhou: cai no fallback do remote origin do git abaixo.
         pass
     try:
@@ -67,7 +67,7 @@ def detectar_repo(base_dir: Path) -> str | None:
             text=True,
             check=True,
         ).stdout.strip()
-    except subprocess.CalledProcessError, FileNotFoundError:
+    except (subprocess.CalledProcessError, FileNotFoundError):
         return None
     # git@github.com:owner/repo.git  ou  https://github.com/owner/repo(.git)(/)
     m = re.search(r"github\.com[:/]([^/]+/[^/]+?)(?:\.git)?/?$", url)

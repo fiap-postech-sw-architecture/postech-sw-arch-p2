@@ -232,7 +232,7 @@ def _ano_valido(valor: Any) -> int | None:  # noqa: ANN401  # ui.number().value
         return None
     try:
         return int(valor)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
 
 

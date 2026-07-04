@@ -33,7 +33,7 @@ def _quantidade_estoque_valida(valor: Any) -> int | None:  # noqa: ANN401  # ui.
         return None
     try:
         n = int(valor)
-    except TypeError, ValueError:
+    except (TypeError, ValueError):
         return None
     if n < 0:
         return None

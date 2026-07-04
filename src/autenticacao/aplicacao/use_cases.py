@@ -141,7 +141,7 @@ class Logout:
         """jti do refresh se for um refresh valido do MESMO usuario; senao None."""
         try:
             payload = self._jwt_service.validar_token(refresh_token)
-        except TokenExpiradoException, TokenInvalidoException:
+        except (TokenExpiradoException, TokenInvalidoException):
             return None
         if payload.get("type") != "refresh" or str(payload.get("sub")) != sub:
             return None
