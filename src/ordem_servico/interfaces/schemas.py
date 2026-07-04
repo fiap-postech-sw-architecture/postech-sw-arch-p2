@@ -32,6 +32,29 @@ _DESCRICAO_SITUACAO = (
     "apresenta o mesmo rotulo de Aguardando aprovação."
 )
 
+# Limite de linhas por lista na criacao da OS (RF-020): bound de payload
+# na borda HTTP — nenhuma OS legitima chega perto disso.
+_MAX_LINHAS_CRIACAO = 50
+
+
+class _ComSituacao(BaseModel):
+    """Base dos responses que derivam ``situacao`` de ``status`` (RF-021).
+
+    Centraliza o ``computed_field`` compartilhado pela projecao completa,
+    pelo resumo de listagem e pelo acompanhamento publico — fonte unica
+    do rotulo do challenge na borda HTTP.
+    """
+
+    status: str
+
+    @computed_field(  # type: ignore[prop-decorator]
+        description=_DESCRICAO_SITUACAO,
+    )
+    @property
+    def situacao(self) -> str:
+        """Rotulo de apresentacao derivado de ``status`` (RF-021)."""
+        return situacao_de(StatusOrdem(self.status))
+
 
 class ServicoDaOrdemRequest(BaseModel):
     """Linha de servico no payload de criacao da OS (RF-020).
@@ -83,11 +106,13 @@ class CriarOrdemRequest(BaseModel):
     veiculo_id: UUID = Field(description="Identificador do veiculo a ser atendido.")
     servicos: list[ServicoDaOrdemRequest] = Field(
         default_factory=list,
-        description="Servicos a executar, ja na abertura da OS (opcional).",
+        max_length=_MAX_LINHAS_CRIACAO,
+        description="Servicos a executar, ja na abertura da OS (opcional, max 50).",
     )
     pecas: list[PecaDaOrdemRequest] = Field(
         default_factory=list,
-        description="Pecas a consumir, ja na abertura da OS (opcional).",
+        max_length=_MAX_LINHAS_CRIACAO,
+        description="Pecas a consumir, ja na abertura da OS (opcional, max 50).",
     )
 
 
@@ -148,11 +173,12 @@ class DecisaoOrcamentoRequest(BaseModel):
 class ItemDaOrdemResponse(BaseModel):
     """Projecao de leitura de um item da ordem (centavos para moeda).
 
-    Inclui ``servico_nome`` e ``item_estoque_nome`` resolvidos no router via
-    lookup direto da session — assim a UI exibe ``Troca de oleo`` /
-    ``Filtro de oleo`` em vez de UUIDs sem precisar de chamadas extras pro
-    catalogo/estoque. Ambos sao nullable: pos anonimizacao/exclusao cascata
-    do servico/item, a OS continua valida mas o nome perdido vira ``None``.
+    Inclui ``servico_nome`` e ``item_estoque_nome`` resolvidos server-side
+    pela query ``EnriquecerOrdemDeServico`` (via ports, issue #87) — assim
+    a UI exibe ``Troca de oleo`` / ``Filtro de oleo`` em vez de UUIDs sem
+    precisar de chamadas extras pro catalogo/estoque. Ambos sao nullable:
+    pos anonimizacao/exclusao cascata do servico/item, a OS continua
+    valida mas o nome perdido vira ``None``.
     """
 
     model_config = ConfigDict(from_attributes=True)
@@ -198,7 +224,7 @@ class OrcamentoResponse(BaseModel):
     itens: list[LinhaOrcamentoResponse]
 
 
-class OrdemDeServicoResponse(BaseModel):
+class OrdemDeServicoResponse(_ComSituacao):
     """Projecao completa de uma ordem (retorno padrao dos endpoints de mutacao).
 
     ``cliente_nome`` e ``veiculo_placa`` sao resolvidos server-side via
@@ -229,16 +255,8 @@ class OrdemDeServicoResponse(BaseModel):
     criado_em: datetime
     atualizado_em: datetime
 
-    @computed_field(  # type: ignore[prop-decorator]
-        description=_DESCRICAO_SITUACAO,
-    )
-    @property
-    def situacao(self) -> str:
-        """Rotulo de apresentacao derivado de ``status`` (RF-021)."""
-        return situacao_de(StatusOrdem(self.status))
 
-
-class OrdemResumoResponse(BaseModel):
+class OrdemResumoResponse(_ComSituacao):
     """Projecao enxuta para listagens paginadas."""
 
     model_config = ConfigDict(from_attributes=True)
@@ -254,16 +272,7 @@ class OrdemResumoResponse(BaseModel):
         default=None,
         description="Placa do veiculo, resolvida server-side em batch.",
     )
-    status: str
     criado_em: datetime
-
-    @computed_field(  # type: ignore[prop-decorator]
-        description=_DESCRICAO_SITUACAO,
-    )
-    @property
-    def situacao(self) -> str:
-        """Rotulo de apresentacao derivado de ``status`` (RF-021)."""
-        return situacao_de(StatusOrdem(self.status))
 
 
 class OrdemListaResponse(BaseModel):
@@ -280,7 +289,7 @@ class OrdemListaResponse(BaseModel):
     limit: int = Field(description="Tamanho da pagina atual (1..100).")
 
 
-class AcompanhamentoResponse(BaseModel):
+class AcompanhamentoResponse(_ComSituacao):
     """Projecao publica de acompanhamento (endpoint rate-limited).
 
     Contem apenas status/situacao + timestamps; nao expoe cliente_id,
@@ -289,17 +298,8 @@ class AcompanhamentoResponse(BaseModel):
 
     model_config = ConfigDict(from_attributes=True)
 
-    status: str
     criado_em: datetime
     atualizado_em: datetime
-
-    @computed_field(  # type: ignore[prop-decorator]
-        description=_DESCRICAO_SITUACAO,
-    )
-    @property
-    def situacao(self) -> str:
-        """Rotulo de apresentacao derivado de ``status`` (RF-021)."""
-        return situacao_de(StatusOrdem(self.status))
 
 
 class MetricasResponse(BaseModel):

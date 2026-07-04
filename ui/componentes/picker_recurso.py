@@ -1,10 +1,8 @@
-"""Dropdown generico populado via endpoint de listagem com cache TTL."""
+"""Dropdown generico populado via endpoint de listagem."""
 
 from __future__ import annotations
 
 import logging
-import time
-from dataclasses import dataclass
 from typing import TYPE_CHECKING, Any, cast
 
 from nicegui import ui
@@ -17,29 +15,13 @@ if TYPE_CHECKING:
 logger = logging.getLogger(__name__)
 
 
-@dataclass
-class CacheRecursos:
-    ttl_seg: int
-    fetcher: Callable[[], list[dict[str, Any]]]
-    _cache: list[dict[str, Any]] | None = None
-    _expira_em: float = 0.0
-
-    def obter(self) -> list[dict[str, Any]]:
-        # Copia defensiva: o estado cacheado nunca sai cru (um caller que
-        # mutasse a lista corromperia o cache ate o TTL expirar).
-        if self._cache is not None and time.monotonic() < self._expira_em:
-            return list(self._cache)
-        self._cache = self.fetcher()
-        self._expira_em = time.monotonic() + self.ttl_seg
-        return list(self._cache)
-
-    def invalidar(self) -> None:
-        self._cache = None
-        self._expira_em = 0.0
-
-
 class PickerRecurso:
     """Dropdown pra escolher um recurso por id.
+
+    O fetcher e chamado direto (sem cache): cada picker vive dentro de um
+    dialog recriado a cada abertura, entao um cache TTL por instancia nunca
+    tinha hit — so adicionava estado e codigo morto (o antigo
+    ``CacheRecursos``). O botao de refresh re-busca sob demanda.
 
     Uso:
         picker = PickerRecurso(
@@ -57,12 +39,11 @@ class PickerRecurso:
         fetcher: Callable[[], list[dict[str, Any]]],
         campo_label: str = "nome",
         campo_id: str = "id",
-        ttl_seg: int = 30,
     ) -> None:
         self._campo_id = campo_id
         self._campo_label = campo_label
         self._rotulo = rotulo
-        self._cache = CacheRecursos(ttl_seg=ttl_seg, fetcher=fetcher)
+        self._fetcher = fetcher
         options = self._obter_opcoes()
         with ui.row().classes("items-end gap-2"):
             self._select = ui.select(
@@ -75,7 +56,7 @@ class PickerRecurso:
 
     def _obter_opcoes(self) -> dict[str, str]:
         try:
-            itens = self._cache.obter()
+            itens = self._fetcher()
         except ApiError as exc:
             logger.warning(
                 "PickerRecurso falhou ao listar %s: %s (%s)",
@@ -91,15 +72,11 @@ class PickerRecurso:
         return {str(i[self._campo_id]): str(i[self._campo_label]) for i in itens}
 
     def _refresh(self) -> None:
-        self._cache.invalidar()
         self._select.options = self._obter_opcoes()
         self._select.update()
 
     def valor(self) -> str | None:
         return cast("str | None", self._select.value)
-
-    def set_disabled(self, *, disabled: bool) -> None:
-        self._select.props(f"disable={str(disabled).lower()}")
 
     def on_change(self, callback: Callable[[], None]) -> None:
         """Registra callback para mudanca de selecao.

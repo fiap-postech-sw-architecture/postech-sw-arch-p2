@@ -21,28 +21,7 @@ from src.catalogo_servicos.dominio.exceptions import (
 )
 from src.catalogo_servicos.dominio.servico_oferecido import ServicoOferecido
 from src.compartilhado.dominio.dinheiro import Dinheiro
-
-
-class FakeUnitOfWork:
-    def __init__(self) -> None:
-        self.committed = False
-
-    def __enter__(self) -> FakeUnitOfWork:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: object,
-    ) -> None:
-        pass
-
-    def commit(self) -> None:
-        self.committed = True
-
-    def rollback(self) -> None:
-        pass
+from tests.unitarios.fakes import FakeUnitOfWork
 
 
 class FakeServicoOferecidoRepository:

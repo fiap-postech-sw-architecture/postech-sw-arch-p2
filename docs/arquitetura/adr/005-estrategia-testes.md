@@ -11,18 +11,22 @@ O Tech Challenge exige cobertura de testes acima de 80% nos domínios críticos.
 
 ## Decisão
 
-Adotar pytest com testcontainers (PostgreSQL real em container Docker) como base da estratégia de testes.
+Adotar pytest em três camadas: testes unitários rápidos (sem infraestrutura),
+testes de integração com testcontainers (PostgreSQL real) e uma suíte
+end-to-end (`full-test/`) contra a stack completa do docker-compose.
 
-Ferramentas e práticas:
+Ferramentas e práticas correntes:
 
-- **pytest + testcontainers**: cada sessão de teste sobe um container PostgreSQL real, garantindo que ENUM, SELECT FOR UPDATE e demais funcionalidades específicas do PostgreSQL sejam exercitadas
-- **polyfactory**: geração de fixtures tipadas a partir dos modelos de domínio, eliminando fixtures manuais
-- **pytest-xdist**: execução paralela de testes com isolamento por SAVEPOINT — cada teste roda dentro de uma transação com SAVEPOINT que sofre rollback ao final, sem interferência entre testes paralelos
+- **Unitários — fakes + SQLite in-memory**: a maior parte da suíte roda sem Docker. O domínio e a aplicação usam *fakes* em memória (ex.: `FakeOrdemDeServicoRepository` com dicionário) e *stubs* de portas; os testes de mapeamento/repositório que precisam de um banco usam **SQLite in-memory** (rápido, sem infraestrutura). Onde o comportamento depende de recurso exclusivo do PostgreSQL (ENUM, `SELECT FOR UPDATE`, JSONB), o teste sobe para a camada de integração.
+- **Integração — pytest + testcontainers**: sobe um container PostgreSQL real (ENUM, `SELECT FOR UPDATE NOWAIT`, JSONB exercitados de verdade), com **isolamento por SAVEPOINT** — cada teste roda dentro de uma transação aninhada que sofre rollback ao final. Os testes que precisam de commit real (relay, concorrência) usam conexões próprias com limpeza escopada por id, não o SAVEPOINT.
+- **End-to-end — `full-test/`**: journeys completos, matriz RBAC e cenários de concorrência contra a stack viva do docker-compose (`make full-test`), incluindo o baseline DAST (OWASP ZAP).
+- **polyfactory**: geração de fixtures tipadas a partir dos modelos de domínio, eliminando fixtures manuais.
 
-Evoluções planejadas (ainda não adotadas como dependências do projeto):
+Evoluções futuras (ainda **não** adotadas como dependências do projeto):
 
-- **mutmut**: testes de mutação com meta de 70%+ de mutantes mortos, para validar a qualidade das asserções
-- **schemathesis**: testes de contrato gerados a partir da especificação OpenAPI do FastAPI, validando que a API respeita o schema documentado
+- **pytest-xdist**: execução paralela dos testes (o SAVEPOINT já isola por-teste, mas a suíte roda serial hoje). Foi avaliado e não está no `pyproject.toml`.
+- **mutmut**: testes de mutação com meta de 70%+ de mutantes mortos, para validar a qualidade das asserções. Sem ferramenta pinada no momento (a série 3.x quebra na inicialização — ver TD-006).
+- **schemathesis**: testes de contrato gerados a partir da especificação OpenAPI do FastAPI, validando que a API respeita o schema documentado.
 
 Metas de cobertura:
 
@@ -38,12 +42,12 @@ Metas de cobertura:
 
 ### pytest + testcontainers (PostgreSQL real)
 
-Testes executados contra um container PostgreSQL idêntico ao de produção, com isolamento por SAVEPOINT e execução paralela via pytest-xdist.
+Testes executados contra um container PostgreSQL idêntico ao de produção, com isolamento por SAVEPOINT (paralelismo via pytest-xdist previsto como evolução futura, ainda não adotado).
 
 * Bom, porque exercita ENUM, SELECT FOR UPDATE, JSONB e demais funcionalidades específicas do PostgreSQL
-* Bom, porque o isolamento por SAVEPOINT permite paralelismo sem interferência entre testes
+* Bom, porque o isolamento por SAVEPOINT deixa cada teste independente (e habilita paralelismo futuro sem interferência)
 * Bom, porque detecta problemas reais de migração, constraints e tipos antes de chegar à produção
-* Ruim, porque é mais lento que testes in-memory (mitigado pelo paralelismo com pytest-xdist)
+* Ruim, porque é mais lento que testes in-memory (mitigado por manter a maior parte da suíte na camada unitária com fakes/SQLite; só sobe ao container quando o recurso do Postgres é essencial)
 * Ruim, porque exige Docker disponível no ambiente de desenvolvimento e CI
 
 ### SQLite in-memory
@@ -68,14 +72,14 @@ Substituir o repositório real por mocks em todos os testes de integração.
 
 ### Positivas
 
-* Testes realistas que exercitam o mesmo banco de produção, incluindo ENUM, JSONB e SELECT FOR UPDATE
+* Testes de integração realistas que exercitam o mesmo banco de produção, incluindo ENUM, JSONB e SELECT FOR UPDATE
 * Detecção antecipada de problemas de schema, migração e constraints
-* Execução paralela com pytest-xdist compensa o custo do container real
-* Base preparada para evoluções planejadas: testes de mutação (mutmut) reforçariam a significância das asserções e testes de contrato (schemathesis) validariam a API contra a documentação Swagger
+* Custo do container real contido por concentrar a maior parte da suíte em unitários com fakes/SQLite in-memory; o E2E (`full-test/`) cobre os fluxos completos
+* Base preparada para evoluções futuras: paralelismo (pytest-xdist), testes de mutação (mutmut) e de contrato (schemathesis) — nenhum adotado ainda
 
 ### Negativas
 
-* Testes são mais lentos que alternativas in-memory, mesmo com paralelismo
+* Testes de integração são mais lentos que os unitários in-memory (a suíte roda serial hoje; o paralelismo é evolução futura)
 * Testcontainers exige Docker instalado e em execução no ambiente de desenvolvimento e no CI
 * Configuração inicial do ambiente de testes é mais complexa que SQLite ou mocks
 

@@ -15,9 +15,12 @@
 set -u
 
 # pgrep -f matcha contra a linha de comando completa. `python -m ui` cobre
-# tanto `uv run python -m ui` quanto `.venv/bin/python -m ui` direto. Filtra
-# a propria linha do pgrep com -v $$ pra evitar self-match.
-pids=$(pgrep -f "python -m ui" 2>/dev/null | grep -v $$ || true)
+# tanto `uv run python -m ui` quanto `.venv/bin/python -m ui` direto. Sem
+# filtro de PID: pgrep nunca lista a si proprio, e este shell (bash do
+# script) nao casa com o padrao. O antigo `grep -v $$` filtrava por
+# SUBSTRING e podia descartar PIDs legitimos que contivessem o PID do shell
+# (ex.: $$=123 descartaria 1234).
+pids=$(pgrep -f "python -m ui" 2>/dev/null || true)
 
 if [ -n "$pids" ]; then
     # Lista um por linha pra debug claro.

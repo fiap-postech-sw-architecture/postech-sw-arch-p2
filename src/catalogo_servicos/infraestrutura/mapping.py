@@ -52,18 +52,21 @@ def iniciar_mapeamentos() -> None:
     )
 
     @event.listens_for(ServicoOferecido, "load")
-    def _reconstruir_preco(target: ServicoOferecido, _context: object) -> None:
+    @event.listens_for(ServicoOferecido, "refresh")
+    def _reconstruir_preco(target: ServicoOferecido, *_args: object) -> None:
+        # Decorators empilhados load+refresh (``*_args`` absorve o ``attrs`` que
+        # o refresh passa a mais). O catalogo nao usa populate_existing hoje,
+        # mas registrar ``refresh`` espelha estoque/cliente_veiculo e previne VO
+        # stale caso um populate_existing/session.refresh surja no futuro — sem
+        # o listener, o Dinheiro reidratado ficaria defasado apos a releitura.
         valor = target._preco_valor  # type: ignore[attr-defined]
         moeda = target._preco_moeda  # type: ignore[attr-defined]
         object.__setattr__(target, "_preco", Dinheiro(valor=valor, moeda=moeda))
-        # Preserva o guard de imutabilidade de id em instancias carregadas
-        # (SQLAlchemy nao invoca __post_init__).
-        object.__setattr__(target, "_id_atribuido", True)
         # __init__ nao roda no load (reconstituicao via __new__), entao o campo
         # init=False _eventos_pendentes nao existe na instancia. Semeia vazio
-        # para paridade com cliente_veiculo/mapping.py e para _registrar_evento
-        # nao estourar AttributeError quando o agregado emitir eventos em
-        # mutacoes (desativar/atualizar).
+        # para paridade com cliente_veiculo/mapping.py e para a infraestrutura
+        # que varre eventos pendentes (UoW/outbox) nao estourar AttributeError.
+        # Hoje so a factory `criar` emite evento; mutacoes nao emitem.
         object.__setattr__(target, "_eventos_pendentes", [])
 
     @event.listens_for(ServicoOferecido, "before_insert")

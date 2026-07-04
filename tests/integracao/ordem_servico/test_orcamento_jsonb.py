@@ -135,7 +135,8 @@ class TestOrcamentoJsonb:
         )
         assert alinhamento.subtotal == Dinheiro(valor=Decimal("80.50"), moeda="BRL")
         assert orcamento.gerado_em is not None
-        assert orcamento.versao_schema == 1
+        # Snapshot novo: v2 (moeda por linha e no total persistidas).
+        assert orcamento.versao_schema == 2
 
     def test_coluna_e_jsonb_nativo_nao_string_duplo_codificada(
         self, session: Session
@@ -167,7 +168,7 @@ class TestOrcamentoJsonb:
             ),
             {"id": ordem_id},
         ).scalar_one()
-        assert versao == "1"
+        assert versao == "2"
 
         # E as linhas sao um array jsonb navegavel (prova adicional de que o
         # dict aninhado nao virou string).

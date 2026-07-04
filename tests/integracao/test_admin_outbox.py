@@ -6,39 +6,50 @@ Cobre a superficie HTTP auth-gated do ``router_admin`` ponta a ponta via
 ``tem_sucessores_pendentes``, F4) e o contrato do POST ``reenfileirar``
 (``dead`` -> ``pendente``/tentativas 0; 404 fora desse estado).
 
-O ``router_admin`` constroi seu proprio Engine a partir de ``DATABASE_URL``
-(cache de modulo). O fixture ``api_client`` aponta ``DATABASE_URL`` para o
-banco de teste, entao o endpoint le/escreve a MESMA outbox que semeamos pelo
-``engine`` da sessao. As linhas ``dead`` sao inseridas via Core (isola o
-teste da UoW) e limpas no teardown.
+O ``router_admin`` reusa o Engine criado no ``lifespan`` do app
+(``request.app.state.engine``). O fixture ``api_client`` aponta
+``DATABASE_URL`` para o banco de teste antes de subir o app, entao esse
+Engine e o ``engine`` da sessao apontam para o MESMO banco: o endpoint
+le/escreve a MESMA outbox que semeamos. As linhas ``dead`` sao inseridas via
+Core (isola o teste da UoW) e limpas no teardown.
 """
 
 from __future__ import annotations
 
-from collections.abc import Generator
-from datetime import UTC, datetime
+from functools import partial
 from typing import TYPE_CHECKING
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 import structlog
 import structlog.testing
-from fastapi.testclient import TestClient
-from sqlalchemy import text
 
 import src.compartilhado.interfaces.router_admin as router_admin_modulo
 from src.autenticacao.dominio.papel import Papel
-from src.autenticacao.dominio.usuario import Usuario
-from src.autenticacao.infraestrutura.password_hasher import hash_senha
-from src.autenticacao.infraestrutura.repository import UsuarioSQLAlchemyRepository
-from src.main import criar_app
+from tests.integracao.outbox_helpers import (
+    inserir_dead as _inserir_dead,
+)
+from tests.integracao.outbox_helpers import (
+    inserir_pendente,
+)
+from tests.integracao.outbox_helpers import (
+    status_tentativas as _status,
+)
+from tests.integracao.seed_helpers import SENHA_PADRAO, criar_usuario
 
 if TYPE_CHECKING:
-    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
     from sqlalchemy import Engine
     from sqlalchemy.orm import Session, sessionmaker
 
+    from src.autenticacao.dominio.usuario import Usuario
+
 pytestmark = pytest.mark.integracao
+
+# Fixtures `api_client`/`session_factory`/`admin_user` vivem no conftest do
+# pacote (compartilhadas com test_api_e2e.py). A limpeza pos-teste (teardown
+# de `session_factory`) trunca todas as tabelas do metadata — inclui usuarios,
+# tokens_revogados, outbox e processed_events.
 
 
 @pytest.fixture(autouse=True)
@@ -52,127 +63,26 @@ def _logger_fresco(monkeypatch: pytest.MonkeyPatch) -> None:
     )
 
 
-_SENHA = "senhaforte1234"
-_EMAIL_ADMIN = "admin-dlq@test.com"
 _EMAIL_ATENDENTE = "atendente-dlq@test.com"
 
-
-@pytest.fixture
-def session_factory(engine: Engine) -> Generator[sessionmaker[Session]]:
-    from src.compartilhado.infraestrutura.database import criar_session_factory
-
-    factory = criar_session_factory(engine)
-    yield factory
-    # Limpa usuarios e a outbox (commits reais via TestClient/Core nao sao
-    # alcancados pelo rollback de SAVEPOINT do fixture `session`).
-    with factory() as sess:
-        sess.execute(text("DELETE FROM processed_events"))
-        sess.execute(text("DELETE FROM outbox"))
-        sess.execute(text("TRUNCATE TABLE tokens_revogados CASCADE"))
-        sess.execute(text("TRUNCATE TABLE usuarios CASCADE"))
-        sess.commit()
-
-
-def _criar_usuario(
-    session_factory: sessionmaker[Session], *, email: str, papel: Papel
-) -> Usuario:
-    with session_factory() as sess:
-        repo = UsuarioSQLAlchemyRepository(session=sess)
-        usuario = Usuario.criar(email=email, senha_hash=hash_senha(_SENHA), papel=papel)
-        repo.salvar(usuario)
-        sess.commit()
-    return usuario
-
-
-@pytest.fixture
-def admin_user(session_factory: sessionmaker[Session]) -> Usuario:
-    return _criar_usuario(session_factory, email=_EMAIL_ADMIN, papel=Papel.ADMIN)
+# Estes testes semeiam a linha `pendente` de gap (F4) com um tipo distinto do
+# dead do mesmo agregado — espelha o par DiagnosticoIniciado -> OrcamentoGerado.
+_inserir_pendente = partial(inserir_pendente, tipo="OrcamentoGeradoEvent")
 
 
 @pytest.fixture
 def atendente_user(session_factory: sessionmaker[Session]) -> Usuario:
     """Usuario autenticado SEM papel admin (atendente) — deve receber 403."""
-    return _criar_usuario(
-        session_factory, email=_EMAIL_ATENDENTE, papel=Papel.ATENDENTE
-    )
-
-
-@pytest.fixture
-def api_client(
-    engine: Engine,
-    session_factory: sessionmaker[Session],
-    monkeypatch: pytest.MonkeyPatch,
-) -> Generator[TestClient]:
-    monkeypatch.setenv(
-        "JWT_SECRET", "test-secret-at-least-32-bytes-long-for-hs256-signing"
-    )
-    monkeypatch.setenv("ENVIRONMENT", "test")
-    monkeypatch.setenv("DATABASE_URL", engine.url.render_as_string(hide_password=False))
-    app: FastAPI = criar_app()
-    with TestClient(app) as client:
-        yield client
+    return criar_usuario(session_factory, email=_EMAIL_ATENDENTE, papel=Papel.ATENDENTE)
 
 
 def _headers(api_client: TestClient, usuario: Usuario) -> dict[str, str]:
     resposta = api_client.post(
         "/api/v1/autenticacao/login",
-        json={"email": usuario.email, "senha": _SENHA},
+        json={"email": usuario.email, "senha": SENHA_PADRAO},
     )
     assert resposta.status_code == 200, resposta.text
     return {"Authorization": f"Bearer {resposta.json()['access_token']}"}
-
-
-def _inserir_dead(
-    engine: Engine,
-    *,
-    agregado_id: UUID | None = None,
-    tipo: str = "DiagnosticoIniciadoEvent",
-    tentativas: int = 5,
-) -> int:
-    with engine.begin() as conn:
-        row = conn.execute(
-            text(
-                "INSERT INTO outbox (agregado_id, tipo, payload, status, "
-                "tentativas, proxima_tentativa_em, criado_em, ultimo_erro) "
-                "VALUES (:aid, :tipo, CAST(:p AS JSONB), 'dead', :t, :agora, "
-                ":agora, 'boom') RETURNING id"
-            ),
-            {
-                "aid": agregado_id or uuid4(),
-                "tipo": tipo,
-                "p": '{"agregado_id": "x"}',
-                "t": tentativas,
-                "agora": datetime.now(UTC),
-            },
-        ).first()
-    return int(row.id)
-
-
-def _inserir_pendente(engine: Engine, *, agregado_id: UUID) -> int:
-    with engine.begin() as conn:
-        row = conn.execute(
-            text(
-                "INSERT INTO outbox (agregado_id, tipo, payload, status, "
-                "tentativas, proxima_tentativa_em, criado_em) "
-                "VALUES (:aid, 'OrcamentoGeradoEvent', CAST(:p AS JSONB), "
-                "'pendente', 0, :agora, :agora) RETURNING id"
-            ),
-            {
-                "aid": agregado_id,
-                "p": '{"agregado_id": "x"}',
-                "agora": datetime.now(UTC),
-            },
-        ).first()
-    return int(row.id)
-
-
-def _status(engine: Engine, outbox_id: int) -> tuple[str, int]:
-    with engine.begin() as conn:
-        row = conn.execute(
-            text("SELECT status, tentativas FROM outbox WHERE id = :id"),
-            {"id": outbox_id},
-        ).first()
-    return row.status, row.tentativas
 
 
 class TestAutorizacaoListarDlq:

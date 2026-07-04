@@ -20,7 +20,7 @@ Manifests da aplicação PytStop para o cluster kind da fase 2 (RNF-020): Deploy
 
 > O `jobs/migration-job.yaml` fica num **subdir** de propósito: `kubectl apply -f k8s/` não é recursivo, então o Job **não** entra no apply do diretório. Ele é aplicado separadamente, com a tag do SHA substituída, **antes do rollout** (seção [Aplicar](#aplicar)) — resolve a corrida de migração com N réplicas (TD-015; [ADR-019](../docs/arquitetura/adr/fase2/019-pipeline-cicd-deploy.md)).
 
-> ⚠️ **Deploy fora do pipeline não é suportado (TD-026).** A ordem _migração → rollout_ é garantida **apenas** pelo caminho imperativo (`make cd-local` / `make k8s-up` / [`cd.yml`](../.github/workflows/cd.yml)), que aplica o Job `pytstop-migrate` e espera `kubectl wait --for=condition=complete` **antes** do `kubectl set image`. Um `kubectl apply -f k8s/` seguido de `set image` manual — ou um fluxo GitOps puro (Argo/Flux) sem hook/sync-wave — **pula esse gate**: código novo pode subir contra um schema antigo. Não há initContainer / Helm hook que auto-force a ordem (decisão aceita para o MVP — o cluster é descartável e o deploy é sempre via pipeline). Se um dia o deploy migrar para GitOps, mover a migração para um **sync-wave / hook** anterior ao rollout.
+> ⚠️ **Deploy fora do pipeline não é suportado (TD-026).** A ordem _migração → rollout_ é garantida **apenas** pelo caminho imperativo (`make cd-local` / `make k8s-up` / [`cd.yml`](../.github/workflows/cd.yml)), que aplica o Job `pytstop-migrate` e espera sua conclusao (sucesso ou falha, o que vier primeiro) **antes** de aplicar os manifests da aplicacao — ja com a tag imutavel do SHA no lugar do placeholder `:dev`. Um `kubectl apply -f k8s/` seguido de `set image` manual — ou um fluxo GitOps puro (Argo/Flux) sem hook/sync-wave — **pula esse gate**: código novo pode subir contra um schema antigo. Não há initContainer / Helm hook que auto-force a ordem (decisão aceita para o MVP — o cluster é descartável e o deploy é sempre via pipeline). Se um dia o deploy migrar para GitOps, mover a migração para um **sync-wave / hook** anterior ao rollout.
 
 A infraestrutura-base (cluster kind e PostgreSQL no namespace `pytstop-infra`) é provisionada pelo Terraform de `/infra` (RNF-021); o **metrics-server** (pré-requisito do HPA) é instalado pelo fluxo integrado abaixo — fronteira descrita na RFC-002 §2.
 
@@ -61,7 +61,7 @@ Com o namespace já existente, reaplicações funcionam direto com `kubectl appl
 
 ### Migração (Job dedicado, antes do rollout)
 
-O `kubectl apply -f k8s/` **não** aplica o `jobs/migration-job.yaml` (subdir, apply não-recursivo). Depois dos manifests e **antes** do `set image`/rollout, aplique o Job de migração com a tag imutável do SHA substituída no lugar do placeholder `:dev` e aguarde a conclusão — é o gate que garante o schema em head antes de qualquer réplica subir (TD-015):
+O `kubectl apply -f k8s/` **não** aplica o `jobs/migration-job.yaml` (subdir, apply não-recursivo). Antes de aplicar os manifests da aplicação (que já entram com a tag do SHA via `sed`), aplique o Job de migração com a mesma tag imutável substituída no lugar do placeholder `:dev` e aguarde a conclusão — é o gate que garante o schema em head antes de qualquer réplica subir (TD-015):
 
 ```bash
 kubectl -n pytstop delete job pytstop-migrate --ignore-not-found
@@ -70,7 +70,7 @@ sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|<imagem:t
 kubectl -n pytstop wait --for=condition=complete --timeout=180s job/pytstop-migrate
 ```
 
-O fluxo integrado (`make cd-local` / CD na main) já executa esses passos na ordem certa — esta seção documenta o caminho manual. O Job roda `alembic upgrade head` (migração obrigatória — falha reprova o Job e aborta o deploy) seguido do seed do admin best-effort.
+O fluxo integrado (`make cd-local` / CD na main) já executa esses passos na ordem certa — esta seção documenta o caminho manual. A ordem que o pipeline aplica é: **(a)** namespace + ConfigMap/Secret + serviços de apoio (Mailpit, Jaeger, Prometheus, Redis, Service, HPA); **(b)** o Job de migração + espera com falha rápida; **(c)** só então `deployment.yaml` e `relay.yaml` (as cargas da aplicação) + `rollout status`. Assim nenhuma réplica da API/relay sobe antes do schema estar em head (ADR-019). O Job roda `alembic upgrade head` (migração obrigatória — falha reprova o Job e aborta o deploy) seguido do seed do admin best-effort.
 
 ## Conferir
 

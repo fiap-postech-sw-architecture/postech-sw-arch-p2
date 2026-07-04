@@ -69,21 +69,49 @@ def _checar_backend(label: ui.label) -> None:
         label.classes(replace="text-sm text-orange-600")
 
 
-def _checar_usuarios_seed(alerta: ui.column) -> None:
-    """Detecta se o usuario admin seed existe no banco.
+# Cache de processo do probe de usuarios seed. O probe faz um POST /login com
+# as credenciais do admin seed — repetir a cada render de /login gastava rate
+# limit e poluia o log de autenticacao do backend. ``None`` = ainda nao
+# sondado; depois disso guarda o status HTTP retornado (a existencia do seed
+# nao muda durante a vida do processo — quem rodar `make seed-users` reinicia
+# ou recarrega a UI).
+_probe_seed_feito = False
+_probe_seed_status: int | None = None
 
-    Usa ``ClienteApi.tentar_login_sem_salvar`` (que nao altera a sessao)
-    para testar se o admin seed existe. Mostra aviso APENAS se backend
-    responder 401 — outros cenarios (backend offline, 5xx) sao silenciosos
-    aqui porque ``_checar_backend`` ja indica o problema.
+
+def _status_admin_seed() -> int | None:
+    """Status do login-probe do admin seed, cacheado 1x por processo.
+
+    Retorna o status HTTP do probe ou ``None`` quando o backend esta
+    inacessivel. Probe offline (``None``) NAO e cacheado: assim que o backend
+    voltar, o proximo render sonda de novo — cachear a falha esconderia o
+    aviso de seed ausente pra sempre.
     """
+    global _probe_seed_feito, _probe_seed_status  # noqa: PLW0603  # cache de processo
+    if _probe_seed_feito:
+        return _probe_seed_status
     from ui.app import obter_api
 
     usuario_admin = CONFIG.usuarios_seed["admin"]
     status = obter_api().tentar_login_sem_salvar(
         email=usuario_admin.email, senha=usuario_admin.senha
     )
-    if status != HTTPStatus.UNAUTHORIZED:
+    if status is not None:
+        _probe_seed_feito = True
+        _probe_seed_status = status
+    return status
+
+
+def _checar_usuarios_seed(alerta: ui.column) -> None:
+    """Detecta se o usuario admin seed existe no banco.
+
+    Usa ``ClienteApi.tentar_login_sem_salvar`` (que nao altera a sessao)
+    para testar se o admin seed existe — 1x por processo, via
+    ``_status_admin_seed``. Mostra aviso APENAS se backend responder 401 —
+    outros cenarios (backend offline, 5xx) sao silenciosos aqui porque
+    ``_checar_backend`` ja indica o problema.
+    """
+    if _status_admin_seed() != HTTPStatus.UNAUTHORIZED:
         return
 
     alerta.clear()
@@ -98,6 +126,12 @@ def _checar_usuarios_seed(alerta: ui.column) -> None:
 def _entrar(email: str, senha: str) -> None:
     from ui.app import obter_api
 
+    # Validacao no cliente: evita POST fadado ao 401/422 quando o usuario
+    # clica "Entrar" com campos vazios.
+    email = (email or "").strip()
+    if not email or not senha:
+        ui.notify("Informe e-mail e senha.", type="warning")
+        return
     try:
         obter_api().login(email=email, senha=senha)
         ui.navigate.to("/")

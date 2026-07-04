@@ -15,9 +15,9 @@ imperativos das entidades, e os event listeners responsaveis por:
   porque ``Orcamento`` e um VO imutavel versionado por
   ``versao_schema``: uma modelagem relacional convidaria mutacoes
   parciais e perderia a semantica atomica do snapshot;
-- reativar invariantes de ``Entity`` (``_id_atribuido``) e
-  ``AggregateRoot`` (``_eventos_pendentes``) apos a reidratacao via
-  ORM, porque SQLAlchemy ignora ``__post_init__``.
+- rearmar ``AggregateRoot._eventos_pendentes`` apos a reidratacao via
+  ORM, porque SQLAlchemy ignora ``__post_init__`` (a imutabilidade de
+  ``id`` e garantida pelo proprio ``Entity.__setattr__``, sem flag).
 """
 
 from __future__ import annotations
@@ -59,7 +59,7 @@ def _orcamento_para_dict(orc: Orcamento) -> dict[str, Any]:
     sem perda (Copilot PR #62).
     """
     return {
-        "total_centavos": int(orc.total.valor * 100),
+        "total_centavos": orc.total.em_centavos,
         "moeda_total": orc.total.moeda,
         "gerado_em": orc.gerado_em.isoformat(),
         "versao_schema": orc.versao_schema,
@@ -67,8 +67,8 @@ def _orcamento_para_dict(orc: Orcamento) -> dict[str, Any]:
             {
                 "descricao": li.descricao,
                 "quantidade": li.quantidade,
-                "preco_unitario_centavos": int(li.preco_unitario.valor * 100),
-                "subtotal_centavos": int(li.subtotal.valor * 100),
+                "preco_unitario_centavos": li.preco_unitario.em_centavos,
+                "subtotal_centavos": li.subtotal.em_centavos,
                 "moeda": li.preco_unitario.moeda,
             }
             for li in orc.itens
@@ -79,8 +79,11 @@ def _orcamento_para_dict(orc: Orcamento) -> dict[str, Any]:
 def _orcamento_de_dict(data: Any) -> Orcamento:  # noqa: ANN401 -- JSONB e dinamico
     """Reconstroi um ``Orcamento`` do dict JSONB (``data`` e dinamico: JSONB).
 
-    Snapshots antigos (versao_schema < 2) nao persistiam moeda -> fallback
-    'BRL'. Inverso de ``_orcamento_para_dict``.
+    Fallbacks POR CHAVE cobrem as geracoes de snapshot: escritas novas saem
+    com ``versao_schema=2`` e moeda por linha e no total; snapshots antigos
+    podem nao ter moeda (fallback 'BRL') e/ou ``versao_schema`` (fallback 1).
+    Ha snapshots gravados como versao 1 que JA carregam moeda — por isso o
+    fallback e por chave, nao por versao. Inverso de ``_orcamento_para_dict``.
     """
     moeda_total = data.get("moeda_total", "BRL")
     linhas = tuple(
@@ -115,7 +118,7 @@ ordens_de_servico_table = Table(
     Column("id", Uuid, primary_key=True),
     Column("cliente_id", Uuid, ForeignKey("clientes.id"), nullable=False),
     Column("veiculo_id", Uuid, ForeignKey("veiculos.id"), nullable=False),
-    Column("status", String(50), nullable=False, default="recebida"),
+    Column("status", String(50), nullable=False, default=StatusOrdem.RECEBIDA.value),
     # Snapshot do orcamento como JSONB nativo (TD-005). Prod/Postgres usa
     # JSONB; a variante sqlite existe so para que unit-test create_all(sqlite)
     # nao trave (sqlite nao tem o tipo JSONB). Mesmo padrao de outbox.payload.
@@ -167,6 +170,14 @@ itens_da_ordem_table = Table(
     Column("quantidade", Integer, nullable=False),
     Column("preco_unitario_valor", Numeric(10, 2), nullable=False),
     Column("preco_unitario_moeda", String(3), nullable=False, default="BRL"),
+)
+
+# Indice na FK ordem_id (migration 008): todo load de OS dispara o selectin
+# dos itens com WHERE ordem_id IN (...); a FK nao cria indice sozinha e sem
+# ele o Postgres faz seq scan em itens_da_ordem (mesmo racional do TD-025).
+Index(
+    "ix_itens_da_ordem_ordem_id",
+    itens_da_ordem_table.c.ordem_id,
 )
 
 # Indice em item_estoque_id (TD-025, migration 005): a query cross-context
@@ -238,10 +249,6 @@ def iniciar_mapeamentos() -> None:
         object.__setattr__(
             target, "_preco_unitario", Dinheiro(valor=valor, moeda=moeda)
         )
-        # SQLAlchemy nao invoca __post_init__ na reidratacao; o guard de
-        # imutabilidade de Entity.__setattr__ precisa ser ativado aqui para
-        # preservar a imutabilidade de id (regressao PR #60 workspace-wide).
-        object.__setattr__(target, "_id_atribuido", True)
 
     @event.listens_for(ItemDaOrdem, "before_insert")
     @event.listens_for(ItemDaOrdem, "before_update")
@@ -288,10 +295,6 @@ def iniciar_mapeamentos() -> None:
         else:
             object.__setattr__(target, "_orcamento_aprovado", None)
             object.__setattr__(target, "_itens_aprovados_ids", frozenset())
-        # PR #60 lesson aplicada ao agregado: reativa _id_atribuido para
-        # que Entity.__setattr__ bloqueie mutacao de id em ordens
-        # carregadas via ORM.
-        object.__setattr__(target, "_id_atribuido", True)
         # AggregateRoot._eventos_pendentes e um field com default_factory
         # inicializado pelo __init__ do dataclass; como SQLAlchemy bypass
         # o __init__ ao reidratar, a lista precisa ser re-armada aqui

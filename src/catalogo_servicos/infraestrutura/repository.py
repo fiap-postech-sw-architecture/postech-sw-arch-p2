@@ -27,9 +27,14 @@ class ServicoOferecidoSQLAlchemyRepository:
         self._session.flush()
 
     def listar(self, offset: int = 0, limit: int = 20) -> list[ServicoOferecido]:
+        # Ordena por nome (listagem amigavel); id como tie-break para
+        # paginacao deterministica entre nomes repetidos.
         stmt = (
             select(ServicoOferecido)
-            .order_by(servicos_oferecidos_table.c.id)
+            .order_by(
+                servicos_oferecidos_table.c.nome,
+                servicos_oferecidos_table.c.id,
+            )
             .offset(offset)
             .limit(limit)
         )

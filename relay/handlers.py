@@ -17,20 +17,14 @@ from __future__ import annotations
 
 from dataclasses import fields
 from datetime import datetime
+from functools import partial
 from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
-from src.ordem_servico.aplicacao.notificacoes import NotificarMudancaDeStatus
-from src.ordem_servico.dominio.events import (
-    DiagnosticoIniciadoEvent,
-    EntregaRegistradaEvent,
-    OrcamentoAprovadoEvent,
-    OrcamentoComplementarAprovadoEvent,
-    OrcamentoComplementarGeradoEvent,
-    OrcamentoComplementarRejeitadoEvent,
-    OrcamentoGeradoEvent,
-    OrdemCanceladaEvent,
-    ServicoFinalizadoEvent,
+from relay.processador import PayloadInvalidoError
+from src.ordem_servico.aplicacao.notificacoes import (
+    _STATUS_POR_EVENTO,
+    NotificarMudancaDeStatus,
 )
 
 if TYPE_CHECKING:
@@ -38,23 +32,39 @@ if TYPE_CHECKING:
 
     from sqlalchemy import Engine
 
-    from src.compartilhado.dominio.integration_event import IntegrationEvent
+    from src.compartilhado.dominio.events import DomainEvent
 
 NOME_HANDLER_EMAIL = "email"
 
-# Mesmos 9 tipos do mapa _STATUS_POR_EVENTO de notificacoes.py.
-_EVENTOS: tuple[type[IntegrationEvent], ...] = (
-    DiagnosticoIniciadoEvent,
-    OrcamentoGeradoEvent,
-    OrcamentoAprovadoEvent,
-    ServicoFinalizadoEvent,
-    EntregaRegistradaEvent,
-    OrdemCanceladaEvent,
-    OrcamentoComplementarGeradoEvent,
-    OrcamentoComplementarAprovadoEvent,
-    OrcamentoComplementarRejeitadoEvent,
-)
-_POR_NOME: dict[str, type[IntegrationEvent]] = {cls.__name__: cls for cls in _EVENTOS}
+# Fonte unica: os tipos de evento com handler sao EXATAMENTE as chaves do
+# mapa _STATUS_POR_EVENTO de notificacoes.py (dict tipo-de-evento -> status
+# novo). Derivar daqui — em vez de manter uma 3a lista paralela que "deve
+# espelhar" o mapa — garante que um evento de transicao novo ganhe handler no
+# relay automaticamente; senao ele iria direto para a DLQ em producao (sem
+# handler) enquanto o teste hardcoded do relay seguiria verde. O tipo estatico
+# acompanha a chave do mapa fonte (``type[DomainEvent]``); em runtime todos sao
+# IntegrationEvents (entregues pela outbox), mas a fonte e tipada por DomainEvent.
+_EVENTOS: tuple[type[DomainEvent], ...] = tuple(_STATUS_POR_EVENTO)
+_POR_NOME: dict[str, type[DomainEvent]] = {cls.__name__: cls for cls in _EVENTOS}
+
+
+def _nome_tipo_base(nome: str) -> str:
+    """Reduz anotacoes opcionais ao tipo base: ``"UUID | None"`` -> ``"UUID"``.
+
+    Cobre as duas grafias de opcional (``Optional[UUID]``, inclusive
+    qualificada como ``typing.Optional[UUID]``, e a uniao PEP 604
+    ``UUID | None`` em qualquer ordem). Uniao com mais de um tipo nao-None
+    fica como esta — nao ha desserializacao inequivoca para ela.
+    """
+    nome = nome.strip()
+    posicao = nome.find("Optional[")
+    if posicao != -1 and nome.endswith("]"):
+        nome = nome[posicao + len("Optional[") : -1].strip()
+    if "|" in nome:
+        partes = [parte.strip() for parte in nome.split("|") if parte.strip() != "None"]
+        if len(partes) == 1:
+            nome = partes[0]
+    return nome
 
 
 def _desserializar_valor(tipo_campo: Any, valor: Any) -> Any:  # noqa: ANN401
@@ -62,7 +72,10 @@ def _desserializar_valor(tipo_campo: Any, valor: Any) -> Any:  # noqa: ANN401
 
     Com ``from __future__ import annotations`` os ``field.type`` chegam como
     STRING (ex.: ``"UUID"``, ``"datetime"``), nao como o tipo — por isso a
-    comparacao e por nome (cobre tanto ``"UUID"`` quanto ``"uuid.UUID"``).
+    comparacao e por nome (cobre tanto ``"UUID"`` quanto ``"uuid.UUID"``),
+    apos normalizar anotacoes opcionais (``"UUID | None"``/``"Optional[UUID]"``
+    -> ``"UUID"``; sem isso um campo opcional novo cairia no ramo cru e o
+    evento nasceria com ``str`` onde deveria haver ``UUID``/``datetime``).
     """
     if valor is None:
         return None
@@ -71,6 +84,7 @@ def _desserializar_valor(tipo_campo: Any, valor: Any) -> Any:  # noqa: ANN401
         if isinstance(tipo_campo, str)
         else getattr(tipo_campo, "__name__", "")
     )
+    nome_tipo = _nome_tipo_base(nome_tipo)
     if nome_tipo.endswith("UUID"):
         return UUID(valor)
     if nome_tipo.endswith("datetime"):
@@ -78,7 +92,7 @@ def _desserializar_valor(tipo_campo: Any, valor: Any) -> Any:  # noqa: ANN401
     return valor
 
 
-def _reconstruir_evento(tipo: str, payload: dict[str, Any]) -> IntegrationEvent:
+def _reconstruir_evento(tipo: str, payload: dict[str, Any]) -> DomainEvent:
     """Reconstroi o IntegrationEvent a partir do tipo + payload da outbox.
 
     Itera ``dataclasses.fields(cls)`` em vez de hard-listar campos (ex.:
@@ -112,7 +126,16 @@ def construir_mapa_handlers(
     )
 
     def _entregar(tipo: str, payload: dict[str, Any]) -> None:
-        evento = _reconstruir_evento(tipo, payload)
+        # Desserializacao ANTES de abrir session/SMTP e FORA do caminho de
+        # retry: payload malformado e falha DETERMINISTICA (bug de producer/
+        # config) — TypeError/ValueError viram PayloadInvalidoError e o
+        # processador manda a linha DIRETO para a DLQ (mesmo caminho do "tipo
+        # sem handler"), sem queimar 5 retries de SMTP num dado que nao muda.
+        try:
+            evento = _reconstruir_evento(tipo, payload)
+        except (TypeError, ValueError) as exc:
+            msg = f"payload invalido para {tipo}: {type(exc).__name__}: {exc}"
+            raise PayloadInvalidoError(msg) from exc
         with SASession(bind=engine, expire_on_commit=False) as session:
             handler = NotificarMudancaDeStatus(
                 repo=OrdemDeServicoSQLAlchemyRepository(session=session),
@@ -121,10 +144,6 @@ def construir_mapa_handlers(
             )
             handler(evento)
 
-    def _make_handler(t: str) -> Callable[[dict[str, Any]], None]:
-        def _h(p: dict[str, Any]) -> None:
-            _entregar(t, p)
-
-        return _h
-
-    return {tipo: _make_handler(tipo) for tipo in _POR_NOME}
+    # `partial` congela o `tipo` por valor (equivalente ao fechamento manual
+    # `_make_handler`, com menos maquinaria): cada callable recebe so o payload.
+    return {tipo: partial(_entregar, tipo) for tipo in _POR_NOME}

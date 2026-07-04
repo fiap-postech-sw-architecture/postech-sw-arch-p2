@@ -29,6 +29,7 @@ concurrency:
 jobs:
   image:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     outputs:
       tag: ${{ steps.meta.outputs.tag }}
     steps:
@@ -55,6 +56,7 @@ jobs:
   deploy:
     needs: image
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - uses: hashicorp/setup-terraform@v4
@@ -97,26 +99,61 @@ jobs:
           kubectl -n kube-system get deployment metrics-server -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -q kubelet-insecure-tls || \
             kubectl patch deployment metrics-server -n kube-system --type json \
               -p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
-      # namespace.yaml primeiro: `kubectl apply -f k8s/` processa o
-      # diretorio em ordem alfabetica (ver k8s/README.md). O set image
-      # troca a tag `dev` do manifest pela tag imutavel do SHA.
+      # Ordem obrigatoria (ADR-019: schema em head antes de qualquer replica
+      # subir): (a) namespace + config/secret + servicos de apoio; (b) Job de
+      # migracao + wait com falha rapida; (c) SO ENTAO deployment/relay (as
+      # cargas da aplicacao). O glob e separado em dois grupos: TUDO MENOS
+      # deployment.yaml/relay.yaml entra antes do Job; deployment/relay entram
+      # depois que a migracao conclui com sucesso. Cada manifest entra JA com a
+      # tag imutavel do SHA (mesmo `sed` do Job) -- deployment/relay nunca
+      # passam pela tag `dev`, eliminando o antigo `kubectl set image` e a
+      # janela em que os pods puxavam uma tag inexistente. O glob k8s/*.yaml
+      # nao desce em k8s/jobs/ (aplicado a parte). ESTE BLOCO E ESPELHADO EM
+      # `make k8s-up` (Makefile, alvo k8s-up/cd-local) -- altere os dois juntos.
       - name: Deploy app manifests
         run: |
           kubectl apply -f k8s/namespace.yaml
-          kubectl apply -f k8s/
-          # Migracao via Job dedicado antes do rollout (TD-015): resolve a corrida com N replicas
+          # (a) Apoio primeiro: tudo menos deployment.yaml/relay.yaml (as
+          # cargas da app, que so podem subir depois da migracao).
+          for manifest in k8s/*.yaml; do
+            case "$manifest" in
+              k8s/deployment.yaml|k8s/relay.yaml) continue ;;
+            esac
+            sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|${{ needs.image.outputs.tag }}|" "$manifest" | kubectl apply -f -
+          done
+          # (b) Migracao via Job dedicado antes do rollout (TD-015): resolve a corrida com N replicas
           kubectl -n pytstop delete job pytstop-migrate --ignore-not-found
           sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|${{ needs.image.outputs.tag }}|" k8s/jobs/migration-job.yaml | kubectl -n pytstop apply -f -
-          kubectl -n pytstop wait --for=condition=complete --timeout=180s job/pytstop-migrate || { echo "::error::Migracao (pytstop-migrate) falhou ou expirou; abortando o deploy antes do rollout."; kubectl -n pytstop logs job/pytstop-migrate --tail=50 || true; exit 1; }
-          kubectl -n pytstop set image deployment/pytstop-api api="${{ needs.image.outputs.tag }}"
+          # Espera com falha rapida: watchers de `complete` e `failed` em
+          # paralelo + `wait -n` -- um Job que esgota o backoffLimit aborta o
+          # deploy em segundos, em vez de segurar os 180s do timeout do
+          # `complete`. O arbitro do desfecho e o status real do Job
+          # (`.status.succeeded`). `make k8s-up` espelha a logica com poll
+          # portavel (`wait -n` nao existe no dash nem no bash 3.2 do macOS).
+          kubectl -n pytstop wait --for=condition=complete --timeout=180s job/pytstop-migrate & ok=$!
+          kubectl -n pytstop wait --for=condition=failed --timeout=180s job/pytstop-migrate 2>/dev/null & bad=$!
+          wait -n "$ok" "$bad" || true
+          kill "$ok" "$bad" 2>/dev/null || true
+          if [ "$(kubectl -n pytstop get job pytstop-migrate -o jsonpath='{.status.succeeded}')" != "1" ]; then
+            echo "::error::Migracao (pytstop-migrate) falhou ou expirou; abortando o deploy antes do rollout."
+            kubectl -n pytstop logs job/pytstop-migrate --tail=50 || true
+            exit 1
+          fi
+          # (c) So agora as cargas da app: schema ja esta em head.
+          for manifest in k8s/deployment.yaml k8s/relay.yaml; do
+            sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|${{ needs.image.outputs.tag }}|" "$manifest" | kubectl apply -f -
+          done
           kubectl -n pytstop rollout status deployment/pytstop-api --timeout=300s
-          kubectl -n pytstop set image deployment/pytstop-relay relay="${{ needs.image.outputs.tag }}"
           kubectl -n pytstop rollout status deployment/pytstop-relay --timeout=300s
       # Porta local 18000 para casar com o `make k8s-smoke` (que evita
       # colisao com a stack compose em 8000 na maquina do dev).
       - name: Smoke test
         run: |
           kubectl -n pytstop port-forward svc/pytstop-api 18000:8000 &
+          pf=$!
+          # Paridade com make k8s-smoke: encerra o port-forward na saida do
+          # step (sem processo orfao segurando a porta no runner).
+          trap 'kill "$pf" 2>/dev/null || true' EXIT
           for _ in $(seq 1 20); do
             if curl -fsS http://127.0.0.1:18000/api/v1/saude; then
               echo

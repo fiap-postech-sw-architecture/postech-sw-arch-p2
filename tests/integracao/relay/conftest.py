@@ -20,10 +20,26 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.integracao.outbox_helpers import limpar_outbox
+
 if TYPE_CHECKING:
     from collections.abc import Generator
 
     from sqlalchemy import Engine
+
+
+@pytest.fixture(autouse=True)
+def _outbox_limpa(engine: Engine) -> Generator[None]:
+    """Outbox/processed_events zeradas antes e depois de CADA teste do pacote.
+
+    Os testes de relay inserem linhas via Core com commit REAL (fora do
+    savepoint da fixture ``session``); sem a limpeza autouse cada arquivo
+    reimplementava a sua — e quem esquecia (listener_smoke, dlq) vazava
+    linhas para os vizinhos.
+    """
+    limpar_outbox(engine)
+    yield
+    limpar_outbox(engine)
 
 
 @pytest.fixture

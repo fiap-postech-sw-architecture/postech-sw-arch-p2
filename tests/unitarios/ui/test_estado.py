@@ -60,3 +60,66 @@ def test_configurar_store_sobrescreve_singleton(
     custom = estado.StateStore()
     estado.configurar_store(custom)
     assert estado.obter_store() is custom
+
+
+# ----- storage corrompido (fix 16 do #174) -----
+
+
+@pytest.mark.parametrize(
+    "sessao_corrompida",
+    [
+        {},
+        {"papel": "admin"},
+        {"access_token": "a"},
+        {"access_token": "a", "refresh_token": "r"},
+        {"access_token": "a", "refresh_token": "r", "email": "a@b"},
+        {"access_token": "a", "refresh_token": "r", "papel": "admin"},
+    ],
+    ids=[
+        "vazio",
+        "so-papel",
+        "so-access",
+        "sem-email-e-papel",
+        "sem-papel",
+        "sem-email",
+    ],
+)
+def test_sessao_corrompida_sem_chaves_retorna_none(
+    sessao_corrompida: dict[str, str],
+) -> None:
+    """Cookie truncado/versao antiga do dict de sessao: qualquer chave
+    ausente vira 'sem sessao' — antes ``s["access_token"]`` estourava
+    KeyError e derrubava a pagina inteira."""
+    storage: dict[str, object] = {"sessao": sessao_corrompida}
+    store = StateStore(user_storage=storage)
+    assert store.sessao_atual() is None
+    assert store.esta_autenticado() is False
+    assert store.token_atual() is None
+
+
+def test_sessao_com_papel_invalido_retorna_none() -> None:
+    storage: dict[str, object] = {
+        "sessao": {
+            "access_token": "a",
+            "refresh_token": "r",
+            "email": "a@b",
+            "papel": "superuser",
+        }
+    }
+    store = StateStore(user_storage=storage)
+    assert store.sessao_atual() is None
+
+
+def test_sessao_completa_continua_valida() -> None:
+    storage: dict[str, object] = {
+        "sessao": {
+            "access_token": "a",
+            "refresh_token": "r",
+            "email": "a@b",
+            "papel": "admin",
+        }
+    }
+    store = StateStore(user_storage=storage)
+    sessao = store.sessao_atual()
+    assert sessao is not None
+    assert sessao.papel == "admin"

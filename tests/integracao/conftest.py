@@ -6,9 +6,14 @@ from typing import TYPE_CHECKING
 
 import pytest
 
+from tests.integracao.seed_helpers import criar_usuario
+
 if TYPE_CHECKING:
+    from fastapi.testclient import TestClient
     from sqlalchemy import Engine
-    from sqlalchemy.orm import Session
+    from sqlalchemy.orm import Session, sessionmaker
+
+    from src.autenticacao.dominio.usuario import Usuario
 
 _mapeamentos_registrados = False
 
@@ -31,11 +36,6 @@ _AVISO_DOCKER_LINHAS = (
     "",
     "  Os testes UNITÁRIOS não precisam de Docker e rodaram normalmente.",
 )
-
-
-def _usa_docker() -> bool:
-    """A integração usa testcontainers (Docker) salvo se um DB externo for dado."""
-    return not (os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL"))
 
 
 def _docker_disponivel() -> bool:
@@ -90,7 +90,11 @@ def engine() -> Generator[Engine]:
 
     _registrar_todos_mapeamentos()
 
-    database_url = os.environ.get("TEST_DATABASE_URL") or os.environ.get("DATABASE_URL")
+    # APENAS TEST_DATABASE_URL (sem fallback para DATABASE_URL): o teardown
+    # faz `drop_all`, e herdar a DATABASE_URL de um ambiente dev apontaria o
+    # drop para um banco de trabalho. Quem quer DB externo declara a intencao
+    # com a variavel dedicada; sem ela, testcontainers como sempre.
+    database_url = os.environ.get("TEST_DATABASE_URL")
     if database_url:
         eng = criar_engine(database_url)
         metadata.create_all(eng)
@@ -147,3 +151,72 @@ def session(engine: Engine) -> Generator[Session]:
     if transaction.is_active:
         transaction.rollback()
     connection.close()
+
+
+# ---------------------------------------------------------------------------
+# Fixtures de API (TestClient contra o app real) — antes duplicadas em
+# test_api_e2e.py e test_admin_outbox.py (issue #173).
+# ---------------------------------------------------------------------------
+
+_EMAIL_ADMIN = "admin-integ@test.com"
+
+
+@pytest.fixture
+def session_factory(engine: Engine) -> Generator[sessionmaker[Session]]:
+    from sqlalchemy import text
+
+    from src.compartilhado.infraestrutura.database import (
+        criar_session_factory,
+        metadata,
+    )
+
+    factory = criar_session_factory(engine)
+    yield factory
+
+    # Testes de API fazem commit REAL atraves do TestClient/Core; o rollback
+    # de SAVEPOINT da fixture `session` nao os alcanca. A limpeza trunca TODAS
+    # as tabelas do metadata, em ordem reversa de dependencia (dependentes
+    # antes de referenciados): a lista manual anterior omitia
+    # outbox/processed_events e vazava linhas entre modulos.
+    tabelas = ", ".join(t.name for t in reversed(metadata.sorted_tables))
+    with factory() as sess:
+        sess.execute(text(f"TRUNCATE TABLE {tabelas} CASCADE"))
+        sess.commit()
+
+
+@pytest.fixture
+def admin_user(session_factory: sessionmaker[Session]) -> Usuario:
+    """Semeia (com commit real) um usuario admin para autenticacao via API."""
+    from src.autenticacao.dominio.papel import Papel
+
+    return criar_usuario(session_factory, email=_EMAIL_ADMIN, papel=Papel.ADMIN)
+
+
+@pytest.fixture(scope="module")
+def api_client(engine: Engine) -> Generator[TestClient]:
+    """TestClient contra o app REAL apontando para o banco de teste.
+
+    Configura ``DATABASE_URL``/``JWT_SECRET`` antes de instanciar o app; o
+    lifespan real cria o engine e registra a session factory — o mesmo wiring
+    de ``docker compose up`` (se o bug do session factory voltar, quebra aqui).
+
+    MODULE-scoped: o app e criado uma vez por arquivo (lifespan + pool sao
+    caros), enquanto a limpeza segue POR TESTE via teardown de
+    ``session_factory`` (os testes que escrevem passam por ``admin_user`` ->
+    ``session_factory``). O estado por teste que importa (usuarios, outbox,
+    OS...) vive no banco, nao no client: JWTs sao stateless e emitidos por
+    login em cada teste; env e re-lido por request nos endpoints que o usam.
+    """
+    from fastapi.testclient import TestClient
+
+    from src.main import criar_app
+
+    mp = pytest.MonkeyPatch()
+    mp.setenv("JWT_SECRET", "test-secret-at-least-32-bytes-long-for-hs256-signing")
+    mp.setenv("ENVIRONMENT", "test")
+    mp.setenv("DATABASE_URL", engine.url.render_as_string(hide_password=False))
+    try:
+        with TestClient(criar_app()) as client:
+            yield client
+    finally:
+        mp.undo()

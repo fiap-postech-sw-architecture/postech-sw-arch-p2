@@ -5,7 +5,10 @@ from uuid import UUID, uuid4
 
 import pytest
 
-from src.cliente_veiculo.aplicacao.dtos import RegistrarConsentimentoDTO
+from src.cliente_veiculo.aplicacao.dtos import (
+    RegistrarConsentimentoDTO,
+    VeiculoDTO,
+)
 from src.cliente_veiculo.aplicacao.lgpd_use_cases import (
     ExcluirDadosPessoais,
     ExportarDadosPessoais,
@@ -22,32 +25,10 @@ from src.cliente_veiculo.dominio.exceptions import (
     ConsentimentoNaoEncontradoException,
 )
 from src.cliente_veiculo.dominio.placa import Placa
+from src.compartilhado.dominio.exceptions import ViolacaoRegraDeNegocioException
+from tests.unitarios.fakes import FakeUnitOfWork
 
 CPF_VALIDO = "21249722519"
-
-
-class FakeUnitOfWork:
-    def __init__(self) -> None:
-        self.committed = False
-        self.rolled_back = False
-
-    def __enter__(self) -> FakeUnitOfWork:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: object,
-    ) -> None:
-        if exc_type is not None:
-            self.rolled_back = True
-
-    def commit(self) -> None:
-        self.committed = True
-
-    def rollback(self) -> None:
-        self.rolled_back = True
 
 
 class FakeClienteRepoLGPD:
@@ -113,7 +94,10 @@ class TestExportarDadosPessoais:
         assert result.tipo_documento == "cpf"
         assert result.contato == "11999"
         assert len(result.veiculos) == 1
-        assert result.veiculos[0]["placa"] == "ABC1234"
+        # #168: reutiliza VeiculoDTO (mesmo shape JSON de antes, sem dict manual).
+        assert isinstance(result.veiculos[0], VeiculoDTO)
+        assert result.veiculos[0].placa == "ABC1234"
+        assert result.veiculos[0].marca == "Fiat"
         assert result.ativo is True
 
     def test_cliente_inexistente(self) -> None:
@@ -142,6 +126,17 @@ class TestExportarDadosPessoais:
         assert result.nome == "ANONIMIZADO"
 
 
+class StubOrdemDeServicoPort:
+    def __init__(self, os_ativa_cliente: bool = False) -> None:
+        self._os_ativa_cliente = os_ativa_cliente
+
+    def existe_os_ativa_para_cliente(self, cliente_id: UUID) -> bool:
+        return self._os_ativa_cliente
+
+    def existe_os_para_veiculo(self, veiculo_id: UUID) -> bool:
+        return False
+
+
 class TestExcluirDadosPessoais:
     def test_sucesso(self) -> None:
         repo = FakeClienteRepoLGPD()
@@ -149,7 +144,9 @@ class TestExcluirDadosPessoais:
         cpf = CPF(numero=CPF_VALIDO)
         cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
-        uc = ExcluirDadosPessoais(repo=repo, uow=uow)
+        uc = ExcluirDadosPessoais(
+            repo=repo, uow=uow, os_port=StubOrdemDeServicoPort(os_ativa_cliente=False)
+        )
         uc.executar(cliente.id)
         assert cliente.id in repo._anonimizado
         assert uow.committed
@@ -157,9 +154,28 @@ class TestExcluirDadosPessoais:
     def test_cliente_inexistente(self) -> None:
         repo = FakeClienteRepoLGPD()
         uow = FakeUnitOfWork()
-        uc = ExcluirDadosPessoais(repo=repo, uow=uow)
+        uc = ExcluirDadosPessoais(repo=repo, uow=uow, os_port=StubOrdemDeServicoPort())
         with pytest.raises(ClienteNaoEncontradoException):
             uc.executar(uuid4())
+
+    def test_com_os_ativa_bloqueado(self) -> None:
+        # LGPD Art. 16: dados podem ser retidos para execucao de contrato. Uma
+        # OS ativa e o contrato em andamento -> erasure bloqueado com 409
+        # (mesmo guard de DesativarCliente, que e menos destrutivo).
+        repo = FakeClienteRepoLGPD()
+        uow = FakeUnitOfWork()
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
+        repo.salvar(cliente)
+        uc = ExcluirDadosPessoais(
+            repo=repo, uow=uow, os_port=StubOrdemDeServicoPort(os_ativa_cliente=True)
+        )
+        with pytest.raises(
+            ViolacaoRegraDeNegocioException, match="ordem de servico ativa"
+        ):
+            uc.executar(cliente.id)
+        assert cliente.id not in repo._anonimizado
+        assert not uow.committed
 
 
 class TestRegistrarConsentimento:
@@ -185,6 +201,37 @@ class TestRegistrarConsentimento:
         dto = RegistrarConsentimentoDTO(tipo="marketing")
         with pytest.raises(ClienteNaoEncontradoException):
             uc.executar(uuid4(), dto)
+
+    def test_grant_grant_do_mesmo_tipo_rejeitado(self) -> None:
+        # #168: grant-grant do mesmo par cliente+tipo com consentimento ainda
+        # ativo nao pode criar registro duplicado -> 409 (violacao de regra).
+        repo = FakeClienteRepoLGPD()
+        uow = FakeUnitOfWork()
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
+        repo.salvar(cliente)
+        uc = RegistrarConsentimento(repo=repo, uow=uow)
+        dto = RegistrarConsentimentoDTO(tipo="marketing")
+        uc.executar(cliente.id, dto)
+        with pytest.raises(
+            ViolacaoRegraDeNegocioException, match="Consentimento ativo ja existe"
+        ):
+            uc.executar(cliente.id, dto)
+
+    def test_grant_apos_revogacao_permitido(self) -> None:
+        # A regra bloqueia apenas consentimento ATIVO duplicado: revogar e
+        # conceder novamente e um fluxo legitimo (novo registro, nova data).
+        repo = FakeClienteRepoLGPD()
+        uow = FakeUnitOfWork()
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
+        repo.salvar(cliente)
+        uc = RegistrarConsentimento(repo=repo, uow=uow)
+        dto = RegistrarConsentimentoDTO(tipo="marketing")
+        uc.executar(cliente.id, dto)
+        RevogarConsentimento(repo=repo, uow=uow).executar(cliente.id, "marketing")
+        result = uc.executar(cliente.id, dto)
+        assert result.ativo is True
 
 
 class TestRevogarConsentimento:

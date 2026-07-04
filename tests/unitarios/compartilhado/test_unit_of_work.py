@@ -62,8 +62,12 @@ class TestSQLAlchemyUnitOfWork:
 
 
 class TestUnitOfWorkProtocol:
-    def test_protocolo_e_runtime_checkable(self) -> None:
+    def test_protocolo_e_uma_classe(self) -> None:
         assert isinstance(UnitOfWork, type)
 
     def test_implementacao_sqlalchemy_satisfaz_protocolo(self) -> None:
-        assert isinstance(SQLAlchemyUnitOfWork(session_factory=MagicMock()), UnitOfWork)
+        # Protocol sem @runtime_checkable (a conformidade e do mypy):
+        # verificacao estrutural minima dos membros exigidos.
+        uow = SQLAlchemyUnitOfWork(session_factory=MagicMock())
+        for membro in ("__enter__", "__exit__", "commit", "rollback"):
+            assert callable(getattr(uow, membro)), membro

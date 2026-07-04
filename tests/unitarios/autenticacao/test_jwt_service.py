@@ -17,7 +17,9 @@ _CHAVE = "chave-secreta-de-teste"
 
 class TestJWTService:
     def test_gerar_access_token_contem_claims(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = JWTService(
+            chave_secreta=_CHAVE, expiracao_minutos=30, refresh_expiracao_minutos=10080
+        )
         uid = uuid4()
         token = svc.gerar_access_token(uid, "a@b.com", "admin")
         payload = svc.validar_token(token)
@@ -28,7 +30,9 @@ class TestJWTService:
         assert "jti" in payload
 
     def test_gerar_refresh_token_contem_claims(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = JWTService(
+            chave_secreta=_CHAVE, expiracao_minutos=30, refresh_expiracao_minutos=10080
+        )
         uid = uuid4()
         token = svc.gerar_refresh_token(uid)
         payload = svc.validar_token(token)
@@ -39,27 +43,39 @@ class TestJWTService:
         assert "papel" not in payload
 
     def test_token_expirado(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE, expiracao_minutos=-1)
+        svc = JWTService(
+            chave_secreta=_CHAVE, expiracao_minutos=-1, refresh_expiracao_minutos=10080
+        )
         token = svc.gerar_access_token(uuid4(), "a@b.com", "admin")
         with pytest.raises(TokenExpiradoException):
             svc.validar_token(token)
 
     def test_token_invalido(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = JWTService(
+            chave_secreta=_CHAVE, expiracao_minutos=30, refresh_expiracao_minutos=10080
+        )
         with pytest.raises(TokenInvalidoException):
             svc.validar_token("lixo.token.invalido")
 
     def test_chave_errada(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = JWTService(
+            chave_secreta=_CHAVE, expiracao_minutos=30, refresh_expiracao_minutos=10080
+        )
         token = svc.gerar_access_token(uuid4(), "a@b.com", "admin")
-        outro_svc = JWTService(chave_secreta="outra-chave")
+        outro_svc = JWTService(
+            chave_secreta="outra-chave",
+            expiracao_minutos=30,
+            refresh_expiracao_minutos=10080,
+        )
         with pytest.raises(TokenInvalidoException):
             outro_svc.validar_token(token)
 
     def test_validar_token_nao_inspeciona_header_sem_verificar_assinatura(
         self,
     ) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = JWTService(
+            chave_secreta=_CHAVE, expiracao_minutos=30, refresh_expiracao_minutos=10080
+        )
         uid = uuid4()
         token = svc.gerar_access_token(uid, "a@b.com", "admin")
 
@@ -74,12 +90,16 @@ class TestJWTService:
     def test_algoritmo_invalido_rejeitado(self) -> None:
         payload = {"sub": "x", "jti": "y", "exp": 9999999999, "type": "access"}
         token = jwt.encode(payload, "key", algorithm="HS384")
-        svc = JWTService(chave_secreta="key")
+        svc = JWTService(
+            chave_secreta="key", expiracao_minutos=30, refresh_expiracao_minutos=10080
+        )
         with pytest.raises(TokenInvalidoException, match="Algoritmo"):
             svc.validar_token(token)
 
     def test_jti_unico_por_token(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = JWTService(
+            chave_secreta=_CHAVE, expiracao_minutos=30, refresh_expiracao_minutos=10080
+        )
         uid = uuid4()
         t1 = svc.gerar_access_token(uid, "a@b.com", "admin")
         t2 = svc.gerar_access_token(uid, "a@b.com", "admin")

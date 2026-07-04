@@ -7,22 +7,25 @@ from typing import TYPE_CHECKING, Any
 from nicegui import ui
 
 from ui.auth_guard import exige_autenticacao
-from ui.cliente_api import ApiError
+from ui.cliente_api import ApiError, NaoAutenticadoError
 from ui.componentes.cabecalho import CabecalhoApp
 from ui.componentes.dialogo_confirmacao import confirmar
+from ui.componentes.listagem import rodape_contagem
+from ui.componentes.notificacoes import notificar_erro_api
+from ui.formatacao import formatar_dinheiro_br
 
 if TYPE_CHECKING:
     from collections.abc import Callable
 
 
 def _formatar_preco_servico(preco_raw: Any) -> str:  # noqa: ANN401  # JSON do backend
-    """Formata preco de servico no padrao ``R$ X.XX``.
+    """Formata preco de servico no padrao BR ``R$ 1.234,56``.
 
     Backend serializa ``Decimal`` como string JSON (ex.: ``"280.00"``). Usar
-    direto em f-string com ``:.2f`` levanta ``TypeError`` — por isso o cast
-    explicito para ``float``. Aceita ``None``/``""`` como zero (defensivo).
+    direto em f-string com ``:.2f`` levanta ``TypeError`` — o helper
+    compartilhado faz o cast pra ``float`` e trata ``None``/``""`` como zero.
     """
-    return f"R$ {float(preco_raw or 0):.2f}"
+    return formatar_dinheiro_br(preco_raw)
 
 
 @ui.page("/catalogo")
@@ -53,6 +56,9 @@ def _renderizar(on_refresh: Callable[[], None]) -> None:
 
     try:
         dados = obter_api().listar_servicos()
+    except NaoAutenticadoError:
+        ui.navigate.to("/login")
+        return
     except ApiError as exc:
         ui.label(f"Erro: {exc}").classes("text-red-600")
         return
@@ -72,6 +78,7 @@ def _renderizar(on_refresh: Callable[[], None]) -> None:
                 ).props("flat dense")
             if servico.get("descricao"):
                 ui.label(servico["descricao"]).classes("text-sm text-gray-600")
+    rodape_contagem(dados)
 
 
 def _confirmar_desativar(
@@ -100,8 +107,9 @@ def _dialog_servico(
         ).classes("w-full")
         preco = ui.number(
             "Preco",
-            # Backend exige preco > 0 (Field(gt=0)); 0.01 reflete o minimo real.
-            value=float((servico or {}).get("preco", 0.01)),
+            # Backend exige preco > 0 (Field(gt=0)); 0.01 reflete o minimo
+            # real. ``or 0.01`` cobre payload com ``preco: null``.
+            value=float((servico or {}).get("preco") or 0.01),
             min=0.01,
             step=0.01,
         ).classes("w-full")
@@ -121,11 +129,13 @@ def _dialog_servico(
                 ui.notify("Salvo", type="positive")
                 on_sucesso()
             except ApiError as exc:
-                ui.notify(f"Erro: {exc}", type="negative")
+                notificar_erro_api(exc)
 
         with ui.row().classes("justify-end gap-2 w-full"):
             ui.button("Cancelar", on_click=dialog.close).props("flat")
             ui.button("Salvar", on_click=salvar).classes("bg-blue-600 text-white")
+    # Sem delete o dialog acumula no layout a cada abertura.
+    dialog.on("hide", dialog.delete)
     dialog.open()
 
 

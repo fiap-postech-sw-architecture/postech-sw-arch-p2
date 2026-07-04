@@ -58,8 +58,13 @@ class OrdemDeServico(AggregateRoot):
     Construir preferencialmente via ``OrdemDeServico.criar(...)``.
     """
 
-    _cliente_id: UUID = field(default=None, repr=False)  # type: ignore[assignment]
-    _veiculo_id: UUID = field(default=None, repr=False)  # type: ignore[assignment]
+    # kw_only sem default (padrao de DomainEvent.ocorrido_em): omitir estes
+    # campos falha na construcao em vez de escorregar como sentinela None ate o
+    # guard do __post_init__. A reidratacao ORM (map_imperatively) escreve
+    # direto no __dict__ sem passar pelo __init__, entao kw_only nao a afeta; o
+    # guard abaixo defende o None EXPLICITO e a reidratacao.
+    _cliente_id: UUID = field(kw_only=True, repr=False)
+    _veiculo_id: UUID = field(kw_only=True, repr=False)
     _status: StatusOrdem = StatusOrdem.RECEBIDA
     _itens: list[ItemDaOrdem] = field(default_factory=list, repr=False)
     _orcamento: Orcamento | None = field(default=None, repr=False)
@@ -174,6 +179,16 @@ class OrdemDeServico(AggregateRoot):
                 )
             )
 
+    def validar_pode_adicionar_item(self) -> None:
+        """Valida SO o estado para adicao de item, sem mutar o agregado.
+
+        Guard publico para a camada de aplicacao (``AdicionarItem``) rejeitar
+        estado invalido ANTES de consultar catalogo/estoque (custo-gradiente):
+        montar o item so faz sentido se ele puder entrar. ``adicionar_item``
+        revalida ao final — o guard aqui e barato e idempotente.
+        """
+        self._validar_estado_para_itens(_ESTADOS_PERMITE_ADICAO, "adicionados")
+
     def adicionar_item(self, item: ItemDaOrdem) -> None:
         """Adiciona um item; valido em RECEBIDA, EM_DIAGNOSTICO ou EM_EXECUCAO.
 
@@ -210,7 +225,11 @@ class OrdemDeServico(AggregateRoot):
     def iniciar_diagnostico(self) -> None:
         """RECEBIDA -> EM_DIAGNOSTICO; emite ``DiagnosticoIniciadoEvent``."""
         self._transicionar(StatusOrdem.EM_DIAGNOSTICO)
-        self._registrar_evento(DiagnosticoIniciadoEvent(agregado_id=self.id))
+        self._registrar_evento(
+            DiagnosticoIniciadoEvent(
+                agregado_id=self.id, status_novo=StatusOrdem.EM_DIAGNOSTICO
+            )
+        )
 
     def gerar_orcamento(self) -> None:
         """EM_DIAGNOSTICO -> AGUARDANDO_APROVACAO; emite ``OrcamentoGeradoEvent``.
@@ -241,7 +260,11 @@ class OrdemDeServico(AggregateRoot):
         novo_orcamento = Orcamento.gerar(self._itens)
         self._aplicar_transicao(StatusOrdem.AGUARDANDO_APROVACAO)
         self._orcamento = novo_orcamento
-        self._registrar_evento(OrcamentoGeradoEvent(agregado_id=self.id))
+        self._registrar_evento(
+            OrcamentoGeradoEvent(
+                agregado_id=self.id, status_novo=StatusOrdem.AGUARDANDO_APROVACAO
+            )
+        )
 
     def _snapshot_escopo_aprovado(self) -> None:
         """Congela o orcamento e os itens que o cliente acabou de aprovar.
@@ -265,7 +288,11 @@ class OrdemDeServico(AggregateRoot):
         """AGUARDANDO_APROVACAO -> EM_EXECUCAO; emite ``OrcamentoAprovadoEvent``."""
         self._transicionar(StatusOrdem.EM_EXECUCAO)
         self._snapshot_escopo_aprovado()
-        self._registrar_evento(OrcamentoAprovadoEvent(agregado_id=self.id))
+        self._registrar_evento(
+            OrcamentoAprovadoEvent(
+                agregado_id=self.id, status_novo=StatusOrdem.EM_EXECUCAO
+            )
+        )
 
     def finalizar_servico(self) -> None:
         """EM_EXECUCAO -> FINALIZADA; emite ``ServicoFinalizadoEvent``.
@@ -291,25 +318,46 @@ class OrdemDeServico(AggregateRoot):
                 )
             )
         self._aplicar_transicao(StatusOrdem.FINALIZADA)
-        self._registrar_evento(ServicoFinalizadoEvent(agregado_id=self.id))
+        self._registrar_evento(
+            ServicoFinalizadoEvent(
+                agregado_id=self.id, status_novo=StatusOrdem.FINALIZADA
+            )
+        )
 
     def registrar_entrega(self) -> None:
         """FINALIZADA -> ENTREGUE; emite ``EntregaRegistradaEvent``."""
         self._transicionar(StatusOrdem.ENTREGUE)
-        self._registrar_evento(EntregaRegistradaEvent(agregado_id=self.id))
+        self._registrar_evento(
+            EntregaRegistradaEvent(
+                agregado_id=self.id, status_novo=StatusOrdem.ENTREGUE
+            )
+        )
 
     def cancelar(self, motivo: str) -> None:
         """Qualquer estado nao terminal -> CANCELADA; emite ``OrdemCanceladaEvent``.
 
-        Levanta ``ViolacaoRegraDeNegocioException`` se ``motivo`` for vazio
-        ou somente espacos: cancelamento sem motivo e anti-padrao de dominio.
+        Precedencia (mesma logica das transicoes com trabalho extra): valida a
+        transicao SEM mutar ANTES do guard do motivo — em estado terminal o erro
+        primario e ``TransicaoStatusInvalidaException``, nao a ausencia de
+        motivo. Em estado valido, motivo vazio ou so espacos levanta
+        ``ViolacaoRegraDeNegocioException`` (cancelamento sem motivo e
+        anti-padrao de dominio). O evento carrega o motivo normalizado (sem
+        espacos nas bordas).
         """
-        if not motivo or not motivo.strip():
+        self._validar_transicao(StatusOrdem.CANCELADA)
+        motivo_normalizado = (motivo or "").strip()
+        if not motivo_normalizado:
             raise ViolacaoRegraDeNegocioException(
                 mensagem="motivo de cancelamento e obrigatorio (recebido vazio)"
             )
-        self._transicionar(StatusOrdem.CANCELADA)
-        self._registrar_evento(OrdemCanceladaEvent(agregado_id=self.id, motivo=motivo))
+        self._aplicar_transicao(StatusOrdem.CANCELADA)
+        self._registrar_evento(
+            OrdemCanceladaEvent(
+                agregado_id=self.id,
+                motivo=motivo_normalizado,
+                status_novo=StatusOrdem.CANCELADA,
+            )
+        )
 
     def gerar_orcamento_complementar(self) -> None:
         """EM_EXECUCAO -> AGUARDANDO_APROVACAO_COMPLEMENTAR; emite o evento.
@@ -329,7 +377,12 @@ class OrdemDeServico(AggregateRoot):
         novo_orcamento = Orcamento.gerar(self._itens)
         self._aplicar_transicao(StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR)
         self._orcamento = novo_orcamento
-        self._registrar_evento(OrcamentoComplementarGeradoEvent(agregado_id=self.id))
+        self._registrar_evento(
+            OrcamentoComplementarGeradoEvent(
+                agregado_id=self.id,
+                status_novo=StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR,
+            )
+        )
 
     def aprovar_orcamento_complementar(self) -> None:
         """AGUARDANDO_APROVACAO_COMPLEMENTAR -> EM_EXECUCAO; emite o evento.
@@ -340,7 +393,11 @@ class OrdemDeServico(AggregateRoot):
         """
         self._transicionar(StatusOrdem.EM_EXECUCAO)
         self._snapshot_escopo_aprovado()
-        self._registrar_evento(OrcamentoComplementarAprovadoEvent(agregado_id=self.id))
+        self._registrar_evento(
+            OrcamentoComplementarAprovadoEvent(
+                agregado_id=self.id, status_novo=StatusOrdem.EM_EXECUCAO
+            )
+        )
 
     def rejeitar_orcamento_complementar(self) -> tuple[ItemDaOrdem, ...]:
         """AGUARDANDO_APROVACAO_COMPLEMENTAR -> EM_EXECUCAO, revertendo o escopo.
@@ -358,7 +415,9 @@ class OrdemDeServico(AggregateRoot):
             # antigo (so transiciona). Ver invariante em _snapshot_escopo_aprovado.
             self._aplicar_transicao(StatusOrdem.EM_EXECUCAO)
             self._registrar_evento(
-                OrcamentoComplementarRejeitadoEvent(agregado_id=self.id)
+                OrcamentoComplementarRejeitadoEvent(
+                    agregado_id=self.id, status_novo=StatusOrdem.EM_EXECUCAO
+                )
             )
             return ()
         removidos = tuple(
@@ -369,5 +428,9 @@ class OrdemDeServico(AggregateRoot):
         ]
         self._orcamento = self._orcamento_aprovado
         self._aplicar_transicao(StatusOrdem.EM_EXECUCAO)
-        self._registrar_evento(OrcamentoComplementarRejeitadoEvent(agregado_id=self.id))
+        self._registrar_evento(
+            OrcamentoComplementarRejeitadoEvent(
+                agregado_id=self.id, status_novo=StatusOrdem.EM_EXECUCAO
+            )
+        )
         return removidos

@@ -22,33 +22,20 @@ from src.estoque.aplicacao.use_cases import (
 )
 from src.estoque.dominio.exceptions import ItemEstoqueNaoEncontradoException
 from src.estoque.dominio.item_estoque import ItemEstoque
-
-
-class FakeUnitOfWork:
-    def __init__(self) -> None:
-        self.committed = False
-
-    def __enter__(self) -> FakeUnitOfWork:
-        return self
-
-    def __exit__(self, *args: object) -> None:
-        pass
-
-    def commit(self) -> None:
-        self.committed = True
-
-    def rollback(self) -> None:
-        pass
+from tests.unitarios.fakes import FakeUnitOfWork
 
 
 class FakeItemEstoqueRepository:
     def __init__(self) -> None:
         self._itens: dict[UUID, ItemEstoque] = {}
+        # Registra (id, com_lock) de cada chamada para os testes afirmarem
+        # quais caminhos travam (com_lock=True) e quais leem sem lock.
+        self.chamadas_obter_por_id: list[tuple[UUID, bool]] = []
 
     def obter_por_id(
         self, item_id: UUID, *, com_lock: bool = False
     ) -> ItemEstoque | None:
-        del com_lock  # fake in-memory: SELECT FOR UPDATE e no-op
+        self.chamadas_obter_por_id.append((item_id, com_lock))
         return self._itens.get(item_id)
 
     def obter_por_ids(self, ids: list[UUID]) -> list[ItemEstoque]:
@@ -259,3 +246,19 @@ class TestDesativarItemEstoque:
         uc = DesativarItemEstoque(repo=repo, uow=uow, os_port=os_port)
         with pytest.raises(ItemEstoqueNaoEncontradoException):
             uc.executar(uuid4())
+
+    def test_carrega_item_com_lock(self) -> None:
+        # Issue #167: a desativacao carrega com FOR UPDATE (com_lock=True)
+        # para serializar com a reserva -- sem o lock, desativar durante uma
+        # reserva em andamento deixaria item inativo com estoque reservado.
+        repo = FakeItemEstoqueRepository()
+        uow = FakeUnitOfWork()
+        os_port = StubOrdemDeServicoPort(os_ativa=False)
+        preco = Dinheiro(valor=Decimal("50.00"))
+        item = ItemEstoque(
+            _nome="Filtro", _descricao="Desc", _quantidade=10, _preco_unitario=preco
+        )
+        repo.salvar(item)
+        uc = DesativarItemEstoque(repo=repo, uow=uow, os_port=os_port)
+        uc.executar(item.id)
+        assert repo.chamadas_obter_por_id == [(item.id, True)]

@@ -15,7 +15,7 @@ Classificação por tipo:
 - **Planejado**: equipe sabe que a solução não é ideal, documenta e planeja pagar depois
 - **Negligenciado**: débito ignorado por muito tempo, mesmo após identificação
 
-> 📋 **Plano de ataque** dos 13 abertos — priorização, como resolver cada um e checklist de progresso: **[plano-ataque.md](plano-ataque.md)**. Regra: cada TD vira **um PR próprio** que atualiza **todos os docs afetados no mesmo PR**.
+> 📋 **Plano de ataque** (snapshot histórico da campanha de junho) — priorização e como resolver cada TD: **[plano-ataque.md](plano-ataque.md)**. O status vivo é a contagem deste README (6 abertos); a regra segue valendo: cada TD vira **um PR próprio** que atualiza **todos os docs afetados no mesmo PR**.
 
 > 📋 Auditoria pré-entrega (2026-06-28): [auditoria-pre-entrega-fase2.md](auditoria-pre-entrega-fase2.md) — achados priorizados do teste de mesa profundo + review estruturado.
 
@@ -74,6 +74,17 @@ Débitos relacionados a segurança e qualidade de código.
 | TD-013 | Testes | Sem testes BDD/Gherkin no MVP (pytest-bdd planejado) | Deliberado | Baixa | Baixo | Não | Estável | Testes E2E com Gherkin em português agregam rastreabilidade para requisitos, mas requerem feature files e steps adicionais. Prioridade para testes unitários e de integração no MVP. [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md). |
 | TD-014 | Testes | Sem relatório visual de testes no MVP (nem Allure nem pytest-html configurados) | Deliberado | Baixa | Baixo | Não | Estável | Allure oferece relatórios visuais superiores, mas requer servidor dedicado. Nem Allure nem pytest-html estão configurados para relatório (pytest-html entra apenas transitivamente, via `pytest-selenium` do extra de UI, sem geração de relatório acionada). O débito é a ausência de relatório visual de testes; o gate atual reporta via cobertura/saída do pytest. |
 
+## Herança para a fase 3
+
+Ponto único de intake do que a fase 3 herda deste ledger — o que fica em aberto
+por decisão, para ser reavaliado com o escopo da próxima fase:
+
+- **TDs abertos (deliberados/aceitos):** TD-002 (histórico de orçamentos, RF-017 Could-Have), TD-004 (push/SMS), TD-006 (mutation testing sem tooling estável), TD-013 (BDD/Gherkin), TD-014 (relatório visual de testes). Detalhe e justificativa nos *Itens Abertos* acima.
+- **TD-034 (Segurança/LGPD):** CPF/CNPJ como query param GET no acompanhamento público — risco aceito para o MVP, marcado como **follow-up natural da fase 3** (migrar para POST body muda contrato público + collection).
+- **Follow-ups de fechamento:** o plano de finalização da entrega ([finalization-plan.md](../entrega/fase2/finalization-plan.md)) é o rastreador dos follow-ups de fim de ciclo (ex.: semântica de rejeição do complementar, HMAC no Postman) — consultar lá o status vivo de cada um antes de reabrir.
+- **Revisão de código pós-entrega (2026-07-03):** duas ondas de review (arquivo-a-arquivo + ponytail ultra, depois 18 perspectivas de design) aplicaram ~40 melhorias no branch de refactor e abriram issues no GitHub para o que exige design próprio ou não cabia perto da entrega. **Bugs** ([#163–#174](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues?q=is%3Aissue+is%3Aopen+label%3Abug)): resiliência do relay (#163–#166), sessão de auth (#167), LGPD (#168), UI (#169–#170/#174), HMAC do webhook (#171), CI/worktrees (#172), testes (#173). **Design/enhancement** ([#175–#184](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues?q=is%3Aissue+is%3Aopen+label%3Aenhancement)): rotação de chave de PII (#175), modelo de reserva no estoque (#176), contrato de erro unificado (#177), shadow-state dos mappings (#178), revogação de família de refresh (#179), acompanhamento sem PII na URL (#180), fronteira do shared kernel (#181), coluna `finalizada_em` (#182), auditoria LGPD durável (#183), gating do CD (#184).
+- **Snapshots de campanha (não vivos):** [plano-ataque.md](plano-ataque.md) e [plano-acao-pos-auditoria.md](plano-acao-pos-auditoria.md) são históricos; as contagens e o status atual estão neste README.
+
 ## Considerações de Complexidade Algorítmica
 
 Complexidade das operações principais do sistema.
@@ -93,7 +104,7 @@ A coluna `orcamento_json` já é `jsonb` nativo (TD-005, migração 004); um ín
 1. **Boy Scout Rule**: cada alteração deixa o código melhor do que encontrou
 2. **Refatorações incrementais**: melhorias técnicas nos sprints regulares, como parte do backlog
 3. **Sprint técnico**: negociar com o PO para débitos de maior impacto
-4. **ADRs como prevenção**: decisões registradas em ADR ([ADR-001](../arquitetura/adr/001-framework-fastapi.md) a [ADR-013](../arquitetura/adr/013-testes-bdd-pytest-bdd.md)) evitam débitos invisíveis
+4. **ADRs como prevenção**: decisões registradas em ADR ([ADR-001](../arquitetura/adr/001-framework-fastapi.md) a [ADR-024](../arquitetura/adr/fase2/024-metricas-prometheus.md), incluindo os ADRs da fase 2 em `adr/fase2/`) evitam débitos invisíveis
 5. **Métricas de fluxo**: lead time, cycle time e taxa de falhas para detectar crescimento do débito
 
 > [↑ Raiz do projeto](../../README.md)

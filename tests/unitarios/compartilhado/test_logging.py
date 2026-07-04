@@ -30,6 +30,13 @@ class TestLogging:
         result = scrub_pii(None, "info", event_dict)
         assert "12.345.678/0001-90" not in str(result["event"])
 
+    def test_mascara_cnpj_preserva_o_terceiro_grupo_correto(self) -> None:
+        # NN.NNN.NNN/NNNN-NN: o grupo visivel da mascara e o TERCEIRO
+        # (digitos raw[5:8] = "678"), nao um fatiamento deslocado ("567").
+        event_dict: dict[str, object] = {"event": "CNPJ 12.345.678/0001-90"}
+        result = scrub_pii(None, "info", event_dict)
+        assert "**.***.678/****-**" in str(result["event"])
+
     def test_scrub_email(self) -> None:
         event_dict: dict[str, object] = {"event": "Email user@example.com"}
         result = scrub_pii(None, "info", event_dict)
@@ -101,6 +108,17 @@ class TestLogging:
         pair = result["pair"]
         assert "user@example.com" not in str(pair)
         assert "u***@example.com" in str(pair)
+
+    def test_scrub_recursivo_em_set_e_frozenset(self) -> None:
+        event_dict: dict[str, object] = {
+            "emails": {"user@example.com"},
+            "docs": frozenset({"CPF 123.456.789-00"}),
+        }
+        result = scrub_pii(None, "info", event_dict)
+        assert isinstance(result["emails"], set)
+        assert isinstance(result["docs"], frozenset)
+        assert "user@example.com" not in str(result["emails"])
+        assert "123.456.789-00" not in str(result["docs"])
 
     def test_scrub_respeita_profundidade_maxima(self) -> None:
         # Deeply nested: 8 levels deep. _MAX_SCRUB_DEPTH=6 means level 7+ is skipped.

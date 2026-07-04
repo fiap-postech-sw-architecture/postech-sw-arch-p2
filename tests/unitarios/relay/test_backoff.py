@@ -29,6 +29,14 @@ def test_proxima_tentativa_usa_delay_da_tentativa(
     assert proxima == agora + timedelta(seconds=segundos)
 
 
+def test_tentativas_zero_usa_o_primeiro_delay_e_nao_o_ultimo() -> None:
+    # Defensivo: `tentativas` e 1-based (a falha corrente ja incrementou), mas
+    # um caller errado com 0 nao pode cair no indice -1 — que devolveria
+    # silenciosamente o ULTIMO delay (256s) em vez do primeiro (1s).
+    agora = datetime(2026, 6, 24, 12, 0, tzinfo=UTC)
+    assert calcular_proxima_tentativa(0, agora) == agora + timedelta(seconds=1)
+
+
 def test_deve_ir_para_dlq_quando_atinge_o_maximo() -> None:
     assert deve_ir_para_dlq(5) is True
     assert deve_ir_para_dlq(6) is True

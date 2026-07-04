@@ -24,11 +24,6 @@ from src.ordem_servico.infraestrutura.repository import (
 
 
 class TestRepositoryOS:
-    def test_init(self) -> None:
-        session = MagicMock()
-        repo = OrdemDeServicoSQLAlchemyRepository(session=session)
-        assert repo._session is session
-
     def test_obter_por_id(self) -> None:
         session = MagicMock()
         session.get.return_value = None
@@ -91,16 +86,15 @@ class TestRepositoryOS:
         assert repo.existe_ativa_com_item_estoque(MagicMock()) is False
 
     def test_calcular_tempo_medio_none(self) -> None:
+        # Pina o contrato "sem finalizadas -> None" sem Postgres. O valor
+        # EXATO da media (SQL real, extract epoch/60) e provado em
+        # tests/integracao/test_repositories.py::
+        # test_calcular_tempo_medio_execucao_valor_exato_do_sql — o antigo
+        # unitario "com_valor" era um echo de mock e foi removido.
         session = MagicMock()
         session.scalar.return_value = None
         repo = OrdemDeServicoSQLAlchemyRepository(session=session)
         assert repo.calcular_tempo_medio_execucao() is None
-
-    def test_calcular_tempo_medio_com_valor(self) -> None:
-        session = MagicMock()
-        session.scalar.return_value = 120.5
-        repo = OrdemDeServicoSQLAlchemyRepository(session=session)
-        assert repo.calcular_tempo_medio_execucao() == 120.5
 
     def test_prioridade_e_encerradas_cobrem_todos_os_status(self) -> None:
         # Guard de drift (RF-023): um novo membro em StatusOrdem precisa
@@ -263,73 +257,109 @@ class TestRepositoryOSIntegracao:
             assert repo.contar() == 5
             assert repo.contar(incluir_encerradas=False) == 2
 
-    def test_obter_por_placa_e_documento_encontra_ordem(
-        self, engine_sqlite: Engine
-    ) -> None:
+    def _seed_cliente_veiculo(
+        self, sessao: Session, *, documento: str, placa: str
+    ) -> tuple[UUID, UUID]:
         from src.cliente_veiculo.infraestrutura.mapping import (
             clientes_table,
             veiculos_table,
         )
 
         enc = EncryptionService.instance()
-        documento_raw = "12345678901"
-        placa_raw = "ABC1D23"
         cliente_id = uuid4()
         veiculo_id = uuid4()
-        doc_encrypted = enc.encrypt(documento_raw)
-        doc_hash = enc.hash_deterministic(documento_raw)
+        sessao.execute(
+            clientes_table.insert().values(
+                id=cliente_id,
+                nome="Cliente Teste",
+                documento=enc.encrypt(documento),
+                documento_hash=enc.hash_deterministic(documento),
+                tipo_documento="cpf",
+                contato="(11) 99999-9999",
+                ativo=True,
+            )
+        )
+        sessao.execute(
+            veiculos_table.insert().values(
+                id=veiculo_id,
+                placa=placa,
+                marca="Fiat",
+                modelo="Uno",
+                ano=2020,
+                cliente_id=cliente_id,
+            )
+        )
+        return cliente_id, veiculo_id
+
+    def test_obter_mais_recente_por_placa_e_documento_encontra_ordem(
+        self, engine_sqlite: Engine
+    ) -> None:
+        documento_raw = "12345678901"
+        placa_raw = "ABC1D23"
 
         with Session(engine_sqlite) as sessao_setup:
-            sessao_setup.execute(
-                clientes_table.insert().values(
-                    id=cliente_id,
-                    nome="Cliente Teste",
-                    documento=doc_encrypted,
-                    documento_hash=doc_hash,
-                    tipo_documento="cpf",
-                    contato="(11) 99999-9999",
-                    ativo=True,
-                )
+            cliente_id, veiculo_id = self._seed_cliente_veiculo(
+                sessao_setup, documento=documento_raw, placa=placa_raw
             )
-            sessao_setup.execute(
-                veiculos_table.insert().values(
-                    id=veiculo_id,
-                    placa=placa_raw,
-                    marca="Fiat",
-                    modelo="Uno",
-                    ano=2020,
-                    cliente_id=cliente_id,
-                )
-            )
-            now = datetime.now(UTC)
-            sessao_setup.execute(
-                ordens_de_servico_table.insert().values(
-                    id=uuid4(),
-                    cliente_id=cliente_id,
-                    veiculo_id=veiculo_id,
-                    status="recebida",
-                    orcamento_json=None,
-                    criado_em=now,
-                    atualizado_em=now,
-                )
+            _inserir_ordem_crua(
+                sessao_setup,
+                status=StatusOrdem.RECEBIDA,
+                criado_em=datetime.now(UTC),
+                cliente_id=cliente_id,
+                veiculo_id=veiculo_id,
             )
             sessao_setup.commit()
 
         with Session(engine_sqlite) as sessao_query:
             repo = OrdemDeServicoSQLAlchemyRepository(session=sessao_query)
-            resultados = repo.obter_por_placa_e_documento(
+            resultado = repo.obter_mais_recente_por_placa_e_documento(
                 placa=placa_raw, documento=documento_raw
             )
-            assert len(resultados) == 1
-            assert resultados[0].cliente_id == cliente_id
-            assert resultados[0].veiculo_id == veiculo_id
+            assert resultado is not None
+            assert resultado.cliente_id == cliente_id
+            assert resultado.veiculo_id == veiculo_id
 
-    def test_obter_por_placa_e_documento_retorna_vazio_quando_nao_casa(
+    def test_obter_mais_recente_por_placa_e_documento_escolhe_a_mais_recente(
+        self, engine_sqlite: Engine
+    ) -> None:
+        # A selecao (ORDER BY criado_em DESC LIMIT 1) e do banco: com varias
+        # ordens do mesmo par placa+documento, so a mais nova volta hidratada.
+        documento_raw = "12345678901"
+        placa_raw = "ABC1D23"
+        base = datetime.now(UTC)
+
+        with Session(engine_sqlite) as sessao_setup:
+            cliente_id, veiculo_id = self._seed_cliente_veiculo(
+                sessao_setup, documento=documento_raw, placa=placa_raw
+            )
+            for minutos, status in (
+                (0, StatusOrdem.ENTREGUE),
+                (30, StatusOrdem.RECEBIDA),  # mais recente
+                (10, StatusOrdem.CANCELADA),
+            ):
+                _inserir_ordem_crua(
+                    sessao_setup,
+                    status=status,
+                    criado_em=base + timedelta(minutes=minutos),
+                    cliente_id=cliente_id,
+                    veiculo_id=veiculo_id,
+                )
+            sessao_setup.commit()
+
+        with Session(engine_sqlite) as sessao_query:
+            repo = OrdemDeServicoSQLAlchemyRepository(session=sessao_query)
+            resultado = repo.obter_mais_recente_por_placa_e_documento(
+                placa=placa_raw, documento=documento_raw
+            )
+            assert resultado is not None
+            assert resultado.status is StatusOrdem.RECEBIDA
+
+    def test_obter_mais_recente_por_placa_e_documento_none_quando_nao_casa(
         self, engine_sqlite: Engine
     ) -> None:
         with Session(engine_sqlite) as sessao_query:
             repo = OrdemDeServicoSQLAlchemyRepository(session=sessao_query)
-            resultados = repo.obter_por_placa_e_documento(
+            resultado = repo.obter_mais_recente_por_placa_e_documento(
                 placa="XYZ9A99", documento="00000000000"
             )
-            assert resultados == []
+            assert resultado is None

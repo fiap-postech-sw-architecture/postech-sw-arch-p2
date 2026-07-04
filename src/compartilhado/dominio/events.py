@@ -11,4 +11,9 @@ if TYPE_CHECKING:
 @dataclass(frozen=True, slots=True)
 class DomainEvent:
     agregado_id: UUID
-    ocorrido_em: datetime = field(default_factory=lambda: datetime.now(UTC))
+    # kw_only: o default de ``ocorrido_em`` nao bloqueia subclasses de
+    # declararem campos posicionais obrigatorios (sem hacks de default).
+    ocorrido_em: datetime = field(
+        default_factory=lambda: datetime.now(UTC),
+        kw_only=True,
+    )

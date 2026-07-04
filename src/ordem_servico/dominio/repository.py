@@ -81,12 +81,15 @@ class OrdemDeServicoRepository(Protocol):
         """Indica se algum item de estoque referenciado esta em uso por ordem ativa."""
         pass
 
-    def obter_por_placa_e_documento(
+    def obter_mais_recente_por_placa_e_documento(
         self, placa: str, documento: str
-    ) -> list[OrdemDeServico]:
-        """Lista ordens cujo veiculo bate com ``placa`` e cliente com ``documento``.
+    ) -> OrdemDeServico | None:
+        """Ordem mais recente cujo veiculo bate com ``placa`` e cliente com
+        ``documento`` (CPF ou CNPJ), ou ``None`` se nenhuma casar.
 
-        ``documento`` pode ser CPF ou CNPJ.
+        A selecao da mais recente (``criado_em``) acontece no banco
+        (``ORDER BY ... LIMIT 1``): a consulta publica de acompanhamento
+        nao precisa hidratar o historico completo do par.
         """
         pass
 

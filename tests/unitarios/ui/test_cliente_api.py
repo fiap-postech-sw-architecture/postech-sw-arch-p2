@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from collections.abc import Callable
 
 import httpx
@@ -657,7 +658,9 @@ def test_refresh_conexao_falha_retorna_false(store: StateStore) -> None:
 
 def test_200_com_content_type_nao_json_propaga_erro(store: StateStore) -> None:
     """Backend so deve devolver 200 com JSON. Texto puro indica resposta
-    fora do contrato — o cliente propaga ao inves de retornar um stub."""
+    fora do contrato — o cliente propaga o ``json.JSONDecodeError`` cru em vez
+    de retornar um stub (diferente do 422, que tem fallback deliberado em
+    ``_detalhes_validacao`` para nao mascarar o erro original de proxy)."""
 
     def handler(request: httpx.Request) -> httpx.Response:
         return httpx.Response(
@@ -667,7 +670,7 @@ def test_200_com_content_type_nao_json_propaga_erro(store: StateStore) -> None:
         )
 
     api = ClienteApi(base_url="http://x", store=store, transport=_transport(handler))
-    with pytest.raises(Exception):  # noqa: B017, PT011
+    with pytest.raises(json.JSONDecodeError):
         api.get("/api/v1/saude")
 
 

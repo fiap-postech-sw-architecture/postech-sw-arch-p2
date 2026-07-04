@@ -51,17 +51,24 @@ class TestEncryptionService:
         h2 = enc.hash_deterministic("98765432100")
         assert h1 != h2
 
-    def test_encrypt_sem_fernet_retorna_plaintext(self) -> None:
-        enc = EncryptionService()
-        enc._fernet = None
-        resultado = enc.encrypt("texto")
-        assert resultado == "texto"
+    def test_instance_e_thread_safe_cria_uma_unica_instancia(self) -> None:
+        # Double-checked locking: N threads concorrentes no primeiro acesso
+        # devem observar a MESMA instancia (sem duas chaves efemeras).
+        import threading
 
-    def test_decrypt_sem_fernet_retorna_ciphertext(self) -> None:
-        enc = EncryptionService()
-        enc._fernet = None
-        resultado = enc.decrypt("cifrado")
-        assert resultado == "cifrado"
+        instancias: list[EncryptionService] = []
+        barreira = threading.Barrier(8)
+
+        def _obter() -> None:
+            barreira.wait()
+            instancias.append(EncryptionService.instance())
+
+        threads = [threading.Thread(target=_obter) for _ in range(8)]
+        for t in threads:
+            t.start()
+        for t in threads:
+            t.join()
+        assert len(set(map(id, instancias))) == 1
 
     def test_decrypt_token_corrompido_levanta(self) -> None:
         """Token COM prefixo Fernet que falha integridade -> raise (issue #73).

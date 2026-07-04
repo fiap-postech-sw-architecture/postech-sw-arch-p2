@@ -49,11 +49,11 @@ class CriarItemEstoque:
 
     def executar(self, dto: CriarItemEstoqueDTO) -> ItemEstoqueDTO:
         preco = Dinheiro(valor=dto.preco_unitario)
-        item = ItemEstoque(
-            _nome=dto.nome,
-            _descricao=dto.descricao,
-            _quantidade=dto.quantidade,
-            _preco_unitario=preco,
+        item = ItemEstoque.criar(
+            nome=dto.nome,
+            descricao=dto.descricao,
+            quantidade=dto.quantidade,
+            preco_unitario=preco,
         )
         with self._uow:
             self._repo.salvar(item)
@@ -126,7 +126,10 @@ class DesativarItemEstoque:
 
     def executar(self, item_id: UUID) -> None:
         with self._uow:
-            item = _obter_ou_falhar(self._repo, item_id)
+            # ``com_lock=True`` (FOR UPDATE) serializa a desativacao com a
+            # reserva: sem o lock, desativar durante uma reserva em andamento
+            # deixaria um item inativo com estoque recem-reservado.
+            item = _obter_ou_falhar(self._repo, item_id, com_lock=True)
             if not item.ativo:
                 return
             if self._os_port.existe_os_ativa_com_item_estoque(item_id):

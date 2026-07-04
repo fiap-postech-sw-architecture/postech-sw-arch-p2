@@ -9,9 +9,12 @@ from __future__ import annotations
 
 import os
 from dataclasses import dataclass, field
-from typing import Literal
 
-Papel = Literal["admin", "atendente", "mecanico"]
+# Papel canonico vive em ui.estado; re-export mantem os imports existentes
+# (``from ui.config import Papel``) sem duplicar o Literal em 2 modulos.
+from ui.estado import Papel
+
+__all__ = ["CONFIG", "Config", "Papel", "UsuarioSeed"]
 
 
 @dataclass(frozen=True)
@@ -72,13 +75,33 @@ class Config:
         source = env if env is not None else dict(os.environ)
         return cls(
             backend_url=source.get("BACKEND_URL", "http://localhost:8001"),
-            ui_port=int(source.get("UI_PORT", "8080")),
+            ui_port=_validar_ui_port(source.get("UI_PORT", "8080")),
             storage_secret=source.get(
                 "UI_STORAGE_SECRET", _STORAGE_SECRET_DEV_FALLBACK
             ),
             git_sha=source.get("PYTSTOP_GIT_SHA", ""),
             usuarios_seed=dict(_USUARIOS_SEED),
         )
+
+
+_PORTA_MAXIMA = 65535
+
+
+def _validar_ui_port(bruto: str) -> int:
+    """Valida UI_PORT com mensagem acionavel.
+
+    Sem isso, ``UI_PORT=oitenta`` estourava ``ValueError: invalid literal for
+    int()`` no import do modulo — sem dizer qual env var estava errada.
+    """
+    try:
+        porta = int(bruto)
+    except ValueError:
+        msg = f"UI_PORT invalida: {bruto!r} (esperado inteiro entre 1 e 65535)"
+        raise ValueError(msg) from None
+    if not 1 <= porta <= _PORTA_MAXIMA:
+        msg = f"UI_PORT fora do intervalo 1-65535: {porta}"
+        raise ValueError(msg)
+    return porta
 
 
 CONFIG = Config.from_env()

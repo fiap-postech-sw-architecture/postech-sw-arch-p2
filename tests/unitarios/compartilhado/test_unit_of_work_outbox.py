@@ -83,7 +83,7 @@ def test_commit_preserva_domain_event_puro_no_agregado() -> None:
     # nenhum INSERT/NOTIFY (so domain event puro) — execute nao chamado
     session.execute.assert_not_called()
     session.commit.assert_called_once()
-    # domain event puro PERMANECE para o _despachar_pos_commit sincrono (F9)
+    # domain event puro PERMANECE no agregado (consumo sincrono futuro; F9)
     assert agg.coletar_eventos() == [puro]
 
 

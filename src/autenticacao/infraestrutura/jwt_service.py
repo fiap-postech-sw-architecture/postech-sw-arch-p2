@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import os
 import uuid
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
@@ -16,15 +15,23 @@ if TYPE_CHECKING:
     from uuid import UUID
 
 _ALGORITMO = "HS256"
-_REFRESH_EXPIRACAO_MINUTOS = int(
-    os.environ.get("JWT_REFRESH_EXPIRATION_MINUTES", "10080")
-)
 
 
 class JWTService:
-    def __init__(self, chave_secreta: str, expiracao_minutos: int = 30) -> None:
+    # As expiracoes chegam pelo construtor (lidas do ambiente na factory
+    # `obter_jwt_service`, com os defaults 30/10080). Sem default aqui: quem
+    # instancia direto e obrigado a informar, e os defaults tem fonte unica na
+    # factory -- leitura de env no import-time congelava o valor antes de
+    # qualquer configuracao de ambiente/teste.
+    def __init__(
+        self,
+        chave_secreta: str,
+        expiracao_minutos: int,
+        refresh_expiracao_minutos: int,
+    ) -> None:
         self._chave_secreta = chave_secreta
         self._expiracao_minutos = expiracao_minutos
+        self._refresh_expiracao_minutos = refresh_expiracao_minutos
 
     def gerar_access_token(self, usuario_id: UUID, email: str, papel: str) -> str:
         agora = datetime.now(UTC)
@@ -46,7 +53,7 @@ class JWTService:
             "type": "refresh",
             "jti": str(uuid.uuid4()),
             "iat": agora,
-            "exp": agora + timedelta(minutes=_REFRESH_EXPIRACAO_MINUTOS),
+            "exp": agora + timedelta(minutes=self._refresh_expiracao_minutos),
         }
         return jwt.encode(payload, self._chave_secreta, algorithm=_ALGORITMO)
 

@@ -13,7 +13,9 @@ from dataclasses import dataclass
 from typing import Literal, Protocol, cast
 
 Papel = Literal["admin", "atendente", "mecanico"]
-_PAPEIS_VALIDOS: frozenset[str] = frozenset({"admin", "atendente", "mecanico"})
+# Fonte unica dos papeis validos — importada por config/cliente_api pra nao
+# haver 3 copias do mesmo conjunto divergindo em silencio.
+PAPEIS_VALIDOS: frozenset[str] = frozenset({"admin", "atendente", "mecanico"})
 
 
 @dataclass(frozen=True)
@@ -32,9 +34,6 @@ class _StorageProtocol(Protocol):
         pass
 
     def __setitem__(self, key: str, value: object, /) -> None:
-        pass
-
-    def clear(self) -> None:
         pass
 
 
@@ -72,16 +71,23 @@ class StateStore:
         return None
 
     def sessao_atual(self) -> Sessao | None:
+        # Storage corrompido (cookie truncado, versao antiga do dict) nao pode
+        # derrubar a pagina com KeyError — qualquer chave ausente => sem sessao.
         s = self._sessao_dict()
         if s is None:
             return None
+        access = s.get("access_token")
+        refresh = s.get("refresh_token")
+        email = s.get("email")
         papel = s.get("papel")
-        if papel not in _PAPEIS_VALIDOS:
+        if access is None or refresh is None or email is None:
+            return None
+        if papel not in PAPEIS_VALIDOS:
             return None
         return Sessao(
-            access_token=s["access_token"],
-            refresh_token=s["refresh_token"],
-            email=s["email"],
+            access_token=access,
+            refresh_token=refresh,
+            email=email,
             papel=cast("Papel", papel),
         )
 

@@ -10,11 +10,10 @@ Insere linhas diretamente na outbox (Core) para isolar o relay da UoW
 
 from __future__ import annotations
 
-import json
 import threading
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING, Any
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import pytest
 from sqlalchemy import text
@@ -23,6 +22,19 @@ from relay.processador import (
     ConexaoOutboxSQL,
     emitir_profundidade,
     processar_ciclo,
+    reivindicar_lote,
+)
+from tests.integracao.outbox_helpers import (
+    inserir_dead as _inserir_dead,
+)
+from tests.integracao.outbox_helpers import (
+    inserir_pendente as _inserir_pendente,
+)
+from tests.integracao.outbox_helpers import (
+    inserir_pendente_com_id as _inserir_pendente_com_id,
+)
+from tests.integracao.outbox_helpers import (
+    status_tentativas as _status,
 )
 
 if TYPE_CHECKING:
@@ -32,68 +44,11 @@ pytestmark = pytest.mark.integracao
 
 _LEASE = timedelta(seconds=60)
 
+# A limpeza da outbox e autouse no conftest do pacote (`_outbox_limpa`).
+
 
 def _agora() -> datetime:
     return datetime.now(UTC)
-
-
-def _inserir_pendente(
-    engine: Engine,
-    *,
-    tipo: str = "DiagnosticoIniciadoEvent",
-    proxima: datetime | None = None,
-    agregado_id: UUID | None = None,
-    marcador: str | None = None,
-) -> int:
-    """Insere uma linha ``pendente`` e retorna o ``id``.
-
-    ``marcador`` (quando dado) vai no payload como ``marcador``, permitindo
-    correlacionar a ordem observada pelo handler ao ``id`` esperado (F7) sem
-    depender de ``ORDER BY id`` nos dois lados.
-    """
-    payload: dict[str, Any] = {"agregado_id": str(agregado_id or uuid4())}
-    if marcador is not None:
-        payload["marcador"] = marcador
-    with engine.begin() as conn:
-        row = conn.execute(
-            text(
-                "INSERT INTO outbox "
-                "(agregado_id, tipo, payload, status, tentativas, "
-                " proxima_tentativa_em, criado_em) "
-                "VALUES (:aid, :tipo, CAST(:payload AS JSONB), 'pendente', 0, "
-                " :prox, :agora) RETURNING id"
-            ),
-            {
-                "aid": agregado_id or uuid4(),
-                "tipo": tipo,
-                "payload": json.dumps(payload),
-                "prox": proxima or _agora(),
-                "agora": _agora(),
-            },
-        ).first()
-        return int(row.id)
-
-
-def _status(engine: Engine, outbox_id: int) -> tuple[str, int]:
-    with engine.begin() as conn:
-        row = conn.execute(
-            text("SELECT status, tentativas FROM outbox WHERE id = :id"),
-            {"id": outbox_id},
-        ).first()
-    return row.status, row.tentativas
-
-
-def _limpar_outbox(engine: Engine) -> None:
-    with engine.begin() as conn:
-        conn.execute(text("DELETE FROM processed_events"))
-        conn.execute(text("DELETE FROM outbox"))
-
-
-@pytest.fixture(autouse=True)
-def _outbox_limpa(engine: Engine):
-    _limpar_outbox(engine)
-    yield
-    _limpar_outbox(engine)
 
 
 def test_fluxo_feliz_entrega_uma_vez_e_marca_entregue(engine: Engine) -> None:
@@ -117,39 +72,6 @@ def test_fluxo_feliz_entrega_uma_vez_e_marca_entregue(engine: Engine) -> None:
             {"id": outbox_id},
         ).scalar()
     assert n == 1
-
-
-def _inserir_pendente_com_id(
-    engine: Engine,
-    outbox_id: int,
-    *,
-    tipo: str = "DiagnosticoIniciadoEvent",
-    marcador: str,
-) -> None:
-    """Insere uma linha ``pendente`` com ``id`` EXPLICITO (bigserial aceita).
-
-    Permite atribuir ids fora da ordem de insercao para discriminar
-    ``ORDER BY id`` de FIFO/heap (F7). O ``marcador`` (= o proprio id como
-    string) vai no payload para correlacionar a ordem observada ao id.
-    """
-    payload = json.dumps({"agregado_id": str(uuid4()), "marcador": marcador})
-    with engine.begin() as conn:
-        conn.execute(
-            text(
-                "INSERT INTO outbox "
-                "(id, agregado_id, tipo, payload, status, tentativas, "
-                " proxima_tentativa_em, criado_em) "
-                "VALUES (:id, :aid, :tipo, CAST(:payload AS JSONB), 'pendente', 0, "
-                " :agora, :agora)"
-            ),
-            {
-                "id": outbox_id,
-                "aid": uuid4(),
-                "tipo": tipo,
-                "payload": payload,
-                "agora": _agora(),
-            },
-        )
 
 
 def test_processa_em_ordem_de_id(engine: Engine) -> None:
@@ -350,6 +272,63 @@ def test_crash_redeliver_e_idempotente(engine: Engine) -> None:
     assert _status(engine, outbox_id) == ("entregue", 0)
 
 
+def test_lease_vencido_apos_crash_de_claim_reentrega_exatamente_uma_vez(
+    engine: Engine,
+) -> None:
+    # F3 (crash-recovery pelo lease): o worker REIVINDICA a linha (claim
+    # comitado aplica o lease = visibility timeout) e morre ANTES de entregar
+    # — simulado executando so a fase de claim (`reivindicar_lote` numa tx
+    # curta identica a de `processar_ciclo`) e nunca a de deliver. O relogio
+    # e injetavel, entao o teste avanca o tempo em vez de dormir. Pina o
+    # comportamento ATUAL de re-claim pos-lease (o fencing de entrega em si
+    # e coberto em `test_fencing_serializa_duas_replicas_na_entrega`; a
+    # discussao de mudanca e a issue #166).
+    outbox_id = _inserir_pendente(engine)
+    base = _agora()
+
+    with engine.begin() as conn:
+        reivindicadas = reivindicar_lote(conn, base, 10, _LEASE)
+    assert [linha.id for linha in reivindicadas] == [outbox_id]
+    # "Crash": nenhuma entrega acontece; o commit acima persistiu o lease.
+
+    chamadas: list[dict[str, Any]] = []
+    handlers: dict[str, Any] = {
+        "DiagnosticoIniciadoEvent": lambda p: chamadas.append(p)
+    }
+
+    # Antes do lease vencer, a linha NAO e re-elegivel (visibility timeout):
+    # um segundo worker nao a reivindica nem entrega.
+    processar_ciclo(
+        engine,
+        handlers=handlers,
+        nome_handler="email",
+        limite=10,
+        lease=_LEASE,
+        relogio=lambda: base + _LEASE - timedelta(seconds=1),
+    )
+    assert chamadas == []
+    assert _status(engine, outbox_id) == ("pendente", 0)
+
+    # Relogio avancado ALEM do lease: o segundo worker re-reivindica e
+    # entrega exatamente 1x (at-least-once pos-crash), sem tentativa extra.
+    processar_ciclo(
+        engine,
+        handlers=handlers,
+        nome_handler="email",
+        limite=10,
+        lease=_LEASE,
+        relogio=lambda: base + _LEASE + timedelta(seconds=1),
+    )
+    assert len(chamadas) == 1
+    assert _status(engine, outbox_id) == ("entregue", 0)
+    with engine.begin() as conn:
+        n = conn.execute(
+            text("SELECT count(*) FROM processed_events WHERE outbox_id = :id"),
+            {"id": outbox_id},
+        ).scalar()
+    assert n == 1
+
+
 def test_falha_sempre_acumula_retries_ate_dead(engine: Engine) -> None:
     outbox_id = _inserir_pendente(engine)
 
@@ -470,6 +449,35 @@ def test_head_of_line_por_agregado_bloqueia_sucessor_em_backoff(engine: Engine) 
     assert _status(engine, id_n1)[0] == "entregue"
 
 
+def _esperar_listen_registrado(engine: Engine, prazo_s: float = 5.0) -> None:
+    """Espera (por condicao observada, nao sleep fixo) o LISTEN estar ativo.
+
+    O relay abre uma conexao psycopg2 DEDICADA (com keepalives, fora do pool)
+    e executa ``LISTEN outbox_novo`` — esse backend fica visivel em
+    ``pg_stat_activity`` com a query ``LISTEN ...`` como ultima executada.
+    Poll ate ~5s (mesmo padrao dos helpers ``_esperar_*`` do repo): substitui
+    o ``time.sleep(0.5)`` fixo, que era lento no melhor caso e flaky num
+    runner carregado. Filtra por ``datname = current_database()`` para nao
+    casar com um LISTEN de outro banco no mesmo servidor.
+    """
+    import time
+
+    prazo = time.time() + prazo_s
+    while time.time() < prazo:
+        with engine.connect() as conn:
+            ouvindo = conn.execute(
+                text(
+                    "SELECT count(*) FROM pg_stat_activity "
+                    "WHERE datname = current_database() "
+                    "AND query ILIKE 'LISTEN%'"
+                )
+            ).scalar()
+        if ouvindo and int(ouvindo) >= 1:
+            return
+        time.sleep(0.05)
+    pytest.fail("backend de LISTEN nao apareceu em pg_stat_activity no prazo")
+
+
 def test_notify_acorda_o_relay_e_entrega_rapido(
     engine_dedicado: Engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:
@@ -506,7 +514,10 @@ def test_notify_acorda_o_relay_e_entrega_rapido(
         daemon=True,
     )
     relay_thread.start()
-    time.sleep(0.5)  # deixa o LISTEN ser registrado
+    # Espera por CONDICAO (backend de LISTEN visivel no proprio Postgres),
+    # nao por duracao fixa: garante que o INSERT+NOTIFY abaixo so acontece
+    # com o relay de fato ouvindo.
+    _esperar_listen_registrado(engine)
 
     # Insere DEPOIS do relay estar ouvindo: so o NOTIFY (da UoW) acordaria.
     # Aqui emitimos o NOTIFY manualmente na mesma tx do INSERT (espelha a UoW).
@@ -537,9 +548,9 @@ def test_notify_acorda_o_relay_e_entrega_rapido(
     parar.set()
     # Encerra o relay de forma DETERMINISTICA antes do teardown: o thread pode
     # estar parado em select(poll=30s); um NOTIFY o acorda, ele reavalia
-    # `parar()` (agora True), restaura autocommit=False e fecha a conexao raw.
-    # Sem o join, `engine_dedicado.dispose()` poderia fechar a conexao com o
-    # thread ainda em poll() (OperationalError espuria no teardown).
+    # `parar()` (agora True) e fecha a conexao dedicada de LISTEN.
+    # Sem o join, `engine_dedicado.dispose()` poderia derrubar o pool com o
+    # thread ainda drenando (OperationalError espuria no teardown).
     with engine.begin() as conn:
         conn.execute(text("SELECT pg_notify('outbox_novo', '')"))
     relay_thread.join(timeout=5)
@@ -587,21 +598,6 @@ def test_dead_com_sucessor_pendente_loga_error(engine: Engine) -> None:
     assert any(
         log.get("event") == "outbox_dead_com_sucessores_pendentes" for log in logs
     )
-
-
-def _inserir_dead(engine: Engine) -> int:
-    """Insere uma linha ``dead`` e retorna o ``id`` (gauge de DLQ, §7)."""
-    with engine.begin() as conn:
-        row = conn.execute(
-            text(
-                "INSERT INTO outbox (agregado_id, tipo, payload, status, "
-                "tentativas, proxima_tentativa_em, criado_em, ultimo_erro) "
-                "VALUES (:aid, 'DiagnosticoIniciadoEvent', CAST(:p AS JSONB), "
-                "'dead', 5, :agora, :agora, 'boom') RETURNING id"
-            ),
-            {"aid": uuid4(), "p": '{"agregado_id": "x"}', "agora": _agora()},
-        ).first()
-    return int(row.id)
 
 
 def test_gauge_profundidade_loga_contagens(engine: Engine) -> None:

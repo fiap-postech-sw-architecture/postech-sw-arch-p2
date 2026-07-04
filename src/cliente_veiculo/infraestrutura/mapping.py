@@ -67,6 +67,10 @@ consentimentos_table = Table(
 
 _mapeamento_iniciado = False
 
+# Prefixo padrao de token Fernet (byte de versao 0x80 em base64): distingue
+# valores cifrados pelo EncryptionService de tombstones/legado em claro.
+_PREFIXO_FERNET = "gAAAAA"
+
 
 def iniciar_mapeamentos() -> None:  # noqa: C901, PLR0915  # mapeamento declarativo coeso
     global _mapeamento_iniciado  # noqa: PLW0603  # init-once flag
@@ -131,7 +135,6 @@ def iniciar_mapeamentos() -> None:  # noqa: C901, PLR0915  # mapeamento declarat
             else Placa(valor=valor)
         )
         object.__setattr__(target, "_placa", placa)
-        object.__setattr__(target, "_id_atribuido", True)
 
     @event.listens_for(Veiculo, "load")
     def _reconstruir_placa_on_load(target: Veiculo, _context: object) -> None:
@@ -146,16 +149,10 @@ def iniciar_mapeamentos() -> None:  # noqa: C901, PLR0915  # mapeamento declarat
         # dispara no primeiro carregamento (espelha o Cliente).
         _reidratar_placa(target)
 
-    @event.listens_for(ConsentimentoCliente, "load")
-    def _reconstruir_consentimento(
-        target: ConsentimentoCliente, _context: object
-    ) -> None:
-        object.__setattr__(target, "_id_atribuido", True)
-
     def _reidratar_documento(target: Cliente) -> None:
         numero: str = target._documento_numero  # type: ignore[attr-defined]
         enc = EncryptionService.instance()
-        if numero and numero.startswith("gAAAAA"):
+        if numero and numero.startswith(_PREFIXO_FERNET):
             numero = enc.decrypt(numero)
         tipo: str = target._tipo_documento  # type: ignore[attr-defined]
         doc: CPF | CNPJ | DocumentoAnonimizado
@@ -175,7 +172,6 @@ def iniciar_mapeamentos() -> None:  # noqa: C901, PLR0915  # mapeamento declarat
         object.__setattr__(target, "_documento", doc)
         contato_valor: str = target._contato_valor  # type: ignore[attr-defined]
         object.__setattr__(target, "_contato", Contato(valor=contato_valor))
-        object.__setattr__(target, "_id_atribuido", True)
         object.__setattr__(target, "_eventos_pendentes", [])
 
     @event.listens_for(Cliente, "load")

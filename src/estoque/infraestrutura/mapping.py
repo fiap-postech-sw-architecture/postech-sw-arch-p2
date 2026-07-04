@@ -63,18 +63,14 @@ def iniciar_mapeamentos() -> None:
         # Decorators empilhados load+refresh (``*_args`` absorve o ``attrs`` do
         # refresh). O ``refresh`` e necessario: obter_por_id(com_lock=True) e
         # obter_por_ids usam populate_existing=True (#117), que dispara
-        # ``refresh`` e nao ``load`` — sem ele o VO Dinheiro e os invariantes
-        # (_id_atribuido/_eventos_pendentes) ficariam stale/ausentes na
-        # releitura sob lock da reserva.
+        # ``refresh`` e nao ``load`` — sem ele o VO Dinheiro e
+        # ``_eventos_pendentes`` ficariam stale/ausentes na releitura sob
+        # lock da reserva.
         valor = target._preco_valor  # type: ignore[attr-defined]
         moeda = target._preco_moeda  # type: ignore[attr-defined]
         object.__setattr__(
             target, "_preco_unitario", Dinheiro(valor=valor, moeda=moeda)
         )
-        # SQLAlchemy nao chama __post_init__ ao reidratar, entao o guard de
-        # Entity.__setattr__ precisa ser ativado aqui para preservar a
-        # imutabilidade de id em instancias carregadas.
-        object.__setattr__(target, "_id_atribuido", True)
         # AggregateRoot._eventos_pendentes tem init=False com default_factory,
         # entao o mapper nao o inicializa na reidratacao. Sem isso,
         # reservar()/liberar() crasham com AttributeError na primeira chamada

@@ -8,7 +8,12 @@ from sqlalchemy import create_engine
 
 config = context.config
 
-if config.config_file_name is not None:
+# ``configure_logger`` (attributes) permite a invocacao programatica dos
+# testes desligar o fileConfig: ele reconfigura o logging global do processo
+# e contaminaria asserts de log de outros testes na mesma sessao pytest.
+if config.config_file_name is not None and config.attributes.get(
+    "configure_logger", True
+):
     fileConfig(config.config_file_name)
 
 # Carrega o metadata compartilhado e registra os mapeamentos imperativos de

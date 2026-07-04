@@ -6,7 +6,7 @@
 #      (por-arquivo, cada um com seu --base-dir, para os anexos preservarem os
 #      proprios links);
 #   2. pre-pende a CAPA ABNT (FIAP/15SOAT, integrantes + RM, cidade/ano);
-#   3. remove a "## 8. Pendencias..." (checklist interno -- nao vai pro PDF);
+#   3. remove a "## 9. Pendencias..." (checklist interno -- nao vai pro PDF);
 #   4. anexa Anexo A (scans de seguranca), B (evidencias visuais) e C
 #      (funcionalidades extras);
 #   5. o bloco Mermaid (que pandoc nao renderiza) vira PNG via mermaid-cli;
@@ -28,8 +28,6 @@ ANO="2026"
 TMP="$(mktemp -d)"
 trap 'rm -rf "$TMP"' EXIT
 COMBINADO="${TMP}/entrega-completo.md"
-TMP_MMD="${TMP}/diagrama.mmd"
-TMP_PNG="${TMP}/diagrama.png"
 
 for f in "$SRC" "$SEGURANCA" "$EXTRAS" scripts/rewrite-md-links.py \
   docs/entrega/fase2/evidencias/b1-ci-cd-verde.png \

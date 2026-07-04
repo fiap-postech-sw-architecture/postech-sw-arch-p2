@@ -23,11 +23,22 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 # Instala uv via bin estatico.
 COPY --from=ghcr.io/astral-sh/uv:0.9 /uv /usr/local/bin/uv
 
+# UID/GID fixos (1001), mesmo padrao do Dockerfile do app: a UI dev tambem
+# nao precisa (nem deve) rodar como root.
+RUN groupadd -r -g 1001 pytstop && useradd -r -u 1001 -g pytstop pytstop
+
 WORKDIR /app
+# O NiceGUI cria `.nicegui/` (storage) no CWD em runtime: o DIRETORIO /app
+# precisa ser gravavel pelo nao-root. Os arquivos copiados abaixo continuam
+# de root (leitura basta) — chown nao-recursivo de proposito.
+RUN chown pytstop:pytstop /app
 
 # Aproveita cache em duas camadas: lock primeiro, fonte depois.
+# --no-install-project: instala SO as dependencias — sem src/ presente nesta
+# camada, instalar "o projeto" gerava um pacote vazio enganoso; em runtime os
+# imports resolvem pelo CWD /app (python -m ui), nao por um install.
 COPY pyproject.toml uv.lock ./
-RUN uv sync --extra ui --frozen --no-dev
+RUN uv sync --extra ui --frozen --no-dev --no-install-project
 
 # Copia UI + src: alguns modulos da UI (maquina_estados, stepper_os,
 # paginas/ordens_servico) importam `StatusOrdem` direto do dominio do
@@ -39,7 +50,9 @@ COPY src /app/src
 ENV PATH="/app/.venv/bin:$PATH"
 EXPOSE 8080
 
-# `sh -c` + `exec` pra que (1) o banner com a SHA seja logado em todo
+USER pytstop
+
+# `bash -c` + `exec` pra que (1) o banner com a SHA seja logado em todo
 # start (LABEL OCI cobre o caso "via docker inspect"; este cobre o log
 # do container) e (2) sinais (SIGTERM) sejam propagados pro python sem
 # proxy do shell.

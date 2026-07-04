@@ -10,15 +10,15 @@ README.md
 CONTRIBUTING.md
 MEMORY.md
 
-# Python
-__pycache__
-*.pyc
+# Python (`**/` casa em qualquer nivel; sem ele o padrao so vale na raiz
+# do contexto e __pycache__/*.pyc aninhados entravam no COPY . .)
+**/__pycache__
+**/*.pyc
 *.pyo
 *.pyd
 .Python
-pytest_cache/
 .pytest_cache/
-pytest.egg-info/
+*.egg-info/
 
 # Testes
 tests/
@@ -36,7 +36,7 @@ htmlcov/
 .mutmut-cache
 .mypy_cache/
 .ruff_cache/
-*.log
+**/*.log
 
 # Ambiente Dev Local
 .venv

@@ -28,10 +28,8 @@ dados.
 
 from __future__ import annotations
 
-import json
 from datetime import UTC, datetime, timedelta
 from typing import TYPE_CHECKING
-from uuid import UUID
 
 import pytest
 from sqlalchemy import text
@@ -39,17 +37,27 @@ from sqlalchemy.orm import Session as SASession
 
 from relay.handlers import NOME_HANDLER_EMAIL, construir_mapa_handlers
 from relay.processador import processar_ciclo
-from src.cliente_veiculo.dominio.cliente import Cliente
-from src.cliente_veiculo.dominio.contato import Contato
-from src.cliente_veiculo.dominio.cpf import CPF
-from src.cliente_veiculo.dominio.placa import Placa
-from src.cliente_veiculo.infraestrutura.repository import ClienteSQLAlchemyRepository
-from src.ordem_servico.dominio.ordem_de_servico import OrdemDeServico
-from src.ordem_servico.infraestrutura.repository import (
-    OrdemDeServicoSQLAlchemyRepository,
+from tests.integracao.outbox_helpers import (
+    antecipar as _antecipa,
+)
+from tests.integracao.outbox_helpers import (
+    contar_processed as _conta_processed,
+)
+from tests.integracao.outbox_helpers import (
+    inserir_pendente,
+)
+from tests.integracao.outbox_helpers import (
+    status_tentativas as _status_tentativas,
+)
+from tests.integracao.seed_helpers import (
+    criar_cliente_com_veiculo,
+    criar_ordem_recebida,
+    placa_unica,
 )
 
 if TYPE_CHECKING:
+    from uuid import UUID
+
     from sqlalchemy import Engine
 
 pytestmark = pytest.mark.integracao
@@ -58,6 +66,8 @@ _LEASE = timedelta(seconds=60)
 # Porta 9 (discard) tipicamente fechada em loopback: connect recusa NA HORA,
 # sem cair no timeout de 5s do adapter (que multiplicaria por 5 tentativas).
 _SMTP_PORT_MORTA = "9"
+
+# A limpeza da outbox e autouse no conftest do pacote (`_outbox_limpa`).
 
 
 def _agora() -> datetime:
@@ -70,26 +80,21 @@ def _seed_os_real(engine: Engine) -> tuple[UUID, UUID]:
     Commit (em vez do savepoint da fixture ``session``) e obrigatorio: o
     relay abre a PROPRIA session contra o ``engine`` para resolver o
     contato e o agregado — dados nao-commitados ficariam invisiveis. Os
-    ids voltam para a limpeza ESCOPADA do teardown (este e o unico teste de
-    integracao que commita de fato; um DELETE global das tabelas seria um
-    acoplamento latente com os demais).
+    ids voltam para a limpeza ESCOPADA do teardown (um DELETE global das
+    tabelas seria um acoplamento latente com os demais testes). CPF/placa
+    unicos por chamada (factory compartilhada): residuo de uma execucao
+    abortada nao colide com a proxima.
     """
     with SASession(bind=engine, expire_on_commit=False) as sess:
-        cliente = Cliente(
-            _nome="Cliente DLQ",
-            _documento=CPF(numero="21249722519"),
-            _contato=Contato(valor="cliente.dlq@exemplo.com"),
+        cliente = criar_cliente_com_veiculo(
+            sess,
+            nome="Cliente DLQ",
+            contato="cliente.dlq@exemplo.com",
+            placa=placa_unica("DLQ"),
         )
-        ClienteSQLAlchemyRepository(session=sess).salvar(cliente)
-        cliente.adicionar_veiculo(
-            placa=Placa(valor="DLQ1234"), marca="Fiat", modelo="Uno", ano=2020
+        ordem = criar_ordem_recebida(
+            sess, cliente_id=cliente.id, veiculo_id=cliente.veiculos[0].id
         )
-        sess.flush()
-        ordem = OrdemDeServico.criar(
-            cliente_id=cliente.id, veiculo_id=cliente.veiculos[0].id
-        )
-        ordem.limpar_eventos()
-        OrdemDeServicoSQLAlchemyRepository(session=sess).salvar(ordem)
         sess.commit()
         return ordem.id, cliente.id
 
@@ -107,62 +112,9 @@ def _limpar_seed(engine: Engine, *, os_id: UUID, cliente_id: UUID) -> None:
 
 
 def _inserir_outbox_pendente(engine: Engine, agregado_id: UUID) -> int:
-    payload = json.dumps({"agregado_id": str(agregado_id)})
-    with engine.begin() as conn:
-        row = conn.execute(
-            text(
-                "INSERT INTO outbox "
-                "(agregado_id, tipo, payload, status, tentativas, "
-                " proxima_tentativa_em, criado_em) "
-                "VALUES (:aid, 'DiagnosticoIniciadoEvent', CAST(:p AS JSONB), "
-                " 'pendente', 0, :agora, :agora) RETURNING id"
-            ),
-            {"aid": agregado_id, "p": payload, "agora": _agora()},
-        ).first()
-        return int(row.id)
+    return inserir_pendente(engine, agregado_id=agregado_id)
 
 
-def _status_tentativas(engine: Engine, outbox_id: int) -> tuple[str, int]:
-    with engine.begin() as conn:
-        row = conn.execute(
-            text("SELECT status, tentativas FROM outbox WHERE id = :id"),
-            {"id": outbox_id},
-        ).first()
-    return row.status, row.tentativas
-
-
-def _conta_processed(engine: Engine, outbox_id: int) -> int:
-    with engine.begin() as conn:
-        return int(
-            conn.execute(
-                text("SELECT count(*) FROM processed_events WHERE outbox_id = :id"),
-                {"id": outbox_id},
-            ).scalar()
-        )
-
-
-def _antecipa(engine: Engine, outbox_id: int) -> None:
-    """Puxa ``proxima_tentativa_em`` para o passado (re-elegibiliza no claim)."""
-    with engine.begin() as conn:
-        conn.execute(
-            text("UPDATE outbox SET proxima_tentativa_em = :p WHERE id = :id"),
-            {"id": outbox_id, "p": _agora() - timedelta(seconds=1)},
-        )
-
-
-@pytest.fixture
-def _outbox_limpa(engine: Engine) -> object:
-    """Zera a outbox/processed_events antes e depois (este teste e dono dela)."""
-    with engine.begin() as conn:
-        conn.execute(text("DELETE FROM processed_events"))
-        conn.execute(text("DELETE FROM outbox"))
-    yield
-    with engine.begin() as conn:
-        conn.execute(text("DELETE FROM processed_events"))
-        conn.execute(text("DELETE FROM outbox"))
-
-
-@pytest.mark.usefixtures("_outbox_limpa")
 def test_falha_de_smtp_no_handler_real_vai_para_dlq(
     engine: Engine, monkeypatch: pytest.MonkeyPatch
 ) -> None:

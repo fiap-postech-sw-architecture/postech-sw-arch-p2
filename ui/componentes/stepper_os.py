@@ -66,8 +66,27 @@ class StepperOs:
         ui.label(rotulo).classes(f"px-3 py-1 rounded {classes}")
 
 
-def _eh_passado(estado: StatusOrdem, atual: StatusOrdem) -> bool:
+def _indice_para_passado(status: StatusOrdem) -> int | None:
+    """Posicao do status no happy path para o calculo de etapa concluida.
+
+    AGUARDANDO_APROVACAO_COMPLEMENTAR e um desvio a partir de EM_EXECUCAO
+    (EM_EXECUCAO -> complementar -> EM_EXECUCAO): herda o indice de
+    EM_EXECUCAO pra que as etapas ja percorridas aparecam concluidas — sem o
+    mapeamento, ``list.index`` levantava ValueError e o stepper renderizava
+    tudo como pendente nesse estado.
+    """
+    if status == StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR:
+        return _HAPPY_PATH.index(StatusOrdem.EM_EXECUCAO)
     try:
-        return _HAPPY_PATH.index(estado) < _HAPPY_PATH.index(atual)
+        return _HAPPY_PATH.index(status)
     except ValueError:
+        # CANCELADA: fora do happy path, nenhuma etapa e marcada como passada.
+        return None
+
+
+def _eh_passado(estado: StatusOrdem, atual: StatusOrdem) -> bool:
+    idx_estado = _indice_para_passado(estado)
+    idx_atual = _indice_para_passado(atual)
+    if idx_estado is None or idx_atual is None:
         return False
+    return idx_estado < idx_atual

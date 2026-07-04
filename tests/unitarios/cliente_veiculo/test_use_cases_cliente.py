@@ -1,12 +1,9 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
 from uuid import UUID, uuid4
 
 import pytest
-
-if TYPE_CHECKING:
-    from types import TracebackType
+from sqlalchemy.exc import IntegrityError
 
 from src.cliente_veiculo.aplicacao.dtos import (
     AdicionarVeiculoDTO,
@@ -35,6 +32,7 @@ from src.cliente_veiculo.dominio.exceptions import (
 )
 from src.cliente_veiculo.dominio.placa import Placa
 from src.compartilhado.dominio.exceptions import ViolacaoRegraDeNegocioException
+from tests.unitarios.fakes import FakeUnitOfWork
 
 CPF_VALIDO = "21249722519"
 CNPJ_VALIDO = "11222333000181"
@@ -55,30 +53,6 @@ _POOL_CPFS = (
 def _cpf_alternativo(seed: int) -> str:
     """Retorna um CPF valido do pool para testes com multiplos clientes."""
     return _POOL_CPFS[seed % len(_POOL_CPFS)]
-
-
-class FakeUnitOfWork:
-    def __init__(self) -> None:
-        self.committed = False
-        self.rolled_back = False
-
-    def __enter__(self) -> FakeUnitOfWork:
-        return self
-
-    def __exit__(
-        self,
-        exc_type: type[BaseException] | None,
-        exc_val: BaseException | None,
-        exc_tb: TracebackType | None,
-    ) -> None:
-        if exc_type is not None:
-            self.rolled_back = True
-
-    def commit(self) -> None:
-        self.committed = True
-
-    def rollback(self) -> None:
-        self.rolled_back = True
 
 
 class FakeClienteRepository:
@@ -122,6 +96,13 @@ class FakeClienteRepository:
             if any(v.placa == placa for v in c.veiculos):
                 return True
         return False
+
+
+class RepoComIntegrityErrorNoSalvar(FakeClienteRepository):
+    """Simula a corrida check-then-insert: a UNIQUE do banco estoura no flush."""
+
+    def salvar(self, cliente: Cliente) -> None:
+        raise IntegrityError("INSERT", {}, Exception("unique constraint"))
 
 
 class StubOrdemDeServicoPort:
@@ -217,6 +198,19 @@ class TestCriarCliente:
         with pytest.raises(ValueError, match="CNPJ invalido"):
             uc.executar(dto)
 
+    def test_corrida_check_then_insert_mapeia_integrity_error(self) -> None:
+        # Duas requisicoes concorrentes passam pelo obter_por_documento antes
+        # de qualquer INSERT; a perdedora estoura IntegrityError no commit e o
+        # use case deve mapear para o mesmo 409 do caminho de verificacao.
+        repo = RepoComIntegrityErrorNoSalvar()
+        uow = FakeUnitOfWork()
+        uc = CriarCliente(repo=repo, uow=uow)
+        dto = CriarClienteDTO(
+            nome="Joao", documento=CPF_VALIDO, tipo_documento="cpf", contato="11999"
+        )
+        with pytest.raises(DocumentoDuplicadoException):
+            uc.executar(dto)
+
 
 class TestListarClientes:
     def test_lista_vazia(self) -> None:
@@ -291,6 +285,24 @@ class TestAtualizarCliente:
         dto = AtualizarClienteDTO(nome="X", contato="Y")
         with pytest.raises(ClienteNaoEncontradoException):
             uc.executar(uuid4(), dto)
+
+    def test_cliente_inativo_rejeitado(self) -> None:
+        # Fecha a brecha de reverter o erasure LGPD (#168): cliente
+        # desativado/anonimizado nao pode ter nome/contato re-escritos.
+        repo = FakeClienteRepository()
+        uow = FakeUnitOfWork()
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
+        cliente.desativar()
+        repo.salvar(cliente)
+        uc = AtualizarCliente(repo=repo, uow=uow)
+        dto = AtualizarClienteDTO(nome="Joao Silva", contato="11888")
+        with pytest.raises(
+            ViolacaoRegraDeNegocioException, match="inativo nao pode ser alterado"
+        ):
+            uc.executar(cliente.id, dto)
+        assert not uow.committed
+        assert repo.obter_por_id(cliente.id).nome == "Joao"  # type: ignore[union-attr]
 
 
 class TestDesativarCliente:
@@ -368,6 +380,8 @@ class TestAdicionarVeiculo:
             uc.executar(uuid4(), dto)
 
     def test_marca_vazia_rejeitada(self) -> None:
+        # Validacao movida para o dominio (Veiculo.__post_init__): whitespace
+        # e aparado e o resultado vazio levanta ValueError (422 via handler).
         repo = FakeClienteRepository()
         uow = FakeUnitOfWork()
         cpf = CPF(numero=CPF_VALIDO)
@@ -375,7 +389,7 @@ class TestAdicionarVeiculo:
         repo.salvar(cliente)
         uc = AdicionarVeiculo(repo=repo, uow=uow)
         dto = AdicionarVeiculoDTO(placa="ABC1234", marca="  ", modelo="Uno", ano=2020)
-        with pytest.raises(ViolacaoRegraDeNegocioException, match="Marca"):
+        with pytest.raises(ValueError, match="Marca do veiculo nao pode ser vazia"):
             uc.executar(cliente.id, dto)
 
     def test_modelo_vazio_rejeitado(self) -> None:
@@ -386,7 +400,52 @@ class TestAdicionarVeiculo:
         repo.salvar(cliente)
         uc = AdicionarVeiculo(repo=repo, uow=uow)
         dto = AdicionarVeiculoDTO(placa="ABC1234", marca="Fiat", modelo="", ano=2020)
-        with pytest.raises(ViolacaoRegraDeNegocioException, match="Modelo"):
+        with pytest.raises(ValueError, match="Modelo do veiculo nao pode ser vazio"):
+            uc.executar(cliente.id, dto)
+
+    def test_marca_e_modelo_persistidos_com_strip(self) -> None:
+        repo = FakeClienteRepository()
+        uow = FakeUnitOfWork()
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
+        repo.salvar(cliente)
+        uc = AdicionarVeiculo(repo=repo, uow=uow)
+        dto = AdicionarVeiculoDTO(
+            placa="ABC1234", marca=" Fiat ", modelo=" Uno ", ano=2020
+        )
+        result = uc.executar(cliente.id, dto)
+        assert result.marca == "Fiat"
+        assert result.modelo == "Uno"
+
+    def test_cliente_inativo_rejeitado(self) -> None:
+        # Cliente anonimizado (LGPD) fica inativo: anexar veiculo re-populava
+        # o agregado com PII nova. O guard bloqueia qualquer mutacao (#168).
+        repo = FakeClienteRepository()
+        uow = FakeUnitOfWork()
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
+        cliente.desativar()
+        repo.salvar(cliente)
+        uc = AdicionarVeiculo(repo=repo, uow=uow)
+        dto = AdicionarVeiculoDTO(placa="ABC1234", marca="Fiat", modelo="Uno", ano=2020)
+        with pytest.raises(
+            ViolacaoRegraDeNegocioException, match="inativo nao pode ser alterado"
+        ):
+            uc.executar(cliente.id, dto)
+        assert not uow.committed
+        assert repo.obter_por_id(cliente.id).veiculos == ()  # type: ignore[union-attr]
+
+    def test_corrida_check_then_insert_mapeia_integrity_error(self) -> None:
+        # A UNIQUE de veiculos.placa estoura no flush quando outra transacao
+        # inseriu a mesma placa apos o placa_existe; mapeia para 409.
+        repo = RepoComIntegrityErrorNoSalvar()
+        uow = FakeUnitOfWork()
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
+        repo._clientes[cliente.id] = cliente
+        uc = AdicionarVeiculo(repo=repo, uow=uow)
+        dto = AdicionarVeiculoDTO(placa="ABC1234", marca="Fiat", modelo="Uno", ano=2020)
+        with pytest.raises(PlacaDuplicadaException):
             uc.executar(cliente.id, dto)
 
 
@@ -504,7 +563,7 @@ class _DocumentoFake:
 
 class TestTipoDocumentoGuardaTipoDesconhecido:
     def test_tipo_documento_desconhecido_levanta(self) -> None:
-        from src.cliente_veiculo.aplicacao.use_cases import _tipo_documento
+        from src.cliente_veiculo.aplicacao.use_cases import tipo_documento
 
         cpf = CPF(numero=CPF_VALIDO)
         cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
@@ -514,4 +573,4 @@ class TestTipoDocumentoGuardaTipoDesconhecido:
         with pytest.raises(
             ViolacaoRegraDeNegocioException, match="Tipo de documento nao suportado"
         ):
-            _tipo_documento(cliente)
+            tipo_documento(cliente)

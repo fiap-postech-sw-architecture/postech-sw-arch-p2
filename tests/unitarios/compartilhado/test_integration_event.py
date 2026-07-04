@@ -8,6 +8,7 @@ import pytest
 
 from src.compartilhado.dominio.events import DomainEvent
 from src.compartilhado.dominio.integration_event import IntegrationEvent
+from src.ordem_servico.aplicacao.notificacoes import _STATUS_POR_EVENTO
 
 
 def test_integration_event_e_subclasse_de_domain_event() -> None:
@@ -60,3 +61,18 @@ def test_ordem_criada_event_nao_e_integration_event() -> None:
 
     assert not issubclass(OrdemCriadaEvent, IntegrationEvent)
     assert issubclass(OrdemCriadaEvent, DomainEvent)
+
+
+def test_nomes_de_integration_event_sao_globalmente_unicos() -> None:
+    # Invariante do roteamento do relay: ``serializar_integration_event`` grava
+    # ``tipo = type(evento).__name__`` SEM o modulo, e o relay roteia por esse
+    # nome via ``relay.handlers._POR_NOME`` (derivado de ``_STATUS_POR_EVENTO``).
+    # Dois IntegrationEvents com o mesmo ``__name__`` em contextos diferentes
+    # colidiriam na coluna ``outbox.tipo``. ``_STATUS_POR_EVENTO`` e a fonte unica
+    # dos eventos roteados; se um contexto novo emitir eventos homonimos, este
+    # teste falha.
+    nomes = [cls.__name__ for cls in _STATUS_POR_EVENTO]
+    assert len(nomes) == len(set(nomes)), (
+        f"nomes de IntegrationEvent duplicados: {nomes}"
+    )
+    assert len(nomes) >= 9  # os 9 eventos de transicao da OS

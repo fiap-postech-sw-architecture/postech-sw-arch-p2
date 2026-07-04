@@ -21,6 +21,10 @@ from src.estoque.dominio.item_estoque import ItemEstoque
 from src.ordem_servico.dominio.item_da_ordem import ItemDaOrdem
 from src.ordem_servico.dominio.ordem_de_servico import OrdemDeServico
 from src.ordem_servico.dominio.status import StatusOrdem
+from tests.integracao.seed_helpers import (
+    criar_cliente_com_veiculo,
+    criar_ordem_recebida,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -118,25 +122,20 @@ def _criar_item_estoque(
 def _criar_ordem_completa(
     session: Session,
 ) -> tuple[OrdemDeServico, Cliente, ServicoOferecido]:
-    """Cria uma ordem de servico com cliente, veiculo e um item."""
-    from src.ordem_servico.infraestrutura.repository import (
-        OrdemDeServicoSQLAlchemyRepository,
-    )
+    """Cria uma ordem de servico com cliente, veiculo e um servico no catalogo.
 
-    cliente = _criar_cliente_cpf(session)
-    placa = Placa(valor="ABC1234")
-    cliente.adicionar_veiculo(placa=placa, marca="Fiat", modelo="Uno", ano=2020)
-    session.flush()
-    veiculo = cliente.veiculos[0]
-
+    Seed cliente+veiculo+OS via factory compartilhada (CPF/placa unicos por
+    chamada); ``limpar_eventos=False`` preserva o comportamento anterior (os
+    eventos ficam no agregado; nada aqui os consome).
+    """
+    cliente = criar_cliente_com_veiculo(session, nome="Maria Silva")
     servico = _criar_servico(session)
-
-    ordem = OrdemDeServico.criar(
+    ordem = criar_ordem_recebida(
+        session,
         cliente_id=cliente.id,
-        veiculo_id=veiculo.id,
+        veiculo_id=cliente.veiculos[0].id,
+        limpar_eventos=False,
     )
-    repo = OrdemDeServicoSQLAlchemyRepository(session=session)
-    repo.salvar(ordem)
     return ordem, cliente, servico
 
 
@@ -835,23 +834,6 @@ class TestServicoOferecidoRepository:
         assert resultado is not None
         assert resultado.ativo is False
 
-    def test_ativar_servico_desativado(self, session: Session) -> None:
-        from src.catalogo_servicos.infraestrutura.repository import (
-            ServicoOferecidoSQLAlchemyRepository,
-        )
-
-        repo = ServicoOferecidoSQLAlchemyRepository(session=session)
-        servico = _criar_servico(session)
-        servico.desativar()
-        session.flush()
-
-        servico.ativar()
-        session.flush()
-
-        resultado = repo.obter_por_id(servico.id)
-        assert resultado is not None
-        assert resultado.ativo is True
-
     def test_obter_por_id_inexistente(self, session: Session) -> None:
         from src.catalogo_servicos.infraestrutura.repository import (
             ServicoOferecidoSQLAlchemyRepository,
@@ -1278,6 +1260,52 @@ class TestOrdemDeServicoRepository:
 
         assert contagem.get("recebida", 0) == 1
         assert contagem.get("em_diagnostico", 0) == 1
+
+    def test_calcular_tempo_medio_execucao_valor_exato_do_sql(
+        self, session: Session
+    ) -> None:
+        """Media EXATA do SQL real (``extract('epoch', ...) / 60``, Postgres).
+
+        Timestamps pinados via insert Core: FINALIZADA com 30 min e ENTREGUE
+        com 90 min entram na media (= 60.0); CANCELADA com 999 min fica FORA
+        (``_ESTADOS_FINALIZADOS``). O unitario anterior era um echo de mock
+        (``scalar.return_value == retorno``) e nao provava o SQL.
+        """
+        from datetime import UTC, datetime, timedelta
+
+        from src.ordem_servico.infraestrutura.mapping import (
+            ordens_de_servico_table,
+        )
+        from src.ordem_servico.infraestrutura.repository import (
+            OrdemDeServicoSQLAlchemyRepository,
+        )
+
+        repo = OrdemDeServicoSQLAlchemyRepository(session=session)
+        # Sem ordens finalizadas/entregues: avg e NULL -> None.
+        assert repo.calcular_tempo_medio_execucao() is None
+
+        cliente = criar_cliente_com_veiculo(session)
+        veiculo_id = cliente.veiculos[0].id
+        base = datetime(2026, 1, 1, 12, 0, tzinfo=UTC)
+        cenarios = (
+            (StatusOrdem.FINALIZADA, 30),
+            (StatusOrdem.ENTREGUE, 90),
+            (StatusOrdem.CANCELADA, 999),  # fora da media
+        )
+        for status, minutos in cenarios:
+            session.execute(
+                ordens_de_servico_table.insert().values(
+                    id=uuid4(),
+                    cliente_id=cliente.id,
+                    veiculo_id=veiculo_id,
+                    status=status.value,
+                    orcamento_json=None,
+                    criado_em=base,
+                    atualizado_em=base + timedelta(minutes=minutos),
+                )
+            )
+
+        assert repo.calcular_tempo_medio_execucao() == pytest.approx(60.0)
 
     def test_existe_ativa_para_cliente(self, session: Session) -> None:
         from src.ordem_servico.infraestrutura.repository import (

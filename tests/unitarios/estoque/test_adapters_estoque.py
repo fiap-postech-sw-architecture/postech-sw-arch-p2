@@ -7,11 +7,6 @@ from src.estoque.infraestrutura.adapters import OrdemDeServicoSQLAlchemyAdapter
 
 
 class TestAdaptersEstoque:
-    def test_init(self) -> None:
-        session = MagicMock()
-        adapter = OrdemDeServicoSQLAlchemyAdapter(session=session)
-        assert adapter._session is session
-
     def test_existe_os_ativa_com_item_estoque_false(self) -> None:
         session = MagicMock()
         session.scalar.return_value = 0

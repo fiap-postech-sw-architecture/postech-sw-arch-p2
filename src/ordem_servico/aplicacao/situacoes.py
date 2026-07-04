@@ -5,7 +5,6 @@ vocabulario dele (RF-021) e a notificacao por e-mail usa o mesmo rotulo
 no assunto/corpo (RF-024). Como ``aplicacao`` nao pode importar
 ``interfaces`` (contrato de camadas, ADR-015), o dict + funcao moraram
 aqui.
-schemas e testes continuam validos.
 
 Os valores persistidos de ``StatusOrdem`` continuam snake_case
 (``dominio/status.py`` — nenhuma migracao, ver gap analysis §2); este

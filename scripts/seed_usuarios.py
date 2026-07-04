@@ -94,13 +94,20 @@ def criar_usuarios_seed(
 
 def main() -> None:
     environment = os.environ.get("ENVIRONMENT", "development").lower()
+    # Guarda de ambiente (espelha scripts/seed_admin.py): este seed cria 3
+    # contas com senhas PUBLICAS fixas (_USUARIOS_FIXOS, tambem em ui/config.py)
+    # so para a UI de simulacao em dev/test. Rodar contra um banco de qualquer
+    # outro ambiente plantaria credenciais publicas conhecidas -- barrado.
+    if environment not in {"development", "test"}:
+        print(
+            "ERRO: seed_usuarios cria contas com senhas publicas fixas e so "
+            "roda em ENVIRONMENT development/test (atual: "
+            f"{environment!r})."
+        )
+        sys.exit(1)
     database_url = os.environ.get("DATABASE_URL")
     if not database_url:
-        if environment in {"development", "test"}:
-            database_url = "postgresql://pytstop:pytstop@localhost:5432/pytstop"
-        else:
-            print("ERRO: DATABASE_URL obrigatoria fora de dev/test.")
-            sys.exit(1)
+        database_url = "postgresql://pytstop:pytstop@localhost:5432/pytstop"
 
     from src.autenticacao.infraestrutura.password_hasher import hash_senha
     from src.compartilhado.infraestrutura.bootstrap import iniciar_todos_mapeamentos

@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from sqlalchemy import func, select
+from sqlalchemy import exists, func, select, update
 
 from src.cliente_veiculo.dominio.cliente import Cliente
 from src.cliente_veiculo.dominio.consentimento import ConsentimentoCliente
@@ -11,6 +11,7 @@ from src.cliente_veiculo.infraestrutura.mapping import (
     consentimentos_table,
     veiculos_table,
 )
+from src.compartilhado.infraestrutura.encryption import EncryptionService
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -50,7 +51,14 @@ class ClienteSQLAlchemyRepository:
         self._session.flush()
 
     def listar(self, offset: int = 0, limit: int = 20) -> list[Cliente]:
-        stmt = select(Cliente).order_by(clientes_table.c.id).offset(offset).limit(limit)
+        # Ordena por nome (listagem amigavel); id como tie-break para
+        # paginacao deterministica entre nomes repetidos.
+        stmt = (
+            select(Cliente)
+            .order_by(clientes_table.c.nome, clientes_table.c.id)
+            .offset(offset)
+            .limit(limit)
+        )
         return list(self._session.scalars(stmt))
 
     def contar(self) -> int:
@@ -59,8 +67,6 @@ class ClienteSQLAlchemyRepository:
         return result if result is not None else 0
 
     def obter_por_documento(self, documento: Documento) -> Cliente | None:
-        from src.compartilhado.infraestrutura.encryption import EncryptionService
-
         enc = EncryptionService.instance()
         doc_hash = enc.hash_deterministic(documento.numero)
         stmt = select(Cliente).where(
@@ -71,23 +77,14 @@ class ClienteSQLAlchemyRepository:
     def placa_existe(
         self, placa: Placa, excluir_cliente_id: UUID | None = None
     ) -> bool:
-        stmt = (
-            select(func.count())
-            .select_from(veiculos_table)
-            .where(
-                veiculos_table.c.placa == placa.valor,
-            )
-        )
+        condicao = exists().where(veiculos_table.c.placa == placa.valor)
         if excluir_cliente_id is not None:
-            stmt = stmt.where(
+            condicao = condicao.where(
                 veiculos_table.c.cliente_id != excluir_cliente_id,
             )
-        result = self._session.scalar(stmt)
-        return (result or 0) > 0
+        return bool(self._session.scalar(select(condicao)))
 
     def anonimizar_dados(self, cliente_id: UUID) -> None:
-        from sqlalchemy import select, update
-
         # Bypass SQLAlchemy ORM event listeners via raw UPDATE.
         # The before_update listener recalculates _documento_numero and
         # _documento_hash from _documento on every flush, so any ORM-level
@@ -139,8 +136,12 @@ class ClienteSQLAlchemyRepository:
             )
 
         # Expire cached ORM state so subsequent reads reflect the change.
+        # #168: expira tambem os Veiculo ja carregados na colecao — a identity
+        # map manteria a placa real em memoria mesmo apos o raw UPDATE acima.
         cliente = self._session.get(Cliente, cliente_id)
         if cliente is not None:
+            for veiculo in cliente.veiculos:
+                self._session.expire(veiculo)
             self._session.expire(cliente)
 
     def salvar_consentimento(self, consentimento: ConsentimentoCliente) -> None:

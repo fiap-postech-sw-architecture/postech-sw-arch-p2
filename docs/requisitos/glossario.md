@@ -22,7 +22,7 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 | Entregue | `StatusOrdem.ENTREGUE` | Veículo devolvido ao cliente. Estado terminal. |
 | Cancelada | `StatusOrdem.CANCELADA` | OS cancelada por rejeição de orçamento ou abandono. Estado terminal. Se cancelada em execução, estoque reservado é liberado. |
 | Aguardando aprovação complementar | `StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR` | Serviços adicionais descobertos durante execução aguardam aprovação do cliente (RF-016). Transita de `EM_EXECUCAO` e retorna a `EM_EXECUCAO`. |
-| Situação | `situacao_de(status)` | Vocabulário do challenge exposto pela API (RF-021): mapeia os 8 estados internos para os 6 rótulos publicados (Recebida, Em diagnóstico, Aguardando aprovação, Em execução, Finalizada, Entregue); o complementar publica "Aguardando aprovação" (RN-020). Vive em `src/ordem_servico/aplicacao/situacoes.py`. |
+| Situação | `situacao_de(status)` | Vocabulário do challenge exposto pela API (RF-021): mapeia os 8 estados internos para 7 rótulos publicados (os 6 do vocabulário do challenge — Recebida, Em diagnóstico, Aguardando aprovação, Em execução, Finalizada, Entregue — mais Cancelada, mantido da fase 1); o complementar reusa o rótulo "Aguardando aprovação" (RN-020). Vive em `src/ordem_servico/aplicacao/situacoes.py`. |
 | Orçamento | `Orcamento` | Objeto de valor imutável com os itens precificados da OS. Armazenado como JSONB. Substituído integralmente quando itens mudam. |
 | Linha do Orçamento | `LinhaOrcamento` | Objeto de valor que representa uma linha individual do orçamento (serviço ou peça com quantidade e preço). |
 | Item da OS | `ItemDaOrdem` | Entidade dentro do agregado OrdemDeServico. Referencia um serviço do catálogo e opcionalmente um item de estoque. |
@@ -86,7 +86,7 @@ Termos do domínio mapeados para identificadores no código, seguindo o modelo h
 | DomainEvent | Evento imutável (`frozen=True`) com `ocorrido_em` e `agregado_id`. |
 | IntegrationEvent | Estende DomainEvent: evento durável que cruza o processo — gravado na outbox transacional pela UnitOfWork e entregue pelo relay (ADR-022). |
 | Repository | Porta de persistência por agregado. Sufixo EN sobre nome PT (ex: `OrdemDeServicoRepository`). |
-| Service | Serviço de aplicação ou domínio. Sufixo EN (ex: `CatalogoService`). |
+| Service | Serviço técnico com sufixo EN, na infraestrutura (ex: `JWTService` em `autenticacao/infraestrutura/jwt_service.py`, `EncryptionService` em `compartilhado/infraestrutura/encryption.py`). |
 | Port | Interface de comunicação entre contextos, definida pelo consumidor (ex: `EstoquePort`). |
 | Open Host Service (OHS) | Padrão de integração DDD: contexto fornecedor expõe serviço padronizado. |
 | Published Language | Padrão de integração DDD: linguagem compartilhada via DTOs. |

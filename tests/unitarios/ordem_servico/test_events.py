@@ -29,20 +29,20 @@ class TestEvents:
         assert e.cliente_id is not None
         assert isinstance(e.ocorrido_em, datetime)
 
-    def test_ordem_criada_event_rejeita_cliente_id_none(self) -> None:
-        with pytest.raises(ValueError, match="cliente_id e obrigatorio"):
-            OrdemCriadaEvent(
+    def test_ordem_criada_event_exige_cliente_id(self) -> None:
+        # kw_only sem default (padrao de OrdemCanceladaEvent.motivo): omitir
+        # o campo falha na construcao, sem validacao manual em __post_init__.
+        with pytest.raises(TypeError, match="cliente_id"):
+            OrdemCriadaEvent(  # type: ignore[call-arg]
                 agregado_id=uuid4(),
-                cliente_id=None,  # type: ignore[arg-type]
                 veiculo_id=uuid4(),
             )
 
-    def test_ordem_criada_event_rejeita_veiculo_id_none(self) -> None:
-        with pytest.raises(ValueError, match="veiculo_id e obrigatorio"):
-            OrdemCriadaEvent(
+    def test_ordem_criada_event_exige_veiculo_id(self) -> None:
+        with pytest.raises(TypeError, match="veiculo_id"):
+            OrdemCriadaEvent(  # type: ignore[call-arg]
                 agregado_id=uuid4(),
                 cliente_id=uuid4(),
-                veiculo_id=None,  # type: ignore[arg-type]
             )
 
     def test_diagnostico_iniciado_event(self) -> None:

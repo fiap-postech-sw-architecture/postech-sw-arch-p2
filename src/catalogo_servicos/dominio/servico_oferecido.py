@@ -30,8 +30,9 @@ class ServicoOferecido(AggregateRoot):
     - ``nome`` e ``descricao`` nao vazios
     - ``preco`` obrigatorio e do tipo ``Dinheiro``
 
-    Mutacoes passam por metodos de dominio (``atualizar``, ``desativar``,
-    ``ativar``), nunca por setters diretos.
+    Mutacoes passam por metodos de dominio (``atualizar``, ``desativar``),
+    nunca por setters diretos. Hoje apenas a factory ``criar`` emite evento
+    (``ServicoCadastradoEvent``); as mutacoes nao emitem eventos proprios.
     """
 
     _nome: str = ""
@@ -93,7 +94,3 @@ class ServicoOferecido(AggregateRoot):
     def desativar(self) -> None:
         """Marca o servico como indisponivel. Idempotente."""
         self._ativo = False
-
-    def ativar(self) -> None:
-        """Marca o servico como disponivel. Idempotente."""
-        self._ativo = True

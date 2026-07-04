@@ -63,6 +63,14 @@ from src.ordem_servico.interfaces.schemas import (
 _CHAVE = "test-secret-key-for-security-tests"
 
 
+def _jwt_service(chave: str = _CHAVE, expiracao_minutos: int = 30) -> JWTService:
+    return JWTService(
+        chave_secreta=chave,
+        expiracao_minutos=expiracao_minutos,
+        refresh_expiracao_minutos=10080,
+    )
+
+
 # ---------------------------------------------------------------------------
 # Helpers
 # ---------------------------------------------------------------------------
@@ -96,7 +104,7 @@ class TestJWTAlgorithmEnforcement:
     """Ensure only HS256 is accepted; other algorithms are rejected."""
 
     def test_hs256_accepted(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         uid = uuid4()
         token = svc.gerar_access_token(uid, "a@b.com", "admin")
         payload = svc.validar_token(token)
@@ -110,7 +118,7 @@ class TestJWTAlgorithmEnforcement:
             "type": "access",
         }
         token = jwt.encode(payload, _CHAVE, algorithm="HS384")
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         with pytest.raises(TokenInvalidoException, match="Algoritmo"):
             svc.validar_token(token)
 
@@ -122,7 +130,7 @@ class TestJWTAlgorithmEnforcement:
             "type": "access",
         }
         token = jwt.encode(payload, _CHAVE, algorithm="HS512")
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         with pytest.raises(TokenInvalidoException, match="Algoritmo"):
             svc.validar_token(token)
 
@@ -145,7 +153,7 @@ class TestJWTAlgorithmEnforcement:
         header = _b64url(b'{"alg":"none","typ":"JWT"}')
         body = _b64url(json_lib.dumps(payload).encode())
         unsigned_token = f"{header}.{body}."
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         with pytest.raises(TokenInvalidoException):
             svc.validar_token(unsigned_token)
 
@@ -154,7 +162,7 @@ class TestJWTExpiredToken:
     """Expired tokens must be rejected."""
 
     def test_expired_token_raises_exception(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE, expiracao_minutos=-1)
+        svc = _jwt_service(expiracao_minutos=-1)
         token = svc.gerar_access_token(uuid4(), "a@b.com", "admin")
         with pytest.raises(TokenExpiradoException):
             svc.validar_token(token)
@@ -164,7 +172,7 @@ class TestJWTTamperedPayload:
     """Tokens whose signature no longer matches must be rejected."""
 
     def test_tampered_payload_rejected(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         token = svc.gerar_access_token(uuid4(), "a@b.com", "admin")
         # Split and alter the payload portion
         parts = token.split(".")
@@ -178,9 +186,9 @@ class TestJWTTamperedPayload:
             svc.validar_token(tampered)
 
     def test_wrong_secret_rejected(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         token = svc.gerar_access_token(uuid4(), "a@b.com", "admin")
-        other_svc = JWTService(chave_secreta="completely-different-secret")
+        other_svc = _jwt_service(chave="completely-different-secret")
         with pytest.raises(TokenInvalidoException):
             other_svc.validar_token(token)
 
@@ -195,7 +203,7 @@ class TestJWTMissingClaims:
             "type": "access",
         }
         token = jwt.encode(payload, _CHAVE, algorithm="HS256")
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         with pytest.raises(TokenInvalidoException):
             svc.validar_token(token)
 
@@ -206,7 +214,7 @@ class TestJWTMissingClaims:
             "type": "access",
         }
         token = jwt.encode(payload, _CHAVE, algorithm="HS256")
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         with pytest.raises(TokenInvalidoException):
             svc.validar_token(token)
 
@@ -217,7 +225,7 @@ class TestJWTMissingClaims:
             "exp": int((datetime.now(UTC) + timedelta(hours=1)).timestamp()),
         }
         token = jwt.encode(payload, _CHAVE, algorithm="HS256")
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         with pytest.raises(TokenInvalidoException):
             svc.validar_token(token)
 
@@ -228,7 +236,7 @@ class TestJWTMissingClaims:
             "type": "access",
         }
         token = jwt.encode(payload, _CHAVE, algorithm="HS256")
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         with pytest.raises(TokenInvalidoException):
             svc.validar_token(token)
 
@@ -241,7 +249,7 @@ class TestJWTTokenRevocation:
         monkeypatch.setenv("JWT_SECRET", _CHAVE)
 
     def test_revoked_token_returns_401(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         uid = uuid4()
         token = svc.gerar_access_token(uid, "a@b.com", "admin")
         payload = svc.validar_token(token)
@@ -254,7 +262,7 @@ class TestJWTTokenRevocation:
             assert "revogado" in str(exc.value.detail).lower()
 
     def test_non_revoked_token_accepted(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         uid = uuid4()
         token = svc.gerar_access_token(uid, "a@b.com", "admin")
         with _patch_revocation(revogados=set()):

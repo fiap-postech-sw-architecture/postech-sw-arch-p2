@@ -6,8 +6,9 @@
 *.tfstate.*
 
 # Kubeconfig que o provider kind grava neste diretorio no apply
-# (<cluster_name>-config); contem credenciais do cluster
-pytstop-config
+# (<cluster_name>-config); contem credenciais do cluster. Glob: clusters
+# alternativos (make k8s-up K8S_CLUSTER=foo -> foo-config) tambem ficam fora.
+*-config
 
 # .terraform.lock.hcl NAO e ignorado de proposito: o lock file pina as
 # versoes exatas dos providers e deve ser commitado.

@@ -18,10 +18,17 @@ on:
 permissions:
   contents: read
 
+# Uma execucao por ref: novo push no PR cancela a anterior (cancel-in-progress
+# so em pull_request -- push na main e o cron concluem sem aborto).
+concurrency:
+  group: "${{ github.workflow }}-${{ github.ref }}"
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   deps-audit:
     name: pip-audit (CVE em dependências)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       - uses: astral-sh/setup-uv@v7
@@ -38,9 +45,11 @@ jobs:
         run: >-
           uv export --frozen --no-emit-project --no-dev --no-hashes
           --format requirements-txt -o requirements-prod.txt
+      # Versao pinada (reprodutibilidade do gate): `uvx pip-audit` sem pino
+      # resolvia o latest a cada run. Atualizar deliberadamente, em milestones.
       - name: pip-audit
         run: >-
-          uvx pip-audit -r requirements-prod.txt --strict --progress-spinner off
+          uvx pip-audit==2.10.1 -r requirements-prod.txt --strict --progress-spinner off
           --ignore-vuln CVE-2025-66645
           --ignore-vuln CVE-2026-21873
           --ignore-vuln CVE-2026-25732
@@ -48,6 +57,7 @@ jobs:
   secret-scan:
     name: gitleaks (segredos)
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v7
       # Binário direto em vez do gitleaks-action: o action exige GITLEAKS_LICENSE
@@ -68,18 +78,21 @@ jobs:
   image-scan:
     name: trivy (CVE na imagem)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
       - name: Build da imagem de runtime
         run: docker build -t pytstop:ci-scan .
-      # Binário via install script oficial (latest) em vez da trivy-action: a
+      # Binário via install script oficial, com versão PINADA (sem o pino o
+      # script instalava o latest e o gate flutuava a cada release do trivy;
+      # atualizar deliberadamente, em milestones), em vez da trivy-action: a
       # resolução de tag do action é frágil (0.28.0 não existia). HIGH/CRITICAL
       # como gate; ignore-unfixed descarta os CVEs OS aceitos sem fix upstream
       # (ncurses/systemd, #113); .trivyignore lista os IDs conhecidos.
       - name: Instala trivy
         run: >-
           curl -sSfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh
-          | sh -s -- -b /usr/local/bin
+          | sh -s -- -b /usr/local/bin v0.72.0
       - name: Trivy image scan
         run: >-
           trivy image --severity HIGH,CRITICAL --ignore-unfixed --no-progress

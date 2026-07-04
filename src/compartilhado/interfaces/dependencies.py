@@ -3,14 +3,14 @@ from __future__ import annotations
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
-    from collections.abc import Generator
+    from collections.abc import Callable, Generator
 
     from sqlalchemy.orm import Session
 
-_session_factory = None
+_session_factory: Callable[[], Session] | None = None
 
 
-def configurar_session_factory(factory: object) -> None:
+def configurar_session_factory(factory: Callable[[], Session]) -> None:
     """Registra a factory global de sessao SQLAlchemy usada por `obter_session`.
 
     Chamada uma vez durante o startup do app com a sessionmaker apropriada.
@@ -27,7 +27,7 @@ def obter_session() -> Generator[Session]:
     if _session_factory is None:
         msg = "Session factory nao configurada"
         raise RuntimeError(msg)
-    session = _session_factory()  # type: ignore[operator]
+    session = _session_factory()
     try:
         yield session
     finally:

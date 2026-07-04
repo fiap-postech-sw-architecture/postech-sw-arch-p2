@@ -6,6 +6,7 @@ from uuid import UUID  # noqa: TC003
 
 from fastapi import APIRouter, Depends, Query, status
 
+from src.autenticacao.dominio.papel import Papel
 from src.autenticacao.interfaces.middleware import exigir_papel
 from src.compartilhado.interfaces.dependencies import obter_session
 from src.estoque.aplicacao.dtos import (
@@ -32,15 +33,20 @@ from src.estoque.interfaces.schemas import (
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
-router = APIRouter(prefix="/api/v1/estoque", tags=["estoque"])
+router = APIRouter(prefix="/api/v1/estoque", tags=["Estoque"])
 
 
-@router.post("/", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/",
+    status_code=status.HTTP_201_CREATED,
+    summary="Cadastra um item de estoque",
+)
 def criar_item(
     body: CriarItemEstoqueRequest,
-    usuario: dict[str, object] = Depends(exigir_papel("admin")),
+    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN)),
     session: Session = Depends(obter_session),
 ) -> ItemEstoqueResponse:
+    """Cria um item de estoque (nome, descricao, quantidade, preco) e retorna seu id."""
     use_case = obter_criar_item(session)
     dto = CriarItemEstoqueDTO(
         nome=body.nome,
@@ -52,13 +58,14 @@ def criar_item(
     return ItemEstoqueResponse(**asdict(result))
 
 
-@router.get("/")
+@router.get("/", summary="Lista itens de estoque paginados")
 def listar_itens(
     offset: int = Query(default=0, ge=0),
     limit: int = Query(default=20, ge=1, le=100),
-    usuario: dict[str, object] = Depends(exigir_papel("admin", "mecanico")),
+    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.MECANICO)),
     session: Session = Depends(obter_session),
 ) -> ItemEstoqueListaResponse:
+    """Retorna os itens de estoque paginados (offset/limit) com o total."""
     use_case = obter_listar_itens(session)
     items = use_case.executar(offset=offset, limit=limit)
     total = use_case.contar()
@@ -70,24 +77,29 @@ def listar_itens(
     )
 
 
-@router.get("/{item_id}")
+@router.get("/{item_id}", summary="Consulta um item de estoque por id")
 def obter_item(
     item_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel("admin", "mecanico")),
+    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.MECANICO)),
     session: Session = Depends(obter_session),
 ) -> ItemEstoqueResponse:
+    """Busca um item de estoque pelo id; 404 se nao existir."""
     use_case = obter_obter_item(session)
     result = use_case.executar(item_id)
     return ItemEstoqueResponse(**asdict(result))
 
 
-@router.put("/{item_id}")
+@router.put(
+    "/{item_id}",
+    summary="Atualiza nome, descricao e preco de um item de estoque",
+)
 def atualizar_item(
     item_id: UUID,
     body: AtualizarItemEstoqueRequest,
-    usuario: dict[str, object] = Depends(exigir_papel("admin")),
+    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN)),
     session: Session = Depends(obter_session),
 ) -> ItemEstoqueResponse:
+    """Atualiza os dados cadastrais de um item (nao a quantidade); 404 se ausente."""
     use_case = obter_atualizar_item(session)
     dto = AtualizarItemEstoqueDTO(
         nome=body.nome,
@@ -98,24 +110,33 @@ def atualizar_item(
     return ItemEstoqueResponse(**asdict(result))
 
 
-@router.patch("/{item_id}/quantidade")
+@router.patch(
+    "/{item_id}/quantidade",
+    summary="Ajusta a quantidade em estoque de um item",
+)
 def ajustar_quantidade(
     item_id: UUID,
     body: AjustarQuantidadeRequest,
-    usuario: dict[str, object] = Depends(exigir_papel("admin")),
+    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN)),
     session: Session = Depends(obter_session),
 ) -> ItemEstoqueResponse:
+    """Define a nova quantidade absoluta em estoque do item; 404 se nao existir."""
     use_case = obter_ajustar_quantidade(session)
     dto = AjustarQuantidadeDTO(nova_quantidade=body.nova_quantidade)
     result = use_case.executar(item_id, dto)
     return ItemEstoqueResponse(**asdict(result))
 
 
-@router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
+@router.delete(
+    "/{item_id}",
+    status_code=status.HTTP_204_NO_CONTENT,
+    summary="Desativa (soft-delete) um item de estoque",
+)
 def desativar_item(
     item_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel("admin")),
+    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN)),
     session: Session = Depends(obter_session),
 ) -> None:
+    """Desativa logicamente um item de estoque; 404 se nao existir."""
     use_case = obter_desativar_item(session)
     use_case.executar(item_id)

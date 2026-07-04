@@ -13,6 +13,7 @@ from src.cliente_veiculo.dominio.exceptions import (
     VeiculoNaoEncontradoException,
 )
 from src.cliente_veiculo.dominio.placa import Placa
+from src.compartilhado.dominio.exceptions import ViolacaoRegraDeNegocioException
 
 CPF_VALIDO = "21249722519"
 CNPJ_VALIDO = "11222333000181"
@@ -28,7 +29,7 @@ class TestCliente:
         assert cliente.documento == cpf
         assert cliente.contato == Contato(valor="11999999999")
         assert cliente.ativo is True
-        assert cliente.veiculos == []
+        assert cliente.veiculos == ()
 
     def test_criacao_sem_cpf(self) -> None:
         with pytest.raises(ValueError, match="Documento do cliente e obrigatorio"):
@@ -122,7 +123,41 @@ class TestCliente:
         assert cliente.nome == "Joao Silva"
         assert cliente.contato == Contato(valor="11888888888")
 
-    def test_veiculos_retorna_copia(self) -> None:
+    def _cliente_inativo(self) -> Cliente:
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        cliente.desativar()
+        return cliente
+
+    def test_atualizar_cliente_inativo_rejeitado(self) -> None:
+        # O invariante "inativo rejeita mutacao" vive no agregado: e a ultima
+        # linha mesmo que a aplicacao pre-cheque para a mensagem 409.
+        cliente = self._cliente_inativo()
+        with pytest.raises(ViolacaoRegraDeNegocioException, match="cliente inativo"):
+            cliente.atualizar(nome="Novo", contato=Contato(valor="11888888888"))
+
+    def test_adicionar_veiculo_cliente_inativo_rejeitado(self) -> None:
+        cliente = self._cliente_inativo()
+        with pytest.raises(ViolacaoRegraDeNegocioException, match="cliente inativo"):
+            cliente.adicionar_veiculo(Placa(valor="ABC1234"), "Fiat", "Uno", 2020)
+
+    def test_remover_veiculo_cliente_inativo_rejeitado(self) -> None:
+        # Brecha antiga: RemoverVeiculo nao tinha pre-check na aplicacao, entao
+        # so o guard no agregado fecha a mutacao de cliente inativo.
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        veiculo = cliente.adicionar_veiculo(Placa(valor="ABC1234"), "Fiat", "Uno", 2020)
+        cliente.desativar()
+        with pytest.raises(ViolacaoRegraDeNegocioException, match="cliente inativo"):
+            cliente.remover_veiculo(veiculo.id)
+
+    def test_veiculos_retorna_tuple_imutavel(self) -> None:
+        # Espelha OrdemDeServico.itens: a colecao exposta e um tuple, entao
+        # nao ha copia mutavel que possa divergir do estado interno.
         cpf = CPF(numero=CPF_VALIDO)
         cliente = Cliente(
             _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
@@ -130,7 +165,8 @@ class TestCliente:
         placa = Placa(valor="ABC1234")
         cliente.adicionar_veiculo(placa, "Fiat", "Uno", 2020)
         veiculos = cliente.veiculos
-        veiculos.clear()
+        assert isinstance(veiculos, tuple)
+        assert not hasattr(veiculos, "clear")
         assert len(cliente.veiculos) == 1
 
     def test_identidade_por_id(self) -> None:
@@ -155,6 +191,19 @@ class TestCliente:
         with pytest.raises(ValueError, match="Nome do cliente nao pode ser vazio"):
             Cliente(_nome="", _documento=cpf, _contato=Contato(valor="11999999999"))
 
+    def test_criacao_nome_whitespace_invalido(self) -> None:
+        # Whitespace-only passava antes do strip() em __post_init__ (#168).
+        cpf = CPF(numero=CPF_VALIDO)
+        with pytest.raises(ValueError, match="Nome do cliente nao pode ser vazio"):
+            Cliente(_nome="   ", _documento=cpf, _contato=Contato(valor="11999999999"))
+
+    def test_criacao_nome_e_aparado(self) -> None:
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="  Joao  ", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        assert cliente.nome == "Joao"
+
     def test_criacao_documento_none_invalido(self) -> None:
         with pytest.raises(ValueError, match="Documento do cliente e obrigatorio"):
             Cliente(
@@ -168,6 +217,36 @@ class TestCliente:
         )
         with pytest.raises(ValueError, match="Nome do cliente nao pode ser vazio"):
             cliente.atualizar(nome="", contato=Contato(valor="11888888888"))
+
+    def test_atualizar_nome_whitespace_invalido(self) -> None:
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        with pytest.raises(ValueError, match="Nome do cliente nao pode ser vazio"):
+            cliente.atualizar(nome=" \t ", contato=Contato(valor="11888888888"))
+
+    def test_atualizar_nome_e_aparado(self) -> None:
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        cliente.atualizar(nome="  Joao Silva  ", contato=Contato(valor="11888888888"))
+        assert cliente.nome == "Joao Silva"
+
+    def test_atualizar_sem_mudanca_nao_emite_evento(self) -> None:
+        # Short-circuit: PUT idempotente com os mesmos valores nao gera
+        # ClienteAtualizadoEvent (espelha a idempotencia de desativar).
+        from src.cliente_veiculo.dominio.events import ClienteAtualizadoEvent
+
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        cliente.atualizar(nome="Joao", contato=Contato(valor="11999999999"))
+        tipos = [type(e) for e in cliente.coletar_eventos()]
+        assert ClienteAtualizadoEvent not in tipos
+        assert cliente.nome == "Joao"
 
     def test_atualizar_contato_none_invalido(self) -> None:
         # Espelha o guard de __post_init__ (finding DDD-tatico da revisao de
@@ -206,7 +285,9 @@ class TestCliente:
         assert VeiculoRemovidoEvent in tipos
         assert ClienteDesativadoEvent in tipos
 
-    def test_veiculo_adicionado_event_payload_obrigatorio(self) -> None:
+    def test_veiculo_adicionado_event_payload_mascara_placa(self) -> None:
+        # Placa e PII veicular (mesma politica de Placa.__repr__): o payload
+        # do evento carrega o valor mascarado, nunca a placa crua.
         from src.cliente_veiculo.dominio.events import VeiculoAdicionadoEvent
 
         cpf = CPF(numero=CPF_VALIDO)
@@ -221,10 +302,28 @@ class TestCliente:
             for e in cliente.coletar_eventos()
             if isinstance(e, VeiculoAdicionadoEvent)
         )
-        assert evento.placa_valor == "ABC1234"
+        assert evento.placa_valor == placa.mascarado()
+        assert "ABC1234" not in evento.placa_valor
         assert evento.marca == "Fiat"
         assert evento.modelo == "Uno"
         assert evento.ano == 2020
+
+    def test_veiculo_removido_event_payload_mascara_placa(self) -> None:
+        from src.cliente_veiculo.dominio.events import VeiculoRemovidoEvent
+
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        placa = Placa(valor="ABC1234")
+        veiculo = cliente.adicionar_veiculo(placa, "Fiat", "Uno", 2020)
+        cliente.remover_veiculo(veiculo.id)
+
+        evento = next(
+            e for e in cliente.coletar_eventos() if isinstance(e, VeiculoRemovidoEvent)
+        )
+        assert evento.placa_valor == placa.mascarado()
+        assert "ABC1234" not in evento.placa_valor
 
     def test_cliente_atualizado_event_nao_carrega_pii(self) -> None:
         from src.cliente_veiculo.dominio.events import ClienteAtualizadoEvent

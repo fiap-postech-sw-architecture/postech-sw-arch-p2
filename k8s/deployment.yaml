@@ -56,18 +56,26 @@ spec:
           # `pytstop-migrate` (TD-015), nao no boot do pod: o initialDelay
           # da readiness cobre apenas a subida do uvicorn sobre o schema ja
           # migrado.
+          # timeoutSeconds/failureThreshold explicitos: o default de
+          # timeoutSeconds e 1s — apertado sob carga (o proprio HPA so
+          # escala DEPOIS do pico); 3s evita flap de Ready/restart por um
+          # GET lento, e 3 falhas seguidas continuam sendo o criterio.
           readinessProbe:
             httpGet:
               path: /api/v1/saude
               port: 8000
             initialDelaySeconds: 10
             periodSeconds: 5
+            timeoutSeconds: 3
+            failureThreshold: 3
           livenessProbe:
             httpGet:
               path: /api/v1/saude
               port: 8000
             initialDelaySeconds: 20
             periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 3
           # Baseline RFC-002 §5 -- o HPA calcula a porcentagem de
           # utilizacao sobre o REQUEST, nao sobre o limit.
           resources:

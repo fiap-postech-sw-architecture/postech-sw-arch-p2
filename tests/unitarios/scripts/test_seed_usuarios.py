@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from unittest.mock import MagicMock, patch
 
+import pytest
+
 from scripts import seed_usuarios
 from src.autenticacao.dominio.papel import Papel
 
@@ -76,6 +78,44 @@ def test_skipa_papeis_que_ja_existem() -> None:
     assert relatorio.criados == 0
     assert relatorio.existentes == 3
     assert mock_repo.salvar.call_count == 0
+
+
+class TestGuardaDeAmbiente:
+    """main() so pode rodar em development/test (senhas publicas fixas)."""
+
+    @pytest.mark.parametrize("environment", ["production", "staging", "prod"])
+    def test_sai_com_codigo_1_fora_de_dev_test(
+        self, environment: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        monkeypatch.setenv("ENVIRONMENT", environment)
+        monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/d")
+        with pytest.raises(SystemExit) as exc:
+            seed_usuarios.main()
+        assert exc.value.code == 1
+
+    @pytest.mark.parametrize("environment", ["development", "test"])
+    def test_prossegue_em_dev_e_test(
+        self, environment: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Em dev/test a guarda deixa passar; mockamos o miolo (mapeamentos +
+        # engine + criacao) para nao tocar banco real e so provar que a guarda
+        # nao aborta antes de chegar la.
+        monkeypatch.setenv("ENVIRONMENT", environment)
+        monkeypatch.setenv("DATABASE_URL", "postgresql://u:p@h:5432/d")
+        with (
+            patch.object(seed_usuarios, "criar_usuarios_seed") as mock_seed,
+            patch(
+                "src.compartilhado.infraestrutura.bootstrap.iniciar_todos_mapeamentos"
+            ),
+            patch("src.compartilhado.infraestrutura.database.criar_engine"),
+            patch("src.compartilhado.infraestrutura.database.criar_session_factory"),
+            patch("src.autenticacao.infraestrutura.password_hasher.hash_senha"),
+        ):
+            mock_seed.return_value = seed_usuarios.RelatorioSeed(
+                criados=3, existentes=0
+            )
+            seed_usuarios.main()
+        mock_seed.assert_called_once()
 
 
 def test_credenciais_sincronizadas_com_ui_config() -> None:

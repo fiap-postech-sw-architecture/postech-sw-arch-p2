@@ -11,6 +11,12 @@ class TestPlacaAnonimizada:
         p = PlacaAnonimizada(veiculo_id=uuid4())
         assert p.valor == "ANONIMIZADO"
 
+    def test_mascarado_devolve_sentinela(self) -> None:
+        # Paridade de contrato com Placa.mascarado(): eventos/logs mascaram a
+        # placa incondicionalmente, inclusive para veiculos ja anonimizados.
+        p = PlacaAnonimizada(veiculo_id=uuid4())
+        assert p.mascarado() == "ANONIMIZADO"
+
     def test_nao_e_placa_real(self) -> None:
         p = PlacaAnonimizada(veiculo_id=uuid4())
         assert not isinstance(p, Placa)

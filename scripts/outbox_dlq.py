@@ -13,10 +13,21 @@ from __future__ import annotations
 import json
 import os
 import sys
+from pathlib import Path
 from typing import TYPE_CHECKING
 
-from src.compartilhado.infraestrutura.database import criar_engine
-from src.compartilhado.infraestrutura.outbox_dlq import listar_dead, reenfileirar
+# Garante que ``src.*`` seja importavel ao rodar ``python scripts/outbox_dlq.py``
+# sem ``pip install -e .``. Idempotente: no-op se o projeto ja estiver no path.
+# Mesmo idioma de scripts/seed_admin.py.
+_PROJECT_ROOT = str(Path(__file__).resolve().parent.parent)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+from src.compartilhado.infraestrutura.database import criar_engine  # noqa: E402
+from src.compartilhado.infraestrutura.outbox_dlq import (  # noqa: E402
+    listar_dead,
+    reenfileirar,
+)
 
 if TYPE_CHECKING:
     from sqlalchemy import Engine

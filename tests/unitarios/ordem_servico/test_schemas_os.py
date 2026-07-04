@@ -39,6 +39,19 @@ class TestCriarOrdemRequest:
         assert req.servicos == []
         assert req.pecas == []
 
+    def test_rejeita_mais_de_50_linhas(self) -> None:
+        # Bound de payload (RF-020): listas de servicos/pecas sao limitadas
+        # na borda HTTP antes de chegar ao caso de uso.
+        servicos = [{"servico_catalogo_id": str(uuid4())} for _ in range(51)]
+        with pytest.raises(ValidationError):
+            CriarOrdemRequest.model_validate(
+                {
+                    "cliente_id": str(uuid4()),
+                    "veiculo_id": str(uuid4()),
+                    "servicos": servicos,
+                }
+            )
+
     def test_com_servicos_e_pecas(self) -> None:
         servico_id = uuid4()
         peca_id = uuid4()

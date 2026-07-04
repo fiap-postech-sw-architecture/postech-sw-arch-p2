@@ -6,18 +6,19 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
+import structlog.testing
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
+from src.compartilhado.interfaces import router_publico
 from src.compartilhado.interfaces.dependencies import obter_session
 from src.compartilhado.interfaces.middleware import limiter
-from src.compartilhado.interfaces.router_publico import router
 
 
 def _criar_app() -> FastAPI:
     app = FastAPI()
     app.state.limiter = limiter
-    app.include_router(router)
+    app.include_router(router_publico.router)
     # Stub da session para os testes — nao e usada no mock do use case.
     # codeql[py/unnecessary-lambda] -- FastAPI dependency_overrides exige o lambda
     app.dependency_overrides[obter_session] = lambda: MagicMock()
@@ -228,6 +229,31 @@ class TestDecisaoOrcamentoExterna:
         assert resp.status_code == 401
         factory.assert_not_called()
 
+    def test_assinatura_nao_ascii_retorna_401(self, token_configurado: str) -> None:
+        # BUG #171: compare_digest com STR nao-ASCII levanta TypeError -> 500.
+        # Comparando em bytes, um header forjado com nao-ASCII e apenas uma
+        # assinatura divergente -> 401. O valor vai em BYTES latin-1 (httpx
+        # exige ASCII em header str); o Starlette decodifica latin-1 e o
+        # handler recebe a str nao-ASCII.
+        import json
+
+        app = _criar_app()
+        ordem_id = uuid4()
+        corpo = json.dumps({"decisao": "aprovada"}).encode("utf-8")
+        headers = self._headers_assinados(ordem_id, token_configurado, corpo)
+        headers_forjados: dict[str, str | bytes] = {
+            **headers,
+            "X-Webhook-Signature": "assinatura-inválida-ñ".encode("latin-1"),
+        }
+        with patch(self._FACTORY) as factory:
+            resp = TestClient(app).post(
+                self._ROTA.format(oid=ordem_id),
+                content=corpo,
+                headers=headers_forjados,  # type: ignore[arg-type]
+            )
+        assert resp.status_code == 401
+        factory.assert_not_called()
+
     def test_timestamp_nao_numerico_retorna_401(self, token_configurado: str) -> None:
         import json
 
@@ -270,6 +296,36 @@ class TestDecisaoOrcamentoExterna:
             app, uuid4(), {"decisao": "aprovada", "motivo": "x"}, token_configurado
         )
         assert resp.status_code == 422
+
+    def test_rejeicao_loga_motivo_sem_vazar_assinatura(
+        self, token_configurado: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Assinar com o segredo errado -> assinatura divergente -> 401. A
+        # rejeicao emite `webhook_auth_falhou` com `motivo` generico + `ordem_id`,
+        # e a assinatura recebida NUNCA aparece nos logs.
+        #
+        # `_log` fresco por teste: com cache_logger_on_first_use=True (setado por
+        # configurar_logging em outro teste da sessao), capture_logs nao intercepta
+        # o `_log` module-level ja cacheado. Um proxy novo torna o capture
+        # deterministico em qualquer ordem da suite.
+        monkeypatch.setattr(
+            router_publico, "_log", structlog.get_logger("test_webhook_auth")
+        )
+        app = _criar_app()
+        ordem_id = uuid4()
+        with structlog.testing.capture_logs() as logs, patch(self._FACTORY):
+            resp = self._post(app, ordem_id, {"decisao": "aprovada"}, "outro-valor")
+        assert resp.status_code == 401
+        eventos = [log for log in logs if log.get("event") == "webhook_auth_falhou"]
+        assert len(eventos) == 1, logs
+        evento = eventos[0]
+        assert evento["motivo"] == "assinatura_divergente"
+        assert evento["ordem_id"] == ordem_id
+        # A assinatura recebida (HMAC do segredo errado) nao vaza para o log.
+        assinatura_recebida = self._headers_assinados(
+            ordem_id, "outro-valor", b'{"decisao": "aprovada"}'
+        )["X-Webhook-Signature"]
+        assert assinatura_recebida not in str(logs)
 
     def test_ordem_id_nao_uuid_retorna_422(self, token_configurado: str) -> None:
         app = _criar_app()

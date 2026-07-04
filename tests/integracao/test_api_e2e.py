@@ -8,45 +8,26 @@ mocks com SimpleNamespace nao capturam.
 
 from __future__ import annotations
 
-from collections.abc import Generator
 from typing import TYPE_CHECKING
 from uuid import uuid4
 
 import pytest
-from fastapi.testclient import TestClient
 from httpx import Response
 
-from src.autenticacao.dominio.papel import Papel
-from src.autenticacao.dominio.usuario import Usuario
-from src.autenticacao.infraestrutura.password_hasher import hash_senha
-from src.autenticacao.infraestrutura.repository import (
-    UsuarioSQLAlchemyRepository,
-)
-from src.main import criar_app
+from tests.integracao.seed_helpers import SENHA_PADRAO as _SENHA_ADMIN
 
 if TYPE_CHECKING:
-    from fastapi import FastAPI
+    from fastapi.testclient import TestClient
     from sqlalchemy import Engine
     from sqlalchemy.orm import Session, sessionmaker
 
+    from src.autenticacao.dominio.usuario import Usuario
+
 pytestmark = pytest.mark.integracao
 
-_SENHA_ADMIN = "senhaforte1234"
-_EMAIL_ADMIN = "admin-e2e@test.com"
-# Tabelas truncadas no teardown para evitar poluicao entre testes. A ordem
-# respeita FKs (dependentes antes de referenciados). Inclui todos os contextos
-# ativos no app.
-_TABELAS_TRUNCATE = (
-    "itens_da_ordem",
-    "ordens_de_servico",
-    "servicos_oferecidos",
-    "itens_estoque",
-    "consentimentos",
-    "veiculos",
-    "clientes",
-    "tokens_revogados",
-    "usuarios",
-)
+# Fixtures `api_client`/`session_factory`/`admin_user` vivem no conftest do
+# pacote (compartilhadas com test_admin_outbox.py); a limpeza pos-teste e
+# derivada do metadata (todas as tabelas), nao de lista manual.
 
 
 def _headers_admin(api_client: TestClient, admin_user: Usuario) -> dict[str, str]:
@@ -137,69 +118,6 @@ def _criar_item_estoque(
     )
     assert resposta.status_code == 201
     return resposta.json()
-
-
-@pytest.fixture
-def session_factory(
-    engine: Engine,
-) -> Generator[sessionmaker[Session]]:
-    from sqlalchemy import text
-
-    from src.compartilhado.infraestrutura.database import criar_session_factory
-
-    factory = criar_session_factory(engine)
-    yield factory
-
-    # Testes E2E fazem commit real atraves do TestClient. O fixture `session`
-    # (SAVEPOINT rollback) nao alcanca essas transacoes, entao limpamos
-    # explicitamente para nao vazar dados entre testes.
-    with factory() as sess:
-        for tabela in _TABELAS_TRUNCATE:
-            sess.execute(text(f"TRUNCATE TABLE {tabela} CASCADE"))
-        sess.commit()
-
-
-@pytest.fixture
-def admin_user(
-    session_factory: sessionmaker[Session],
-) -> Usuario:
-    """Semeia um usuario admin para autenticacao."""
-    with session_factory() as sess:
-        repo = UsuarioSQLAlchemyRepository(session=sess)
-        usuario = Usuario.criar(
-            email=_EMAIL_ADMIN,
-            senha_hash=hash_senha(_SENHA_ADMIN),
-            papel=Papel.ADMIN,
-        )
-        repo.salvar(usuario)
-        sess.commit()
-    return usuario
-
-
-@pytest.fixture
-def api_client(
-    engine: Engine,
-    session_factory: sessionmaker[Session],
-    monkeypatch: pytest.MonkeyPatch,
-) -> Generator[TestClient]:
-    """Cria um TestClient apontando para o banco de teste.
-
-    Configura `DATABASE_URL` e `JWT_SECRET` antes de instanciar o app. O
-    lifespan real se encarrega de criar o engine e registrar a session
-    factory, garantindo que o teste E2E exerca exatamente o mesmo wiring
-    que ``docker compose up`` -- se o bug do session factory voltar, esses
-    testes quebram.
-    """
-    monkeypatch.setenv(
-        "JWT_SECRET",
-        "test-secret-at-least-32-bytes-long-for-hs256-signing",
-    )
-    monkeypatch.setenv("ENVIRONMENT", "test")
-    monkeypatch.setenv("DATABASE_URL", engine.url.render_as_string(hide_password=False))
-    app: FastAPI = criar_app()
-
-    with TestClient(app) as client:
-        yield client
 
 
 class TestFluxoAuthCriacaoListagem:
@@ -330,7 +248,7 @@ class TestFluxoOrdemClienteVeiculo:
         assert resposta.status_code == 404
         assert (
             resposta.json()["erro"]["mensagem"]
-            == "Veiculo nao encontrado para o cliente informado"
+            == f"Veiculo {veiculo_b['id']} nao encontrado para o cliente informado"
         )
 
     def test_remover_veiculo_com_os_entregue_retorna_409(
@@ -586,6 +504,7 @@ class TestCriacaoOsComItens:
             api_client, headers, nome="Troca de oleo", preco="100.00"
         )
 
+        item_inexistente = str(uuid4())
         resposta = api_client.post(
             "/api/v1/ordens-de-servico/",
             headers=headers,
@@ -596,7 +515,7 @@ class TestCriacaoOsComItens:
                 "pecas": [
                     {
                         "servico_catalogo_id": troca["id"],
-                        "item_estoque_id": str(uuid4()),
+                        "item_estoque_id": item_inexistente,
                         "quantidade": 1,
                     }
                 ],
@@ -604,12 +523,17 @@ class TestCriacaoOsComItens:
         )
 
         assert resposta.status_code == 409
-        assert resposta.json()["erro"]["mensagem"] == "Item de estoque nao encontrado"
+        assert (
+            resposta.json()["erro"]["mensagem"]
+            == f"Item de estoque {item_inexistente} nao encontrado"
+        )
         # Rollback total: nenhuma OS persistida (nem com o servico valido).
+        # Escopado pelo cliente DESTE teste (nao por total global == 0, que
+        # acoplaria o assert ao estado residual de outros testes/fixtures).
         listagem = api_client.get(
             "/api/v1/ordens-de-servico/?incluir_encerradas=true", headers=headers
         ).json()
-        assert listagem["total"] == 0
+        assert all(item["cliente_id"] != cliente_id for item in listagem["items"])
 
     def test_post_sem_itens_mantem_comportamento_fase_1(
         self, api_client: TestClient, admin_user: Usuario
@@ -1177,7 +1101,6 @@ class TestDecisaoExternaOrcamento:
     def test_token_nao_configurado_retorna_503(
         self,
         api_client: TestClient,
-        admin_user: Usuario,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         monkeypatch.delenv("ORCAMENTO_WEBHOOK_TOKEN", raising=False)
@@ -1189,7 +1112,6 @@ class TestDecisaoExternaOrcamento:
     def test_ordem_inexistente_retorna_404_no_envelope_padrao(
         self,
         api_client: TestClient,
-        admin_user: Usuario,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         credencial = "e2e-webhook-404"
@@ -1203,7 +1125,6 @@ class TestDecisaoExternaOrcamento:
     def test_decisao_invalida_retorna_422(
         self,
         api_client: TestClient,
-        admin_user: Usuario,
         monkeypatch: pytest.MonkeyPatch,
     ) -> None:
         credencial = "e2e-webhook-422"

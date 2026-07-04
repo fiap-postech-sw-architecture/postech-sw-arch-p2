@@ -31,8 +31,11 @@ def pagina_acompanhamento() -> None:
 
             resultado.clear()
             try:
+                # strip(): espaco copiado junto com placa/CPF gerava 422 no
+                # backend por formato invalido — erro confuso pro usuario final.
                 dados = obter_api().acompanhamento_publico(
-                    placa=placa.value, documento=documento.value
+                    placa=(placa.value or "").strip(),
+                    documento=(documento.value or "").strip(),
                 )
             except ValidacaoError:
                 with resultado:

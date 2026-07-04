@@ -2,7 +2,7 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from fastapi import APIRouter, Body, Depends, status
+from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from starlette.requests import Request  # noqa: TC002
 
@@ -28,28 +28,40 @@ if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
 
-router = APIRouter(prefix="/api/v1/autenticacao", tags=["Autenticacao"])
+router = APIRouter(prefix="/api/v1/autenticacao", tags=["autenticacao"])
 
-_bearer_scheme_required = HTTPBearer()
+# auto_error=False: o HTTPBearer default responde 403 sem WWW-Authenticate
+# para header ausente; o 401 manual abaixo espelha `obter_usuario_atual`.
+_bearer_scheme = HTTPBearer(auto_error=False)
 
 
-@router.post("/login")
+@router.post("/login", summary="Autentica e emite par de tokens")
 @limiter.limit("5/minute")
 def login(
     request: Request,
     body: LoginRequest,
     session: Session = Depends(obter_session),
 ) -> TokenResponse:
+    """Valida e-mail + senha e devolve access + refresh tokens (rate limit 5/min).
+
+    Credenciais invalidas -> 401 (mesma resposta para e-mail inexistente ou
+    senha errada, evitando enumeration).
+    """
     uc = obter_login(session)
     dto = LoginDTO(email=body.email, senha=body.senha)
     result = uc.executar(dto)
     return TokenResponse(
         access_token=result.access_token,
         refresh_token=result.refresh_token,
+        token_type=result.token_type,
     )
 
 
-@router.post("/registrar", status_code=status.HTTP_201_CREATED)
+@router.post(
+    "/registrar",
+    status_code=status.HTTP_201_CREATED,
+    summary="Registra um novo usuario (admin)",
+)
 @limiter.limit("5/minute")
 def registrar(
     request: Request,
@@ -57,20 +69,36 @@ def registrar(
     usuario: dict[str, object] = Depends(exigir_papel("admin")),
     session: Session = Depends(obter_session),
 ) -> UsuarioResponse:
+    """Cria um usuario com o papel informado. Endpoint admin-gated (RBAC).
+
+    E-mail ja cadastrado -> 409. O papel e obrigatorio no corpo (nunca um
+    admin silencioso por omissao).
+    """
     uc = obter_registrar(session)
     dto = RegistrarDTO(email=body.email, senha=body.senha, papel=body.papel)
     result = uc.executar(dto)
     return UsuarioResponse(id=result.id, email=result.email, papel=result.papel)
 
 
-@router.post("/logout")
+@router.post("/logout", summary="Revoga o access e, opcionalmente, o refresh")
 @limiter.limit("10/minute")
 def logout(
     request: Request,
-    credentials: HTTPAuthorizationCredentials = Depends(_bearer_scheme_required),
+    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
     refresh_token: str | None = Body(default=None, embed=True),
     session: Session = Depends(obter_session),
 ) -> dict[str, str]:
+    """Revoga o access token do header; se o refresh vier no corpo, revoga-o tambem.
+
+    Sem o refresh, encerra so o access (compat com clientes que so mandam o
+    header). Header ausente -> 401.
+    """
+    if credentials is None:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token de autenticacao nao fornecido",
+            headers={"WWW-Authenticate": "Bearer"},
+        )
     # refresh_token e OPCIONAL no corpo (issue #118): quando enviado, o logout
     # revoga tambem o refresh e encerra a sessao por completo (CWE-613). Corpo
     # ausente mantem o comportamento anterior (revoga so o access) — sem 422
@@ -79,16 +107,22 @@ def logout(
     return uc.executar(credentials.credentials, refresh_token=refresh_token)
 
 
-@router.post("/refresh")
+@router.post("/refresh", summary="Rotaciona o par de tokens via refresh")
 @limiter.limit("10/minute")
 def refresh(
     request: Request,
     body: RefreshRequest,
     session: Session = Depends(obter_session),
 ) -> TokenResponse:
+    """Troca um refresh token valido por um novo par (access + refresh).
+
+    Single-use: o refresh apresentado e revogado atomicamente. Refresh
+    invalido/expirado/ja consumido -> 401.
+    """
     uc = obter_refresh_token(session)
     result = uc.executar(body.refresh_token)
     return TokenResponse(
         access_token=result.access_token,
         refresh_token=result.refresh_token,
+        token_type=result.token_type,
     )

@@ -2,8 +2,6 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
-from src.compartilhado.interfaces.dependencies import obter_session
-
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
 
@@ -23,8 +21,6 @@ if TYPE_CHECKING:
         ObterCliente,
         RemoverVeiculo,
     )
-
-__all__ = ["obter_session"]
 
 
 def obter_criar_cliente(session: Session) -> CriarCliente:
@@ -142,6 +138,9 @@ def obter_excluir_dados(session: Session) -> ExcluirDadosPessoais:
     from src.cliente_veiculo.aplicacao.lgpd_use_cases import (
         ExcluirDadosPessoais,
     )
+    from src.cliente_veiculo.infraestrutura.adapters import (
+        OrdemDeServicoSQLAlchemyAdapter,
+    )
     from src.cliente_veiculo.infraestrutura.repository import (
         ClienteSQLAlchemyRepository,
     )
@@ -150,6 +149,7 @@ def obter_excluir_dados(session: Session) -> ExcluirDadosPessoais:
     return ExcluirDadosPessoais(
         repo=ClienteSQLAlchemyRepository(session=session),
         uow=SQLAlchemyUnitOfWork(session_factory=lambda: session),
+        os_port=OrdemDeServicoSQLAlchemyAdapter(session=session),
     )
 
 

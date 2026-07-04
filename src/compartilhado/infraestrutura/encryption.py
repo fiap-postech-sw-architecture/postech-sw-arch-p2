@@ -4,6 +4,7 @@ import hashlib
 import hmac
 import logging
 import os
+import threading
 
 from cryptography.fernet import Fernet, InvalidToken
 
@@ -28,14 +29,21 @@ class EncryptionService:
     """
 
     _instance: EncryptionService | None = None
-    _fernet: Fernet | None = None
-    _hmac_key: bytes = b""
+    _instance_lock = threading.Lock()
 
     @classmethod
     def instance(cls) -> EncryptionService:
-        """Retorna a instancia singleton, criando-a no primeiro acesso."""
+        """Retorna a instancia singleton, criando-a no primeiro acesso.
+
+        Double-checked locking: o fast path (instancia ja criada) nao paga o
+        lock; a criacao e serializada para nao construir dois services (e
+        duas chaves efemeras divergentes no fallback sem ENCRYPTION_KEY)
+        sob requests concorrentes.
+        """
         if cls._instance is None:
-            cls._instance = cls()
+            with cls._instance_lock:
+                if cls._instance is None:
+                    cls._instance = cls()
         return cls._instance
 
     def __init__(self) -> None:
@@ -47,14 +55,12 @@ class EncryptionService:
                 "inconsistencia entre replicas."
             )
             key = Fernet.generate_key().decode()
-        key_bytes = key.encode() if isinstance(key, str) else key
+        key_bytes = key.encode()
         self._fernet = Fernet(key_bytes)
         self._hmac_key = hashlib.sha256(key_bytes).digest()
 
     def encrypt(self, plaintext: str) -> str:
         """Cifra o texto com Fernet (AES-128-CBC + HMAC-SHA256)."""
-        if not self._fernet:
-            return plaintext
         return self._fernet.encrypt(plaintext.encode()).decode()
 
     def decrypt(self, ciphertext: str) -> str:
@@ -68,8 +74,6 @@ class EncryptionService:
         o ciphertext: isso mascararia a falha e exporia o token como se fosse o
         valor decifrado.
         """
-        if not self._fernet:
-            return ciphertext
         if not ciphertext.startswith(_PREFIXO_FERNET):
             return ciphertext
         try:

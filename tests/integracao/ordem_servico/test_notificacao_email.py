@@ -5,9 +5,12 @@ real) e prova que:
 
 - a transicao de status e o registro na outbox sao commitados juntos na
   MESMA transacao (garantia de ordering: estado + evento atomicos);
-- falha do handler nao afeta a transicao ja persistida (aceite RF-024);
 - ``ClienteSQLAlchemyAdapter.obter_contato`` resolve nome + contato do
   cliente real (cross-context via port, sem tocar o dominio vizinho).
+
+Falha do HANDLER de notificacao nao afeta a transicao por construcao: o
+handler roda no relay, fora da transacao da request (a resiliencia do
+ciclo de entrega e coberta em ``tests/integracao/relay/``).
 
 Usa uma session propria com ``expire_on_commit=False`` (espelho de
 ``criar_session_factory``) porque os casos de uso leem atributos do
@@ -24,18 +27,17 @@ from uuid import uuid4
 import pytest
 from sqlalchemy import text
 
-from src.cliente_veiculo.dominio.cliente import Cliente
-from src.cliente_veiculo.dominio.contato import Contato
-from src.cliente_veiculo.dominio.cpf import CPF
-from src.cliente_veiculo.dominio.placa import Placa
 from src.compartilhado.infraestrutura.outbox_mapping import outbox_table
 from src.compartilhado.infraestrutura.unit_of_work import SQLAlchemyUnitOfWork
-from src.ordem_servico.aplicacao.dispatcher import EventDispatcher
 from src.ordem_servico.aplicacao.use_cases import IniciarDiagnostico
-from src.ordem_servico.dominio.ordem_de_servico import OrdemDeServico
 from src.ordem_servico.infraestrutura.adapters import ClienteSQLAlchemyAdapter
 from src.ordem_servico.infraestrutura.repository import (
     OrdemDeServicoSQLAlchemyRepository,
+)
+from tests.integracao.seed_helpers import (
+    criar_cliente_com_veiculo,
+    criar_ordem_recebida,
+    placa_unica,
 )
 
 if TYPE_CHECKING:
@@ -44,6 +46,8 @@ if TYPE_CHECKING:
 
     from sqlalchemy import Engine
     from sqlalchemy.orm import Session
+
+    from src.ordem_servico.dominio.ordem_de_servico import OrdemDeServico
 
 pytestmark = pytest.mark.integracao
 
@@ -71,30 +75,15 @@ def sessao(engine: Engine) -> Generator[Session]:
 def _seed_cliente_com_veiculo(
     sessao: Session, *, contato: str = "maria@cliente.com"
 ) -> tuple[UUID, UUID]:
-    from src.cliente_veiculo.infraestrutura.repository import (
-        ClienteSQLAlchemyRepository,
+    cliente = criar_cliente_com_veiculo(
+        sessao, nome="Maria Notificada", contato=contato, placa=placa_unica("EML")
     )
-
-    cliente = Cliente(
-        _nome="Maria Notificada",
-        _documento=CPF(numero="21249722519"),
-        _contato=Contato(valor=contato),
-    )
-    ClienteSQLAlchemyRepository(session=sessao).salvar(cliente)
-    cliente.adicionar_veiculo(
-        placa=Placa(valor="EML1234"), marca="Fiat", modelo="Uno", ano=2020
-    )
-    sessao.flush()
     return cliente.id, cliente.veiculos[0].id
 
 
 def _seed_ordem_recebida(sessao: Session) -> OrdemDeServico:
     cliente_id, veiculo_id = _seed_cliente_com_veiculo(sessao)
-    ordem = OrdemDeServico.criar(cliente_id=cliente_id, veiculo_id=veiculo_id)
-    ordem.limpar_eventos()
-    OrdemDeServicoSQLAlchemyRepository(session=sessao).salvar(ordem)
-    sessao.flush()
-    return ordem
+    return criar_ordem_recebida(sessao, cliente_id=cliente_id, veiculo_id=veiculo_id)
 
 
 def _status_no_banco(sessao: Session, ordem_id: UUID) -> str | None:
@@ -105,7 +94,7 @@ def _status_no_banco(sessao: Session, ordem_id: UUID) -> str | None:
     return None if linha is None else str(linha.status)
 
 
-class TestDispatchPosCommitComBancoReal:
+class TestOutboxNoMesmoCommitComBancoReal:
     def test_transicao_enfileira_evento_na_outbox_no_mesmo_commit(
         self, sessao: Session
     ) -> None:
@@ -121,7 +110,6 @@ class TestDispatchPosCommitComBancoReal:
         uc = IniciarDiagnostico(
             repo=OrdemDeServicoSQLAlchemyRepository(session=sessao),
             uow=SQLAlchemyUnitOfWork(session_factory=lambda: sessao),
-            dispatcher=EventDispatcher(handlers=()),
         )
         uc.executar(ordem.id)
 
@@ -136,24 +124,6 @@ class TestDispatchPosCommitComBancoReal:
         assert len(linhas) == 1
         assert linhas[0].tipo == "DiagnosticoIniciadoEvent"
         assert linhas[0].status == "pendente"
-
-    def test_falha_do_handler_nao_desfaz_a_transicao_persistida(
-        self, sessao: Session
-    ) -> None:
-        ordem = _seed_ordem_recebida(sessao)
-
-        def handler_quebrado(_evento: object) -> None:
-            raise RuntimeError("notificacao indisponivel")
-
-        uc = IniciarDiagnostico(
-            repo=OrdemDeServicoSQLAlchemyRepository(session=sessao),
-            uow=SQLAlchemyUnitOfWork(session_factory=lambda: sessao),
-            dispatcher=EventDispatcher(handlers=(handler_quebrado,)),
-        )
-        result = uc.executar(ordem.id)
-
-        assert result.status == "em_diagnostico"
-        assert _status_no_banco(sessao, ordem.id) == "em_diagnostico"
 
 
 class TestObterContatoComBancoReal:

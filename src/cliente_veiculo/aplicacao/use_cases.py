@@ -2,6 +2,8 @@ from __future__ import annotations
 
 from typing import TYPE_CHECKING
 
+from sqlalchemy.exc import IntegrityError
+
 from src.cliente_veiculo.aplicacao.dtos import (
     ClienteDTO,
     ClienteResumoDTO,
@@ -39,14 +41,14 @@ if TYPE_CHECKING:
 # ----- DTO mapping helpers -----
 
 
-def _veiculo_dto(v: Veiculo) -> VeiculoDTO:
+def veiculo_dto(v: Veiculo) -> VeiculoDTO:
     """Converte uma entidade Veiculo em `VeiculoDTO` para retorno ao chamador."""
     return VeiculoDTO(
         id=v.id, placa=v.placa.valor, marca=v.marca, modelo=v.modelo, ano=v.ano
     )
 
 
-def _tipo_documento(cliente: Cliente) -> str:
+def tipo_documento(cliente: Cliente) -> str:
     """Retorna `"cpf"`, `"cnpj"` ou `"anonimizado"` conforme o tipo do documento.
 
     Levanta `ViolacaoRegraDeNegocioException` se o documento for de um tipo nao
@@ -73,10 +75,10 @@ def _cliente_dto(cliente: Cliente) -> ClienteDTO:
         nome=cliente.nome,
         documento_formatado=cliente.documento.formatado(),
         documento_mascarado=cliente.documento.mascarado(),
-        tipo_documento=_tipo_documento(cliente),
+        tipo_documento=tipo_documento(cliente),
         contato=cliente.contato.valor,
         ativo=cliente.ativo,
-        veiculos=[_veiculo_dto(v) for v in cliente.veiculos],
+        veiculos=[veiculo_dto(v) for v in cliente.veiculos],
     )
 
 
@@ -86,7 +88,7 @@ def _cliente_resumo_dto(cliente: Cliente) -> ClienteResumoDTO:
         id=cliente.id,
         nome=cliente.nome,
         documento_mascarado=cliente.documento.mascarado(),
-        tipo_documento=_tipo_documento(cliente),
+        tipo_documento=tipo_documento(cliente),
         contato=cliente.contato.valor,
         ativo=cliente.ativo,
     )
@@ -126,7 +128,14 @@ class CriarCliente:
 
         contato = Contato(valor=dto.contato)
         cliente = Cliente.criar(nome=dto.nome, documento=documento, contato=contato)
-        _salvar_com_commit(self._uow, self._repo, cliente)
+        try:
+            _salvar_com_commit(self._uow, self._repo, cliente)
+        except IntegrityError as exc:
+            # Corrida check-then-insert: outra transacao inseriu o mesmo
+            # documento entre o obter_por_documento e o commit. A UNIQUE de
+            # documento_hash barra a duplicata; mapeia para o mesmo 409 do
+            # caminho de verificacao previa.
+            raise DocumentoDuplicadoException() from exc
         return _cliente_dto(cliente)
 
 
@@ -151,7 +160,7 @@ class ObterCliente:
         self._repo = repo
 
     def executar(self, cliente_id: UUID) -> ClienteDTO:
-        cliente = _obter_cliente_ou_falhar(self._repo, cliente_id)
+        cliente = obter_cliente_ou_falhar(self._repo, cliente_id)
         return _cliente_dto(cliente)
 
 
@@ -159,7 +168,9 @@ class AtualizarCliente:
     """Atualiza nome e contato do cliente.
 
     Nome vazio e rejeitado pelo aggregate (`ValueError`). Levanta
-    `ClienteNaoEncontradoException` se o cliente nao existe.
+    `ClienteNaoEncontradoException` se o cliente nao existe e
+    `ViolacaoRegraDeNegocioException` se o cliente esta inativo/anonimizado
+    (mutacao reverteria o erasure LGPD).
     """
 
     def __init__(self, repo: ClienteRepository, uow: UnitOfWork) -> None:
@@ -167,7 +178,8 @@ class AtualizarCliente:
         self._uow = uow
 
     def executar(self, cliente_id: UUID, dto: AtualizarClienteDTO) -> ClienteDTO:
-        cliente = _obter_cliente_ou_falhar(self._repo, cliente_id)
+        cliente = obter_cliente_ou_falhar(self._repo, cliente_id)
+        _exigir_cliente_ativo(cliente)
         cliente.atualizar(nome=dto.nome, contato=Contato(valor=dto.contato))
         _salvar_com_commit(self._uow, self._repo, cliente)
         return _cliente_dto(cliente)
@@ -178,6 +190,12 @@ class DesativarCliente:
 
     Consulta `OrdemDeServicoPort.existe_os_ativa_para_cliente` antes de
     desativar. Se houver OS ativa, levanta `ViolacaoRegraDeNegocioException`.
+
+    Decisao explicita: a desativacao e TERMINAL — nao existe caso de uso de
+    reativacao e clientes inativos rejeitam qualquer mutacao (ver
+    `_exigir_cliente_ativo`). Consequencia: o documento (CPF/CNPJ) permanece
+    RESERVADO pela UNIQUE de `documento_hash`; um novo cadastro com o mesmo
+    documento e rejeitado com `DocumentoDuplicadoException`.
     """
 
     def __init__(
@@ -191,7 +209,7 @@ class DesativarCliente:
         self._os_port = os_port
 
     def executar(self, cliente_id: UUID) -> None:
-        cliente = _obter_cliente_ou_falhar(self._repo, cliente_id)
+        cliente = obter_cliente_ou_falhar(self._repo, cliente_id)
         if self._os_port.existe_os_ativa_para_cliente(cliente_id):
             raise ViolacaoRegraDeNegocioException(
                 mensagem="Cliente possui ordem de servico ativa"
@@ -201,11 +219,12 @@ class DesativarCliente:
 
 
 class AdicionarVeiculo:
-    """Adiciona um veiculo ao cliente, validando marca/modelo e unicidade da placa.
+    """Adiciona um veiculo ao cliente, validando unicidade global da placa.
 
-    Precondicoes: `marca` e `modelo` nao vazios; `placa` nao cadastrada em
-    outro cliente (verificacao via repository). Poscondicao: veiculo anexado
-    ao agregado e persistido.
+    Precondicoes: cliente ativo; `placa` nao cadastrada em outro cliente
+    (verificacao via repository). Marca/modelo vazios sao rejeitados pelo
+    dominio (`Veiculo.__post_init__`, que tambem apara com `strip()`).
+    Poscondicao: veiculo anexado ao agregado e persistido.
     """
 
     def __init__(self, repo: ClienteRepository, uow: UnitOfWork) -> None:
@@ -213,21 +232,20 @@ class AdicionarVeiculo:
         self._uow = uow
 
     def executar(self, cliente_id: UUID, dto: AdicionarVeiculoDTO) -> VeiculoDTO:
-        if not dto.marca.strip():
-            raise ViolacaoRegraDeNegocioException(
-                mensagem="Marca do veiculo nao pode ser vazia"
-            )
-        if not dto.modelo.strip():
-            raise ViolacaoRegraDeNegocioException(
-                mensagem="Modelo do veiculo nao pode ser vazio"
-            )
-        cliente = _obter_cliente_ou_falhar(self._repo, cliente_id)
+        cliente = obter_cliente_ou_falhar(self._repo, cliente_id)
+        _exigir_cliente_ativo(cliente)
         placa = Placa(valor=dto.placa)
         if self._repo.placa_existe(placa, excluir_cliente_id=cliente_id):
             raise PlacaDuplicadaException()
         veiculo = cliente.adicionar_veiculo(placa, dto.marca, dto.modelo, dto.ano)
-        _salvar_com_commit(self._uow, self._repo, cliente)
-        return _veiculo_dto(veiculo)
+        try:
+            _salvar_com_commit(self._uow, self._repo, cliente)
+        except IntegrityError as exc:
+            # Corrida check-then-insert: outra transacao inseriu a mesma placa
+            # entre o placa_existe e o commit; a UNIQUE de veiculos.placa barra
+            # a duplicata. Mapeia para o mesmo 409 da verificacao previa.
+            raise PlacaDuplicadaException() from exc
+        return veiculo_dto(veiculo)
 
 
 class ListarVeiculos:
@@ -237,8 +255,8 @@ class ListarVeiculos:
         self._repo = repo
 
     def executar(self, cliente_id: UUID) -> list[VeiculoDTO]:
-        cliente = _obter_cliente_ou_falhar(self._repo, cliente_id)
-        return [_veiculo_dto(v) for v in cliente.veiculos]
+        cliente = obter_cliente_ou_falhar(self._repo, cliente_id)
+        return [veiculo_dto(v) for v in cliente.veiculos]
 
 
 class RemoverVeiculo:
@@ -256,7 +274,11 @@ class RemoverVeiculo:
 
     def executar(self, cliente_id: UUID, veiculo_id: UUID) -> None:
         with self._uow:
-            cliente = _obter_cliente_ou_falhar(self._repo, cliente_id)
+            cliente = obter_cliente_ou_falhar(self._repo, cliente_id)
+            # Pre-check de cliente ativo (fail-fast + mensagem 409 consistente
+            # com os demais use cases). O agregado ainda e a ultima linha:
+            # `cliente.remover_veiculo` re-checa via `_exigir_ativo`.
+            _exigir_cliente_ativo(cliente)
             # Confere a propriedade pelo agregado primeiro (evita chamada de
             # port quando o veiculo nem pertence ao cliente) e em seguida
             # adquire ``FOR UPDATE`` na linha do veiculo. O lock conflita com
@@ -284,12 +306,25 @@ class RemoverVeiculo:
             self._uow.commit()
 
 
-def _obter_cliente_ou_falhar(repo: ClienteRepository, cliente_id: UUID) -> Cliente:
+def obter_cliente_ou_falhar(repo: ClienteRepository, cliente_id: UUID) -> Cliente:
     """Busca cliente pelo id; levanta `ClienteNaoEncontradoException` se None."""
     cliente = repo.obter_por_id(cliente_id)
     if cliente is None:
         raise ClienteNaoEncontradoException()
     return cliente
+
+
+def _exigir_cliente_ativo(cliente: Cliente) -> None:
+    """Rejeita mutacao de cliente inativo (desativado ou anonimizado).
+
+    Fecha a brecha de "reverter" o erasure LGPD (#168): sem este guard, um
+    PUT/POST re-escreveria nome/contato ou anexaria veiculos a um cliente
+    anonimizado, re-populando PII num agregado que deveria ficar terminal.
+    """
+    if not cliente.ativo:
+        raise ViolacaoRegraDeNegocioException(
+            mensagem="cliente inativo nao pode ser alterado"
+        )
 
 
 def _salvar_com_commit(
