@@ -16,6 +16,7 @@ from src.cliente_veiculo.dominio.exceptions import (
 )
 from src.cliente_veiculo.dominio.veiculo import Veiculo
 from src.compartilhado.dominio.aggregate_root import AggregateRoot
+from src.compartilhado.dominio.exceptions import ViolacaoRegraDeNegocioException
 
 if TYPE_CHECKING:
     from uuid import UUID
@@ -35,6 +36,10 @@ class Cliente(AggregateRoot):
     - `documento` obrigatorio (CPF ou CNPJ valido).
     - placa unica por cliente (duplicacao levanta `PlacaDuplicadaException`).
     - remocao de veiculo inexistente levanta `VeiculoNaoEncontradoException`.
+    - cliente inativo (desativado ou anonimizado) rejeita mutacao
+      (`atualizar`/`adicionar_veiculo`/`remover_veiculo` levantam
+      `ViolacaoRegraDeNegocioException`) — o agregado e a ultima linha do
+      guard, mesmo que a aplicacao ja pre-cheque para a mensagem 409.
 
     Cada metodo de transicao de estado registra um `DomainEvent` no aggregate
     via `_registrar_evento`; os eventos ficam armazenados ate serem coletados
@@ -96,18 +101,34 @@ class Cliente(AggregateRoot):
         return self._contato
 
     @property
-    def veiculos(self) -> list[Veiculo]:
-        """Retorna uma copia defensiva da lista de veiculos do cliente."""
-        return list(self._veiculos)
+    def veiculos(self) -> tuple[Veiculo, ...]:
+        """Retorna os veiculos do cliente como tuple imutavel (espelha
+        `OrdemDeServico.itens`): expor uma copia `list` deixava mutacoes na
+        copia virarem no-op silencioso.
+        """
+        return tuple(self._veiculos)
 
     @property
     def ativo(self) -> bool:
         return self._ativo
 
+    def _exigir_ativo(self) -> None:
+        """Ultima linha do invariante: cliente inativo rejeita mutacao.
+
+        Fecha a brecha de re-popular PII num agregado anonimizado (ou reverter
+        um soft-delete). A aplicacao pode pre-checar para a mensagem 409, mas o
+        agregado nunca aceita estado invalido em memoria.
+        """
+        if not self._ativo:
+            raise ViolacaoRegraDeNegocioException(
+                mensagem="cliente inativo nao pode ser alterado"
+            )
+
     def adicionar_veiculo(
         self, placa: Placa, marca: str, modelo: str, ano: int
     ) -> Veiculo:
         """Cria e adiciona um Veiculo ao cliente, rejeitando placas duplicadas."""
+        self._exigir_ativo()
         if any(v.placa == placa for v in self._veiculos):
             raise PlacaDuplicadaException()
         veiculo = Veiculo(_placa=placa, _marca=marca, _modelo=modelo, _ano=ano)
@@ -125,6 +146,7 @@ class Cliente(AggregateRoot):
 
     def remover_veiculo(self, veiculo_id: UUID) -> None:
         """Remove o veiculo identificado por `veiculo_id`; levanta se nao existir."""
+        self._exigir_ativo()
         for i, v in enumerate(self._veiculos):
             if v.id == veiculo_id:
                 placa_removida = v.placa.mascarado()
@@ -151,6 +173,7 @@ class Cliente(AggregateRoot):
         No-op silencioso quando nada mudou: nao emite `ClienteAtualizadoEvent`
         para atualizacoes idempotentes (espelha `desativar`).
         """
+        self._exigir_ativo()
         nome = nome.strip()
         if not nome:
             msg = "Nome do cliente nao pode ser vazio"

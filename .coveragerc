@@ -7,11 +7,16 @@
 
 [run]
 relative_files = True
-# O gate cobre SO codigo de produto (src, ui). Scripts utilitarios de build
-# fora dessas arvores — ex.: .claude/skills/entrega-tech-challenge/scripts/
-# gerar_pdf_entrega.py — tem testes proprios (tests/unitarios/scripts/, pegam
-# regressao) mas ficam de fora deste gate de 95% por nao serem produto.
-source = src, ui
+# branch=True mede cobertura de RAMOS (nao so de linhas): revela partials
+# (if/for que so exercitam um lado). Medido: mantem o total do backend em
+# ~95% (custo zero no gate) e expoe branches nao testados que a contagem de
+# linhas escondia.
+branch = True
+# O gate cobre SO codigo de produto (src, ui, relay). Scripts utilitarios de
+# build fora dessas arvores — ex.: .claude/skills/entrega-tech-challenge/
+# scripts/gerar_pdf_entrega.py — tem testes proprios (tests/unitarios/scripts/,
+# pegam regressao) mas ficam de fora deste gate de 95% por nao serem produto.
+source = src, ui, relay
 omit =
     tests/*
     */migrations/*
@@ -29,10 +34,15 @@ omit =
     ui/componentes/*
     ui/app.py
     ui/__main__.py
+    # Entrypoint CLI do relay (`python -m relay`): so parsing de args +
+    # wiring do processo, exercitado E2E, nao unit-testavel — mesmo racional
+    # de ui/__main__.py.
+    relay/__main__.py
 
 [paths]
 src = src/
 ui = ui/
+relay = relay/
 
 [report]
 # Meta global: 95% no backend. UI tem meta de 95% tambem (gate em

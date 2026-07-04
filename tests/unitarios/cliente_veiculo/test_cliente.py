@@ -13,6 +13,7 @@ from src.cliente_veiculo.dominio.exceptions import (
     VeiculoNaoEncontradoException,
 )
 from src.cliente_veiculo.dominio.placa import Placa
+from src.compartilhado.dominio.exceptions import ViolacaoRegraDeNegocioException
 
 CPF_VALIDO = "21249722519"
 CNPJ_VALIDO = "11222333000181"
@@ -28,7 +29,7 @@ class TestCliente:
         assert cliente.documento == cpf
         assert cliente.contato == Contato(valor="11999999999")
         assert cliente.ativo is True
-        assert cliente.veiculos == []
+        assert cliente.veiculos == ()
 
     def test_criacao_sem_cpf(self) -> None:
         with pytest.raises(ValueError, match="Documento do cliente e obrigatorio"):
@@ -122,7 +123,41 @@ class TestCliente:
         assert cliente.nome == "Joao Silva"
         assert cliente.contato == Contato(valor="11888888888")
 
-    def test_veiculos_retorna_copia(self) -> None:
+    def _cliente_inativo(self) -> Cliente:
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        cliente.desativar()
+        return cliente
+
+    def test_atualizar_cliente_inativo_rejeitado(self) -> None:
+        # O invariante "inativo rejeita mutacao" vive no agregado: e a ultima
+        # linha mesmo que a aplicacao pre-cheque para a mensagem 409.
+        cliente = self._cliente_inativo()
+        with pytest.raises(ViolacaoRegraDeNegocioException, match="cliente inativo"):
+            cliente.atualizar(nome="Novo", contato=Contato(valor="11888888888"))
+
+    def test_adicionar_veiculo_cliente_inativo_rejeitado(self) -> None:
+        cliente = self._cliente_inativo()
+        with pytest.raises(ViolacaoRegraDeNegocioException, match="cliente inativo"):
+            cliente.adicionar_veiculo(Placa(valor="ABC1234"), "Fiat", "Uno", 2020)
+
+    def test_remover_veiculo_cliente_inativo_rejeitado(self) -> None:
+        # Brecha antiga: RemoverVeiculo nao tinha pre-check na aplicacao, entao
+        # so o guard no agregado fecha a mutacao de cliente inativo.
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(
+            _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
+        )
+        veiculo = cliente.adicionar_veiculo(Placa(valor="ABC1234"), "Fiat", "Uno", 2020)
+        cliente.desativar()
+        with pytest.raises(ViolacaoRegraDeNegocioException, match="cliente inativo"):
+            cliente.remover_veiculo(veiculo.id)
+
+    def test_veiculos_retorna_tuple_imutavel(self) -> None:
+        # Espelha OrdemDeServico.itens: a colecao exposta e um tuple, entao
+        # nao ha copia mutavel que possa divergir do estado interno.
         cpf = CPF(numero=CPF_VALIDO)
         cliente = Cliente(
             _nome="Joao", _documento=cpf, _contato=Contato(valor="11999999999")
@@ -130,7 +165,8 @@ class TestCliente:
         placa = Placa(valor="ABC1234")
         cliente.adicionar_veiculo(placa, "Fiat", "Uno", 2020)
         veiculos = cliente.veiculos
-        veiculos.clear()
+        assert isinstance(veiculos, tuple)
+        assert not hasattr(veiculos, "clear")
         assert len(cliente.veiculos) == 1
 
     def test_identidade_por_id(self) -> None:

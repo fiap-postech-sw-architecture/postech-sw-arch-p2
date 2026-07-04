@@ -1,8 +1,8 @@
 from __future__ import annotations
 
-import logging
 from typing import TYPE_CHECKING
 
+import structlog
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 
@@ -21,7 +21,7 @@ if TYPE_CHECKING:
     from fastapi import FastAPI
     from starlette.requests import Request
 
-logger = logging.getLogger(__name__)
+logger = structlog.get_logger(__name__)
 
 _EXCEPTION_STATUS_MAP: dict[type[DomainException], int] = {
     EntidadeNaoEncontradaException: 404,
@@ -32,10 +32,26 @@ _EXCEPTION_STATUS_MAP: dict[type[DomainException], int] = {
     FalhaAutenticacaoException: 401,
 }
 
+
 # DomainException fora do mapa acima e, por definicao, uma regra de negocio
 # violada -> 409 Conflict e o default mais fiel (nunca 500: a excecao e
 # esperada e carrega codigo/mensagem proprios).
 _STATUS_DEFAULT = 409
+
+
+def _status_para(exc: DomainException) -> int:
+    """Resolve o status HTTP pela hierarquia da excecao (mais especifico vence).
+
+    Percorre ``type(exc).__mro__`` (subclasse antes do pai) e retorna o primeiro
+    match no mapa: assim uma subclasse mapeada a um status proprio sempre vence o
+    ancestral, independentemente da ordem de insercao do dict. Sem match ->
+    ``_STATUS_DEFAULT`` (409).
+    """
+    for classe in type(exc).__mro__:
+        code = _EXCEPTION_STATUS_MAP.get(classe)
+        if code is not None:
+            return code
+    return _STATUS_DEFAULT
 
 
 def _obter_request_id(request: Request) -> str:
@@ -67,11 +83,18 @@ def registrar_error_handlers(app: FastAPI) -> None:
         request: Request, exc: DomainException
     ) -> JSONResponse:
         request_id = _obter_request_id(request)
-        status_code = _STATUS_DEFAULT
-        for exc_type, code in _EXCEPTION_STATUS_MAP.items():
-            if isinstance(exc, exc_type):
-                status_code = code
-                break
+        status_code = _status_para(exc)
+        # Negacoes de dominio (401/404/409) tambem sao registradas -- sem log,
+        # picos de 404/409 (enumeration, corrida de duplicidade, transicao
+        # invalida) ficariam invisiveis. Nivel WARNING: esperado, mas
+        # operacionalmente relevante. So o `codigo` estavel, nunca a mensagem
+        # (que pode carregar dado do request).
+        logger.warning(
+            "dominio_excecao_tratada",
+            codigo=exc.codigo,
+            status=status_code,
+            request_id=request_id,
+        )
         return JSONResponse(
             status_code=status_code,
             content=_criar_envelope(exc.codigo, exc.mensagem, request_id),
@@ -93,9 +116,9 @@ def registrar_error_handlers(app: FastAPI) -> None:
             for erro in exc.errors()
         ]
         logger.warning(
-            "Erro de validacao de schema tratado como 422 (request_id=%s): %s",
-            request_id,
-            [(d["type"], d["loc"]) for d in detalhes],
+            "validacao_schema_tratada_422",
+            request_id=request_id,
+            erros=[(d["type"], d["loc"]) for d in detalhes],
         )
         # `id_requisicao` como chave IRMA de `detail`: correlaciona o 422 com
         # os logs sem quebrar o contrato da UI (que le a lista de `detail`).
@@ -108,9 +131,8 @@ def registrar_error_handlers(app: FastAPI) -> None:
     async def _value_error_handler(request: Request, exc: ValueError) -> JSONResponse:
         request_id = _obter_request_id(request)
         logger.warning(
-            "ValueError tratado como 422 (request_id=%s): %s",
-            request_id,
-            exc,
+            "value_error_tratado_422",
+            request_id=request_id,
             exc_info=exc,
         )
         # str(exc) pode ecoar o valor recebido (ex.: CPF cru numa invariante
@@ -127,7 +149,7 @@ def registrar_error_handlers(app: FastAPI) -> None:
         request: Request, exc: Exception
     ) -> JSONResponse:
         request_id = _obter_request_id(request)
-        logger.exception("Erro interno (request_id=%s)", request_id)
+        logger.exception("erro_interno", request_id=request_id)
         return JSONResponse(
             status_code=500,
             content=_criar_envelope(

@@ -30,6 +30,7 @@ import time
 from typing import TYPE_CHECKING
 from uuid import UUID  # noqa: TC003
 
+import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
 from starlette.requests import Request  # noqa: TC002
 
@@ -46,6 +47,8 @@ from src.ordem_servico.interfaces.schemas import (
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
+
+_log = structlog.get_logger(__name__)
 
 router = APIRouter(tags=["publico"])
 
@@ -149,13 +152,22 @@ async def validar_assinatura_webhook(
 
     A env var e lida a cada request (rotacao do Secret sem rebuild).
     """
+    # Cada rejeicao e logada com um `motivo` generico + a `ordem_id`; a
+    # assinatura recebida NUNCA e logada (evita registrar material sensivel /
+    # tentativa de forja). WARNING: sao falhas de autenticacao do canal externo.
     segredo = os.environ.get("ORCAMENTO_WEBHOOK_TOKEN", "")
     if not segredo:
+        _log.warning(
+            "webhook_auth_falhou", motivo="segredo_nao_configurado", ordem_id=ordem_id
+        )
         raise HTTPException(
             status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
             detail="Canal externo de decisao de orcamento desabilitado",
         )
     if not x_webhook_timestamp or not x_webhook_signature:
+        _log.warning(
+            "webhook_auth_falhou", motivo="cabecalhos_ausentes", ordem_id=ordem_id
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Assinatura do webhook ausente (X-Webhook-Timestamp/Signature)",
@@ -163,11 +175,17 @@ async def validar_assinatura_webhook(
     try:
         ts = int(x_webhook_timestamp)
     except ValueError:
+        _log.warning(
+            "webhook_auth_falhou", motivo="timestamp_nao_numerico", ordem_id=ordem_id
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="X-Webhook-Timestamp invalido",
         ) from None
     if abs(int(time.time()) - ts) > JANELA_ANTI_REPLAY_SEGUNDOS:
+        _log.warning(
+            "webhook_auth_falhou", motivo="timestamp_fora_da_janela", ordem_id=ordem_id
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="X-Webhook-Timestamp fora da janela anti-replay",
@@ -180,6 +198,9 @@ async def validar_assinatura_webhook(
     # header vier com nao-ASCII (viraria 500); em bytes e so assinatura
     # divergente -> 401 (BUG #171).
     if not hmac.compare_digest(esperado.encode(), x_webhook_signature.encode()):
+        _log.warning(
+            "webhook_auth_falhou", motivo="assinatura_divergente", ordem_id=ordem_id
+        )
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Assinatura do webhook invalida",

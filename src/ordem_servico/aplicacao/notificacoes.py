@@ -53,10 +53,13 @@ if TYPE_CHECKING:
 
 _log = structlog.get_logger(__name__)
 
-# Evento de transicao -> status NOVO da ordem. ``OrdemCriadaEvent`` fica
-# de fora por desenho: criacao nao e atualizacao de status. O guard de
-# exaustividade em ``tests/unitarios/ordem_servico/test_notificacoes.py``
-# obriga decisao explicita para cada novo evento do dominio.
+# Evento de transicao -> status NOVO da ordem. FALLBACK para linhas antigas da
+# outbox (gravadas antes de ``TransicaoStatusEvent.status_novo`` existir): o
+# handler prefere ``evento.status_novo`` do payload quando presente e so cai
+# neste mapa quando o campo vem ``None``. ``OrdemCriadaEvent`` fica de fora por
+# desenho: criacao nao e atualizacao de status. O guard de exaustividade em
+# ``tests/unitarios/ordem_servico/test_notificacoes.py`` obriga decisao
+# explicita para cada novo evento do dominio.
 _STATUS_POR_EVENTO: Final[dict[type[DomainEvent], StatusOrdem]] = {
     DiagnosticoIniciadoEvent: StatusOrdem.EM_DIAGNOSTICO,
     OrcamentoGeradoEvent: StatusOrdem.AGUARDANDO_APROVACAO,
@@ -115,7 +118,11 @@ class NotificarMudancaDeStatus:
             FalhaEnvioEmailException: falha de transporte no envio,
                 traduzida pelo adapter da ``EmailPort``.
         """
-        status_novo = _STATUS_POR_EVENTO.get(type(evento))
+        # Prefere o status auto-suficiente do payload (TransicaoStatusEvent);
+        # cai no mapa apenas para linhas antigas da outbox sem o campo.
+        status_novo = getattr(evento, "status_novo", None) or _STATUS_POR_EVENTO.get(
+            type(evento)
+        )
         if status_novo is None:
             return  # evento que nao e de transicao (ex.: OrdemCriadaEvent)
 

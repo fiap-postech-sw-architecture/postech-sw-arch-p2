@@ -4,7 +4,7 @@ from typing import TYPE_CHECKING, Final
 
 from sqlalchemy import exists, select
 
-from src.ordem_servico.dominio.status import StatusOrdem
+from src.ordem_servico.dominio.status import ESTADOS_TERMINAIS
 from src.ordem_servico.infraestrutura.mapping import ordens_de_servico_table
 
 if TYPE_CHECKING:
@@ -12,10 +12,9 @@ if TYPE_CHECKING:
 
     from sqlalchemy.orm import Session
 
-# Derivado de StatusOrdem (fonte unica) em vez de strings soltas — espelha
-# _ESTADOS_TERMINAIS de ordem_servico/infraestrutura/repository.py.
+# Projecao para SQL dos estados terminais (fonte unica em dominio/status.py).
 _ESTADOS_TERMINAIS: Final[frozenset[str]] = frozenset(
-    {StatusOrdem.ENTREGUE.value, StatusOrdem.CANCELADA.value}
+    s.value for s in ESTADOS_TERMINAIS
 )
 
 

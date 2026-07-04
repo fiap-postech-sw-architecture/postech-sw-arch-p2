@@ -16,19 +16,42 @@ entregue pelo relay (RF-018; [ADR-022](adr/fase2/022-transactional-outbox-relay.
 | Tipo | Durável? | Consumido na fase 2? |
 |------|----------|----------------------|
 | `IntegrationEvent` | Sim — Outbox + relay | Sim — notificação por e-mail (Ordem de Serviço) |
-| `DomainEvent` (puro) | Não — vive só na sessão | Só `OrdemDeServico` tem dispatcher; os demais **não** |
+| `DomainEvent` (puro) | Não — vive só na sessão | Não — coletado pela transição e descartado (não há dispatcher) |
+
+## Mecanismo de entrega — não há dispatcher síncrono
+
+A fase 2 **não** tem um dispatcher que percorra os eventos e chame handlers
+em processo. O caminho é único e durável, e vale para todos os contextos:
+
+1. O agregado **registra** o evento ao mudar de estado (via
+   `_registrar_evento`). Um `IntegrationEvent` é a subclasse que deve cruzar o
+   processo e ser entregue; um `DomainEvent` puro é só o registro do fato.
+2. No `commit`, a `UnitOfWork` **filtra** os `IntegrationEvent`s dos eventos
+   registrados e os grava na tabela `outbox` **na mesma transação** do estado
+   de negócio (Transactional Outbox — elimina o dual-write). Os `DomainEvent`s
+   puros não vão para a outbox: são coletados e descartados no fim da sessão.
+3. O processo *relay* (`python -m relay`) lê a outbox e entrega ao handler de
+   notificação — semântica at-least-once, idempotência por `processed_events`.
+   O registro tipo → handler vive em [`relay/handlers.py`](../../relay/handlers.py).
+
+Não existe `src/ordem_servico/aplicacao/dispatcher.py`: o dispatch síncrono
+(código morto) foi removido na revisão pós-entrega; a entrega por evento é
+100% outbox + relay.
 
 ## Eventos duráveis/consumidos — Ordem de Serviço
 
-O contexto **Ordem de Serviço** (core) é o único que fechou o ciclo completo:
-emite `IntegrationEvent`s, grava-os na outbox dentro da mesma transação da
-UnitOfWork e os entrega via relay a handlers de notificação
-([dispatcher](../../src/ordem_servico/aplicacao/dispatcher.py)):
+O contexto **Ordem de Serviço** (core) é o único que fecha o ciclo completo:
+emite `IntegrationEvent`s, a `UnitOfWork` os grava na outbox e o relay os
+entrega ao handler de notificação. São **9** os `IntegrationEvent` duráveis
+([events.py](../../src/ordem_servico/dominio/events.py), mesmo conjunto do mapa
+de handlers em [`relay/handlers.py`](../../relay/handlers.py)):
 
 - `DiagnosticoIniciadoEvent`, `OrcamentoGeradoEvent`, `OrcamentoAprovadoEvent`,
   `ServicoFinalizadoEvent`, `EntregaRegistradaEvent`, `OrdemCanceladaEvent`,
-  `OrcamentoComplementarGeradoEvent` — todos `IntegrationEvent` (duráveis).
-- `OrdemCriadaEvent` — `DomainEvent` interno, coletado pela transição.
+  `OrcamentoComplementarGeradoEvent`, `OrcamentoComplementarAprovadoEvent`,
+  `OrcamentoComplementarRejeitadoEvent` — todos `IntegrationEvent` (duráveis).
+- `OrdemCriadaEvent` — `DomainEvent` puro, coletado pela transição e descartado
+  (nenhum handler o consome: criação não é atualização de status, RF-024).
 
 ## Eventos órfãos por design — emitidos, sem consumidor na fase 2
 
@@ -55,9 +78,11 @@ o mecanismo da regra.
 Se uma fase futura precisar reagir a um desses fatos com durabilidade
 cross-context, o caminho é o padrão já consolidado em Ordem de Serviço:
 
-1. Trocar a base do evento de `DomainEvent` para `IntegrationEvent`.
-2. Gravar o evento na outbox dentro da UnitOfWork do caso de uso que o emite.
-3. Registrar um handler no relay (mapa de handlers) para o efeito desejado.
+1. Trocar a base do evento de `DomainEvent` para `IntegrationEvent` — só isso
+   já faz a `UnitOfWork` gravá-lo na outbox no `commit` do caso de uso que o
+   emite (o filtro é por tipo, não há passo manual de enfileiramento).
+2. Registrar um handler no relay (mapa em [`relay/handlers.py`](../../relay/handlers.py))
+   para o efeito desejado.
 
 Até lá, mantê-los como `DomainEvent` órfãos é a escolha correta: modelagem
 completa, infraestrutura proporcional ao que a fase exige.

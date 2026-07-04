@@ -248,7 +248,7 @@ class TestFluxoOrdemClienteVeiculo:
         assert resposta.status_code == 404
         assert (
             resposta.json()["erro"]["mensagem"]
-            == "Veiculo nao encontrado para o cliente informado"
+            == f"Veiculo {veiculo_b['id']} nao encontrado para o cliente informado"
         )
 
     def test_remover_veiculo_com_os_entregue_retorna_409(
@@ -504,6 +504,7 @@ class TestCriacaoOsComItens:
             api_client, headers, nome="Troca de oleo", preco="100.00"
         )
 
+        item_inexistente = str(uuid4())
         resposta = api_client.post(
             "/api/v1/ordens-de-servico/",
             headers=headers,
@@ -514,7 +515,7 @@ class TestCriacaoOsComItens:
                 "pecas": [
                     {
                         "servico_catalogo_id": troca["id"],
-                        "item_estoque_id": str(uuid4()),
+                        "item_estoque_id": item_inexistente,
                         "quantidade": 1,
                     }
                 ],
@@ -522,7 +523,10 @@ class TestCriacaoOsComItens:
         )
 
         assert resposta.status_code == 409
-        assert resposta.json()["erro"]["mensagem"] == "Item de estoque nao encontrado"
+        assert (
+            resposta.json()["erro"]["mensagem"]
+            == f"Item de estoque {item_inexistente} nao encontrado"
+        )
         # Rollback total: nenhuma OS persistida (nem com o servico valido).
         # Escopado pelo cliente DESTE teste (nao por total global == 0, que
         # acoplaria o assert ao estado residual de outros testes/fixtures).

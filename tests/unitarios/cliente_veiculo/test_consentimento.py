@@ -21,6 +21,38 @@ class TestConsentimentoCliente:
         assert c.revogado_em is None
         assert c.ativo is True
 
+    def test_tipo_e_normalizado_no_agregado(self) -> None:
+        # A canonicalizacao (strip + lowercase) vive no __post_init__, entao
+        # qualquer caller — nao so o router — grava o tipo canonico.
+        agora = datetime.now(tz=UTC)
+        c = ConsentimentoCliente(
+            _cliente_id=uuid4(),
+            _tipo="  Marketing  ",
+            _concedido_em=agora,
+        )
+        assert c.tipo == "marketing"
+
+    def test_tipo_so_espacos_falha(self) -> None:
+        with pytest.raises(ValueError, match="tipo"):
+            ConsentimentoCliente(
+                _cliente_id=uuid4(),
+                _tipo="   ",
+                _concedido_em=datetime.now(tz=UTC),
+            )
+
+    def test_factory_criar_normaliza_tipo(self) -> None:
+        agora = datetime.now(tz=UTC)
+        cid = uuid4()
+        c = ConsentimentoCliente.criar(
+            cliente_id=cid,
+            tipo="Tratamento_Dados ",
+            concedido_em=agora,
+        )
+        assert c.cliente_id == cid
+        assert c.tipo == "tratamento_dados"
+        assert c.concedido_em == agora
+        assert c.ativo is True
+
     def test_revogar_consentimento(self) -> None:
         agora = datetime.now(tz=UTC)
         c = ConsentimentoCliente(

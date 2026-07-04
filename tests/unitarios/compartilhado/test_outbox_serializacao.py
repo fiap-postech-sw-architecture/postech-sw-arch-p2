@@ -45,9 +45,13 @@ def test_serializa_evento_sem_payload_extra() -> None:
     assert isinstance(registro, OutboxRegistro)
     assert registro.agregado_id == agregado_id
     assert registro.tipo == "DiagnosticoIniciadoEvent"
+    # ``status_novo`` faz parte da base ``TransicaoStatusEvent`` (payload
+    # auto-suficiente para consumidores da outbox); ``None`` quando o evento e
+    # construido sem ele -- em producao o agregado o preenche na emissao.
     assert registro.payload == {
         "agregado_id": str(agregado_id),
         "ocorrido_em": "2026-06-24T12:00:00+00:00",
+        "status_novo": None,
     }
 
 

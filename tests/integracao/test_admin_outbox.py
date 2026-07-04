@@ -6,11 +6,12 @@ Cobre a superficie HTTP auth-gated do ``router_admin`` ponta a ponta via
 ``tem_sucessores_pendentes``, F4) e o contrato do POST ``reenfileirar``
 (``dead`` -> ``pendente``/tentativas 0; 404 fora desse estado).
 
-O ``router_admin`` constroi seu proprio Engine a partir de ``DATABASE_URL``
-(cache de modulo). O fixture ``api_client`` aponta ``DATABASE_URL`` para o
-banco de teste, entao o endpoint le/escreve a MESMA outbox que semeamos pelo
-``engine`` da sessao. As linhas ``dead`` sao inseridas via Core (isola o
-teste da UoW) e limpas no teardown.
+O ``router_admin`` reusa o Engine criado no ``lifespan`` do app
+(``request.app.state.engine``). O fixture ``api_client`` aponta
+``DATABASE_URL`` para o banco de teste antes de subir o app, entao esse
+Engine e o ``engine`` da sessao apontam para o MESMO banco: o endpoint
+le/escreve a MESMA outbox que semeamos. As linhas ``dead`` sao inseridas via
+Core (isola o teste da UoW) e limpas no teardown.
 """
 
 from __future__ import annotations

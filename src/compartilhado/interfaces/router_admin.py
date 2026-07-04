@@ -4,12 +4,12 @@ Protegidos pelo guard de role admin (mesma autenticacao JWT da API). Em
 producao a DLQ tambem e operavel pela CLI (``scripts/outbox_dlq.py``);
 aqui ela e exposta via HTTP para inspecao/reenfileiramento pela banca.
 
-Engine compartilhado (F8): criar/`dispose` um Engine POR REQUEST churna o
-pool do Postgres a cada chamada admin. O endpoint reusa um Engine cacheado
-em nivel de modulo (lazy singleton), descartado no shutdown via
-``encerrar_engine_admin`` (chamado pelo ``lifespan`` do app). A CLI
-(processo curto) cria o seu proprio Engine — so o endpoint, de vida longa,
-usa o cache.
+Engine compartilhado (F8): os endpoints reusam o Engine ja criado no
+``lifespan`` do app (``request.app.state.engine``) — o MESMO que serve
+``obter_session``. Assim ha um unico Engine/pool no processo, com resolucao
+de DB-URL unica (a do startup), sem churn de pool por request nem um segundo
+singleton para gerir/descartar. A CLI (processo curto) cria o seu proprio
+Engine — so o endpoint, de vida longa, reaproveita o do app.
 
 Excecao arquitetural aceita (mesmo racional do ``router_publico``): este
 modulo de INTERFACE do kernel compartilhado importa ``exigir_papel`` do
@@ -20,15 +20,13 @@ contexto algum.
 
 from __future__ import annotations
 
-import os
-import threading
 from typing import TYPE_CHECKING, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
+from starlette.requests import Request  # noqa: TC002
 
 from src.autenticacao.interfaces.middleware import exigir_papel
-from src.compartilhado.infraestrutura.database import criar_engine
 from src.compartilhado.infraestrutura.outbox_dlq import listar_dead, reenfileirar
 from src.compartilhado.interfaces.auditoria import ator_de as _ator_de
 
@@ -39,50 +37,32 @@ _log = structlog.get_logger(__name__)
 
 router = APIRouter(prefix="/api/v1/admin/outbox", tags=["admin"])
 
-# Engine cacheado em nivel de modulo (F8): construido na primeira chamada,
-# reusado nas seguintes. Evita churn do pool por request.
-_engine_admin: Engine | None = None
-_engine_lock = threading.Lock()
 
+def _engine_do_app(request: Request) -> Engine:
+    """Retorna o Engine criado no ``lifespan`` (``app.state.engine``).
 
-def _engine() -> Engine:
-    """Retorna o Engine admin cacheado, construindo-o na primeira chamada.
-
-    Double-checked locking: o fast path (engine ja criado) nao paga o lock;
-    a criacao e serializada para nao construir dois Engines (e dois pools)
-    sob requests admin concorrentes no primeiro acesso.
+    503 se ausente: o app so aceita requisicoes apos o startup configurar o
+    engine, entao a ausencia indica boot incompleto (nunca cria um engine aqui).
     """
-    global _engine_admin  # noqa: PLW0603 — singleton de modulo deliberado
-    if _engine_admin is None:
-        with _engine_lock:
-            if _engine_admin is None:
-                url = os.environ.get("DATABASE_URL")
-                if not url:
-                    raise HTTPException(
-                        status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
-                        detail="DATABASE_URL nao configurada",
-                    )
-                _engine_admin = criar_engine(url)
-    return _engine_admin
-
-
-def encerrar_engine_admin() -> None:
-    """Descarta o Engine admin cacheado (chamado no shutdown do app)."""
-    global _engine_admin  # noqa: PLW0603 — singleton de modulo deliberado
-    if _engine_admin is not None:
-        _engine_admin.dispose()
-        _engine_admin = None
+    engine: Engine | None = getattr(request.app.state, "engine", None)
+    if engine is None:
+        raise HTTPException(
+            status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+            detail="Engine nao configurado",
+        )
+    return engine
 
 
 @router.get("/dead", dependencies=[Depends(exigir_papel("admin"))])
-def listar_dlq() -> list[dict[str, Any]]:
+def listar_dlq(request: Request) -> list[dict[str, Any]]:
     """Lista as linhas da outbox em ``dead`` (DLQ)."""
-    return listar_dead(_engine())
+    return listar_dead(_engine_do_app(request))
 
 
 @router.post("/dead/{outbox_id}/reenfileirar")
 def reenfileirar_dlq(
     outbox_id: int,
+    request: Request,
     usuario: dict[str, object] = Depends(exigir_papel("admin")),
 ) -> dict[str, Any]:
     """Reenfileira uma linha ``dead`` (volta a ``pendente``, zera tentativas).
@@ -94,7 +74,7 @@ def reenfileirar_dlq(
     ``dead``) nao muta nada e portanto NAO gera audit — o evento reflete so o
     que de fato aconteceu.
     """
-    if not reenfileirar(_engine(), outbox_id):
+    if not reenfileirar(_engine_do_app(request), outbox_id):
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
             detail=f"Linha {outbox_id} nao encontrada em status 'dead'",

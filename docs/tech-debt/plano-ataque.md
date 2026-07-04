@@ -2,7 +2,9 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Dívida Técnica](README.md)
 
-> **Para a próxima IA/dev:** plano priorizado para atacar os 13 TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
+> ⚠️ **Snapshot histórico** (campanha de dívida técnica concluída em 2026-06-30). Os números e checkboxes abaixo refletem o estado durante a campanha e **não** são atualizados. Fonte viva das contagens e do status de cada TD: [README.md](README.md) desta pasta (na v3.3, 2026-07-03: **28 resolvidos / 6 abertos**).
+
+> **Para a próxima IA/dev:** plano priorizado que guiou o ataque aos TDs abertos antes da entrega da fase 2. A **fonte da verdade** é o [README.md](README.md) desta pasta (resolvido + aberto, com justificativa e evidência). Este plano diz a **ordem**, o **como**, e o que é *must-do* vs *nice-to-have*. Marque o checkbox quando o PR do TD mergear.
 
 ## Regras de execução (obrigatórias)
 
@@ -14,10 +16,12 @@
 
 ## Status
 
-- ✅ **Resolvidos: 26** — TD-001, TD-003, TD-005, TD-007, TD-008, TD-009, TD-010, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023 + TD-024, TD-025, TD-026, TD-028, TD-029, TD-030, TD-031, **TD-027** (campanha Tier 4, jun/2026).
-- ⬜ **Abertos: 5** — TD-002, TD-004, TD-006, TD-013, TD-014 (originais da fase 1; débito deliberado/aceito).
+> Contagens abaixo são do fim da campanha (2026-06-30). A contagem viva está no [README.md](README.md) (v3.3: 28 resolvidos / 6 abertos — o +2 resolvidos e +1 aberto vieram da auditoria de finalização e do registro de TD-032/033/034, posteriores a esta campanha).
 
-> Nenhum dos 13 abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
+- ✅ **Resolvidos ao fim da campanha: 27** — TD-001, TD-003, TD-005, TD-007, TD-008, TD-009, TD-010, TD-011, TD-012, TD-015, TD-016, TD-017, TD-018, TD-019, TD-020, TD-021, TD-022, TD-023 + TD-024, TD-025, TD-026, TD-028, TD-029, TD-030, TD-031, **TD-027** (campanha Tier 4, jun/2026).
+- ⬜ **Abertos ao fim da campanha: 5** — TD-002, TD-004, TD-006, TD-013, TD-014 (originais da fase 1; débito deliberado/aceito).
+
+> Nenhum dos abertos é **exigido** pela fase 2 — todos são débito deliberado/justificado. Atacá-los é iniciativa de qualidade, priorizada por valor de avaliação.
 
 > **TD-024..TD-031 vieram da auditoria pré-entrega** ([auditoria-pre-entrega-fase2.md](auditoria-pre-entrega-fase2.md)) e entram no **Tier 4 (aceitar-ou-evoluir)**: compromissos aceitos/justificados, sem risco de produção no caminho suportado. Os **bugs confirmados** e as **correções delivery-facing** da mesma auditoria são rastreados como **issues no GitHub**, não aqui — este plano cobre só o débito aceito.
 
@@ -105,7 +109,7 @@ Da tabela *Considerações de Complexidade Algorítmica* do [README.md](README.m
 
 ## O que entra na entrega (must vs nice)
 
-- **Must (já feito):** os 18 resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos 5 abertos.
+- **Must (já feito):** os TDs resolvidos + a higiene de documentação (este registro). A fase 2 não exige nenhum dos abertos. (Contagem viva no [README.md](README.md).)
 - **Nice, por valor de nota, se houver tempo antes da entrega:** Tier 1 **concluído** (TD-016 PR #62, TD-015 PR #64 — risco-prod + temas HPA/CD), Tier 2 **concluído** — **TD-011 DAST** (PR #65), **TD-021 fencing do relay** (PR #66), **TD-022 OTel no relay** (PR #66) e **TD-023 proxy-headers** (PR #67) — e o Tier 3 **concluído** — **TD-005** (PR #68) e **TD-007 `Contato` VO** (PR #70). Resta só o Tier 4 (deliberados).
 - **Provavelmente fora:** Tier 4 (deliberados de baixo valor para a banca).
 

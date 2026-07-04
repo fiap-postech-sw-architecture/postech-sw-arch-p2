@@ -18,15 +18,16 @@ _ALGORITMO = "HS256"
 
 
 class JWTService:
-    # A expiracao do refresh chega pelo construtor (lida do ambiente na
-    # factory `obter_jwt_service`, paridade com JWT_EXPIRATION_MINUTES) --
-    # leitura de env no import-time congelava o valor antes de qualquer
-    # configuracao de ambiente/teste.
+    # As expiracoes chegam pelo construtor (lidas do ambiente na factory
+    # `obter_jwt_service`, com os defaults 30/10080). Sem default aqui: quem
+    # instancia direto e obrigado a informar, e os defaults tem fonte unica na
+    # factory -- leitura de env no import-time congelava o valor antes de
+    # qualquer configuracao de ambiente/teste.
     def __init__(
         self,
         chave_secreta: str,
-        expiracao_minutos: int = 30,
-        refresh_expiracao_minutos: int = 10080,
+        expiracao_minutos: int,
+        refresh_expiracao_minutos: int,
     ) -> None:
         self._chave_secreta = chave_secreta
         self._expiracao_minutos = expiracao_minutos

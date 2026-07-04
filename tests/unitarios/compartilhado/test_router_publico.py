@@ -6,6 +6,7 @@ from unittest.mock import MagicMock, patch
 from uuid import uuid4
 
 import pytest
+import structlog.testing
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 
@@ -295,6 +296,38 @@ class TestDecisaoOrcamentoExterna:
             app, uuid4(), {"decisao": "aprovada", "motivo": "x"}, token_configurado
         )
         assert resp.status_code == 422
+
+    def test_rejeicao_loga_motivo_sem_vazar_assinatura(
+        self, token_configurado: str, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        # Assinar com o segredo errado -> assinatura divergente -> 401. A
+        # rejeicao emite `webhook_auth_falhou` com `motivo` generico + `ordem_id`,
+        # e a assinatura recebida NUNCA aparece nos logs.
+        #
+        # `_log` fresco por teste: com cache_logger_on_first_use=True (setado por
+        # configurar_logging em outro teste da sessao), capture_logs nao intercepta
+        # o `_log` module-level ja cacheado. Um proxy novo torna o capture
+        # deterministico em qualquer ordem da suite.
+        import src.compartilhado.interfaces.router_publico as router_publico_modulo
+
+        monkeypatch.setattr(
+            router_publico_modulo, "_log", structlog.get_logger("test_webhook_auth")
+        )
+        app = _criar_app()
+        ordem_id = uuid4()
+        with structlog.testing.capture_logs() as logs, patch(self._FACTORY):
+            resp = self._post(app, ordem_id, {"decisao": "aprovada"}, "outro-valor")
+        assert resp.status_code == 401
+        eventos = [log for log in logs if log.get("event") == "webhook_auth_falhou"]
+        assert len(eventos) == 1, logs
+        evento = eventos[0]
+        assert evento["motivo"] == "assinatura_divergente"
+        assert evento["ordem_id"] == ordem_id
+        # A assinatura recebida (HMAC do segredo errado) nao vaza para o log.
+        assinatura_recebida = self._headers_assinados(
+            ordem_id, "outro-valor", b'{"decisao": "aprovada"}'
+        )["X-Webhook-Signature"]
+        assert assinatura_recebida not in str(logs)
 
     def test_ordem_id_nao_uuid_retorna_422(self, token_configurado: str) -> None:
         app = _criar_app()

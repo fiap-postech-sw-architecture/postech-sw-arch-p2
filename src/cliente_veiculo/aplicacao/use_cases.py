@@ -275,6 +275,10 @@ class RemoverVeiculo:
     def executar(self, cliente_id: UUID, veiculo_id: UUID) -> None:
         with self._uow:
             cliente = obter_cliente_ou_falhar(self._repo, cliente_id)
+            # Pre-check de cliente ativo (fail-fast + mensagem 409 consistente
+            # com os demais use cases). O agregado ainda e a ultima linha:
+            # `cliente.remover_veiculo` re-checa via `_exigir_ativo`.
+            _exigir_cliente_ativo(cliente)
             # Confere a propriedade pelo agregado primeiro (evita chamada de
             # port quando o veiculo nem pertence ao cliente) e em seguida
             # adquire ``FOR UPDATE`` na linha do veiculo. O lock conflita com

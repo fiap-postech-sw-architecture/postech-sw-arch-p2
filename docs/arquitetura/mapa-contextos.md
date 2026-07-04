@@ -22,9 +22,9 @@ graph LR
         A[Autenticacao<br/><i>Generico</i>]
     end
 
-    C -->|Cliente-Fornecedor| OS
-    CS -->|OHS / Linguagem Publicada| OS
-    E -->|OHS / Linguagem Publicada| OS
+    C -->|Cliente-Fornecedor + ACL| OS
+    CS -->|Cliente-Fornecedor + ACL| OS
+    E -->|Cliente-Fornecedor + ACL| OS
     A -.->|middleware| OS
     A -.->|middleware| C
     A -.->|middleware| CS
@@ -59,16 +59,24 @@ O contexto Cliente fornece dados para a criação de OS e para notificações. A
 
 Operações de leitura — não recebem `UnitOfWork`. A consulta pública por placa+documento (acompanhamento sem login) não passa por esta porta — ver o trade-off em [Consulta Reversa](#consulta-reversa-downstream--upstream).
 
-### Open Host Service (OHS) / Linguagem Publicada
+### Cliente-Fornecedor com ACL do lado do consumidor
 
 **Fornecedores**: Catálogo de Serviços, Estoque
 **Consumidor**: Ordem de Serviço
 
-Catálogo expõe serviços via `CatalogoPort`:
+A integração **não** é um Open Host Service publicado pelo fornecedor: quem
+define o contrato é o **consumidor**. As portas (Protocols) e os DTOs vivem em
+`src/ordem_servico/aplicacao/ports.py` (definidos pela Ordem de Serviço) e os
+adaptadores que as realizam vivem na infraestrutura do **próprio** consumidor
+(`src/ordem_servico/infraestrutura/adapters.py`) — padrão **Anti-Corruption
+Layer** (ACL): o adapter traduz o modelo do contexto vizinho para os DTOs de
+`ports.py`, sem vazar o agregado alheio para dentro da Ordem de Serviço.
+
+Catálogo é consumido via `CatalogoPort`:
 - `obter_servico(servico_id) -> ServicoOferecidoDTO | None`
 - `obter_servicos_em_lote(servico_ids) -> dict[UUID, ServicoOferecidoDTO]` — enriquece projeções sem N+1
 
-Estoque expõe reserva/liberação/consulta via `EstoquePort`:
+Estoque é consumido via `EstoquePort` (reserva/liberação/consulta):
 - `reservar(item_estoque_id, quantidade) -> None`
 - `liberar(item_estoque_id, quantidade) -> None`
 - `obter_item(item_estoque_id) -> ItemEstoqueDTO | None` — preço da peça consumida
@@ -76,7 +84,7 @@ Estoque expõe reserva/liberação/consulta via `EstoquePort`:
 
 Os adaptadores são construídos com a sessão da requisição (session-scoped): a atomicidade vem da transação compartilhada, não de um `UnitOfWork` passado por parâmetro.
 
-A Linguagem Publicada é o conjunto de DTOs imutáveis do módulo de portas (`ServicoOferecidoDTO`, `ItemEstoqueDTO`, `ClienteResumoDTO`, `ClienteContatoDTO`, `VeiculoResumoDTO`) — tipos compartilhados que desacoplam os contextos.
+Os DTOs imutáveis desse módulo de portas (`ServicoOferecidoDTO`, `ItemEstoqueDTO`, `ClienteResumoDTO`, `ClienteContatoDTO`, `VeiculoResumoDTO`) formam a fronteira da ACL — tipos que desacoplam os contextos e impedem o modelo vizinho de atravessar.
 
 ### Consulta Reversa (Downstream → Upstream)
 
@@ -87,7 +95,7 @@ A porta `OrdemDeServicoPort` é definida pelos contextos consumidores (Cliente, 
 - `existe_os_para_veiculo(veiculo_id) -> bool` — usada por Cliente (exclusão de veículo preserva histórico/FK)
 - `existe_os_ativa_com_item_estoque(item_estoque_id) -> bool` — usada por Estoque (RN-011)
 
-Operações de leitura — não recebem `UnitOfWork`. O adaptador vive na infraestrutura do contexto consumidor e consulta o repositório de OS.
+Operações de leitura — não recebem `UnitOfWork`. O adaptador vive na infraestrutura do contexto consumidor e consulta as **tabelas** de OS diretamente (`ordens_de_servico_table`/`itens_da_ordem_table`, via `select(exists()...)` em `adapters.py`), não o repositório de OS — é uma consulta de existência somente-leitura que não hidrata o agregado.
 
 > **Trade-off**: essa porta reversa cria uma dependência cíclica no nível de infraestrutura (adapters). No monolito MVP, isso é aceitável — os contextos de domínio permanecem desacoplados. Em evolução para microsserviços, essa consulta seria substituída por eventos de domínio ou eventual consistency.
 >
@@ -146,7 +154,7 @@ graph TD
     AOS_EST --> OS_APP
 ```
 
-A comunicação **síncrona** entre contextos é in-process via portas e adaptadores. Adaptadores vivem na camada de infraestrutura. A raiz de composição (`main.py`) faz o wiring de DI — único ponto que importa implementações concretas. O caminho assíncrono (notificações) é durável e cruza processos — seção a seguir.
+A comunicação **síncrona** entre contextos é in-process via portas e adaptadores. Adaptadores vivem na camada de infraestrutura. O wiring de DI fica em `<contexto>/interfaces/dependencies.py` (as factories `obter_*` de cada contexto, único ponto que importa implementações concretas); o `src/main.py` apenas monta os routers de cada contexto (`include_router`), não faz o wiring. O caminho assíncrono (notificações) é durável e cruza processos — seção a seguir.
 
 ## Integração Assíncrona (Fase 2)
 

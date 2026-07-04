@@ -24,12 +24,39 @@ class ConsentimentoCliente(Entity):
         if self._cliente_id is None:
             msg = "cliente_id e obrigatorio"
             raise ValueError(msg)
+        # Canonicaliza o tipo no agregado (strip + lowercase) para que
+        # "Marketing" e "marketing " sejam o MESMO consentimento no par
+        # cliente+tipo, independentemente de quem constroi o objeto. O
+        # validator do schema HTTP vira apenas UX (feedback antecipado).
+        self._tipo = self._tipo.strip().lower()
         if not self._tipo:
             msg = "tipo de consentimento e obrigatorio"
             raise ValueError(msg)
         if self._concedido_em is None:
             msg = "concedido_em e obrigatorio"
             raise ValueError(msg)
+
+    @classmethod
+    def criar(
+        cls,
+        *,
+        cliente_id: UUID,
+        tipo: str,
+        concedido_em: datetime,
+        revogado_em: datetime | None = None,
+    ) -> ConsentimentoCliente:
+        """Factory de consentimento: normaliza o `tipo` via `__post_init__`.
+
+        Prefira esta factory aos kwargs privados (`_cliente_id=...`) nos
+        callers de aplicacao — mantem a construcao explicita e garante a
+        canonicalizacao do `tipo` em um unico ponto.
+        """
+        return cls(
+            _cliente_id=cliente_id,
+            _tipo=tipo,
+            _concedido_em=concedido_em,
+            _revogado_em=revogado_em,
+        )
 
     @property
     def cliente_id(self) -> UUID:

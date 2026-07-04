@@ -107,6 +107,10 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
 
     engine = criar_engine(database_url)
     configurar_session_factory(criar_session_factory(engine))
+    # Expoe o engine do startup para quem precisa dele fora do fluxo de
+    # ``obter_session`` (ex.: router_admin le ``request.app.state.engine``),
+    # evitando um segundo Engine/pool paralelo.
+    app.state.engine = engine
 
     # Observabilidade OTLP (ADR-020): unico ponto onde app + engine existem
     # juntos. Default OFF (OTEL_ENABLED ausente/false) — no-op sem custo.
@@ -115,11 +119,6 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None]:
         yield
     finally:
         engine.dispose()
-        from src.compartilhado.interfaces.router_admin import (
-            encerrar_engine_admin,
-        )
-
-        encerrar_engine_admin()
 
 
 def criar_app() -> FastAPI:

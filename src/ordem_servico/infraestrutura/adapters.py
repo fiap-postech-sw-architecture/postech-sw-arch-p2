@@ -206,10 +206,27 @@ class ClienteSQLAlchemyAdapter:
         self._session = session
 
     def cliente_existe(self, cliente_id: UUID) -> bool:
-        """Indica se o cliente existe no contexto Cliente+Veiculo."""
-        from src.cliente_veiculo.dominio.cliente import Cliente
+        """Indica se o cliente existe E esta ativo no contexto Cliente+Veiculo.
 
-        return self._session.get(Cliente, cliente_id) is not None
+        Cumpre o contrato do ``ClientePort.cliente_existe`` ("existe E esta
+        ativo"): filtra ``ativo IS TRUE`` para que um cliente desativado /
+        anonimizado (soft-delete) NAO possa abrir OS nova. Usa ``EXISTS`` na
+        tabela (mesmo padrao de ``veiculo_pertence_ao_cliente``) em vez de
+        ``session.get(Cliente, ...)``, que hidratava o agregado inteiro
+        (selectin de veiculos + decrypt Fernet do documento) so para testar
+        existencia — e ainda ignorava ``ativo``.
+        """
+        from sqlalchemy import exists, select
+
+        from src.cliente_veiculo.infraestrutura.mapping import clientes_table
+
+        stmt = select(
+            exists().where(
+                clientes_table.c.id == cliente_id,
+                clientes_table.c.ativo.is_(True),
+            )
+        )
+        return bool(self._session.scalar(stmt))
 
     def veiculo_pertence_ao_cliente(self, cliente_id: UUID, veiculo_id: UUID) -> bool:
         """Indica se o veiculo existe e pertence ao cliente informado."""

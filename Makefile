@@ -368,14 +368,19 @@ k8s-up:
 			-p '[{"op":"add","path":"/spec/template/spec/containers/0/args/-","value":"--kubelet-insecure-tls"}]'
 	@echo ">> aplicando manifests do app (k8s/) com a tag $(K8S_TAG)..."
 	$(KUBECTL) apply -f k8s/namespace.yaml
-	# Tag do SHA desde o primeiro apply (mesmo padrao de sed do Job de
-	# migracao): deployment/relay nunca passam pela tag `dev`, dispensando o
-	# antigo `kubectl set image`. O glob nao desce em k8s/jobs/ (a parte).
+	# Ordem obrigatoria (ADR-019: schema em head antes de qualquer replica
+	# subir). ESTE BLOCO E ESPELHADO no step "Deploy app manifests" do
+	# .github/workflows/cd.yml -- altere os dois juntos.
+	# (a) Apoio primeiro: tudo MENOS deployment.yaml/relay.yaml (as cargas da
+	# app, que so podem subir depois da migracao). Tag do SHA desde o primeiro
+	# apply (mesmo sed do Job): deployment/relay nunca passam pela tag `dev`,
+	# dispensando o antigo `kubectl set image`. O glob nao desce em k8s/jobs/.
 	for f in k8s/*.yaml; do \
+		case "$$f" in k8s/deployment.yaml|k8s/relay.yaml) continue ;; esac; \
 		sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|$(K8S_TAG)|" "$$f" | $(KUBECTL) apply -f - || exit 1; \
 	done
 	@echo ">> migracao via Job dedicado antes do rollout (TD-015)..."
-	# Migracao via Job dedicado antes do rollout (TD-015): resolve a corrida com N replicas
+	# (b) Migracao via Job dedicado antes do rollout (TD-015): resolve a corrida com N replicas
 	$(KUBECTL) -n $(K8S_NS) delete job pytstop-migrate --ignore-not-found
 	sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|$(K8S_TAG)|" k8s/jobs/migration-job.yaml | $(KUBECTL) -n $(K8S_NS) apply -f -
 	# Espera com falha rapida (espelha o cd.yml): watchers de `complete` e
@@ -393,6 +398,11 @@ k8s-up:
 		$(KUBECTL) -n $(K8S_NS) logs job/pytstop-migrate --tail=50 || true; \
 		exit 1; \
 	fi
+	# (c) So agora as cargas da app: schema ja esta em head.
+	@echo ">> aplicando deployment.yaml e relay.yaml (schema ja em head)..."
+	for f in k8s/deployment.yaml k8s/relay.yaml; do \
+		sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|$(K8S_TAG)|" "$$f" | $(KUBECTL) apply -f - || exit 1; \
+	done
 	$(KUBECTL) -n $(K8S_NS) rollout status deployment/pytstop-api --timeout=300s
 	$(KUBECTL) -n $(K8S_NS) rollout status deployment/pytstop-relay --timeout=300s
 	@echo ">> deploy concluido: $(K8S_TAG) no cluster kind-$(K8S_CLUSTER)."

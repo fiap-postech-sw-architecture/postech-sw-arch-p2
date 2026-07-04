@@ -11,7 +11,7 @@ ambiguidade de precisao decimal no API.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
@@ -147,8 +147,10 @@ class OrdemDeServicoDTO:
     orcamento: OrcamentoDTO | None
     criado_em: datetime
     atualizado_em: datetime
-    cliente_nome: str | None = None
-    veiculo_placa: str | None = None
+    # PII (LGPD): fora do __repr__ — o repr default aparece em tracebacks e
+    # e vetor de exfiltracao (code-review-checklist-extended §C).
+    cliente_nome: str | None = field(default=None, repr=False)
+    veiculo_placa: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True, slots=True)
@@ -165,8 +167,9 @@ class OrdemResumoDTO:
     veiculo_id: UUID
     status: str
     criado_em: datetime
-    cliente_nome: str | None = None
-    veiculo_placa: str | None = None
+    # PII (LGPD): fora do __repr__ (mesma razao de OrdemDeServicoDTO).
+    cliente_nome: str | None = field(default=None, repr=False)
+    veiculo_placa: str | None = field(default=None, repr=False)
 
 
 @dataclass(frozen=True, slots=True)

@@ -13,7 +13,7 @@ from src.cliente_veiculo.infraestrutura.mapping import (
 )
 from src.compartilhado.infraestrutura.encryption import EncryptionService
 from src.ordem_servico.dominio.ordem_de_servico import OrdemDeServico
-from src.ordem_servico.dominio.status import StatusOrdem
+from src.ordem_servico.dominio.status import ESTADOS_TERMINAIS, StatusOrdem
 from src.ordem_servico.infraestrutura.mapping import (
     itens_da_ordem_table,
     ordens_de_servico_table,
@@ -24,11 +24,10 @@ if TYPE_CHECKING:
 
     from sqlalchemy.orm import Session
 
-# Estados nos quais nao deve existir "ordem ativa" para contagens, existencia
-# e outras projecoes de leitura. Frozenset + Final impedem mutacao acidental
-# da allow-list global (lesson PR #61 Copilot Gap Analysis).
+# Projecao para SQL dos estados terminais do dominio (fonte unica em
+# ``dominio/status.py``): uma OS neles nao conta como "ativa".
 _ESTADOS_TERMINAIS: Final[frozenset[str]] = frozenset(
-    {StatusOrdem.ENTREGUE.value, StatusOrdem.CANCELADA.value}
+    s.value for s in ESTADOS_TERMINAIS
 )
 _ESTADOS_FINALIZADOS: Final[frozenset[str]] = frozenset(
     {StatusOrdem.ENTREGUE.value, StatusOrdem.FINALIZADA.value}

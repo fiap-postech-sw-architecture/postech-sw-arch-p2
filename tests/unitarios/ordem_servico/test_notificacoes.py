@@ -227,6 +227,7 @@ class TestMapaDeEventosDeTransicao:
         from src.compartilhado.dominio.events import DomainEvent
         from src.compartilhado.dominio.integration_event import IntegrationEvent
         from src.ordem_servico.dominio import events as eventos_modulo
+        from src.ordem_servico.dominio.events import TransicaoStatusEvent
 
         eventos_de_transicao = {
             obj
@@ -234,6 +235,9 @@ class TestMapaDeEventosDeTransicao:
             if issubclass(obj, DomainEvent)
             and obj is not DomainEvent
             and obj is not IntegrationEvent
+            # Base abstrata dos eventos de transicao (carrega status_novo): nao e
+            # um evento concreto, entao fica fora do mapa como as outras bases.
+            and obj is not TransicaoStatusEvent
             and obj is not OrdemCriadaEvent
         }
 

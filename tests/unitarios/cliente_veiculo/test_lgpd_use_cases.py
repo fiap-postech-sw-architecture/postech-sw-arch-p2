@@ -126,6 +126,17 @@ class TestExportarDadosPessoais:
         assert result.nome == "ANONIMIZADO"
 
 
+class StubOrdemDeServicoPort:
+    def __init__(self, os_ativa_cliente: bool = False) -> None:
+        self._os_ativa_cliente = os_ativa_cliente
+
+    def existe_os_ativa_para_cliente(self, cliente_id: UUID) -> bool:
+        return self._os_ativa_cliente
+
+    def existe_os_para_veiculo(self, veiculo_id: UUID) -> bool:
+        return False
+
+
 class TestExcluirDadosPessoais:
     def test_sucesso(self) -> None:
         repo = FakeClienteRepoLGPD()
@@ -133,7 +144,9 @@ class TestExcluirDadosPessoais:
         cpf = CPF(numero=CPF_VALIDO)
         cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
         repo.salvar(cliente)
-        uc = ExcluirDadosPessoais(repo=repo, uow=uow)
+        uc = ExcluirDadosPessoais(
+            repo=repo, uow=uow, os_port=StubOrdemDeServicoPort(os_ativa_cliente=False)
+        )
         uc.executar(cliente.id)
         assert cliente.id in repo._anonimizado
         assert uow.committed
@@ -141,9 +154,28 @@ class TestExcluirDadosPessoais:
     def test_cliente_inexistente(self) -> None:
         repo = FakeClienteRepoLGPD()
         uow = FakeUnitOfWork()
-        uc = ExcluirDadosPessoais(repo=repo, uow=uow)
+        uc = ExcluirDadosPessoais(repo=repo, uow=uow, os_port=StubOrdemDeServicoPort())
         with pytest.raises(ClienteNaoEncontradoException):
             uc.executar(uuid4())
+
+    def test_com_os_ativa_bloqueado(self) -> None:
+        # LGPD Art. 16: dados podem ser retidos para execucao de contrato. Uma
+        # OS ativa e o contrato em andamento -> erasure bloqueado com 409
+        # (mesmo guard de DesativarCliente, que e menos destrutivo).
+        repo = FakeClienteRepoLGPD()
+        uow = FakeUnitOfWork()
+        cpf = CPF(numero=CPF_VALIDO)
+        cliente = Cliente(_nome="Joao", _documento=cpf, _contato=Contato(valor="11999"))
+        repo.salvar(cliente)
+        uc = ExcluirDadosPessoais(
+            repo=repo, uow=uow, os_port=StubOrdemDeServicoPort(os_ativa_cliente=True)
+        )
+        with pytest.raises(
+            ViolacaoRegraDeNegocioException, match="ordem de servico ativa"
+        ):
+            uc.executar(cliente.id)
+        assert cliente.id not in repo._anonimizado
+        assert not uow.committed
 
 
 class TestRegistrarConsentimento:

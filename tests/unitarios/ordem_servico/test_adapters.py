@@ -149,14 +149,20 @@ class TestEstoqueSQLAlchemyAdapterEmLote:
 
 class TestClienteSQLAlchemyAdapter:
     def test_cliente_existe_retorna_true(self) -> None:
+        # cliente_existe agora consulta via EXISTS (session.scalar), nao
+        # session.get: o EXISTS ja filtra `ativo IS TRUE` no SQL, entao um
+        # scalar truthy = cliente existente E ativo.
         session = MagicMock()
-        session.get.return_value = MagicMock()
+        session.scalar.return_value = True
         adapter = ClienteSQLAlchemyAdapter(session=session)
         assert adapter.cliente_existe(uuid4()) is True
 
     def test_cliente_existe_retorna_false(self) -> None:
+        # scalar falsy cobre os dois casos que o EXISTS colapsa: cliente
+        # inexistente E cliente inativo (soft-delete). O filtro `ativo IS TRUE`
+        # real e exercitado contra Postgres em tests/integracao.
         session = MagicMock()
-        session.get.return_value = None
+        session.scalar.return_value = False
         adapter = ClienteSQLAlchemyAdapter(session=session)
         assert adapter.cliente_existe(uuid4()) is False
 

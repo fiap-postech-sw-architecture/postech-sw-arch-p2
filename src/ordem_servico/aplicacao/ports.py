@@ -8,7 +8,7 @@ os DTOs deste modulo, sem vazar agregados alheios.
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from typing import TYPE_CHECKING, Protocol
 
 if TYPE_CHECKING:
@@ -71,8 +71,10 @@ class ClienteContatoDTO:
     """
 
     id: UUID
-    nome: str
-    contato: str
+    # PII (LGPD): nome e contato (telefone/e-mail livre) fora do __repr__ — o
+    # repr default aparece em tracebacks (code-review-checklist-extended §C).
+    nome: str = field(repr=False)
+    contato: str = field(repr=False)
 
 
 @dataclass(frozen=True, slots=True)

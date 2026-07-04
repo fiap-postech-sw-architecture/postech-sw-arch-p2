@@ -22,6 +22,7 @@ if TYPE_CHECKING:
     from uuid import UUID
 
     from src.cliente_veiculo.aplicacao.dtos import RegistrarConsentimentoDTO
+    from src.cliente_veiculo.aplicacao.ports import OrdemDeServicoPort
     from src.cliente_veiculo.dominio.repository import ClienteRepository
     from src.compartilhado.aplicacao.unit_of_work import UnitOfWork
 
@@ -44,12 +45,32 @@ class ExportarDadosPessoais:
 
 
 class ExcluirDadosPessoais:
-    def __init__(self, repo: ClienteRepository, uow: UnitOfWork) -> None:
+    """Anonimiza (erasure LGPD) os dados de um cliente sem OS ativa.
+
+    Espelha o guard de `DesativarCliente`: consulta
+    `OrdemDeServicoPort.existe_os_ativa_para_cliente` antes de apagar e, se
+    houver OS ativa, levanta `ViolacaoRegraDeNegocioException` (409). A LGPD
+    (Art. 16) permite reter dados pessoais para a execucao de um contrato, e
+    uma OS ativa e justamente esse contrato em andamento — apagar agora
+    quebraria a prestacao do servico.
+    """
+
+    def __init__(
+        self,
+        repo: ClienteRepository,
+        uow: UnitOfWork,
+        os_port: OrdemDeServicoPort,
+    ) -> None:
         self._repo = repo
         self._uow = uow
+        self._os_port = os_port
 
     def executar(self, cliente_id: UUID) -> None:
         obter_cliente_ou_falhar(self._repo, cliente_id)
+        if self._os_port.existe_os_ativa_para_cliente(cliente_id):
+            raise ViolacaoRegraDeNegocioException(
+                mensagem="Cliente possui ordem de servico ativa"
+            )
         with self._uow:
             self._repo.anonimizar_dados(cliente_id)
             self._uow.commit()
@@ -73,10 +94,10 @@ class RegistrarConsentimento:
                 mensagem="Consentimento ativo ja existe para este tipo"
             )
         agora = datetime.now(tz=UTC)
-        consentimento = ConsentimentoCliente(
-            _cliente_id=cliente_id,
-            _tipo=dto.tipo,
-            _concedido_em=agora,
+        consentimento = ConsentimentoCliente.criar(
+            cliente_id=cliente_id,
+            tipo=dto.tipo,
+            concedido_em=agora,
         )
         with self._uow:
             self._repo.salvar_consentimento(consentimento)

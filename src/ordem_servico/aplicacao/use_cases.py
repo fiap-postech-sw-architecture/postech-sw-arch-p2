@@ -44,7 +44,7 @@ from src.ordem_servico.dominio.ordem_de_servico import OrdemDeServico
 from src.ordem_servico.dominio.status import StatusOrdem
 
 if TYPE_CHECKING:
-    from collections.abc import Iterable
+    from collections.abc import Callable, Iterable
     from uuid import UUID
 
     from src.compartilhado.aplicacao.unit_of_work import UnitOfWork
@@ -138,7 +138,7 @@ def _obter_ordem(
     """
     ordem = repo.obter_por_id(ordem_id, com_lock=com_lock)
     if ordem is None:
-        raise OrdemNaoEncontradaException()
+        raise OrdemNaoEncontradaException(ordem_id)
     return ordem
 
 
@@ -186,25 +186,32 @@ def _montar_item(
         ViolacaoRegraDeNegocioException: servico inexistente, servico
             inativo ou item de estoque inexistente.
     """
+    # IDs no texto do erro (UUID, nao-PII): num CriarOrdem multi-linha (RF-020)
+    # varias linhas falham do mesmo jeito — sem o id ofensor e impossivel saber
+    # QUAL servico/peca quebrou.
     servico = catalogo_port.obter_servico(dto.servico_catalogo_id)
     if servico is None:
         raise ViolacaoRegraDeNegocioException(
-            mensagem="Servico nao encontrado no catalogo"
+            mensagem=f"Servico {dto.servico_catalogo_id} nao encontrado no catalogo"
         )
     if not servico.ativo:
-        raise ViolacaoRegraDeNegocioException(mensagem="Servico inativo")
+        raise ViolacaoRegraDeNegocioException(
+            mensagem=f"Servico {dto.servico_catalogo_id} inativo"
+        )
 
     if dto.item_estoque_id is not None:
         peca = estoque_port.obter_item(dto.item_estoque_id)
         if peca is None:
             raise ViolacaoRegraDeNegocioException(
-                mensagem="Item de estoque nao encontrado"
+                mensagem=f"Item de estoque {dto.item_estoque_id} nao encontrado"
             )
         # Peca desativada nao entra em OS nova (issue #120): espelha a rejeicao
         # de servico inativo acima e fecha a brecha do guard de
         # DesativarItemEstoque (que so impede desativar item COM OS ativa).
         if not peca.ativo:
-            raise ViolacaoRegraDeNegocioException(mensagem="Item de estoque inativo")
+            raise ViolacaoRegraDeNegocioException(
+                mensagem=f"Item de estoque {dto.item_estoque_id} inativo"
+            )
         preco_unitario = peca.preco_unitario
         nome_padrao = peca.nome
     else:
@@ -215,12 +222,12 @@ def _montar_item(
     # do RF-020 — apenas a ausencia deliberada resolve para o nome.
     descricao = nome_padrao if dto.descricao is None else dto.descricao
 
-    return ItemDaOrdem(
-        _servico_catalogo_id=dto.servico_catalogo_id,
-        _item_estoque_id=dto.item_estoque_id,
-        _descricao=descricao,
-        _quantidade=dto.quantidade,
-        _preco_unitario=preco_unitario,
+    return ItemDaOrdem.criar(
+        servico_catalogo_id=dto.servico_catalogo_id,
+        item_estoque_id=dto.item_estoque_id,
+        descricao=descricao,
+        quantidade=dto.quantidade,
+        preco_unitario=preco_unitario,
     )
 
 
@@ -266,12 +273,12 @@ class CriarOrdem:
                 inexistente ou servico inativo (409) — nada e persistido.
         """
         if not self._cliente_port.cliente_existe(dto.cliente_id):
-            raise ClienteNaoEncontradoException()
+            raise ClienteNaoEncontradoException(dto.cliente_id)
         if not self._cliente_port.veiculo_pertence_ao_cliente(
             dto.cliente_id,
             dto.veiculo_id,
         ):
-            raise VeiculoNaoEncontradoException()
+            raise VeiculoNaoEncontradoException(dto.veiculo_id)
         ordem = OrdemDeServico.criar(
             cliente_id=dto.cliente_id, veiculo_id=dto.veiculo_id
         )
@@ -325,12 +332,18 @@ class AdicionarItem:
     def executar(self, ordem_id: UUID, dto: AdicionarItemDTO) -> OrdemDeServicoDTO:
         """Delega ao agregado ``OrdemDeServico.adicionar_item``.
 
+        Ordem custo-gradiente: o guard de estado (``validar_pode_adicionar_item``)
+        roda ANTES de consultar catalogo/estoque em ``_montar_item`` — adicionar
+        item em estado que nao permite (ex.: FINALIZADA) falha com o erro CERTO
+        sem tocar os ports vizinhos.
+
         Raises:
             OrdemNaoEncontradaException: ordem inexistente.
-            ViolacaoRegraDeNegocioException: servico inativo, servico/peca
-                inexistente.
+            ViolacaoRegraDeNegocioException: estado invalido para adicao,
+                servico inativo, servico/peca inexistente.
         """
         ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
+        ordem.validar_pode_adicionar_item()
         item = _montar_item(self._catalogo_port, self._estoque_port, dto)
         ordem.adicionar_item(item)
         with self._uow:
@@ -374,21 +387,26 @@ class RemoverItem:
 class TransitarStatus:
     """Caso de uso generico de transicao de status sem orquestracao extra.
 
-    Carrega a ordem sob lock pessimista, delega ao metodo de transicao
-    ``metodo`` do agregado (que valida a maquina de status, aplica
-    invariantes e emite o evento correspondente) e persiste na fronteira
-    da UnitOfWork. As seis transicoes puras sao subclasses finas que so
-    fixam o metodo; transicoes que orquestram estoque
-    (``AprovarOrcamento``, ``CancelarOrdem``,
-    ``RejeitarOrcamentoComplementar``) tem casos de uso proprios.
+    Carrega a ordem sob lock pessimista, delega a ``transicao`` do agregado
+    (que valida a maquina de status, aplica invariantes e emite o evento
+    correspondente) e persiste na fronteira da UnitOfWork. As seis transicoes
+    puras sao subclasses finas que so fixam o unbound method (ex.:
+    ``OrdemDeServico.iniciar_diagnostico``) — type-safe: um metodo inexistente
+    ou de assinatura errada e erro de tipo em vez de ``AttributeError`` em
+    runtime. Transicoes que orquestram estoque (``AprovarOrcamento``,
+    ``CancelarOrdem``, ``RejeitarOrcamentoComplementar``) tem casos de uso
+    proprios.
     """
 
     def __init__(
-        self, repo: OrdemDeServicoRepository, uow: UnitOfWork, metodo: str
+        self,
+        repo: OrdemDeServicoRepository,
+        uow: UnitOfWork,
+        transicao: Callable[[OrdemDeServico], None],
     ) -> None:
         self._repo = repo
         self._uow = uow
-        self._metodo = metodo
+        self._transicao = transicao
 
     def executar(self, ordem_id: UUID) -> OrdemDeServicoDTO:
         """Delega ao metodo de transicao do agregado e commita.
@@ -401,7 +419,7 @@ class TransitarStatus:
                 violada (ex.: gerar orcamento sem itens).
         """
         ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
-        getattr(ordem, self._metodo)()
+        self._transicao(ordem)
         with self._uow:
             self._repo.salvar(ordem)
             self._uow.commit()
@@ -412,7 +430,7 @@ class IniciarDiagnostico(TransitarStatus):
     """Transita a ordem para EM_DIAGNOSTICO (emite ``DiagnosticoIniciadoEvent``)."""
 
     def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
-        super().__init__(repo, uow, metodo="iniciar_diagnostico")
+        super().__init__(repo, uow, transicao=OrdemDeServico.iniciar_diagnostico)
 
 
 class GerarOrcamento(TransitarStatus):
@@ -423,7 +441,7 @@ class GerarOrcamento(TransitarStatus):
     """
 
     def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
-        super().__init__(repo, uow, metodo="gerar_orcamento")
+        super().__init__(repo, uow, transicao=OrdemDeServico.gerar_orcamento)
 
 
 class AprovarOrcamento:
@@ -440,11 +458,17 @@ class AprovarOrcamento:
         self._estoque_port = estoque_port
 
     def executar(self, ordem_id: UUID) -> OrdemDeServicoDTO:
-        """Reserva estoque e delega ao agregado ``OrdemDeServico.aprovar_orcamento``.
+        """Aprova o orcamento (valida status) e ENTAO reserva o estoque.
 
-        A reserva acontece DENTRO da UoW, antes da transicao: se a
-        transicao ou o ``salvar`` falharem, a reserva e revertida via
-        rollback da sessao compartilhada.
+        Ordem custo-gradiente: ``aprovar_orcamento`` (validacao in-memory da
+        maquina de status, que tambem congela o escopo aprovado) roda ANTES do
+        loop de reserva. Uma dupla-aprovacao / estado invalido falha com o erro
+        CERTO (``TransicaoStatusInvalidaException``) sem tocar o estoque — antes,
+        a reserva acontecia primeiro e uma 2a aprovacao reservava de novo antes
+        de a maquina rejeitar. ``aprovar_orcamento`` nao depende de nada
+        reservado (so transiciona + snapshota ids ja no agregado), entao pode
+        preceder a reserva com seguranca. Tudo dentro da UoW: se a reserva ou o
+        ``salvar`` falharem, a transicao e revertida no rollback da sessao.
 
         Raises:
             OrdemNaoEncontradaException: ordem inexistente.
@@ -457,12 +481,14 @@ class AprovarOrcamento:
         # agregados. O lock e retido ate o commit da UoW (mesma session/tx).
         ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
         with self._uow:
+            # Valida o status ANTES de reservar (custo-gradiente): estado
+            # invalido/duplo-aprovar aborta sem tocar o estoque.
+            ordem.aprovar_orcamento()
             # Ordem determinista de id ao reservar varios itens (anti-deadlock).
             for item_estoque_id, quantidade in _reservas_de_itens_ordenadas(
                 ordem.itens
             ):
                 self._estoque_port.reservar(item_estoque_id, quantidade)
-            ordem.aprovar_orcamento()
             self._repo.salvar(ordem)
             self._uow.commit()
         return _ordem_dto(ordem)
@@ -476,14 +502,14 @@ class FinalizarServico(TransitarStatus):
     """
 
     def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
-        super().__init__(repo, uow, metodo="finalizar_servico")
+        super().__init__(repo, uow, transicao=OrdemDeServico.finalizar_servico)
 
 
 class RegistrarEntrega(TransitarStatus):
     """Transita a ordem para ENTREGUE (emite ``EntregaRegistradaEvent``)."""
 
     def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
-        super().__init__(repo, uow, metodo="registrar_entrega")
+        super().__init__(repo, uow, transicao=OrdemDeServico.registrar_entrega)
 
 
 class CancelarOrdem:
@@ -500,14 +526,20 @@ class CancelarOrdem:
         self._estoque_port = estoque_port
 
     def executar(self, ordem_id: UUID, dto: CancelarOrdemDTO) -> OrdemDeServicoDTO:
-        """Libera reservas (se aplicavel) e delega ao agregado ``cancelar``.
+        """Delega ao agregado ``cancelar`` e ENTAO libera reservas (se aplicavel).
 
-        Liberacao + cancelamento acontecem no mesmo escopo transacional
-        via ``with self._uow:`` — se o cancelamento falhar, a liberacao
-        e revertida pelo rollback da sessao. Retorna o DTO completo da
-        ordem ja cancelada para consistencia com os outros casos de uso
-        de escrita (o router PR 11 pode responder HTTP 200 com o recurso
-        atualizado).
+        Ordem custo-gradiente: ``cancelar`` (valida a transicao pela maquina de
+        status E o motivo, in-memory) roda ANTES da liberacao de estoque. Um
+        cancelamento invalido (estado terminal) ou motivo vazio falha com o erro
+        CERTO sem tocar o estoque — antes, a liberacao acontecia primeiro e um
+        cancelamento invalido soltava reservas indevidamente. A decisao de
+        liberar usa o ``status_anterior`` (capturado ANTES do cancelamento, que
+        muta o status para CANCELADA): so EM_EXECUCAO / AGUARDANDO_APROVACAO_
+        COMPLEMENTAR tinham reservas ativas. Liberacao + cancelamento
+        compartilham o escopo transacional via ``with self._uow:`` — se a
+        liberacao falhar, o cancelamento e revertido no rollback da sessao.
+        Retorna o DTO completo da ordem ja cancelada para consistencia com os
+        outros casos de uso de escrita.
 
         Raises:
             OrdemNaoEncontradaException: ordem inexistente.
@@ -519,12 +551,14 @@ class CancelarOrdem:
         # AprovarOrcamento (a liberacao de reservas trava os itens depois da
         # OS), retido ate o commit da UoW.
         ordem = _obter_ordem(self._repo, ordem_id, com_lock=True)
-        # Liberacao de reservas e cancelamento devem compartilhar o mesmo
-        # escopo transacional (consistencia com AprovarOrcamento): se o
-        # cancelamento falhar apos a liberacao, a UoW faz rollback das
-        # duas mudancas atomicamente.
+        # status_anterior antes de cancelar() mutar para CANCELADA: so os
+        # estados com reserva ativa liberam estoque.
+        status_anterior = ordem.status
         with self._uow:
-            if ordem.status in {
+            # Valida transicao + motivo ANTES de liberar (custo-gradiente):
+            # cancelamento invalido/motivo vazio aborta sem tocar o estoque.
+            ordem.cancelar(dto.motivo)
+            if status_anterior in {
                 StatusOrdem.EM_EXECUCAO,
                 StatusOrdem.AGUARDANDO_APROVACAO_COMPLEMENTAR,
             }:
@@ -534,7 +568,6 @@ class CancelarOrdem:
                     ordem.itens
                 ):
                     self._estoque_port.liberar(item_estoque_id, quantidade)
-            ordem.cancelar(dto.motivo)
             self._repo.salvar(ordem)
             self._uow.commit()
         return _ordem_dto(ordem)
@@ -544,7 +577,9 @@ class GerarOrcamentoComplementar(TransitarStatus):
     """Gera um orcamento complementar a partir dos itens adicionais."""
 
     def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
-        super().__init__(repo, uow, metodo="gerar_orcamento_complementar")
+        super().__init__(
+            repo, uow, transicao=OrdemDeServico.gerar_orcamento_complementar
+        )
 
 
 class AprovarOrcamentoComplementar(TransitarStatus):
@@ -555,7 +590,9 @@ class AprovarOrcamentoComplementar(TransitarStatus):
     """
 
     def __init__(self, repo: OrdemDeServicoRepository, uow: UnitOfWork) -> None:
-        super().__init__(repo, uow, metodo="aprovar_orcamento_complementar")
+        super().__init__(
+            repo, uow, transicao=OrdemDeServico.aprovar_orcamento_complementar
+        )
 
 
 class RejeitarOrcamentoComplementar:

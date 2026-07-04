@@ -12,22 +12,18 @@ from relay.handlers import (
     construir_mapa_handlers,
 )
 from relay.processador import PayloadInvalidoError
+from src.ordem_servico.aplicacao.notificacoes import _STATUS_POR_EVENTO
 
 
-def test_mapa_cobre_os_nove_eventos_de_transicao() -> None:
+def test_mapa_cobre_todos_os_eventos_de_transicao() -> None:
+    # A cobertura de handlers do relay DERIVA da fonte unica (_STATUS_POR_EVENTO
+    # de notificacoes.py), nao de um set hardcoded: um evento de transicao novo
+    # adicionado ao mapa ganha handler no relay automaticamente. Se o relay
+    # deixasse de cobrir algum, o evento iria direto para a DLQ em producao —
+    # este teste falha antes disso.
     engine = MagicMock()
     mapa = construir_mapa_handlers(engine)
-    assert set(mapa) == {
-        "DiagnosticoIniciadoEvent",
-        "OrcamentoGeradoEvent",
-        "OrcamentoAprovadoEvent",
-        "ServicoFinalizadoEvent",
-        "EntregaRegistradaEvent",
-        "OrdemCanceladaEvent",
-        "OrcamentoComplementarGeradoEvent",
-        "OrcamentoComplementarAprovadoEvent",
-        "OrcamentoComplementarRejeitadoEvent",
-    }
+    assert set(mapa) == {cls.__name__ for cls in _STATUS_POR_EVENTO}
 
 
 def test_nome_handler_email_estavel() -> None:

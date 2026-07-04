@@ -159,23 +159,24 @@ def validar_segredos_no_startup() -> None:
 def configurar_cors(app: FastAPI) -> None:
     """Configura CORS a partir da variavel CORS_ORIGINS (lista separada por virgulas).
 
-    Vazio significa nenhuma origem permitida. O wildcard `*` combinado com
-    credenciais e proibido pela especificacao CORS e rejeitado em startup.
+    Vazio significa nenhuma origem permitida. O wildcard `*` e rejeitado em
+    startup: a API exige origens explicitas, sem allow-any.
+
+    ``allow_credentials=False``: a API e bearer-only (token no header
+    Authorization), sem cookies nem sessao -- nenhum fluxo depende de
+    credenciais no CORS, entao mante-las desligadas reduz a superficie.
     """
     origens = os.environ.get("CORS_ORIGINS", "")
     lista_origens = [o.strip() for o in origens.split(",") if o.strip()]
     if "*" in lista_origens:
-        msg = (
-            "CORS_ORIGINS='*' nao e suportado com allow_credentials=True. "
-            "Defina origens explicitas."
-        )
+        msg = "CORS_ORIGINS='*' nao e suportado. Defina origens explicitas."
         raise ValueError(msg)
     app.add_middleware(
         CORSMiddleware,
         allow_origins=lista_origens,
         allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE"],
         allow_headers=["Authorization", "Content-Type"],
-        allow_credentials=True,
+        allow_credentials=False,
     )
 
 

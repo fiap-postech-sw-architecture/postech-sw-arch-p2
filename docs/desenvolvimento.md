@@ -83,7 +83,7 @@ make check         # lint + contratos de arquitetura + mypy + bandit + testes un
 make lint-arch     # so os contratos de arquitetura (import-linter, ADR-015)
 make test-coverage # testes unitarios + relatorio terminal + coverage.xml
 make test-integ    # testes de integracao (requer Docker)
-make test-all      # todos os 970+ testes
+make test-all      # todos os ~1.600+ testes (unitarios + integracao + e2e)
 make format        # auto-formata codigo
 make all           # format + check + integracao
 ```

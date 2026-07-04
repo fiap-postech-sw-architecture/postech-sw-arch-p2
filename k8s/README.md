@@ -70,7 +70,7 @@ sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|<imagem:t
 kubectl -n pytstop wait --for=condition=complete --timeout=180s job/pytstop-migrate
 ```
 
-O fluxo integrado (`make cd-local` / CD na main) já executa esses passos na ordem certa — esta seção documenta o caminho manual. O Job roda `alembic upgrade head` (migração obrigatória — falha reprova o Job e aborta o deploy) seguido do seed do admin best-effort.
+O fluxo integrado (`make cd-local` / CD na main) já executa esses passos na ordem certa — esta seção documenta o caminho manual. A ordem que o pipeline aplica é: **(a)** namespace + ConfigMap/Secret + serviços de apoio (Mailpit, Jaeger, Prometheus, Redis, Service, HPA); **(b)** o Job de migração + espera com falha rápida; **(c)** só então `deployment.yaml` e `relay.yaml` (as cargas da aplicação) + `rollout status`. Assim nenhuma réplica da API/relay sobe antes do schema estar em head (ADR-019). O Job roda `alembic upgrade head` (migração obrigatória — falha reprova o Job e aborta o deploy) seguido do seed do admin best-effort.
 
 ## Conferir
 

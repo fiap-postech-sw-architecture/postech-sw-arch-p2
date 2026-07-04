@@ -22,17 +22,9 @@ from typing import TYPE_CHECKING, Any
 from uuid import UUID
 
 from relay.processador import PayloadInvalidoError
-from src.ordem_servico.aplicacao.notificacoes import NotificarMudancaDeStatus
-from src.ordem_servico.dominio.events import (
-    DiagnosticoIniciadoEvent,
-    EntregaRegistradaEvent,
-    OrcamentoAprovadoEvent,
-    OrcamentoComplementarAprovadoEvent,
-    OrcamentoComplementarGeradoEvent,
-    OrcamentoComplementarRejeitadoEvent,
-    OrcamentoGeradoEvent,
-    OrdemCanceladaEvent,
-    ServicoFinalizadoEvent,
+from src.ordem_servico.aplicacao.notificacoes import (
+    _STATUS_POR_EVENTO,
+    NotificarMudancaDeStatus,
 )
 
 if TYPE_CHECKING:
@@ -40,23 +32,20 @@ if TYPE_CHECKING:
 
     from sqlalchemy import Engine
 
-    from src.compartilhado.dominio.integration_event import IntegrationEvent
+    from src.compartilhado.dominio.events import DomainEvent
 
 NOME_HANDLER_EMAIL = "email"
 
-# Mesmos 9 tipos do mapa _STATUS_POR_EVENTO de notificacoes.py.
-_EVENTOS: tuple[type[IntegrationEvent], ...] = (
-    DiagnosticoIniciadoEvent,
-    OrcamentoGeradoEvent,
-    OrcamentoAprovadoEvent,
-    ServicoFinalizadoEvent,
-    EntregaRegistradaEvent,
-    OrdemCanceladaEvent,
-    OrcamentoComplementarGeradoEvent,
-    OrcamentoComplementarAprovadoEvent,
-    OrcamentoComplementarRejeitadoEvent,
-)
-_POR_NOME: dict[str, type[IntegrationEvent]] = {cls.__name__: cls for cls in _EVENTOS}
+# Fonte unica: os tipos de evento com handler sao EXATAMENTE as chaves do
+# mapa _STATUS_POR_EVENTO de notificacoes.py (dict tipo-de-evento -> status
+# novo). Derivar daqui — em vez de manter uma 3a lista paralela que "deve
+# espelhar" o mapa — garante que um evento de transicao novo ganhe handler no
+# relay automaticamente; senao ele iria direto para a DLQ em producao (sem
+# handler) enquanto o teste hardcoded do relay seguiria verde. O tipo estatico
+# acompanha a chave do mapa fonte (``type[DomainEvent]``); em runtime todos sao
+# IntegrationEvents (entregues pela outbox), mas a fonte e tipada por DomainEvent.
+_EVENTOS: tuple[type[DomainEvent], ...] = tuple(_STATUS_POR_EVENTO)
+_POR_NOME: dict[str, type[DomainEvent]] = {cls.__name__: cls for cls in _EVENTOS}
 
 
 def _nome_tipo_base(nome: str) -> str:
@@ -103,7 +92,7 @@ def _desserializar_valor(tipo_campo: Any, valor: Any) -> Any:  # noqa: ANN401
     return valor
 
 
-def _reconstruir_evento(tipo: str, payload: dict[str, Any]) -> IntegrationEvent:
+def _reconstruir_evento(tipo: str, payload: dict[str, Any]) -> DomainEvent:
     """Reconstroi o IntegrationEvent a partir do tipo + payload da outbox.
 
     Itera ``dataclasses.fields(cls)`` em vez de hard-listar campos (ex.:

@@ -156,9 +156,8 @@ class TestConfigurarCors:
             resp.headers.get("access-control-allow-origin") == "https://b.example.com"
         )
 
-    def test_cors_rejeita_wildcard_com_credenciais(
-        self, monkeypatch: pytest.MonkeyPatch
-    ) -> None:
+    def test_cors_rejeita_wildcard(self, monkeypatch: pytest.MonkeyPatch) -> None:
+        # A API exige origens explicitas: `*` aborta o startup (sem allow-any).
         monkeypatch.setenv("CORS_ORIGINS", "*")
         app = _criar_app_com_saude()
         with pytest.raises(ValueError, match="CORS_ORIGINS='\\*'"):

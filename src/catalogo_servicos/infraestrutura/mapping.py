@@ -52,7 +52,13 @@ def iniciar_mapeamentos() -> None:
     )
 
     @event.listens_for(ServicoOferecido, "load")
-    def _reconstruir_preco(target: ServicoOferecido, _context: object) -> None:
+    @event.listens_for(ServicoOferecido, "refresh")
+    def _reconstruir_preco(target: ServicoOferecido, *_args: object) -> None:
+        # Decorators empilhados load+refresh (``*_args`` absorve o ``attrs`` que
+        # o refresh passa a mais). O catalogo nao usa populate_existing hoje,
+        # mas registrar ``refresh`` espelha estoque/cliente_veiculo e previne VO
+        # stale caso um populate_existing/session.refresh surja no futuro — sem
+        # o listener, o Dinheiro reidratado ficaria defasado apos a releitura.
         valor = target._preco_valor  # type: ignore[attr-defined]
         moeda = target._preco_moeda  # type: ignore[attr-defined]
         object.__setattr__(target, "_preco", Dinheiro(valor=valor, moeda=moeda))

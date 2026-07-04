@@ -26,6 +26,11 @@ dependencies = [
 test = [
     "pytest>=8.0",
     "pytest-cov>=6.0",
+    # Timeout de sessao (config em [tool.pytest.ini_options]): os testes de
+    # concorrencia do relay fazem ``t.join()`` sem limite — uma regressao de
+    # lock (deadlock/lock perdido) penduraria o job em vez de falhar. O timeout
+    # transforma "pendurado" em falha visivel e limitada no tempo.
+    "pytest-timeout>=2.3",
     "testcontainers[postgres,redis]>=4.14.2",
     "polyfactory>=2.0",
     "httpx>=0.27",
@@ -240,6 +245,107 @@ type = "forbidden"
 source_modules = ["src"]
 forbidden_modules = ["relay"]
 
+# Independencia entre bounded contexts (ADR-015 / DDD): o ``dominio`` e a
+# ``aplicacao`` de cada um dos 5 contextos NAO importam o ``dominio``/
+# ``aplicacao`` de nenhum outro — comunicacao entre contextos passa por
+# ports/adapters (ACL), nunca por acoplamento direto no nucleo. Modelado como 5
+# contratos ``forbidden`` (um por contexto) em vez de um unico ``independence``:
+# ``independence`` sobre os 5 pacotes-raiz proibiria tambem infraestrutura/
+# interfaces de cruzarem (adapters e composition roots cruzam LEGITIMAMENTE, por
+# isso ficam FORA); e listar as camadas separadas dentro de um contexto quebraria
+# o ``aplicacao -> dominio`` do PROPRIO contexto. ``compartilhado`` (shared
+# kernel) fica de fora: e o nucleo compartilhado por desenho.
+# Passa com 0 violacoes hoje — o codigo ja cumpre a regra.
+[[tool.importlinter.contracts]]
+name = "cliente_veiculo nao acopla no nucleo de outros contextos"
+type = "forbidden"
+source_modules = [
+    "src.cliente_veiculo.dominio",
+    "src.cliente_veiculo.aplicacao",
+]
+forbidden_modules = [
+    "src.catalogo_servicos.dominio",
+    "src.catalogo_servicos.aplicacao",
+    "src.estoque.dominio",
+    "src.estoque.aplicacao",
+    "src.ordem_servico.dominio",
+    "src.ordem_servico.aplicacao",
+    "src.autenticacao.dominio",
+    "src.autenticacao.aplicacao",
+]
+
+[[tool.importlinter.contracts]]
+name = "catalogo_servicos nao acopla no nucleo de outros contextos"
+type = "forbidden"
+source_modules = [
+    "src.catalogo_servicos.dominio",
+    "src.catalogo_servicos.aplicacao",
+]
+forbidden_modules = [
+    "src.cliente_veiculo.dominio",
+    "src.cliente_veiculo.aplicacao",
+    "src.estoque.dominio",
+    "src.estoque.aplicacao",
+    "src.ordem_servico.dominio",
+    "src.ordem_servico.aplicacao",
+    "src.autenticacao.dominio",
+    "src.autenticacao.aplicacao",
+]
+
+[[tool.importlinter.contracts]]
+name = "estoque nao acopla no nucleo de outros contextos"
+type = "forbidden"
+source_modules = [
+    "src.estoque.dominio",
+    "src.estoque.aplicacao",
+]
+forbidden_modules = [
+    "src.cliente_veiculo.dominio",
+    "src.cliente_veiculo.aplicacao",
+    "src.catalogo_servicos.dominio",
+    "src.catalogo_servicos.aplicacao",
+    "src.ordem_servico.dominio",
+    "src.ordem_servico.aplicacao",
+    "src.autenticacao.dominio",
+    "src.autenticacao.aplicacao",
+]
+
+[[tool.importlinter.contracts]]
+name = "ordem_servico nao acopla no nucleo de outros contextos"
+type = "forbidden"
+source_modules = [
+    "src.ordem_servico.dominio",
+    "src.ordem_servico.aplicacao",
+]
+forbidden_modules = [
+    "src.cliente_veiculo.dominio",
+    "src.cliente_veiculo.aplicacao",
+    "src.catalogo_servicos.dominio",
+    "src.catalogo_servicos.aplicacao",
+    "src.estoque.dominio",
+    "src.estoque.aplicacao",
+    "src.autenticacao.dominio",
+    "src.autenticacao.aplicacao",
+]
+
+[[tool.importlinter.contracts]]
+name = "autenticacao nao acopla no nucleo de outros contextos"
+type = "forbidden"
+source_modules = [
+    "src.autenticacao.dominio",
+    "src.autenticacao.aplicacao",
+]
+forbidden_modules = [
+    "src.cliente_veiculo.dominio",
+    "src.cliente_veiculo.aplicacao",
+    "src.catalogo_servicos.dominio",
+    "src.catalogo_servicos.aplicacao",
+    "src.estoque.dominio",
+    "src.estoque.aplicacao",
+    "src.ordem_servico.dominio",
+    "src.ordem_servico.aplicacao",
+]
+
 [tool.mypy]
 strict = true
 python_version = "3.14"
@@ -288,6 +394,11 @@ markers = [
 ]
 addopts = "--strict-markers"
 testpaths = ["tests"]
+# Timeout de sessao (pytest-timeout): teto por teste para que uma regressao de
+# concorrencia (os testes de lock do relay fazem ``t.join()`` sem limite) vire
+# falha em ~120s em vez de pendurar o job. Valor por-teste; sobrescreva num
+# teste especifico com @pytest.mark.timeout(N) quando justificado.
+timeout = 120
 
 # Configuracao do coverage.py esta em `.coveragerc` na raiz — coverage.py
 # prefere .coveragerc quando ambos existem. Consolidar em um unico arquivo

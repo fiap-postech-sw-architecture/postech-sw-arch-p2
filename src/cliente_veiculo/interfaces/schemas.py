@@ -126,8 +126,10 @@ class ConsentimentoRequest(BaseModel):
     @field_validator("tipo")
     @classmethod
     def _normalizar_tipo(cls, v: str) -> str:
-        # Canonicaliza o tipo (lowercase + strip) para que "Marketing" e
-        # "marketing " contem como o MESMO consentimento no par cliente+tipo.
+        # UX apenas: a canonicalizacao autoritativa (lowercase + strip) vive no
+        # agregado ConsentimentoCliente.__post_init__ — qualquer caller, dentro
+        # ou fora do router, ja normaliza. Este validator so antecipa o feedback
+        # de "tipo vazio" no 422 do HTTP em vez de deixar estourar mais fundo.
         normalizado = v.strip().lower()
         if not normalizado:
             msg = "tipo de consentimento nao pode ser vazio"

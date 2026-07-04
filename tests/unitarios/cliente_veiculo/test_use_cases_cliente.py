@@ -433,7 +433,7 @@ class TestAdicionarVeiculo:
         ):
             uc.executar(cliente.id, dto)
         assert not uow.committed
-        assert repo.obter_por_id(cliente.id).veiculos == []  # type: ignore[union-attr]
+        assert repo.obter_por_id(cliente.id).veiculos == ()  # type: ignore[union-attr]
 
     def test_corrida_check_then_insert_mapeia_integrity_error(self) -> None:
         # A UNIQUE de veiculos.placa estoura no flush quando outra transacao

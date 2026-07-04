@@ -25,6 +25,12 @@ from src.autenticacao.infraestrutura.password_hasher import PasswordHasher, hash
 from tests.unitarios.fakes import FakeUnitOfWork
 
 
+def _jwt_service(chave: str = "test-secret") -> JWTService:
+    return JWTService(
+        chave_secreta=chave, expiracao_minutos=30, refresh_expiracao_minutos=10080
+    )
+
+
 class FakeUsuarioRepository:
     def __init__(self) -> None:
         self._usuarios: dict[UUID, Usuario] = {}
@@ -216,7 +222,7 @@ class TestLogin:
             papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         uc = Login(repo=repo, jwt_service=jwt_svc, password_hasher=PasswordHasher())
         dto = LoginDTO(email="test@test.com", senha="senhaforte1234")
         result = uc.executar(dto)
@@ -232,7 +238,7 @@ class TestLogin:
             papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         uc = Login(repo=repo, jwt_service=jwt_svc, password_hasher=PasswordHasher())
         dto = LoginDTO(email="test@test.com", senha="senhaforte1234")
         result = uc.executar(dto)
@@ -243,7 +249,7 @@ class TestLogin:
 
     def test_email_nao_encontrado(self) -> None:
         repo = FakeUsuarioRepository()
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         uc = Login(repo=repo, jwt_service=jwt_svc, password_hasher=PasswordHasher())
         with pytest.raises(CredenciaisInvalidasException):
             uc.executar(LoginDTO(email="x@x.com", senha="senhaerrada12"))
@@ -256,7 +262,7 @@ class TestLogin:
             papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         uc = Login(repo=repo, jwt_service=jwt_svc, password_hasher=PasswordHasher())
         with pytest.raises(CredenciaisInvalidasException):
             uc.executar(LoginDTO(email="test@test.com", senha="erradaerrada1"))
@@ -272,7 +278,7 @@ class TestLogin:
                 papel=Papel.ADMIN,
             )
         )
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         uc = Login(repo=repo, jwt_service=jwt_svc, password_hasher=PasswordHasher())
         result = uc.executar(LoginDTO(email="USER@Test.com", senha="senhaforte1234"))
         assert result.access_token
@@ -312,7 +318,7 @@ class TestLogin:
 
 class TestLogout:
     def test_revoga_jti_do_token(self) -> None:
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         token_repo = FakeTokenRevogadoRepository()
         uow = FakeUnitOfWork()
         from uuid import uuid4
@@ -325,7 +331,7 @@ class TestLogout:
         assert token_repo.esta_revogado(str(payload["jti"]))
 
     def test_retorna_confirmacao(self) -> None:
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         token_repo = FakeTokenRevogadoRepository()
         uow = FakeUnitOfWork()
         from uuid import uuid4
@@ -340,7 +346,7 @@ class TestLogout:
         # sessao inteira -- ambos os jti (access e refresh).
         from uuid import uuid4
 
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         token_repo = FakeTokenRevogadoRepository()
         uow = FakeUnitOfWork()
         usuario_id = uuid4()
@@ -363,7 +369,7 @@ class TestLogout:
             papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         token_repo = FakeTokenRevogadoRepository()
         uow = FakeUnitOfWork()
         access = jwt_svc.gerar_access_token(usuario.id, "t@t.com", "admin")
@@ -385,7 +391,7 @@ class TestLogout:
         # autentica o logout; um refresh valido no header -> 401.
         from uuid import uuid4
 
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         token_repo = FakeTokenRevogadoRepository()
         uow = FakeUnitOfWork()
         refresh = jwt_svc.gerar_refresh_token(uuid4())
@@ -400,7 +406,7 @@ class TestLogout:
         # solicitante).
         from uuid import uuid4
 
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         token_repo = FakeTokenRevogadoRepository()
         uow = FakeUnitOfWork()
         access = jwt_svc.gerar_access_token(uuid4(), "eu@t.com", "admin")
@@ -423,7 +429,7 @@ class TestRefreshToken:
             papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         token_repo = FakeTokenRevogadoRepository()
         uow = FakeUnitOfWork()
         refresh = jwt_svc.gerar_refresh_token(usuario.id)
@@ -447,7 +453,7 @@ class TestRefreshToken:
             papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         token_repo = FakeTokenRevogadoRepository()
         uow = FakeUnitOfWork()
         access = jwt_svc.gerar_access_token(usuario.id, "test@test.com", "admin")
@@ -468,7 +474,7 @@ class TestRefreshToken:
             papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         token_repo = FakeTokenRevogadoRepository()
         uow = FakeUnitOfWork()
         refresh = jwt_svc.gerar_refresh_token(usuario.id)
@@ -485,7 +491,7 @@ class TestRefreshToken:
 
     def test_usuario_inexistente(self) -> None:
         repo = FakeUsuarioRepository()
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         token_repo = FakeTokenRevogadoRepository()
         uow = FakeUnitOfWork()
         from uuid import uuid4
@@ -511,7 +517,7 @@ class TestRefreshToken:
             papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         uc = RefreshToken(
             jwt_service=jwt_svc,
             token_repo=FakeTokenRevogadoRepository(),
@@ -539,7 +545,7 @@ class TestRefreshToken:
             papel=Papel.ADMIN,
         )
         repo.salvar(usuario)
-        jwt_svc = JWTService(chave_secreta="test-secret")
+        jwt_svc = _jwt_service()
         uc = RefreshToken(
             jwt_service=jwt_svc,
             token_repo=RepoComJanelaDeCorrida(),

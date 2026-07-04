@@ -6,7 +6,7 @@ from src.compartilhado.dominio.exceptions import (
     TransicaoStatusInvalidaException,
 )
 from src.ordem_servico.dominio.maquina_de_status import MaquinaDeStatus
-from src.ordem_servico.dominio.status import StatusOrdem
+from src.ordem_servico.dominio.status import ESTADOS_TERMINAIS, StatusOrdem
 
 S = StatusOrdem
 
@@ -52,6 +52,15 @@ class TestMaquinaDeStatus:
         maquina = MaquinaDeStatus()
         assert maquina.transicoes_validas(S.ENTREGUE) == set()
         assert maquina.transicoes_validas(S.CANCELADA) == set()
+
+    def test_estados_terminais_constante_bate_com_a_maquina(self) -> None:
+        # A constante ESTADOS_TERMINAIS (consumida pelo repo de OS e pelos
+        # adapters reversos) precisa refletir exatamente os estados sem
+        # transicao de saida na maquina -- se um estado terminal novo surgir,
+        # este teste falha antes que os consumidores fiquem dessincronizados.
+        maquina = MaquinaDeStatus()
+        sem_saida = {s for s in StatusOrdem if not maquina.transicoes_validas(s)}
+        assert sem_saida == ESTADOS_TERMINAIS
 
     def test_transicoes_validas_recebida(self) -> None:
         maquina = MaquinaDeStatus()

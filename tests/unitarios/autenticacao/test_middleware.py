@@ -20,6 +20,14 @@ _CHAVE = "test-secret"
 _MOCK_SESSION = MagicMock()
 
 
+def _jwt_service(expiracao_minutos: int = 30) -> JWTService:
+    return JWTService(
+        chave_secreta=_CHAVE,
+        expiracao_minutos=expiracao_minutos,
+        refresh_expiracao_minutos=10080,
+    )
+
+
 class _FakeCredentials:
     def __init__(self, token: str) -> None:
         self.credentials = token
@@ -45,7 +53,7 @@ class TestObterUsuarioAtual:
         assert exc.value.headers == {"WWW-Authenticate": "Bearer"}
 
     def test_token_expirado_retorna_401(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE, expiracao_minutos=-1)
+        svc = _jwt_service(expiracao_minutos=-1)
         token = svc.gerar_access_token(
             usuario_id=uuid4(), email="t@t.com", papel="admin"
         )
@@ -55,7 +63,7 @@ class TestObterUsuarioAtual:
         assert exc.value.status_code == 401
 
     def test_token_valido_retorna_payload(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         uid = uuid4()
         token = svc.gerar_access_token(uid, "t@t.com", "admin")
         creds = _FakeCredentials(token=token)
@@ -74,7 +82,7 @@ class TestObterUsuarioAtual:
         Espelha o check `type == refresh` do fluxo de refresh; defense-in-depth
         para qualquer rota futura apenas-autenticada (hoje so o RBAC contem).
         """
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         token = svc.gerar_refresh_token(uuid4())
         creds = _FakeCredentials(token=token)
         # Sem mock do repo de revogacao: o check `type != access` ocorre ANTES da
@@ -104,7 +112,7 @@ class TestObterUsuarioAtual:
         assert "jti" in str(exc.value.detail)
 
     def test_token_revogado_retorna_401(self) -> None:
-        svc = JWTService(chave_secreta=_CHAVE)
+        svc = _jwt_service()
         uid = uuid4()
         token = svc.gerar_access_token(uid, "t@t.com", "admin")
         payload = svc.validar_token(token)

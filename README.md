@@ -8,7 +8,7 @@
   <a href="https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/workflows/ci.yml"><img src="https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/workflows/cd.yml"><img src="https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/workflows/cd.yml/badge.svg" alt="CD"></a>
   <img src="https://img.shields.io/badge/coverage-%E2%89%A595%25-brightgreen" alt="coverage >= 95%">
-  <img src="https://img.shields.io/badge/python-3.12%2B-blue" alt="Python 3.12+">
+  <img src="https://img.shields.io/badge/python-3.14%2B-blue" alt="Python 3.14+">
   <a href="https://github.com/astral-sh/ruff"><img src="https://img.shields.io/endpoint?url=https://raw.githubusercontent.com/astral-sh/ruff/main/assets/badge/v2.json" alt="Ruff"></a>
   <img src="https://img.shields.io/badge/mypy-checked-2a6db2" alt="mypy checked">
   <img src="https://img.shields.io/badge/architecture-Clean%20%C2%B7%20import--linter-success" alt="Clean Architecture (import-linter)">
@@ -99,7 +99,7 @@ A aplicação é um monolito modular: cada contexto delimitado segue as camadas 
 > **Setup do zero?** Guias passo a passo por plataforma:
 > [**Windows**](docs/setup/windows.md) - [**macOS**](docs/setup/macos.md) - [**Linux**](docs/setup/linux.md)
 
-Pré-requisitos para quem já tem o ambiente pronto: Python 3.12+, [uv](https://docs.astral.sh/uv/) ([ADR-014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md)), Docker 24+ com Compose v2 e Git.
+Pré-requisitos para quem já tem o ambiente pronto: Python 3.14+ (exigido pelo `pyproject.toml`), [uv](https://docs.astral.sh/uv/) ([ADR-014](docs/arquitetura/adr/014-gerenciador-pacotes-uv.md)), Docker 24+ com Compose v2 e Git.
 
 ```bash
 git clone https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2.git
@@ -194,7 +194,10 @@ Execuções verdes do CD na main: [27450493913](https://github.com/fiap-postech-
 
 ## API
 
-Documentação interativa no Swagger UI: `http://localhost:8000/docs` no compose, `http://localhost:18000/docs` via port-forward do cluster. Collection completa (gerada do contrato OpenAPI, 46 requisições): [`docs/entrega/fase2/postman_collection.json`](docs/entrega/fase2/postman_collection.json).
+Documentação interativa no Swagger UI: `http://localhost:8000/docs` no compose, `http://localhost:18000/docs` via port-forward do cluster. Collection completa (gerada do contrato OpenAPI, 48 requisições): [`docs/entrega/fase2/postman_collection.json`](docs/entrega/fase2/postman_collection.json).
+
+A tabela abaixo é o **mapa vivo** da API (o que os routers de fato expõem hoje);
+o [RFC-002 §6](docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md) é a visão de design-time.
 
 | Grupo | Prefixo | Operações |
 |---|---|---|
@@ -204,6 +207,7 @@ Documentação interativa no Swagger UI: `http://localhost:8000/docs` no compose
 | Ordens de Serviço | /api/v1/ordens-de-servico | Criação com serviços e peças (RF-020), listagem ordenada (RF-023), ciclo completo da OS |
 | Autenticação | /api/v1/autenticacao | Login, registro, refresh, logout |
 | Público | /api/v1/acompanhamento · /api/v1/publico/.../decisao-orcamento | Acompanhamento por placa + documento (RF-021) e decisão externa de orçamento via assinatura HMAC (`X-Webhook-Signature`, TD-027/RF-022) |
+| Admin / Outbox | /api/v1/admin/outbox | Operação da Transactional Outbox/DLQ (RF-018), role `admin`: `GET /dead` lista a DLQ e `POST /dead/{id}/reenfileirar` ressuscita uma linha morta ([`router_admin.py`](src/compartilhado/interfaces/router_admin.py)) |
 | Saúde | /api/v1/saude | Health check (probes do Kubernetes) |
 
 ## Vídeo de demonstração
@@ -236,14 +240,18 @@ de simulação é sandbox integrado. Guia completo: [`ui/README.md`](ui/README.m
 
 | Variável | Descrição | Padrão |
 |---|---|---|
-| DATABASE_URL | URL de conexão PostgreSQL | postgresql://pytstop:pytstop@postgres:5432/pytstop |
+| DATABASE_URL | URL de conexão PostgreSQL (tem precedência) | postgresql://pytstop:pytstop@postgres:5432/pytstop |
+| POSTGRES_DB / POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_HOST / POSTGRES_PORT | Fallback de montagem da URL só em dev/test quando `DATABASE_URL` está ausente (`src/main.py`); os três primeiros são obrigatórios nesse caso | -- / -- / -- / localhost / 5432 |
 | JWT_SECRET | Chave secreta para tokens JWT (>= 32 bytes) | change-this-in-production |
-| JWT_EXPIRATION_MINUTES | Tempo de expiração do token | 30 |
+| JWT_EXPIRATION_MINUTES | Tempo de expiração do access token | 30 |
+| JWT_REFRESH_EXPIRATION_MINUTES | Tempo de expiração do refresh token (`autenticacao/interfaces/dependencies.py`) | 10080 (7 dias) |
 | ENCRYPTION_KEY | Chave Fernet da PII em repouso (estável entre réplicas) | -- |
 | ENVIRONMENT | Ambiente (development/production) | development |
 | CORS_ORIGINS | Origens permitidas para CORS | http://localhost:3000 |
-| RUN_MIGRATIONS_ON_STARTUP | Executar migrations ao iniciar o app | false (true no cluster) |
-| RUN_SEED_ON_STARTUP | Criar admin inicial no boot (best-effort) | false (true no cluster) |
+| RATE_LIMIT | Limite padrão do rate limiter, notação do pacote `limits` (`middleware.py`; validado no import) | 60/minute |
+| TRUSTED_PROXIES | Proxies confiáveis para ler o `X-Forwarded-For` no rate-limit por IP real (TD-023); vazio = XFF ignorado (sem spoof) | vazio (vazio no cluster de demo) |
+| RUN_MIGRATIONS_ON_STARTUP | Executar migrations ao iniciar o app (lido pelo `entrypoint.sh`) | false (**false** no cluster — o Job `pytstop-migrate` é o dono da migração, TD-015) |
+| RUN_SEED_ON_STARTUP | Criar admin inicial no boot (best-effort) | false (**false** no cluster — seed roda no Job de migração, TD-015) |
 | SMTP_HOST / SMTP_PORT / SMTP_FROM | Servidor SMTP das notificações de status (RF-024) | mailpit / 1025 / oficina@pytstop.local |
 | ORCAMENTO_WEBHOOK_TOKEN | Token do canal externo de decisão de orçamento (RF-022) | valor de demo no compose e no cluster |
 | OTEL_ENABLED | Liga a instrumentação OpenTelemetry (ADR-020) | false (true no cluster de demo) |
@@ -253,6 +261,7 @@ de simulação é sandbox integrado. Guia completo: [`ui/README.md`](ui/README.m
 | RELAY_HEARTBEAT | Caminho do arquivo de heartbeat do relay (liveness) | /tmp/relay-heartbeat |
 | RELAY_METRICS_ENABLED / RELAY_METRICS_PORT | Liga o `/metrics` do relay para o Prometheus scrapear (ADR-024) | false / 9100 (true no cluster de demo) |
 | DB_POOL_SIZE / DB_MAX_OVERFLOW | Pool de conexões por réplica, dimensionado para o pior caso do HPA (RNF-024) | 5 / 10 |
+| DB_POOL_RECYCLE | Reciclagem de conexões do pool, em segundos, para evitar conexões stale em pods de vida longa (`database.py`) | 1800 (30 min) |
 | BACKEND_URL | URL do backend consumida pela UI | http://localhost:8001 local / http://app:8000 docker |
 | UI_PORT | Porta da UI NiceGUI | 8080 |
 

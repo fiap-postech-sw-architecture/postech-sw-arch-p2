@@ -21,8 +21,7 @@ Confirme o ambiente antes do primeiro PR: `cd ~/git/fiap/postech-sw-architecture
 3. **Gates locais antes de cada commit** (todos, sem exceção):
    ```bash
    uv lock --check
-   make lint          # ruff check
-   uv run ruff format --check .   # separado do lint — formato escapa sem ele
+   make lint          # ruff check + ruff format --check (o alvo roda os dois; formato NAO escapa)
    make lint-arch     # import-linter (contratos de camada)
    make typecheck     # mypy strict
    make security      # bandit (0 High)

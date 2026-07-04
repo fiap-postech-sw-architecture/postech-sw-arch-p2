@@ -32,9 +32,23 @@ class OrdemNaoEncontradaException(EntidadeNaoEncontradaException):
 
 
 class ClienteNaoEncontradoException(EntidadeNaoEncontradaException):
-    """Cliente referenciado na criacao da OS nao existe no contexto Cliente."""
+    """Cliente referenciado na criacao da OS nao existe no contexto Cliente.
 
-    def __init__(self, mensagem: str = "Cliente nao encontrado") -> None:
+    O ``cliente_id`` (quando informado) e incluido na mensagem para
+    facilitar diagnostico em logs e respostas de API (UUID, nao-PII).
+    """
+
+    def __init__(
+        self,
+        cliente_id: UUID | None = None,
+        mensagem: str | None = None,
+    ) -> None:
+        if mensagem is None:
+            mensagem = (
+                f"Cliente {cliente_id} nao encontrado"
+                if cliente_id is not None
+                else "Cliente nao encontrado"
+            )
         super().__init__(mensagem=mensagem)
 
 
@@ -43,11 +57,20 @@ class VeiculoNaoEncontradoException(EntidadeNaoEncontradaException):
 
     Os dois casos (veiculo inexistente vs veiculo de outro cliente) sao
     indistinguiveis na resposta para preservar defesa em profundidade — ver
-    ``CriarOrdem`` em aplicacao/use_cases.py.
+    ``CriarOrdem`` em aplicacao/use_cases.py. O ``veiculo_id`` (quando
+    informado, UUID nao-PII) entra na mensagem SEM revelar qual dos dois
+    casos ocorreu.
     """
 
     def __init__(
         self,
-        mensagem: str = "Veiculo nao encontrado para o cliente informado",
+        veiculo_id: UUID | None = None,
+        mensagem: str | None = None,
     ) -> None:
+        if mensagem is None:
+            mensagem = (
+                f"Veiculo {veiculo_id} nao encontrado para o cliente informado"
+                if veiculo_id is not None
+                else "Veiculo nao encontrado para o cliente informado"
+            )
         super().__init__(mensagem=mensagem)

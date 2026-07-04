@@ -10,7 +10,12 @@ from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from pydantic import BaseModel, Field
 
+from src.autenticacao.dominio.exceptions import (
+    CredenciaisInvalidasException,
+    EmailDuplicadoException,
+)
 from src.compartilhado.dominio.exceptions import (
+    DomainException,
     EntidadeDuplicadaException,
     EntidadeNaoEncontradaException,
     EstoqueInsuficienteException,
@@ -55,6 +60,46 @@ def test_mapeamento_excecao_para_status(exc: Exception, status_code: int) -> Non
     assert "erro" in body
     assert "codigo" in body["erro"]
     assert "mensagem" in body["erro"]
+
+
+# Subclasses (contexto auth) NAO estao no mapa: o status vem do ancestral pela
+# resolucao por MRO (mais especifico primeiro), nao da ordem de insercao do dict.
+_CASOS_SUBCLASSE = [
+    pytest.param(CredenciaisInvalidasException(), 401, id="credenciais-401"),
+    pytest.param(EmailDuplicadoException(), 409, id="email-duplicado-409"),
+]
+
+
+@pytest.mark.parametrize(("exc", "status_code"), _CASOS_SUBCLASSE)
+def test_subclasse_resolve_status_do_ancestral_por_mro(
+    exc: Exception, status_code: int
+) -> None:
+    client = _criar_app_com_excecao(exc)
+    resp = client.get("/test")
+    assert resp.status_code == status_code
+
+
+def test_dominio_excecao_default_409_quando_fora_do_mapa() -> None:
+    # DomainException "pura" (sem entrada no mapa e sem ancestral mapeado) cai
+    # no default 409.
+    client = _criar_app_com_excecao(DomainException(codigo="X", mensagem="y"))
+    resp = client.get("/test")
+    assert resp.status_code == 409
+    assert resp.json()["erro"]["codigo"] == "X"
+
+
+def test_dominio_excecao_emite_warning_estruturado(
+    pipeline_buffer: io.StringIO,
+) -> None:
+    # Negacoes de dominio (aqui 404) tambem logam: codigo/status/request_id
+    # estruturados, sem a mensagem (que pode carregar dado do request).
+    client = _criar_app_com_excecao(EntidadeNaoEncontradaException())
+    client.get("/test")
+    log = pipeline_buffer.getvalue()
+    assert "dominio_excecao_tratada" in log
+    assert "ENTIDADE_NAO_ENCONTRADA" in log
+    assert '"status": 404' in log
+    assert "request_id" in log
 
 
 def test_excecao_generica_retorna_500() -> None:
@@ -212,16 +257,13 @@ class TestRequestValidationSemEcoDeInput:
         # quebrar o contrato da UI, que segue lendo a lista).
         assert corpo["id_requisicao"] == "desconhecido"
 
-    def test_422_de_schema_loga_warning_sem_o_valor(self) -> None:
+    def test_422_de_schema_loga_warning_sem_o_valor(
+        self, pipeline_buffer: io.StringIO
+    ) -> None:
         client = _criar_app_com_schema()
-        registros = io.StringIO()
-        handler = logging.StreamHandler(registros)
-        logger = logging.getLogger("src.compartilhado.interfaces.error_handler")
-        logger.addHandler(handler)
-        try:
-            client.post("/veiculos", json={"placa": "ZZZ-99999"})
-        finally:
-            logger.removeHandler(handler)
-        log = registros.getvalue()
+        client.post("/veiculos", json={"placa": "ZZZ-99999"})
+        log = pipeline_buffer.getvalue()
+        assert "validacao_schema_tratada_422" in log
+        # O `type` do erro (regra violada) e logado; o valor cru nunca.
         assert "string_too_long" in log
         assert "ZZZ-99999" not in log
