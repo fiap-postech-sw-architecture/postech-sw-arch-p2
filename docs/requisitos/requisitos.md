@@ -148,7 +148,7 @@ Base: `/api/v1/`
 
 | Método | Endpoint | Descrição | Auth |
 |---|---|---|---|
-| GET | `/acompanhamento` | Consultar status por placa + documento | Não |
+| POST | `/acompanhamento` | Consultar status por placa + documento (no corpo; PII fora da URL) | Não |
 
 ### Clientes — LGPD
 

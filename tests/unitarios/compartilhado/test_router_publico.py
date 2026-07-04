@@ -46,9 +46,10 @@ class TestRouterPublico:
         ) as factory:
             factory.return_value = MagicMock(executar=MagicMock(return_value=dto_ns))
             client = TestClient(app)
-            resp = client.get(
+            # POST com placa/documento no corpo (issue #180: PII fora da URL).
+            resp = client.post(
                 "/api/v1/acompanhamento",
-                params={"placa": "ABC1D23", "documento": "12345678901"},
+                json={"placa": "ABC1D23", "documento": "12345678901"},
             )
             assert resp.status_code == 200
             body = resp.json()
@@ -67,37 +68,48 @@ class TestRouterPublico:
         ) as factory:
             factory.return_value = MagicMock(executar=MagicMock(return_value=None))
             client = TestClient(app)
-            resp = client.get(
+            resp = client.post(
                 "/api/v1/acompanhamento",
-                params={"placa": "XYZ0A00", "documento": "00000000000"},
+                json={"placa": "XYZ0A00", "documento": "00000000000"},
             )
             assert resp.status_code == 404
             assert resp.json() == {"detail": "Ordem nao encontrada"}
 
-    def test_acompanhamento_sem_parametros_retorna_422(self) -> None:
-        """Query params faltando -> 422 (validation error do FastAPI)."""
+    def test_acompanhamento_placa_documento_nunca_na_url(self) -> None:
+        """PII (placa/documento) viaja no corpo, nunca em query param (#180)."""
         app = _criar_app()
         client = TestClient(app)
-        resp = client.get("/api/v1/acompanhamento")
+        # GET com os dados na URL nao existe mais -> 405 Method Not Allowed.
+        resp = client.get(
+            "/api/v1/acompanhamento",
+            params={"placa": "ABC1D23", "documento": "12345678901"},
+        )
+        assert resp.status_code == 405
+
+    def test_acompanhamento_sem_corpo_retorna_422(self) -> None:
+        """Corpo faltando -> 422 (validation error do FastAPI)."""
+        app = _criar_app()
+        client = TestClient(app)
+        resp = client.post("/api/v1/acompanhamento")
         assert resp.status_code == 422
 
     def test_acompanhamento_placa_muito_curta_retorna_422(self) -> None:
-        """Placa < 7 chars rejeitada via ``Query(min_length=7)``."""
+        """Placa < 7 chars rejeitada via ``Field(min_length=7)``."""
         app = _criar_app()
         client = TestClient(app)
-        resp = client.get(
+        resp = client.post(
             "/api/v1/acompanhamento",
-            params={"placa": "AB1", "documento": "12345678901"},
+            json={"placa": "AB1", "documento": "12345678901"},
         )
         assert resp.status_code == 422
 
     def test_acompanhamento_documento_muito_curto_retorna_422(self) -> None:
-        """Documento < 11 chars rejeitado via ``Query(min_length=11)``."""
+        """Documento < 11 chars rejeitado via ``Field(min_length=11)``."""
         app = _criar_app()
         client = TestClient(app)
-        resp = client.get(
+        resp = client.post(
             "/api/v1/acompanhamento",
-            params={"placa": "ABC1D23", "documento": "123"},
+            json={"placa": "ABC1D23", "documento": "123"},
         )
         assert resp.status_code == 422
 
