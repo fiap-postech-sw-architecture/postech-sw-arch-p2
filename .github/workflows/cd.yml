@@ -160,6 +160,9 @@ jobs:
           done
           kubectl -n pytstop rollout status deployment/pytstop-api --timeout=300s
           kubectl -n pytstop rollout status deployment/pytstop-relay --timeout=300s
+          # A UI e a superficie de demo deste deploy: aguarda o rollout dela
+          # tambem, para o CD nao ficar verde com a UI 0/1 (crashloop/probe).
+          kubectl -n pytstop rollout status deployment/pytstop-ui --timeout=300s
       # Porta local 18000 para casar com o `make k8s-smoke` (que evita
       # colisao com a stack compose em 8000 na maquina do dev).
       - name: Smoke test

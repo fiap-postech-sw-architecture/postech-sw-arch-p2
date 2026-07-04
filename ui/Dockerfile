@@ -1,6 +1,8 @@
 # NOT FOR PRODUCTION DEPLOY — dev/testing tool only.
 # Esta imagem serve a UI de simulacao NiceGUI consumindo o backend
-# PytStop via HTTP. Nao deve ser promovida para publicos externos.
+# PytStop via HTTP. Desde a issue #186 ela e tambem a imagem da UI no
+# cluster kind (demo local: UI + APIs no k8s) -- kind nao e producao, o
+# aviso continua valido; nao deve ser promovida para publicos externos.
 
 FROM python:3.14-slim AS base
 

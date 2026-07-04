@@ -258,6 +258,8 @@ flowchart TB
 
 No fluxo acima, a CI atua como gate no PR (antes do merge); no push à `main`, CI e CD disparam em paralelo — a seta sequencial representa a ordem lógica (qualidade antes do deploy), não uma dependência entre workflows.
 
+A demo pode ser conduzida inteiramente no cluster: a UI de simulação (NiceGUI, [issue #186](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/186)) sobe como o Deployment `pytstop-ui` e consome a API pelo Service interno `pytstop-api:8000` — `make cd-local` a implanta junto com o resto, e `kubectl -n pytstop port-forward svc/pytstop-ui 8080:8080` a expõe em `http://localhost:8080`. Alternativamente, o `docker-compose.yml` sobe a mesma UI localmente (`make up`); o passo a passo dos dois caminhos está no [README](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/README.md#ui-de-simula%C3%A7%C3%A3o) e no [`k8s/README.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/k8s/README.md).
+
 ### Evolução das camadas — da Onion (fase 1) à Clean Architecture (fase 2)
 
 A fase 1 organizava cada contexto delimitado em quatro camadas no modelo Onion ([ADR-003](../../arquitetura/adr/003-arquitetura-ddd-onion.md)): `dominio/`, `aplicacao/`, `infraestrutura/` e `interfaces/`, com a regra de dependência apontando para dentro, ports declarados em `aplicacao/` e adapters concretos na borda — mas sem ordem formal entre `interfaces/` e `infraestrutura/`.

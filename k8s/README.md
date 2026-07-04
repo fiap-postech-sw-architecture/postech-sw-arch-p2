@@ -86,11 +86,17 @@ No cluster a migração **não** roda no boot do pod: o Job `pytstop-migrate` ro
 ## Port-forward
 
 ```bash
+kubectl port-forward -n pytstop svc/pytstop-ui 8080:8080    # UI NiceGUI: http://localhost:8080/login
 kubectl port-forward -n pytstop svc/pytstop-api 8000:8000   # API: http://localhost:8000/docs
 kubectl port-forward -n pytstop svc/mailpit 8025:8025       # Mailpit UI: http://localhost:8025
 kubectl port-forward -n pytstop svc/jaeger 16686:16686      # Jaeger UI: http://localhost:16686
 kubectl port-forward -n pytstop svc/prometheus 9090:9090    # Prometheus UI: http://localhost:9090
 ```
+
+A UI de simulação (`pytstop-ui`, issue #186) roda no cluster e consome a API
+pelo Service interno `pytstop-api:8000` — a demo inteira vive no kind. Faça o
+port-forward acima e abra `http://localhost:8080/login` (admin de demo em
+[`secret.yaml`](secret.yaml)).
 
 ## Ver traces no Jaeger (ADR-020)
 
