@@ -348,6 +348,8 @@ K8S_CLUSTER ?= pytstop
 K8S_NS      ?= pytstop
 K8S_APP_IMAGE ?= ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app
 K8S_TAG     = $(K8S_APP_IMAGE):$(GIT_SHA)
+K8S_UI_IMAGE ?= ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-ui
+K8S_UI_TAG  = $(K8S_UI_IMAGE):$(GIT_SHA)
 KUBECTL     = kubectl --context kind-$(K8S_CLUSTER)
 TF_INFRA    = terraform -chdir=infra
 METRICS_SERVER_MANIFEST = https://github.com/kubernetes-sigs/metrics-server/releases/latest/download/components.yaml
@@ -361,6 +363,9 @@ k8s-up:
 	@echo ">> build da imagem $(K8S_TAG)..."
 	docker build -t $(K8S_TAG) --build-arg GIT_SHA=$(GIT_SHA) --build-arg GIT_DATE=$(GIT_DATE) .
 	kind load docker-image $(K8S_TAG) --name $(K8S_CLUSTER)
+	@echo ">> build da imagem da UI $(K8S_UI_TAG)..."
+	docker build -f ui/Dockerfile -t $(K8S_UI_TAG) --build-arg GIT_SHA=$(GIT_SHA) --build-arg GIT_DATE=$(GIT_DATE) .
+	kind load docker-image $(K8S_UI_TAG) --name $(K8S_CLUSTER)
 	@echo ">> instalando metrics-server (pre-requisito do HPA)..."
 	$(KUBECTL) apply -f $(METRICS_SERVER_MANIFEST)
 	$(KUBECTL) -n kube-system get deployment metrics-server -o jsonpath='{.spec.template.spec.containers[0].args}' | grep -q kubelet-insecure-tls || \
@@ -375,9 +380,13 @@ k8s-up:
 	# app, que so podem subir depois da migracao). Tag do SHA desde o primeiro
 	# apply (mesmo sed do Job): deployment/relay nunca passam pela tag `dev`,
 	# dispensando o antigo `kubectl set image`. O glob nao desce em k8s/jobs/.
+	# O ui-deployment.yaml (grupo de apoio: nao depende da migracao) tambem tem
+	# a tag `dev`, com sufixo -ui -- o sed troca as duas tags de uma vez.
 	for f in k8s/*.yaml; do \
 		case "$$f" in k8s/deployment.yaml|k8s/relay.yaml) continue ;; esac; \
-		sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|$(K8S_TAG)|" "$$f" | $(KUBECTL) apply -f - || exit 1; \
+		sed -e "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|$(K8S_TAG)|" \
+			-e "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-ui:dev|$(K8S_UI_TAG)|" "$$f" \
+			| $(KUBECTL) apply -f - || exit 1; \
 	done
 	@echo ">> migracao via Job dedicado antes do rollout (TD-015)..."
 	# (b) Migracao via Job dedicado antes do rollout (TD-015): resolve a corrida com N replicas

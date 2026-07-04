@@ -32,12 +32,16 @@ jobs:
     timeout-minutes: 30
     outputs:
       tag: ${{ steps.meta.outputs.tag }}
+      ui_tag: ${{ steps.meta.outputs.ui_tag }}
     steps:
       - uses: actions/checkout@v7
-      # GHCR exige owner/repo em lowercase -- `${VAR,,}` normaliza.
+      # GHCR exige owner/repo em lowercase -- `${VAR,,}` normaliza. A UI e uma
+      # imagem separada (ui/Dockerfile), com o mesmo SHA e sufixo -ui.
       - id: meta
-        name: Compute image tag
-        run: echo "tag=ghcr.io/${GITHUB_REPOSITORY,,}-app:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+        name: Compute image tags
+        run: |
+          echo "tag=ghcr.io/${GITHUB_REPOSITORY,,}-app:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
+          echo "ui_tag=ghcr.io/${GITHUB_REPOSITORY,,}-ui:${GITHUB_SHA}" >> "$GITHUB_OUTPUT"
       - uses: docker/login-action@v4
         with:
           registry: ghcr.io
@@ -45,13 +49,19 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       # GIT_SHA/GIT_DATE viram LABEL OCI + env PYTSTOP_GIT_* na imagem
       # (mesmos build args do compose e do `make k8s-up`).
-      - name: Build image
+      - name: Build images
         run: |
+          BUILD_DATE="$(git show -s --format=%cI HEAD)"
           docker build -t "${{ steps.meta.outputs.tag }}" \
             --build-arg GIT_SHA="${GITHUB_SHA}" \
-            --build-arg GIT_DATE="$(git show -s --format=%cI HEAD)" .
-      - name: Push image
-        run: docker push "${{ steps.meta.outputs.tag }}"
+            --build-arg GIT_DATE="${BUILD_DATE}" .
+          docker build -f ui/Dockerfile -t "${{ steps.meta.outputs.ui_tag }}" \
+            --build-arg GIT_SHA="${GITHUB_SHA}" \
+            --build-arg GIT_DATE="${BUILD_DATE}" .
+      - name: Push images
+        run: |
+          docker push "${{ steps.meta.outputs.tag }}"
+          docker push "${{ steps.meta.outputs.ui_tag }}"
 
   deploy:
     needs: image
@@ -84,10 +94,12 @@ jobs:
           password: ${{ secrets.GITHUB_TOKEN }}
       # `kind load` injeta a imagem nos nos -- sem imagePullSecret no
       # cluster (ADR-019; RFC-002 §4).
-      - name: Load image into kind
+      - name: Load images into kind
         run: |
           docker pull "${{ needs.image.outputs.tag }}"
           kind load docker-image "${{ needs.image.outputs.tag }}" --name pytstop
+          docker pull "${{ needs.image.outputs.ui_tag }}"
+          kind load docker-image "${{ needs.image.outputs.ui_tag }}" --name pytstop
       # metrics-server alimenta o HPA (RNF-023). `--kubelet-insecure-tls`
       # e o ajuste padrao para kind (certificados do kubelet sem SAN de
       # IP); o guard do grep torna o patch idempotente. A URL `latest` e
@@ -115,11 +127,14 @@ jobs:
           kubectl apply -f k8s/namespace.yaml
           # (a) Apoio primeiro: tudo menos deployment.yaml/relay.yaml (as
           # cargas da app, que so podem subir depois da migracao).
+          # O ui-deployment.yaml (apoio) tambem carrega a tag `dev`, com sufixo
+          # -ui -- o sed troca as duas tags de uma vez.
           for manifest in k8s/*.yaml; do
             case "$manifest" in
               k8s/deployment.yaml|k8s/relay.yaml) continue ;;
             esac
-            sed "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|${{ needs.image.outputs.tag }}|" "$manifest" | kubectl apply -f -
+            sed -e "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-app:dev|${{ needs.image.outputs.tag }}|" \
+                -e "s|ghcr.io/fiap-postech-sw-architecture/postech-sw-arch-p2-ui:dev|${{ needs.image.outputs.ui_tag }}|" "$manifest" | kubectl apply -f -
           done
           # (b) Migracao via Job dedicado antes do rollout (TD-015): resolve a corrida com N replicas
           kubectl -n pytstop delete job pytstop-migrate --ignore-not-found
