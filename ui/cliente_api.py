@@ -381,11 +381,13 @@ class ClienteApi:
     # acompanhamento publico (sem auth)
 
     def acompanhamento_publico(self, *, placa: str, documento: str) -> dict[str, Any]:
+        # POST (nao GET): placa/documento sao PII e viajam no corpo, fora da URL
+        # (issue #180). Consulta somente-leitura -- POST aqui e privacidade.
         return cast(
             "dict[str, Any]",
-            self.get(
+            self.post(
                 "/api/v1/acompanhamento",
-                params={"placa": placa, "documento": documento},
+                json_body={"placa": placa, "documento": documento},
             ),
         )
 

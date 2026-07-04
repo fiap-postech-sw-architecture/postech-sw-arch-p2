@@ -448,16 +448,27 @@ def test_helpers_lgpd(store: StateStore) -> None:
     assert registro[2][2] == {"tipo": "marketing"}
 
 
-def test_acompanhamento_publico_usa_query_params(store: StateStore) -> None:
-    chamadas: list[dict[str, str]] = []
+def test_acompanhamento_publico_envia_pii_no_corpo(store: StateStore) -> None:
+    # Issue #180: placa/documento sao PII e vao no CORPO (POST), nunca na URL.
+    import json as _json
+
+    metodos: list[str] = []
+    urls: list[str] = []
+    corpos: list[dict[str, str]] = []
 
     def handler(request: httpx.Request) -> httpx.Response:
-        chamadas.append(dict(request.url.params))
+        metodos.append(request.method)
+        urls.append(str(request.url))
+        corpos.append(_json.loads(request.content) if request.content else {})
         return httpx.Response(200, json={"status": "recebida"})
 
     api = ClienteApi(base_url="http://x", store=store, transport=_transport(handler))
     api.acompanhamento_publico(placa="ABC1D23", documento="11144477735")
-    assert chamadas == [{"placa": "ABC1D23", "documento": "11144477735"}]
+    assert metodos == ["POST"]
+    assert corpos == [{"placa": "ABC1D23", "documento": "11144477735"}]
+    # a PII nunca aparece na URL/query string.
+    assert "ABC1D23" not in urls[0]
+    assert "11144477735" not in urls[0]
 
 
 def test_helpers_ordens_de_servico(store: StateStore) -> None:

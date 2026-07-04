@@ -56,7 +56,7 @@ Demonstrar o fluxo completo via Swagger UI:
 10. **Aprovar orçamento**: `POST /ordens-de-servico/{id}/aprovacao` (verificar estoque decrementado)
 11. **Finalizar**: `POST /ordens-de-servico/{id}/finalizacao`
 12. **Entregar**: `POST /ordens-de-servico/{id}/entrega`
-13. **Consulta pública**: `GET /acompanhamento?placa=ABC1D23&documento=12345678901`
+13. **Consulta pública**: `POST /acompanhamento` com `{"placa":"ABC1D23","documento":"12345678901"}` no corpo (placa/CPF são PII, não vão na URL — issue #180)
 14. **Métricas**: `GET /ordens-de-servico/metricas`
 
 Demonstrar cancelamento (segunda OS):

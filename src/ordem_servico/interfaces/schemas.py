@@ -289,6 +289,29 @@ class OrdemListaResponse(BaseModel):
     limit: int = Field(description="Tamanho da pagina atual (1..100).")
 
 
+class AcompanhamentoRequest(BaseModel):
+    """Corpo da consulta publica de acompanhamento (POST).
+
+    Placa e documento viajam no CORPO, nunca na URL: sao PII e nao devem
+    parar em access log de proxy/ingress, historico de browser ou logs de
+    client HTTP (issue #180). As validacoes de tamanho espelham as que antes
+    ficavam nos ``Query(...)`` do endpoint.
+    """
+
+    model_config = ConfigDict(extra="forbid")
+
+    placa: str = Field(
+        min_length=7,
+        max_length=8,
+        description="Placa do veiculo (7 chars sem hifen ou 8 com hifen).",
+    )
+    documento: str = Field(
+        min_length=11,
+        max_length=18,
+        description="CPF (11 digitos) ou CNPJ (14 digitos), com ou sem mascara.",
+    )
+
+
 class AcompanhamentoResponse(_ComSituacao):
     """Projecao publica de acompanhamento (endpoint rate-limited).
 

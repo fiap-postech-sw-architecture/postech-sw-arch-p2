@@ -31,7 +31,7 @@ from typing import TYPE_CHECKING
 from uuid import UUID  # noqa: TC003
 
 import structlog
-from fastapi import APIRouter, Depends, Header, HTTPException, Query, status
+from fastapi import APIRouter, Depends, Header, HTTPException, status
 from starlette.requests import Request  # noqa: TC002
 
 from src.compartilhado.infraestrutura.webhook_signature import (
@@ -41,6 +41,7 @@ from src.compartilhado.infraestrutura.webhook_signature import (
 from src.compartilhado.interfaces.dependencies import obter_session
 from src.compartilhado.interfaces.middleware import limiter
 from src.ordem_servico.interfaces.schemas import (
+    AcompanhamentoRequest,
     AcompanhamentoResponse,
     DecisaoOrcamentoRequest,
 )
@@ -73,7 +74,7 @@ def saude() -> dict[str, str]:
     return {"status": "ok"}
 
 
-@router.get(
+@router.post(
     "/api/v1/acompanhamento",
     summary="Consulta publica de ordem por placa + documento",
     response_model=AcompanhamentoResponse,
@@ -85,22 +86,19 @@ def saude() -> dict[str, str]:
 @limiter.limit("10/minute")
 def acompanhamento(
     request: Request,
-    placa: str = Query(
-        min_length=7,
-        max_length=8,
-        description="Placa do veiculo (7 chars sem hifen ou 8 com hifen).",
-    ),
-    documento: str = Query(
-        min_length=11,
-        max_length=18,
-        description="CPF (11 digitos) ou CNPJ (14 digitos), com ou sem mascara.",
-    ),
+    corpo: AcompanhamentoRequest,
     session: Session = Depends(obter_session),
 ) -> AcompanhamentoResponse:
     """Retorna status/timestamps da ordem mais recente para o par informado.
 
     Raises:
         HTTPException 404: placa+documento nao casam com nenhuma ordem.
+
+    E ``POST`` (nao ``GET``) de proposito: placa e documento sao PII e viajam
+    no CORPO, para nao ficarem gravados na URL — access log de proxy/ingress,
+    historico de browser, logs de client HTTP (issue #180). A consulta e
+    idempotente/somente-leitura; o metodo POST aqui e escolha de privacidade,
+    nao de mutacao.
 
     O 404 e emitido tanto para placa inexistente quanto para documento
     incorreto — resposta de shape constante previne oracle attacks
@@ -112,7 +110,7 @@ def acompanhamento(
     )
 
     uc = obter_consultar_acompanhamento(session)
-    resultado = uc.executar(placa=placa, documento=documento)
+    resultado = uc.executar(placa=corpo.placa, documento=corpo.documento)
     if resultado is None:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,

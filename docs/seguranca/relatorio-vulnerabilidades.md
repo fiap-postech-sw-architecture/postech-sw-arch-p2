@@ -45,7 +45,7 @@ Endpoints expostos por papel (enum `Papel` em `src/autenticacao/dominio/papel.py
 - **Admin**: acesso completo -- gestão de usuários, CRUD de catálogo, aprovação de orçamento, ajuste de estoque, operações sensíveis.
 - **Atendente**: recepção -- CRUD de clientes/veículos, criação de OS, consulta de catálogo e de estoque.
 - **Mecanico**: operações técnicas -- diagnóstico, execução e finalização de OS, consulta e movimentação de estoque, consulta de catálogo.
-- **Público (não autenticado)**: apenas endpoints de autenticação (`POST /autenticacao/login`, `POST /autenticacao/refresh`) e consulta pública (`GET /acompanhamento`).
+- **Público (não autenticado)**: apenas endpoints de autenticação (`POST /autenticacao/login`, `POST /autenticacao/refresh`) e consulta pública (`POST /acompanhamento`, placa/documento no corpo — issue #180: PII fora da URL).
 
 Cada endpoint declara os papeis autorizados via `Depends(exigir_papel(...))`.
 

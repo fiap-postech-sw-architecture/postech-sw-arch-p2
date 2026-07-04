@@ -644,11 +644,15 @@ class SystemClient:
         placa: str,
         documento: str,
     ) -> models.AcompanhamentoResponse:
-        """Consulta publica — NAO requer autenticacao. Usado pelo cliente final."""
+        """Consulta publica — NAO requer autenticacao. Usado pelo cliente final.
+
+        POST com placa/documento no corpo (issue #180): sao PII e nao devem
+        parar na URL. Consulta somente-leitura; o POST aqui e privacidade.
+        """
         resp = self._request(
-            "GET",
+            "POST",
             "/api/v1/acompanhamento",
-            params={"placa": placa, "documento": documento},
+            json={"placa": placa, "documento": documento},
             authenticated=False,
         )
         return models.AcompanhamentoResponse._parse(resp.json())

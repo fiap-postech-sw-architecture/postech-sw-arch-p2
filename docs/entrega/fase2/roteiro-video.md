@@ -78,7 +78,7 @@ Swagger em **http://localhost:18000/docs** (collection Postman equivalente versi
 Sequência gravada:
 
 1. **RF-020 — abrir OS com serviços e peças**: `POST /api/v1/ordens-de-servico/` com `servicos` + `pecas` no payload → **201** com `id` único. Guardar o `id`.
-2. **RF-021 — situação no vocabulário do challenge**: `GET /api/v1/ordens-de-servico/{id}` → campo `situacao: "Recebida"`; mencionar que a consulta pública (`GET /api/v1/acompanhamento?placa=...&documento=...`) devolve o mesmo rótulo.
+2. **RF-021 — situação no vocabulário do challenge**: `GET /api/v1/ordens-de-servico/{id}` → campo `situacao: "Recebida"`; mencionar que a consulta pública (`POST /api/v1/acompanhamento`, placa/documento no corpo — issue #180) devolve o mesmo rótulo.
 3. **RF-023 — listagem ordenada**: `GET /api/v1/ordens-de-servico/` → ordem Em execução > Aguardando aprovação > Em diagnóstico > Recebida, mais antigas primeiro, sem finalizadas/entregues (exclusão lógica — `incluir_encerradas=true` mostra que continuam no banco).
 4. **RF-022 — decisão externa de orçamento** (avançar a OS nova até `aguardando_aprovacao`: diagnóstico → orçamento). No terminal:
 
