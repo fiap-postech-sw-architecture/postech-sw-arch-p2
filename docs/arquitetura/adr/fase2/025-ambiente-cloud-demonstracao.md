@@ -23,9 +23,9 @@ Adotar o **Azure Kubernetes Service (AKS) no _tier_ Free, provisionado por Terra
 
 - **Aditivo, não substituto.** O kind efêmero ([ADR-016](016-plataforma-kubernetes.md)/[ADR-019](019-pipeline-cicd-deploy.md)) continua sendo o CD que satisfaz o RNF-022: roda em todo push, prova a reprodutibilidade do zero, custo zero. O AKS é **um alvo a mais**, disparado sob demanda (`workflow_dispatch` no CI ou `make cloud-up` local), nunca em todo push. O `infra/azure/` é um módulo Terraform **irmão** de `infra/`, que permanece intocado.
 
-- **Config de custo mínimo.** Um único node `Standard_B2als_v2` (2 vCPU / 4 GB, burstável — o mais barato que roda o stack, que já cabe no kind com folga). **Sem LoadBalancer**: o ingress é exposto por **NodePort + `<ip-do-node>.nip.io`** — um LB Standard custaria ~US$ 18/mês só por existir, sem ganho para uma demo. PVC do PostgreSQL descartável: o `terraform destroy` apaga o disco e o seed idempotente repõe os dados fictícios no próximo `apply`.
+- **Config de custo mínimo.** Um único node `Standard_B2als_v2` (2 vCPU / 4 GB, burstável — o mais barato que roda o stack, que já cabe no kind com folga). **Exposição só da UI**, via `Service` type `LoadBalancer`: a UI (NiceGUI, _server-side_) é a única superfície pública; a API permanece `ClusterIP`, alcançada pela UI dentro do cluster. Um AKS Standard já provisiona um Load Balancer para _egress_ por padrão (o pull das imagens do GHCR exige saída), então o custo-base do LB é **inerente** — expor a UI reusa esse mesmo LB, somando apenas o IP público (~US$ 3,6/mês); NodePort **não** evitaria o LB de egress e ainda exigiria IP de node + regra de NSG, trocando confiabilidade por quase nenhuma economia. PVC do PostgreSQL descartável: o `terraform destroy` apaga o disco e o seed idempotente repõe os dados fictícios no próximo `apply`.
 
-- **Janela de disponibilidade.** **Julho/2026: node 24/7** (~US$ 30 no mês) — a banca abre a URL a qualquer hora, sem janela a acertar. **A partir de agosto: ambiente destruído por padrão**, reerguível sob demanda em ~10 min (o deploy é 100% reproduzível), com custo residual de centavos (apenas o _storage account_ do estado do Terraform). Um _trilho de longa duração_ gratuito para sempre (Oracle Cloud Always Free + k3s ARM) fica registrado como evolução no plano ([issue #188](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/188)), fora do escopo desta entrega — os _overlays_ e o pipeline são os mesmos; muda só o provisionamento.
+- **Janela de disponibilidade.** **Julho/2026: node 24/7** (~US$ 45–50 no mês, node + LB/IP) — a banca abre a URL a qualquer hora, sem janela a acertar. **A partir de agosto: ambiente destruído por padrão**, reerguível sob demanda em ~10 min (o deploy é 100% reproduzível), com custo residual de centavos (apenas o _storage account_ do estado do Terraform). Um _trilho de longa duração_ gratuito para sempre (Oracle Cloud Always Free + k3s ARM) fica registrado como evolução no plano ([issue #188](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/188)), fora do escopo desta entrega — os _overlays_ e o pipeline são os mesmos; muda só o provisionamento.
 
 - **Risco financeiro zero.** Conta de estudante sem cartão: crédito esgotado ⇒ recursos param, nunca cobrança. Um _budget alert_ (50%/80% do crédito) serve de aviso, não de trava financeira — a trava é a própria natureza da conta.
 
@@ -64,14 +64,14 @@ Adotar o **Azure Kubernetes Service (AKS) no _tier_ Free, provisionado por Terra
 ### Cluster cloud sempre-ligado com LoadBalancer e TLS gerenciado
 
 * Bom, porque daria hostname estável e TLS automático — o cenário de produção real
-* Ruim, porque o LoadBalancer Standard custa ~US$ 18/mês só por existir e o _sempre-ligado_ consome o crédito em ~2,5 meses; para uma demo, NodePort + `nip.io` + janela de julho entregam o mesmo valor a uma fração do custo
+* Ruim, porque o _sempre-ligado_ com hostname e TLS gerenciados consome o crédito continuamente (~2 meses só de node + LB) e agrega complexidade (cert-manager, DNS, ingress-nginx) que uma demo não exige; a janela de julho + destruição em agosto entregam o mesmo valor de avaliação a uma fração do custo
 
 ## Consequências
 
 ### Positivas
 
 * URL pública de demonstração durante a avaliação, sem tocar no CD canônico do kind — o RNF-022 segue coberto pelo caminho de custo zero, e o cloud é um adendo
-* Reuso máximo: mesmas imagens por SHA, mesmos manifests, mesmo Job de migração — o _overlay_ kustomize isola o pouco que difere (ENVIRONMENT, ingress, storage class, secrets reais)
+* Reuso máximo: mesmas imagens por SHA, mesmos manifests, mesmo Job de migração — o _overlay_ kustomize isola o pouco que difere (ENVIRONMENT, tipo do `Service` da UI, storage class, secrets reais)
 * IaC preservado como requisito vivo (RNF-021): `infra/azure/` é `terraform apply`/`destroy` como o kind, e `make cloud-up`/`make cloud-down` espelham `k8s-up`/`k8s-down`
 * Sem credencial de longa duração no repositório (OIDC) e sem segredo de demo no alvo público (guarda de startup em `production`)
 
@@ -79,7 +79,7 @@ Adotar o **Azure Kubernetes Service (AKS) no _tier_ Free, provisionado por Terra
 
 * Depende de um benefício de estudante renovável anualmente; a permanência de longo prazo exige migrar para o trilho OCI (previsto, mesmo pipeline)
 * Fora da janela de julho o ambiente é destruído: reabri-lo custa ~10 min de provisionamento — aceitável para demos agendadas, inadequado para uma vitrine sempre-no-ar (que seria o papel do trilho OCI)
-* NodePort + `nip.io` trocam hostname estável e TLS gerenciado por custo mínimo — apropriado para demo, não para produção
+* A UI é exposta por IP público via LoadBalancer em HTTP, sem hostname estável nem TLS gerenciado (`nip.io` + cert-manager ficam como evolução de go-live) — apropriado para demo, não para produção; e só a UI é pública, a API não
 
 ### Neutras
 
