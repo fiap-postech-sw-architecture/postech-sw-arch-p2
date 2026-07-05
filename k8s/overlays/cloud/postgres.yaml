@@ -1,0 +1,111 @@
+# PostgreSQL 16 in-cluster para o ambiente cloud (ADR-025).
+#
+# No kind o postgres é Terraform (infra/postgres.tf); no AKS ele é
+# manifest, aplicado pelo overlay via kubectl — o provider kubernetes
+# chained ao cluster no mesmo apply é frágil no AKS (ver infra/azure/main.tf).
+# Este manifest ESPELHA infra/postgres.tf: mesmo StatefulSet de réplica
+# única, PGDATA em subdiretório, probes pg_isready via TCP. Diferenças:
+# StorageClass `managed-csi` (disco gerenciado Azure, não o local-path do
+# kind) e as credenciais vêm do Secret `postgres-credentials` que o
+# `make cloud-up` cria a partir do ambiente (senha real, não commitada) —
+# a MESMA senha entra no DATABASE_URL do Secret `pytstop-secrets`.
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: pytstop-infra
+  labels:
+    app.kubernetes.io/part-of: pytstop
+---
+apiVersion: apps/v1
+kind: StatefulSet
+metadata:
+  name: postgres
+  namespace: pytstop-infra
+  labels:
+    app: postgres
+spec:
+  serviceName: postgres
+  replicas: 1
+  selector:
+    matchLabels:
+      app: postgres
+  template:
+    metadata:
+      labels:
+        app: postgres
+    spec:
+      containers:
+        - name: postgres
+          image: postgres:16
+          ports:
+            - name: postgres
+              containerPort: 5432
+          # Credenciais do Secret criado pelo make (POSTGRES_DB/USER/PASSWORD).
+          envFrom:
+            - secretRef:
+                name: postgres-credentials
+          # Subdiretório do mount: o raiz de um volume recém-provisionado
+          # pode não estar vazio (lost+found), o que faria o initdb recusar.
+          env:
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: postgres-data
+              mountPath: /var/lib/postgresql/data
+          # Mesmo probe do infra/postgres.tf: pg_isready via TCP (-h 127.0.0.1),
+          # porque o servidor temporário do initdb só escuta no socket unix.
+          readinessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 5
+            periodSeconds: 10
+            timeoutSeconds: 3
+            failureThreshold: 6
+          livenessProbe:
+            exec:
+              command:
+                - /bin/sh
+                - -c
+                - pg_isready -h 127.0.0.1 -U "$POSTGRES_USER" -d "$POSTGRES_DB"
+            initialDelaySeconds: 30
+            periodSeconds: 30
+            timeoutSeconds: 3
+            failureThreshold: 5
+          resources:
+            requests:
+              cpu: 100m
+              memory: 128Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
+  volumeClaimTemplates:
+    - metadata:
+        name: postgres-data
+      spec:
+        accessModes: [ReadWriteOnce]
+        # Disco gerenciado Azure (SSD). O `terraform destroy`/`make cloud-down`
+        # NÃO apaga PVCs de StatefulSet automaticamente — o make cuida disso
+        # (delete do namespace) para o disco não sobreviver e faturar parado.
+        storageClassName: managed-csi
+        resources:
+          requests:
+            storage: 1Gi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  namespace: pytstop-infra
+  labels:
+    app: postgres
+spec:
+  type: ClusterIP
+  selector:
+    app: postgres
+  ports:
+    - name: postgres
+      port: 5432
+      targetPort: 5432

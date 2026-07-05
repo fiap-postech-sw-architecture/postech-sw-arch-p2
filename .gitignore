@@ -12,6 +12,7 @@ build/
 venv/
 .env
 .env.dev
+.env.cloud
 
 .mypy_cache/
 .ruff_cache/

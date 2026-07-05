@@ -446,3 +446,101 @@ k8s-down:
 cd-local: k8s-up k8s-smoke
 	@echo ">> cd-local completo: cluster kind-$(K8S_CLUSTER) no ar com a API saudavel."
 	@echo ">> derrube com 'make k8s-down' quando terminar."
+
+# ---- Ambiente cloud de demonstracao — AKS (ADR-025; issue #188) ----
+# Alvo OPCIONAL e ADITIVO ao kind: da uma URL publica para a banca durante
+# julho. `infra/azure/` provisiona o cluster; o overlay `k8s/overlays/cloud/`
+# aplica postgres + app com ENVIRONMENT=production (guard de segredos ATIVO)
+# e a UI exposta por LoadBalancer (unica superficie publica; API ClusterIP).
+# As imagens vem do GHCR (publicas) pela tag do SHA que o CD ja buildou
+# (amd64) -- buildar amd64 no Mac (arm64) seria lento; reusamos o artefato.
+# Pre-requisito: `az login` na conta Azure for Students. O estado do
+# terraform e' local (uma maquina); o CD por OIDC (evolucao) usa backend remoto.
+AZ_RESOURCE_GROUP ?= rg-pytstop-demo
+AZ_CLOUD_CLUSTER  ?= pytstop-demo
+AZ_LOCATION       ?= brazilsouth
+CLOUD_NS           = pytstop
+CLOUD_ENV_FILE    ?= .env.cloud
+TF_AZURE           = terraform -chdir=infra/azure
+CLOUD_KUBECTL      = kubectl --context $(AZ_CLOUD_CLUSTER)
+
+.PHONY: cloud-up cloud-down cloud-url
+
+cloud-up:
+	@command -v az >/dev/null 2>&1 || { echo ">> ERRO: Azure CLI (az) nao instalado (brew install azure-cli)."; exit 1; }
+	@az account show >/dev/null 2>&1 || { echo ">> ERRO: nao logado no Azure. Rode 'az login'."; exit 1; }
+	@echo ">> [pre] verificando imagens no GHCR (tag $(GIT_SHA))..."
+	@docker manifest inspect $(K8S_TAG) >/dev/null 2>&1 || { \
+		echo ">> ERRO: imagem $(K8S_TAG) nao esta no GHCR."; \
+		echo ">>       o CD a publica em push na main; rode num commit ja buildado e"; \
+		echo ">>       confirme que os packages -app/-ui estao PUBLICOS no GHCR."; exit 1; }
+	@docker manifest inspect $(K8S_UI_TAG) >/dev/null 2>&1 || { echo ">> ERRO: imagem $(K8S_UI_TAG) nao esta no GHCR."; exit 1; }
+	@echo ">> [1/7] provisionando AKS (terraform infra/azure)..."
+	ARM_SUBSCRIPTION_ID="$$(az account show --query id -o tsv)" $(TF_AZURE) init -input=false
+	ARM_SUBSCRIPTION_ID="$$(az account show --query id -o tsv)" $(TF_AZURE) apply -auto-approve -input=false \
+		-var resource_group_name=$(AZ_RESOURCE_GROUP) -var cluster_name=$(AZ_CLOUD_CLUSTER) -var location=$(AZ_LOCATION)
+	@echo ">> [2/7] kubeconfig (az aks get-credentials)..."
+	az aks get-credentials --resource-group $(AZ_RESOURCE_GROUP) --name $(AZ_CLOUD_CLUSTER) --overwrite-existing
+	@echo ">> [3/7] segredos reais ($(CLOUD_ENV_FILE)) -> Secrets do cluster..."
+	bash scripts/cloud-secrets.sh $(CLOUD_ENV_FILE)
+	@set -a; . ./$(CLOUD_ENV_FILE); set +a; \
+	$(CLOUD_KUBECTL) create namespace $(CLOUD_NS) --dry-run=client -o yaml | $(CLOUD_KUBECTL) apply -f -; \
+	$(CLOUD_KUBECTL) create namespace pytstop-infra --dry-run=client -o yaml | $(CLOUD_KUBECTL) apply -f -; \
+	$(CLOUD_KUBECTL) -n pytstop-infra create secret generic postgres-credentials \
+		--from-literal=POSTGRES_DB=pytstop --from-literal=POSTGRES_USER=pytstop \
+		--from-literal=POSTGRES_PASSWORD="$$POSTGRES_PASSWORD" \
+		--dry-run=client -o yaml | $(CLOUD_KUBECTL) apply -f -; \
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) create secret generic pytstop-secrets \
+		--from-literal=JWT_SECRET="$$JWT_SECRET" \
+		--from-literal=ENCRYPTION_KEY="$$ENCRYPTION_KEY" \
+		--from-literal=DATABASE_URL="postgresql://pytstop:$$POSTGRES_PASSWORD@postgres.pytstop-infra.svc.cluster.local:5432/pytstop" \
+		--from-literal=ADMIN_EMAIL="$$ADMIN_EMAIL" --from-literal=ADMIN_PASSWORD="$$ADMIN_PASSWORD" \
+		--from-literal=ORCAMENTO_WEBHOOK_TOKEN="$$ORCAMENTO_WEBHOOK_TOKEN" \
+		--dry-run=client -o yaml | $(CLOUD_KUBECTL) apply -f -
+	@echo ">> [4/7] overlay (apoio + config + postgres + UI) com tag $(GIT_SHA)..."
+	kubectl kustomize --load-restrictor=LoadRestrictionsNone k8s/overlays/cloud | \
+		sed -e "s|$(K8S_APP_IMAGE):dev|$(K8S_TAG)|" -e "s|$(K8S_UI_IMAGE):dev|$(K8S_UI_TAG)|" | \
+		$(CLOUD_KUBECTL) apply -f -
+	@echo ">> [5/7] Job de migracao antes do rollout..."
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) delete job pytstop-migrate --ignore-not-found
+	sed "s|$(K8S_APP_IMAGE):dev|$(K8S_TAG)|" k8s/jobs/migration-job.yaml | $(CLOUD_KUBECTL) -n $(CLOUD_NS) apply -f -
+	@$(CLOUD_KUBECTL) -n $(CLOUD_NS) wait --for=condition=complete --timeout=300s job/pytstop-migrate & ok=$$!; \
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) wait --for=condition=failed --timeout=300s job/pytstop-migrate 2>/dev/null & bad=$$!; \
+	while kill -0 $$ok 2>/dev/null && kill -0 $$bad 2>/dev/null; do sleep 2; done; \
+	kill $$ok $$bad 2>/dev/null; \
+	if [ "$$($(CLOUD_KUBECTL) -n $(CLOUD_NS) get job pytstop-migrate -o jsonpath='{.status.succeeded}')" != "1" ]; then \
+		echo ">> ERRO: migracao falhou/expirou; abortando o deploy."; \
+		$(CLOUD_KUBECTL) -n $(CLOUD_NS) logs job/pytstop-migrate --tail=50 || true; exit 1; fi
+	@echo ">> [6/7] cargas da app (deployment + relay, schema ja em head)..."
+	for f in k8s/deployment.yaml k8s/relay.yaml; do \
+		sed "s|$(K8S_APP_IMAGE):dev|$(K8S_TAG)|" "$$f" | $(CLOUD_KUBECTL) apply -f - || exit 1; \
+	done
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-api --timeout=300s
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-relay --timeout=300s
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-ui --timeout=300s
+	@echo ">> [7/7] IP publico da UI + CORS..."
+	@$(MAKE) cloud-url
+
+# Descobre o IP do LoadBalancer da UI, ajusta CORS_ORIGINS para a URL real e
+# reinicia a API. Idempotente: rode de novo se o LB ainda nao tinha IP.
+cloud-url:
+	@ip=""; for i in $$(seq 1 30); do \
+		ip=$$($(CLOUD_KUBECTL) -n $(CLOUD_NS) get svc pytstop-ui -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true); \
+		[ -n "$$ip" ] && break; echo "   aguardando IP do LoadBalancer ($$i/30)..."; sleep 10; done; \
+	if [ -z "$$ip" ]; then echo ">> LB ainda sem IP publico; rode 'make cloud-url' de novo em ~1 min."; exit 1; fi; \
+	echo ">> ajustando CORS_ORIGINS=http://$$ip e reiniciando a API..."; \
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) patch configmap pytstop-config --type merge -p "{\"data\":{\"CORS_ORIGINS\":\"http://$$ip\"}}"; \
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout restart deployment/pytstop-api >/dev/null; \
+	echo ""; echo ">> UI publica: http://$$ip"; \
+	echo ">> preencha CLOUD-URL-FASE-2 (doc de entrega + README) com http://$$ip"
+
+# Destroi TUDO (cluster + node + LoadBalancer + IP + disco) -> custo zero. O
+# delete do namespace do banco antes libera o PVC/disco; o destroy do cluster
+# remove o resource group gerenciado (MC_*) com o resto.
+cloud-down:
+	@command -v az >/dev/null 2>&1 || { echo ">> ERRO: Azure CLI (az) nao instalado."; exit 1; }
+	-az aks get-credentials --resource-group $(AZ_RESOURCE_GROUP) --name $(AZ_CLOUD_CLUSTER) --overwrite-existing 2>/dev/null
+	-$(CLOUD_KUBECTL) delete namespace pytstop-infra --wait=false 2>/dev/null
+	ARM_SUBSCRIPTION_ID="$$(az account show --query id -o tsv)" $(TF_AZURE) destroy -auto-approve -input=false \
+		-var resource_group_name=$(AZ_RESOURCE_GROUP) -var cluster_name=$(AZ_CLOUD_CLUSTER) -var location=$(AZ_LOCATION)
+	@echo ">> ambiente cloud destruido (cluster + node + LB/IP + disco). Custo -> zero."
