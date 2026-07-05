@@ -95,6 +95,7 @@ Toda a documentação versionada está no próprio repositório, na pasta `docs/
 | ADR-022 | Transactional Outbox + relay para entrega de eventos de integração | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/022-transactional-outbox-relay.md |
 | ADR-023 | Rate limiter com storage compartilhado (Redis) sob HPA | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/023-rate-limiter-storage-compartilhado.md |
 | ADR-024 | Métricas de observabilidade com Prometheus e OpenTelemetry no relay | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/024-metricas-prometheus.md |
+| ADR-025 | Ambiente cloud de demonstração persistente (Azure for Students / AKS) — aditivo ao kind | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/025-ambiente-cloud-demonstracao.md |
 
 A documentação da fase 1 (Event Storming, Domain Storytelling, Linguagem Ubíqua, mapa de contextos, modelo de domínio, ADRs 001–014) permanece válida e versionada nas mesmas pastas — índice em [`docs/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/docs).
 
@@ -293,6 +294,12 @@ flowchart TB
 
 A regra de dependência deixou de ser convenção e virou gate: o [import-linter](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/pyproject.toml) roda na CI com três contratos — camadas `interfaces → aplicacao → dominio` em todos os contextos (inclusive o shared kernel), proibição de `dominio/` e `aplicacao/` importarem `infraestrutura/`, e independência entre contextos delimitados ([ADR-015](../../arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md)).
 
+### Ambiente cloud de demonstração (opcional — ADR-025)
+
+Além do cluster kind (dev, vídeo e CI), a solução pode ser publicada num **AKS gerenciado** como ambiente vivo para a banca navegar durante a avaliação — **aditivo**, sem alterar o CD canônico do RNF-022. Reusa as mesmas imagens por SHA, os mesmos manifests de `k8s/` (via _overlay_ kustomize) e o mesmo Job de migração; só o provisionamento (`infra/azure/`) e um punhado de ajustes de deploy (ENVIRONMENT de produção, ingress, segredos reais) diferem. A decisão, os trade-offs de custo e o fallback estão no [ADR-025](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/025-ambiente-cloud-demonstracao.md); o plano de execução na [issue #188](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/188).
+
+> **Ambiente de demonstração na nuvem:** `CLOUD-URL-FASE-2` — disponível **24/7 durante julho/2026** (horário de Brasília); a banca pode abrir a qualquer hora do mês. A partir de 01/08/2026 o ambiente é destruído para preservar o crédito de estudante e reerguível sob demanda em ~10 min (deploy 100% reproduzível). Custo mantido próximo de zero por _node_ único, ingress via NodePort + `nip.io` (sem LoadBalancer) e destruição fora da janela — risco financeiro zero (conta de estudante sem cartão). Este ambiente é um **diferencial**: o aceite do enunciado (vídeo + repositório + IaC do kind) não depende dele.
+
 ## 8. Conteúdo do PDF de submissão
 
 O PDF entregue no portal do aluno é gerado a partir deste documento pelo [`scripts/build-entrega-pdf.sh`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/scripts/build-entrega-pdf.sh), que acrescenta uma **capa ABNT** no início, renderiza os diagramas Mermaid como imagens, converte os links relativos em absolutos e anexa os apêndices de evidência. A seção 9 (Pendências) é um checklist interno da equipe e **não** é incluída no PDF submetido.
@@ -320,6 +327,7 @@ Ações manuais que permanecem com a equipe (nenhuma bloqueia a navegação do r
 | 3 | Preencher o link do vídeo na seção 3 deste documento e no README (marcadores `VIDEO-LINK-FASE-2`) | `docs/entrega/fase2/entrega-fase-2.md` + `README.md` |
 | 4 | Mergear as alterações finais (link do vídeo) na `main` — os links do PDF apontam para a `main` | PR do branch de entrega |
 | 5 | Regerar o PDF (`documento-entrega-fase-2.pdf`) com o link do vídeo preenchido e submeter no portal do aluno | fluxo descrito no [README da pasta](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/entrega/fase2/README.md) |
+| 6 _(opcional, diferencial)_ | Subir o ambiente cloud de demonstração e preencher a URL na seção 7 (marcador `CLOUD-URL-FASE-2`) | bootstrap Azure + Environment `cloud`; ver [ADR-025](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/025-ambiente-cloud-demonstracao.md) e [#188](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/188) |
 
 ---
 
