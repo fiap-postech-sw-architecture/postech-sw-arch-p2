@@ -1,0 +1,11 @@
+# Alvo cloud (ADR-025): expoe a API por LoadBalancer para a banca testar via
+# Postman (a collection do repo aponta para http://<ip>:8000). Sob
+# ENVIRONMENT=production o /docs fica off e todo endpoint exige auth (JWT) --
+# a exposicao publica e' segura porque os segredos sao reais e ha rate limit.
+apiVersion: v1
+kind: Service
+metadata:
+  name: pytstop-api
+  namespace: pytstop
+spec:
+  type: LoadBalancer

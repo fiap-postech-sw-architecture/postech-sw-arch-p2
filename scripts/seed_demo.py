@@ -85,9 +85,14 @@ def _obter_backend_url() -> str:
 def main() -> int:
     backend_url = _obter_backend_url()
     admin = _USUARIOS_SEED["admin"]
+    # No cloud (ADR-025) o admin tem senha FORTE do Secret, nao a senha dev
+    # fixa de ui/config.py: ADMIN_EMAIL/ADMIN_PASSWORD do ambiente tem
+    # prioridade. Local/compose (sem env) cai para a credencial seed padrao.
+    admin_email = os.environ.get("ADMIN_EMAIL") or admin.email
+    admin_senha = os.environ.get("ADMIN_PASSWORD") or admin.senha
 
     print(f">> seed_demo alvo: {backend_url}")
-    print(f">> logando como admin: {admin.email}")
+    print(f">> logando como admin: {admin_email}")
 
     # Store in-memory standalone — nao precisamos do ``nicegui.app.storage``
     # pra rodar em CLI; o StateStore sem backend cai pra um dict in-memory.
@@ -97,7 +102,7 @@ def main() -> int:
     api = ClienteApi(base_url=backend_url, store=store)
 
     try:
-        api.login(email=admin.email, senha=admin.senha)
+        api.login(email=admin_email, senha=admin_senha)
     except ApiError as exc:
         print(f"!! Login admin falhou: {exc}")
         print("   Rode 'make seed-users-docker' (ou seed_usuarios.py) antes.")

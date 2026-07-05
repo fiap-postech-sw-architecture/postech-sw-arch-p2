@@ -1,18 +1,17 @@
-# Patch do ConfigMap para o alvo cloud (ADR-025). Merge estratégico:
-# só as chaves aqui mudam; o resto do pytstop-config (SMTP, pool, outbox,
-# rate limit) é herdado da base.
+# Patch do ConfigMap para o alvo cloud (ADR-025). Merge estrategico: so a
+# chave aqui muda; o resto do pytstop-config (SMTP, pool, outbox, rate limit,
+# OTEL) e' herdado da base.
 #
-# - ENVIRONMENT=production ATIVA o validar_segredos_no_startup (issue #74):
-#   o boot ABORTA se algum literal de demo vazar — força os segredos reais
-#   que o make injeta via Secret. É a diferença de segurança central entre
-#   o kind (development, segredos de demo) e o ambiente público.
-# - OTEL_ENABLED=false: o overlay cloud não sobe Jaeger (memória do node
-#   único de 4 GB), então desliga a exportação de traces para não gerar
-#   erro de conexão a um endpoint inexistente.
+# ENVIRONMENT=production ATIVA o validar_segredos_no_startup (issue #74): o
+# boot ABORTA se algum literal de demo vazar -- forca os segredos reais que o
+# make injeta via Secret. E' a diferenca de seguranca central entre o kind
+# (development, segredos de demo) e o ambiente publico.
 #
-# CORS_ORIGINS NÃO é setado aqui: só a UI é pública e ela é server-side
-# (o browser não faz cross-origin para a API). O make ajusta CORS_ORIGINS
-# para a URL pública real depois que o LoadBalancer recebe o IP.
+# OTEL fica LIGADO (herdado da base): o overlay cloud SOBE o Jaeger, entao os
+# traces tem para onde ir e a UI do Jaeger (exposta por LoadBalancer) mostra
+# dados para a banca. CORS_ORIGINS NAO e' setado aqui: so a UI e' navegada por
+# browser e ela e' server-side; o make ajusta CORS para a URL da UI apos o LB
+# receber o IP.
 apiVersion: v1
 kind: ConfigMap
 metadata:
@@ -20,4 +19,3 @@ metadata:
   namespace: pytstop
 data:
   ENVIRONMENT: "production"
-  OTEL_ENABLED: "false"

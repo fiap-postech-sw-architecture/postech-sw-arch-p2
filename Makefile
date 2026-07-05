@@ -459,12 +459,16 @@ cd-local: k8s-up k8s-smoke
 AZ_RESOURCE_GROUP ?= rg-pytstop-demo
 AZ_CLOUD_CLUSTER  ?= pytstop-demo
 AZ_LOCATION       ?= brazilsouth
+# Node: B2als_v2 (2 vCPU/4 GB) cabe UI+API+relay+redis+postgres+jaeger+
+# prometheus sob carga de demo. Se algum pod for OOMKilled, suba para
+# Standard_B2ms (8 GB, ~2x o custo): `make cloud-up AZ_NODE_SIZE=Standard_B2ms`.
+AZ_NODE_SIZE      ?= Standard_B2als_v2
 CLOUD_NS           = pytstop
 CLOUD_ENV_FILE    ?= .env.cloud
 TF_AZURE           = terraform -chdir=infra/azure
 CLOUD_KUBECTL      = kubectl --context $(AZ_CLOUD_CLUSTER)
 
-.PHONY: cloud-up cloud-down cloud-url
+.PHONY: cloud-up cloud-down cloud-url cloud-seed
 
 cloud-up:
 	@command -v az >/dev/null 2>&1 || { echo ">> ERRO: Azure CLI (az) nao instalado (brew install azure-cli)."; exit 1; }
@@ -478,7 +482,8 @@ cloud-up:
 	@echo ">> [1/7] provisionando AKS (terraform infra/azure)..."
 	ARM_SUBSCRIPTION_ID="$$(az account show --query id -o tsv)" $(TF_AZURE) init -input=false
 	ARM_SUBSCRIPTION_ID="$$(az account show --query id -o tsv)" $(TF_AZURE) apply -auto-approve -input=false \
-		-var resource_group_name=$(AZ_RESOURCE_GROUP) -var cluster_name=$(AZ_CLOUD_CLUSTER) -var location=$(AZ_LOCATION)
+		-var resource_group_name=$(AZ_RESOURCE_GROUP) -var cluster_name=$(AZ_CLOUD_CLUSTER) \
+		-var location=$(AZ_LOCATION) -var node_size=$(AZ_NODE_SIZE)
 	@echo ">> [2/7] kubeconfig (az aks get-credentials)..."
 	az aks get-credentials --resource-group $(AZ_RESOURCE_GROUP) --name $(AZ_CLOUD_CLUSTER) --overwrite-existing
 	@echo ">> [3/7] segredos reais ($(CLOUD_ENV_FILE)) -> Secrets do cluster..."
@@ -518,21 +523,49 @@ cloud-up:
 	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-api --timeout=300s
 	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-relay --timeout=300s
 	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-ui --timeout=300s
-	@echo ">> [7/7] IP publico da UI + CORS..."
+	@echo ">> [7/7] IPs publicos + CORS + dados de demo..."
 	@$(MAKE) cloud-url
+	-@$(MAKE) cloud-seed
 
-# Descobre o IP do LoadBalancer da UI, ajusta CORS_ORIGINS para a URL real e
-# reinicia a API. Idempotente: rode de novo se o LB ainda nao tinha IP.
+# Descobre os IPs dos 4 LoadBalancers (UI, API, Jaeger, Prometheus), ajusta o
+# CORS_ORIGINS para a URL da UI e imprime os acessos da banca. Idempotente:
+# rode de novo se algum LB ainda nao tinha IP.
 cloud-url:
-	@ip=""; for i in $$(seq 1 30); do \
-		ip=$$($(CLOUD_KUBECTL) -n $(CLOUD_NS) get svc pytstop-ui -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true); \
-		[ -n "$$ip" ] && break; echo "   aguardando IP do LoadBalancer ($$i/30)..."; sleep 10; done; \
-	if [ -z "$$ip" ]; then echo ">> LB ainda sem IP publico; rode 'make cloud-url' de novo em ~1 min."; exit 1; fi; \
-	echo ">> ajustando CORS_ORIGINS=http://$$ip e reiniciando a API..."; \
-	$(CLOUD_KUBECTL) -n $(CLOUD_NS) patch configmap pytstop-config --type merge -p "{\"data\":{\"CORS_ORIGINS\":\"http://$$ip\"}}"; \
+	@set -e; \
+	echo ">> aguardando IPs dos 4 LoadBalancers (pode levar 1-3 min)..."; \
+	UI_IP=""; API_IP=""; JAEGER_IP=""; PROM_IP=""; \
+	for i in $$(seq 1 30); do \
+		UI_IP=$$($(CLOUD_KUBECTL) -n $(CLOUD_NS) get svc pytstop-ui -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true); \
+		API_IP=$$($(CLOUD_KUBECTL) -n $(CLOUD_NS) get svc pytstop-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true); \
+		JAEGER_IP=$$($(CLOUD_KUBECTL) -n $(CLOUD_NS) get svc jaeger -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true); \
+		PROM_IP=$$($(CLOUD_KUBECTL) -n $(CLOUD_NS) get svc prometheus -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true); \
+		[ -n "$$UI_IP" ] && [ -n "$$API_IP" ] && [ -n "$$JAEGER_IP" ] && [ -n "$$PROM_IP" ] && break; \
+		echo "   ... ($$i/30) UI=$$UI_IP API=$$API_IP JAEGER=$$JAEGER_IP PROM=$$PROM_IP"; sleep 10; \
+	done; \
+	if [ -z "$$UI_IP" ]; then echo ">> LBs ainda sem IP; rode 'make cloud-url' de novo em ~1 min."; exit 1; fi; \
+	echo ">> CORS_ORIGINS=http://$$UI_IP:8080 + restart da API..."; \
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) patch configmap pytstop-config --type merge -p "{\"data\":{\"CORS_ORIGINS\":\"http://$$UI_IP:8080\"}}"; \
 	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout restart deployment/pytstop-api >/dev/null; \
-	echo ""; echo ">> UI publica: http://$$ip"; \
-	echo ">> preencha CLOUD-URL-FASE-2 (doc de entrega + README) com http://$$ip"
+	echo ""; \
+	echo "==================== ACESSOS DA BANCA ===================="; \
+	echo "  UI (app)      http://$$UI_IP:8080"; \
+	echo "  API (Postman) http://$$API_IP:8000"; \
+	echo "  Jaeger        http://$$JAEGER_IP:16686"; \
+	echo "  Prometheus    http://$$PROM_IP:9090"; \
+	echo "========================================================="; \
+	echo ">> preencha CLOUD-URL-FASE-2 (doc de entrega + README) com http://$$UI_IP:8080"
+
+# Popula dados de demo (clientes, veiculos, catalogo, estoque, OS em varios
+# estados) na nuvem, via a API publica, logando com o admin FORTE do
+# .env.cloud (seed_demo aceita ADMIN_EMAIL/ADMIN_PASSWORD do ambiente).
+# Best-effort no cloud-up; rode manualmente se quiser repovoar.
+cloud-seed:
+	@[ -f $(CLOUD_ENV_FILE) ] || { echo ">> ERRO: $(CLOUD_ENV_FILE) ausente; rode 'make cloud-up' antes."; exit 1; }
+	@API_IP=$$($(CLOUD_KUBECTL) -n $(CLOUD_NS) get svc pytstop-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true); \
+	if [ -z "$$API_IP" ]; then echo ">> API sem IP publico ainda; rode 'make cloud-url' e tente de novo."; exit 1; fi; \
+	echo ">> populando dados de demo via http://$$API_IP:8000 ..."; \
+	set -a; . ./$(CLOUD_ENV_FILE); set +a; \
+	BACKEND_URL="http://$$API_IP:8000" $(PY_UI)python scripts/seed_demo.py
 
 # Destroi TUDO (cluster + node + LoadBalancer + IP + disco) -> custo zero. O
 # delete do namespace do banco antes libera o PVC/disco; o destroy do cluster
