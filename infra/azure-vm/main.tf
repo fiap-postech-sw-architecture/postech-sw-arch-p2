@@ -73,6 +73,21 @@ resource "azurerm_network_security_group" "vm" {
     destination_address_prefix = "*"
   }
 
+  # API server do k3s (6443), restrito ao operador: o make aplica os
+  # manifests com kubectl DA MÁQUINA DO OPERADOR via kubeconfig exportado —
+  # sem esta regra o kubectl trava (NSG só abria SSH + portas de demo).
+  security_rule {
+    name                       = "k8s-api-operador"
+    priority                   = 105
+    direction                  = "Inbound"
+    access                     = "Allow"
+    protocol                   = "Tcp"
+    source_port_range          = "*"
+    destination_port_range     = "6443"
+    source_address_prefix      = var.ssh_allowed_cidr
+    destination_address_prefix = "*"
+  }
+
   # Superfícies da demo (ADR-025): UI, API, Jaeger, Prometheus.
   # Dados 100% fictícios; API exige JWT e tem rate limit (production).
   security_rule {

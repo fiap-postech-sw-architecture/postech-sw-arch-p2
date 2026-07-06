@@ -587,7 +587,7 @@ cloud-aks-down:
 # SPOT=false troca para on-demand (janela critica da banca) SEM mudar o IP —
 # o IP publico e' recurso separado no Terraform e sobrevive ao recreate.
 VM_RG        ?= rg-pytstop-vm
-VM_LOCATION  ?= eastus
+VM_LOCATION  ?= northcentralus
 VM_SIZE      ?= Standard_D2s_v3
 SPOT         ?= true
 VM_SSH_KEY    = .vm-demo-ssh

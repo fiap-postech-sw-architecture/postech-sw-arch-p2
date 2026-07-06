@@ -5,9 +5,9 @@ variable "resource_group_name" {
 }
 
 variable "location" {
-  description = "Região Azure. eastus: permitida pela policy da conta de estudante, maior capacidade spot e ~menor preço (northcentralus é o fallback)."
+  description = "Região Azure. northcentralus: permitida pela policy, com capacidade spot COMPROVADA no deploy real e o menor preço; eastus recusou spot por capacity (2026-07)."
   type        = string
-  default     = "eastus"
+  default     = "northcentralus"
 }
 
 variable "vm_size" {
