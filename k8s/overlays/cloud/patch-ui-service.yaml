@@ -1,0 +1,11 @@
+# Patch do Service da UI para o alvo cloud (ADR-025): ClusterIP -> LoadBalancer.
+# A UI (NiceGUI, server-side) é a ÚNICA superfície pública; a API permanece
+# ClusterIP e é alcançada pela UI dentro do cluster. O LoadBalancer reusa o
+# LB de egress que o AKS já provisiona (custo adicional só do IP público).
+apiVersion: v1
+kind: Service
+metadata:
+  name: pytstop-ui
+  namespace: pytstop
+spec:
+  type: LoadBalancer

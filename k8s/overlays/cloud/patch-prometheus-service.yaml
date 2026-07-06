@@ -1,0 +1,10 @@
+# Alvo cloud (ADR-025): expoe a UI/PromQL do Prometheus (porta 9090) por
+# LoadBalancer para a banca ver as metricas do relay. Backend efemero, sem
+# persistencia, so metricas de demo.
+apiVersion: v1
+kind: Service
+metadata:
+  name: prometheus
+  namespace: pytstop
+spec:
+  type: LoadBalancer

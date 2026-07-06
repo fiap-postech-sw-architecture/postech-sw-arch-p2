@@ -1,0 +1,21 @@
+# Patch do ConfigMap para o alvo cloud (ADR-025). Merge estrategico: so a
+# chave aqui muda; o resto do pytstop-config (SMTP, pool, outbox, rate limit,
+# OTEL) e' herdado da base.
+#
+# ENVIRONMENT=production ATIVA o validar_segredos_no_startup (issue #74): o
+# boot ABORTA se algum literal de demo vazar -- forca os segredos reais que o
+# make injeta via Secret. E' a diferenca de seguranca central entre o kind
+# (development, segredos de demo) e o ambiente publico.
+#
+# OTEL fica LIGADO (herdado da base): o overlay cloud SOBE o Jaeger, entao os
+# traces tem para onde ir e a UI do Jaeger (exposta por LoadBalancer) mostra
+# dados para a banca. CORS_ORIGINS NAO e' setado aqui: so a UI e' navegada por
+# browser e ela e' server-side; o make ajusta CORS para a URL da UI apos o LB
+# receber o IP.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pytstop-config
+  namespace: pytstop
+data:
+  ENVIRONMENT: "production"

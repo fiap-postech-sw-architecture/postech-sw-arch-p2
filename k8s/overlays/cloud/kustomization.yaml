@@ -1,0 +1,42 @@
+# Overlay cloud (ADR-025) — AKS de demonstracao publica.
+#
+# Reusa os manifests da base k8s/ (referenciados por caminho relativo, sem um
+# kustomization.yaml na base — assim o `kubectl apply -f k8s/*.yaml` do fluxo
+# kind nao e' afetado). Cobre o GRUPO DE APOIO + config + postgres + UI +
+# observabilidade. Expoe QUATRO superficies por LoadBalancer (4 IPs publicos):
+# UI, API (Postman), Jaeger (traces) e Prometheus (metricas) — "dar acesso a
+# banca" = passar os IPs; sem dominio/TLS (demo). O `make cloud-up` aplica,
+# DEPOIS e separadamente, na ordem do k8s-up:
+#   1. Secret real (pytstop-secrets + postgres-credentials) — do ambiente.
+#   2. ESTE overlay (kubectl apply -k), com sed nas tags de imagem.
+#   3. Job de migracao (k8s/jobs/migration-job.yaml) + wait.
+#   4. deployment.yaml + relay.yaml (schema ja em head).
+#
+# Ficam DE FORA daqui de proposito:
+#   - deployment.yaml / relay.yaml — cargas da app, sobem so apos a migracao;
+#   - secret.yaml — segredos de DEMO; sob ENVIRONMENT=production o guard
+#     abortaria o boot. O make cria o Secret real a partir do ambiente;
+#   - jobs/migration-job.yaml — aplicado a parte, com wait (gate do rollout).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../namespace.yaml
+  - ../../configmap.yaml
+  - ../../ui-configmap.yaml
+  - ../../service.yaml
+  - ../../hpa.yaml
+  - ../../redis.yaml
+  - ../../mailpit.yaml
+  - ../../jaeger.yaml
+  - ../../prometheus.yaml
+  - ../../ui-deployment.yaml
+  - ../../ui-service.yaml
+  - postgres.yaml
+
+patches:
+  - path: patch-configmap.yaml
+  - path: patch-ui-service.yaml
+  - path: patch-api-service.yaml
+  - path: patch-jaeger-service.yaml
+  - path: patch-prometheus-service.yaml

@@ -1,0 +1,11 @@
+# Alvo cloud (ADR-025): expoe a UI do Jaeger (porta 16686) por LoadBalancer
+# para a banca inspecionar traces. Dados ficticios de demo; a porta OTLP de
+# ingest (4317) tambem fica publica, sem risco relevante (so injecao de spans
+# falsos num backend efemero de demonstracao).
+apiVersion: v1
+kind: Service
+metadata:
+  name: jaeger
+  namespace: pytstop
+spec:
+  type: LoadBalancer
