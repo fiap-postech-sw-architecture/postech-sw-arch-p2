@@ -94,5 +94,6 @@ Estender o pipeline com um **estágio de CD disparado por push na main: build e 
 * Fonte das evidências: fichamentos das disciplinas GitHub Actions (Aulas 01, 02, 04 e 05) e DevOps (Aulas 01 e 03) da fase 2 (FIAP Pos Tech). As citações "(Disciplina, Aula NN)" referem-se ao material oficial
 * Requisito formal: RNF-022 ([gap-analysis-fase-2.md](../../../requisitos/fase2/gap-analysis-fase-2.md)); exigência original na seção "Integração Contínua/Entrega Contínua (CI/CD)" do [desafio-tech-fase-2.md](../../../requisitos/fase2/desafio-tech-fase-2.md)
 * O material não cita o GHCR nominalmente — o catálogo da Aula 05 cobre Docker Hub, GCR, ECR, ACR, GitLab Container Registry, Quay e JFrog; o GHCR ocupa no GitHub o mesmo papel que o GitLab Container Registry ocupa no GitLab, e o projeto já o usa desde a fase 1
+* A alternativa "CD para cluster cloud persistente", rejeitada aqui por custo, conta pessoal e credencial de longa duração, foi **revisitada de forma aditiva** no [ADR-025](025-ambiente-cloud-demonstracao.md) — Azure for Students (sem cartão) e OIDC federado derrubam os três impeditivos, e o AKS entra como alvo opcional de demonstração pública sem substituir o kind efêmero deste ADR
 
 > [↑ Raiz do projeto](../../../../README.md) · [↑ Arquitetura](../../README.md)
