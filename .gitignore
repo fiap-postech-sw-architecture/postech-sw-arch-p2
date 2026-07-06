@@ -14,6 +14,12 @@ venv/
 .env.dev
 .env.cloud
 
+# Demo em VM + k3s (ADR-025 adendo): chave SSH dedicada + kubeconfig exportado
+.vm-demo-ssh
+.vm-demo-ssh.pub
+.kube-vm-config
+.vm-demo-known_hosts
+
 .mypy_cache/
 .ruff_cache/
 .pytest_cache/

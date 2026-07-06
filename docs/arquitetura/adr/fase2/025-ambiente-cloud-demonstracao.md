@@ -19,9 +19,9 @@ Com os três motivos da rejeição endereçados, o problema é: **como oferecer 
 
 ## Decisão
 
-Adotar o **Azure Kubernetes Service (AKS) no _tier_ Free, provisionado por Terraform em `infra/azure/`, como ambiente cloud de demonstração OPCIONAL e ADITIVO ao kind** — mesmas imagens GHCR (por SHA), mesmos manifests de `k8s/` via _overlay_ kustomize, mesmo Job de migração antes do rollout ([ADR-019](019-pipeline-cicd-deploy.md); TD-015).
+Adotar o **Azure Kubernetes Service (AKS) no _tier_ Free, provisionado por Terraform em `infra/azure-aks/`, como ambiente cloud de demonstração OPCIONAL e ADITIVO ao kind** — mesmas imagens GHCR (por SHA), mesmos manifests de `k8s/` via _overlay_ kustomize, mesmo Job de migração antes do rollout ([ADR-019](019-pipeline-cicd-deploy.md); TD-015).
 
-- **Aditivo, não substituto.** O kind efêmero ([ADR-016](016-plataforma-kubernetes.md)/[ADR-019](019-pipeline-cicd-deploy.md)) continua sendo o CD que satisfaz o RNF-022: roda em todo push, prova a reprodutibilidade do zero, custo zero. O AKS é **um alvo a mais**, disparado sob demanda (`workflow_dispatch` no CI ou `make cloud-up` local), nunca em todo push. O `infra/azure/` é um módulo Terraform **irmão** de `infra/`, que permanece intocado.
+- **Aditivo, não substituto.** O kind efêmero ([ADR-016](016-plataforma-kubernetes.md)/[ADR-019](019-pipeline-cicd-deploy.md)) continua sendo o CD que satisfaz o RNF-022: roda em todo push, prova a reprodutibilidade do zero, custo zero. O AKS é **um alvo a mais**, disparado sob demanda (`workflow_dispatch` no CI ou `make cloud-aks-up` local), nunca em todo push. O `infra/azure-aks/` é um módulo Terraform **irmão** de `infra/`, que permanece intocado.
 
 - **Config de custo mínimo.** Um único node `Standard_B2als_v2` (2 vCPU / 4 GB, burstável — o mais barato que roda o stack, que já cabe no kind com folga; upgrade para `Standard_B2ms` de 8 GB se algum pod for OOMKilled). **Exposição por `Service` type `LoadBalancer`** — quatro superfícies que a banca acessa por IP: **UI** (navegar o app), **API** (testar com Postman), **Jaeger** (traces) e **Prometheus** (métricas). Sem ingress/domínio/TLS: "dar acesso à banca" é passar os IPs (a relaxação de "não precisa ser público de verdade" permite bare-IP). Um AKS Standard já provisiona um Load Balancer para _egress_ por padrão (o pull das imagens do GHCR exige saída), então o custo-base do LB é **inerente** — os quatro `Service`s reusam esse mesmo LB, somando só os IPs públicos (~US$ 3,6/mês cada); NodePort **não** evitaria o LB de egress e ainda exigiria regra de NSG por porta. A API pública é segura por construção: `ENVIRONMENT=production` desliga o `/docs`, todo endpoint exige JWT e há rate limit; Jaeger/Prometheus expõem só dados fictícios de um backend efêmero. PVC do PostgreSQL descartável: o `terraform destroy` apaga o disco e o seed idempotente repõe os dados fictícios no próximo `apply`.
 
@@ -29,7 +29,7 @@ Adotar o **Azure Kubernetes Service (AKS) no _tier_ Free, provisionado por Terra
 
 - **Risco financeiro zero.** Conta de estudante sem cartão: crédito esgotado ⇒ recursos param, nunca cobrança. Um _budget alert_ (50%/80% do crédito) serve de aviso, não de trava financeira — a trava é a própria natureza da conta.
 
-- **Credenciais por OIDC, segredos por Environment.** O pipeline loga via _federated credential_ (GitHub Actions ↔ Microsoft Entra ID), sem senha estática. Os segredos reais de produção (`JWT_SECRET`, `ENCRYPTION_KEY`, `ADMIN_*`, `ORCAMENTO_WEBHOOK_TOKEN`) vivem no **GitHub Environment `cloud`** com _required reviewers_ (aprovação manual antes de qualquer deploy) e são materializados num `Secret` do Kubernetes na hora do deploy — nunca commitados. **Fallback documentado:** tenants de universidade frequentemente bloqueiam o registro de _app_ pelo aluno; se o `az ad app create` for negado, o deploy roda **localmente** via `make cloud-up` sob `az login` — o mesmo IaC, sem CI. O job de CD por OIDC é um bônus, não um pré-requisito da URL pública.
+- **Credenciais por OIDC, segredos por Environment.** O pipeline loga via _federated credential_ (GitHub Actions ↔ Microsoft Entra ID), sem senha estática. Os segredos reais de produção (`JWT_SECRET`, `ENCRYPTION_KEY`, `ADMIN_*`, `ORCAMENTO_WEBHOOK_TOKEN`) vivem no **GitHub Environment `cloud`** com _required reviewers_ (aprovação manual antes de qualquer deploy) e são materializados num `Secret` do Kubernetes na hora do deploy — nunca commitados. **Fallback documentado:** tenants de universidade frequentemente bloqueiam o registro de _app_ pelo aluno; se o `az ad app create` for negado, o deploy roda **localmente** via `make cloud-aks-up` sob `az login` — o mesmo IaC, sem CI. O job de CD por OIDC é um bônus, não um pré-requisito da URL pública.
 
 - **Produção de verdade ativa a guarda de segredos.** O _overlay_ cloud seta `ENVIRONMENT=production`, o que **ativa** o `validar_segredos_no_startup` (issue #74): o boot **aborta** se qualquer literal de demonstração vazar para o ambiente exposto, forçando os segredos fortes do Environment. Isso fecha, no alvo público, a porta que o ConfigMap do kind mantém aberta de propósito (`development`, com os literais de `secret.yaml` para a demo local).
 
@@ -49,7 +49,7 @@ Adotar o **Azure Kubernetes Service (AKS) no _tier_ Free, provisionado por Terra
 * Bom, porque a conta sem cartão dá **risco financeiro zero absoluto** — propriedade que nenhuma outra opção gerenciada tem
 * Bom, porque os nodes são amd64: o GHCR já publica amd64, sem retrabalho de imagem multi-arch
 * Ruim, porque depende de renovação anual do crédito de estudante — mitigado pelo trilho OCI de longa duração, já previsto
-* Ruim, porque o registro de _app_ para OIDC pode ser barrado pelo tenant institucional — mitigado pelo fallback `make cloud-up` local
+* Ruim, porque o registro de _app_ para OIDC pode ser barrado pelo tenant institucional — mitigado pelo fallback `make cloud-aks-up` local
 
 ### Manter apenas o kind efêmero (status quo do ADR-019)
 
@@ -72,7 +72,7 @@ Adotar o **Azure Kubernetes Service (AKS) no _tier_ Free, provisionado por Terra
 
 * URL pública de demonstração durante a avaliação, sem tocar no CD canônico do kind — o RNF-022 segue coberto pelo caminho de custo zero, e o cloud é um adendo
 * Reuso máximo: mesmas imagens por SHA, mesmos manifests, mesmo Job de migração — o _overlay_ kustomize isola o pouco que difere (ENVIRONMENT, tipo dos `Service`s expostos, storage class, secrets reais)
-* IaC preservado como requisito vivo (RNF-021): `infra/azure/` é `terraform apply`/`destroy` como o kind, e `make cloud-up`/`make cloud-down` espelham `k8s-up`/`k8s-down`
+* IaC preservado como requisito vivo (RNF-021): `infra/azure-aks/` é `terraform apply`/`destroy` como o kind, e `make cloud-aks-up`/`make cloud-aks-down` espelham `k8s-up`/`k8s-down`
 * Sem credencial de longa duração no repositório (OIDC) e sem segredo de demo no alvo público (guarda de startup em `production`)
 
 ### Negativas
@@ -99,5 +99,22 @@ Adotar o **Azure Kubernetes Service (AKS) no _tier_ Free, provisionado por Terra
 * Plano de execução completo, estimativas de custo e sequência de PRs: [issue #188](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/188). Pré-requisitos de _go-live_: [#180](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/180) (fechada) e [#184](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/184) (gating do CD); a UI no cluster ([#186](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/186)) já entregue, herdada pelo overlay
 * Este ambiente **não é exigido pelo enunciado** da fase 2 — o aceite (vídeo + repositório + IaC do kind) está coberto sem ele; é um diferencial de demonstração, e sua ausência não bloqueia a submissão
 * Azure for Students e a elegibilidade do e-mail FIAP verificados em 2026-07; o crédito observado foi US$ 100 com validade de 365 dias e sem cartão
+
+## Adendo (2026-07-06) — AKS bloqueado pela conta de estudante; VM + k3s como veículo da demo
+
+A execução real revelou um bloqueio **triplo** da subscription Azure for Students, não previsto na decisão original (verificado por cinco tentativas de deploy e um pedido de quota):
+
+1. **Policy de região**: apenas `eastus`, `northcentralus`, `southcentralus`, `chilecentral` e `southafricanorth` (o `brazilsouth` planejado retorna 403 `RequestDisallowedByAzure`).
+2. **Allowlist de SKU do AKS**: o system pool só aceita famílias **v5–v7** — B-series (burstável, barata) e v2/v3/v4 são recusadas pelo AKS **mesmo com quota disponível** (testado com `B2als_v2` e `D2s_v3`).
+3. **Quota zero**: todas as famílias v5–v7 têm 0 vCPUs de quota em todas as 5 regiões permitidas; o pedido de aumento (via portal) foi **negado**. As únicas famílias com quota são B-series (vetada no AKS) e GPU (~US$ 650/mês).
+
+Spot **não contorna** o AKS: node pools spot são permitidos apenas como pools **adicionais** — o system pool obrigatório continua Regular, exatamente onde a quota é zero.
+
+**Decisão do adendo:** manter o trilho AKS **intacto e pronto** (`infra/azure-aks/` + `make cloud-aks-up`, renomeados de `infra/azure/`/`make cloud-up` para liberar o namespace a outros provedores) e adotar como **veículo da demo** uma **VM `Standard_D2s_v3` Spot com k3s** (`infra/azure-vm/` + `make vm-up`):
+
+- VMs avulsas **não** têm a allowlist do AKS: `D2s_v3` está sem restrição e com quota. Spot usa quota própria (3 vCPUs regionais, disponível) a ~US$ 0,019/h ≈ **US$ 14/mês** (80% off; preço real consultado em 2026-07).
+- O k3s é Kubernetes real: recebe o **mesmo overlay** (via `k8s/overlays/vm-k3s/`, que herda o cloud e troca apenas a storage class para `local-path`), com a mesma ordem de deploy e as mesmas 4 superfícies públicas — num **único IP** estático (klipper-lb binda as portas 8080/8000/16686/9090 no nó). HPA segue funcional (metrics-server embutido).
+- Mitigação de eviction: `max_bid_price = -1` (despejo só por capacidade), `eviction_policy = Deallocate` (discos preservados), IP público como recurso separado (URL estável) e o workflow [`vm-watchdog`](../../../../.github/workflows/vm-watchdog.yml) religando a VM a cada 30 min (cron restrito a julho). Para a janela crítica da banca, `make vm-up SPOT=false` troca para on-demand (~US$ 70/mês) **sem mudar o IP**.
+- Se o suporte liberar quota v5–v7 no futuro, a migração é `make vm-down && make cloud-aks-up` — nada deste ADR se perde; o OIDC já configurado (Contributor na subscription) serve aos dois trilhos.
 
 > [↑ Raiz do projeto](../../../../README.md) · [↑ Arquitetura](../../README.md)

@@ -1,0 +1,28 @@
+# Overlay VM + k3s (adendo do ADR-025) — herda o overlay cloud INTEIRO
+# (ENVIRONMENT=production, postgres, UI/API/Jaeger/Prometheus como
+# LoadBalancer, mailpit, redis, HPA) e ajusta só o que difere do AKS:
+#
+# - storageClassName do PVC do postgres: managed-csi (disco Azure) ->
+#   local-path (provisioner embutido no k3s; o dado vive no disco da VM,
+#   que sobrevive a eviction spot com policy Deallocate).
+#
+# Os Services LoadBalancer são atendidos pelo klipper-lb do k3s: cada um
+# binda sua porta no IP do nó — como a VM tem 1 IP público, a banca acessa
+# UI :8080, API :8000, Jaeger :16686 e Prometheus :9090 no MESMO IP (NSG
+# abre exatamente essas portas). O HPA funciona sem passo extra: o k3s
+# embute o metrics-server.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../cloud
+
+patches:
+  - target:
+      kind: StatefulSet
+      name: postgres
+      namespace: pytstop-infra
+    patch: |-
+      - op: replace
+        path: /spec/volumeClaimTemplates/0/spec/storageClassName
+        value: local-path
