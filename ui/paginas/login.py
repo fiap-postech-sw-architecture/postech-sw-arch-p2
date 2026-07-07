@@ -28,22 +28,28 @@ def pagina_login() -> None:
         status_backend = ui.label("").classes("text-sm")
         _checar_backend(status_backend)
 
-        alerta_seed = ui.column().classes("w-full")
-        _checar_usuarios_seed(alerta_seed)
+        # Probe de seed + atalhos: SO no modo dev (UI_ATALHOS_DEV, default
+        # true). No cloud (production) os usuarios seed nao existem por
+        # design — o probe acusaria "seed nao encontrado" (ruido pra banca)
+        # e os botoes de atalho falhariam o login.
+        if CONFIG.atalhos_dev:
+            alerta_seed = ui.column().classes("w-full")
+            _checar_usuarios_seed(alerta_seed)
 
         ui.button(
             "Entrar",
             on_click=lambda: _entrar(email_input.value, senha_input.value),
         ).classes("w-full")
 
-        ui.separator()
-        ui.label("Atalhos (dev)").classes("text-sm text-gray-500")
-        with ui.row().classes("gap-2 w-full justify-center"):
-            for papel in ("admin", "atendente", "mecanico"):
-                ui.button(
-                    papel.capitalize(),
-                    on_click=lambda p=papel: _entrar_como_seed(p),
-                ).classes("flex-1")
+        if CONFIG.atalhos_dev:
+            ui.separator()
+            ui.label("Atalhos (dev)").classes("text-sm text-gray-500")
+            with ui.row().classes("gap-2 w-full justify-center"):
+                for papel in ("admin", "atendente", "mecanico"):
+                    ui.button(
+                        papel.capitalize(),
+                        on_click=lambda p=papel: _entrar_como_seed(p),
+                    ).classes("flex-1")
 
         # Rodape com SHA do commit que gerou a imagem -- bate com o que sai
         # nos logs (`>>> pytstop ui | commit XXXX...`) e com o LABEL OCI

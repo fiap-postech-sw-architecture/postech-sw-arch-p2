@@ -1,0 +1,12 @@
+# Patch do ConfigMap da UI para o alvo cloud (ADR-025): desliga os atalhos
+# de login dev (botoes Admin/Atendente/Mecanico + probe de "seed nao
+# encontrado"). Em production so o admin FORTE existe (criado do
+# .env.cloud) — os atalhos falhariam e o aviso, correto no contexto dev,
+# viraria ruido para a banca.
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: pytstop-ui-config
+  namespace: pytstop
+data:
+  UI_ATALHOS_DEV: "false"

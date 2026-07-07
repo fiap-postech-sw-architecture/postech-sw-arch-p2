@@ -66,6 +66,12 @@ class Config:
     # onde nao tem imagem nem env var. Usado pra exibir versao no rodape
     # da pagina de login.
     git_sha: str = ""
+    # Atalhos de login dev (botoes Admin/Atendente/Mecanico + probe de seed).
+    # True em dev/compose/kind, onde os usuarios seed existem. O overlay
+    # cloud desliga via UI_ATALHOS_DEV=false: em production so o admin forte
+    # existe — os atalhos nao funcionariam e o aviso de "seed nao encontrado"
+    # (correto no contexto dev) viraria ruido para a banca (ADR-025 adendo).
+    atalhos_dev: bool = True
     usuarios_seed: dict[Papel, UsuarioSeed] = field(
         default_factory=lambda: dict(_USUARIOS_SEED)
     )
@@ -80,6 +86,8 @@ class Config:
                 "UI_STORAGE_SECRET", _STORAGE_SECRET_DEV_FALLBACK
             ),
             git_sha=source.get("PYTSTOP_GIT_SHA", ""),
+            atalhos_dev=source.get("UI_ATALHOS_DEV", "true").strip().lower()
+            not in {"false", "0", "no", "nao"},
             usuarios_seed=dict(_USUARIOS_SEED),
         )
 

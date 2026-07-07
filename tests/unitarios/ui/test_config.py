@@ -22,6 +22,23 @@ def test_config_respeita_env_vars() -> None:
     assert cfg.ui_port == 9000
 
 
+def test_config_atalhos_dev_ligados_por_default() -> None:
+    assert Config.from_env(env={}).atalhos_dev is True
+
+
+@pytest.mark.parametrize("valor", ["false", "FALSE", "0", "no", "nao", " False "])
+def test_config_atalhos_dev_desligados_pelo_overlay_cloud(valor: str) -> None:
+    # O overlay cloud seta UI_ATALHOS_DEV=false (ADR-025 adendo): esconde o
+    # probe de seed e os botoes Admin/Atendente/Mecanico, que so fazem
+    # sentido onde os usuarios seed dev existem.
+    assert Config.from_env(env={"UI_ATALHOS_DEV": valor}).atalhos_dev is False
+
+
+@pytest.mark.parametrize("valor", ["true", "1", "yes", "qualquer-coisa"])
+def test_config_atalhos_dev_qualquer_outro_valor_mantem_ligado(valor: str) -> None:
+    assert Config.from_env(env={"UI_ATALHOS_DEV": valor}).atalhos_dev is True
+
+
 def test_config_expoe_usuarios_seed_dos_3_papeis() -> None:
     cfg = Config.from_env(env={})
     assert set(cfg.usuarios_seed.keys()) == {"admin", "atendente", "mecanico"}
