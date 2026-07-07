@@ -4,14 +4,15 @@
 
 > **Versão**: 1.0 — Fase 2.
 
-Duração alvo: ~14min30s (folga dentro do limite de 15 min). O enunciado exige demonstrar: deploy da aplicação, execução do CI/CD, consumo das APIs e escalabilidade automática.
+Duração alvo: ~14min30s (folga dentro do limite de 15 min — a soma dos blocos abaixo fecha em 14min30s; cronometrar no ensaio). O enunciado exige demonstrar: deploy da aplicação, execução do CI/CD, consumo das APIs e escalabilidade automática.
 
 **Pré-gravação (não aparece no vídeo):**
 
 - `make k8s-down` se houver cluster de sessão anterior (o bloco 2 grava o provisionamento do zero);
 - Docker com memória suficiente para o cluster completo (no Colima: `colima start --memory 4`);
 - abas prontas no browser: README do repo, aba Actions, Mailpit (`localhost:8025`), Jaeger (`localhost:16686`);
-- ensaio completo do roteiro pelo menos uma vez (o `make cd-local` leva ~3-5 min em máquina fria).
+- ensaio completo do roteiro pelo menos uma vez (o `make cd-local` leva ~3-5 min em máquina fria);
+- popular os dados de demonstração ANTES de gravar (`make seed-demo`); não usar o botão "🎲 Gerar dados de teste" da UI durante a gravação — handlers síncronos podem travar a interface por vários segundos ([#169](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/169)).
 
 ## Estrutura
 
@@ -23,7 +24,7 @@ Duração alvo: ~14min30s (folga dentro do limite de 15 min). O enunciado exige 
 
 **Evidência no ar**: diagrama de arquitetura visível e narrado.
 
-### 2. Infraestrutura + deploy local (3 min)
+### 2. Infraestrutura + deploy local (2min30s)
 
 Terminal na raiz do repo:
 
@@ -62,7 +63,7 @@ kubectl --context kind-pytstop get pods -n pytstop-infra
 
 **Evidência no ar**: duas runs verdes; logs do job `deploy` com `terraform apply` e smoke OK.
 
-### 4. Consumo das APIs (4 min)
+### 4. Consumo das APIs (3min30s)
 
 Port-forwards (terminais separados, deixar rodando):
 
@@ -142,7 +143,7 @@ Abrir **http://localhost:9090** → consultar os sinais da outbox coletados do r
 ### 7. Encerramento (30 s)
 
 - Qualidade sustentada na evolução: cobertura **95,3%** com gate de 95% na CI, contratos de camadas verificados por **import-linter** (Clean Architecture — ADR-015), scans de segurança herdados da fase 1 (bandit na CI; bateria completa em `docs/seguranca/`).
-- Decisões registradas: ADRs 015–024 + RFC-002; rastreabilidade completa em [entrega-fase-2.md](entrega-fase-2.md).
+- Decisões registradas: ADRs 015–025 + RFC-002; rastreabilidade completa em [entrega-fase-2.md](entrega-fase-2.md).
 - Repositório privado compartilhado com `soat-architecture`.
 
 ## Notas de Produção
