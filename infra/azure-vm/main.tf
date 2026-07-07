@@ -88,8 +88,14 @@ resource "azurerm_network_security_group" "vm" {
     destination_address_prefix = "*"
   }
 
-  # Superfícies da demo (ADR-025): UI, API, Jaeger, Prometheus.
-  # Dados 100% fictícios; API exige JWT e tem rate limit (production).
+  # Superfícies da demo (ADR-025): UI (8080), API (8000), Jaeger (16686),
+  # Prometheus (9090) abertas a `*` porque a banca acessa de IPs nao
+  # conhecidos de antemao. UI e API sao seguras (production: /docs off, JWT
+  # em todo endpoint, rate limit). Jaeger/Prometheus NAO tem auth — RISCO
+  # ACEITO e' o mesmo do ADR-025: dados 100% ficticios, backend efemero em
+  # memoria (zero persistencia, some no reboot), sem PII (scrubber + #180
+  # tiraram placa/documento das URLs/spans). Para restringir a observabilidade
+  # ao operador, mova 16686/9090 para uma regra com source = var.ssh_allowed_cidr.
   security_rule {
     name                       = "demo-publica"
     priority                   = 110
