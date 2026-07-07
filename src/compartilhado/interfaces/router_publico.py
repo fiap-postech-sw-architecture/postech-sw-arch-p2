@@ -56,8 +56,19 @@ router = APIRouter(tags=["publico"])
 
 @router.get("/api/v1/saude", summary="Health probe")
 @limiter.exempt  # type: ignore[untyped-decorator]  # slowapi 0.1.9 nao tem stubs
-def saude() -> dict[str, str]:
+async def saude() -> dict[str, str]:
     """Health probe para Kubernetes/load balancer. Retorna 200 quando o app sobe.
+
+    ``async def`` de proposito: as rotas de API do app sao sync (``def``), entao
+    o FastAPI as roda no threadpool do anyio (~40 workers). Sob carga que satura
+    esse pool (ex.: teste de carga do HPA), uma ``saude`` sync ficaria na fila
+    ATRAS do threadpool cheio e estouraria o ``timeoutSeconds`` das probes ->
+    liveness reinicia o pod EXATAMENTE no pico (restart storm que derrota o
+    HPA: menos replicas durante o spike). Como ``async``, esta rota corre
+    direto no event loop -- ocioso enquanto o trabalho sync esta no threadpool
+    -- e responde em microssegundos mesmo com o pool saturado. Assim a liveness
+    mede a semantica certa ("event loop vivo?" = processo saudavel), nao "o
+    threadpool esta livre?" (um sinal de CARGA, que a readiness/HPA ja tratam).
 
     ISENTA do rate limit global (issue #81). As probes de liveness E readiness
     do kubelet batem nesta rota, e TODAS saem de um unico IP (o no), que e a
