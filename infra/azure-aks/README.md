@@ -1,4 +1,4 @@
-# `infra/azure/` — ambiente cloud de demonstração (AKS)
+# `infra/azure-aks/` — ambiente cloud de demonstração (AKS)
 
 > [↑ Raiz do projeto](../../README.md) · [↑ infra/](../README.md)
 
@@ -11,7 +11,7 @@ plano: [issue #188](https://github.com/fiap-postech-sw-architecture/postech-sw-a
 
 Escopo deste módulo: **só o cluster** (resource group + AKS). Postgres, app e UI
 sobem pelo overlay [`k8s/overlays/cloud/`](../../k8s/overlays/cloud/), aplicado
-pelo `make cloud-up` — separar cluster (Terraform) de cargas (kubectl/kustomize)
+pelo `make cloud-aks-up` — separar cluster (Terraform) de cargas (kubectl/kustomize)
 evita o provider kubernetes _chained_ ao cluster no mesmo apply, frágil no AKS.
 
 ## Pré-requisitos
@@ -26,12 +26,12 @@ evita o provider kubernetes _chained_ ao cluster no mesmo apply, frágil no AKS.
 
 ```bash
 az login                 # conta Azure for Students
-make cloud-up            # provisiona AKS + deploy + imprime a URL pública
-make cloud-url           # (re)descobre o IP do LoadBalancer, ajusta CORS
-make cloud-down          # DESTROI tudo (cluster + node + LB + disco) -> custo zero
+make cloud-aks-up            # provisiona AKS + deploy + imprime a URL pública
+make cloud-aks-url           # (re)descobre o IP do LoadBalancer, ajusta CORS
+make cloud-aks-down          # DESTROI tudo (cluster + node + LB + disco) -> custo zero
 ```
 
-`make cloud-up` faz, em ordem: provisiona o AKS (`terraform`), busca o kubeconfig
+`make cloud-aks-up` faz, em ordem: provisiona o AKS (`terraform`), busca o kubeconfig
 (`az aks get-credentials`), gera segredos fortes em `.env.cloud` (git-ignored,
 via [`scripts/cloud-secrets.sh`](../../scripts/cloud-secrets.sh)) e os materializa
 em `Secret`s do cluster, aplica o overlay (config `production` + postgres + UI),
@@ -39,13 +39,13 @@ roda o **Job de migração antes do rollout** e sobe deployment/relay/UI. A senh
 admin é impressa e guardada em `.env.cloud`.
 
 > **Custo:** node B2als_v2 + LB/IP ≈ US$ 45–50/mês 24/7. Julho fica no ar; a
-> partir de agosto rode `make cloud-down` — o crédito de estudante não tem cartão,
+> partir de agosto rode `make cloud-aks-down` — o crédito de estudante não tem cartão,
 > então crédito esgotado = recursos param, nunca cobrança. Configure um _budget
 > alert_ (Cost Management → Budgets, 50%/80%).
 
 ## Deploy por CI (OIDC) — evolução opcional
 
-O `make cloud-up` local é o caminho garantido. Para o CD por GitHub Actions
+O `make cloud-aks-up` local é o caminho garantido. Para o CD por GitHub Actions
 disparar o deploy (job `deploy-cloud`, `workflow_dispatch`), faça o **bootstrap
 OIDC** (federated credential — sem senha estática). No `az`:
 
@@ -70,7 +70,7 @@ _required reviewers_ e os secrets: `AZURE_CLIENT_ID` (= `$APP_ID`),
 
 > **Atenção:** tenants de universidade frequentemente **bloqueiam `az ad app create`**
 > para alunos. Se der erro de autorização, o CD por OIDC não é possível — use o
-> `make cloud-up` local (mesmo IaC, sem CI). Nesse caso o backend de estado pode
+> `make cloud-aks-up` local (mesmo IaC, sem CI). Nesse caso o backend de estado pode
 > continuar local; para CI seria necessário backend remoto (Storage Account).
 
 > [↑ Raiz do projeto](../../README.md) · [↑ infra/](../README.md)

@@ -449,7 +449,7 @@ cd-local: k8s-up k8s-smoke
 
 # ---- Ambiente cloud de demonstracao — AKS (ADR-025; issue #188) ----
 # Alvo OPCIONAL e ADITIVO ao kind: da uma URL publica para a banca durante
-# julho. `infra/azure/` provisiona o cluster; o overlay `k8s/overlays/cloud/`
+# julho. `infra/azure-aks/` provisiona o cluster; o overlay `k8s/overlays/cloud/`
 # aplica postgres + app com ENVIRONMENT=production (guard de segredos ATIVO)
 # e a UI exposta por LoadBalancer (unica superficie publica; API ClusterIP).
 # As imagens vem do GHCR (publicas) pela tag do SHA que o CD ja buildou
@@ -461,16 +461,16 @@ AZ_CLOUD_CLUSTER  ?= pytstop-demo
 AZ_LOCATION       ?= brazilsouth
 # Node: B2als_v2 (2 vCPU/4 GB) cabe UI+API+relay+redis+postgres+jaeger+
 # prometheus sob carga de demo. Se algum pod for OOMKilled, suba para
-# Standard_B2ms (8 GB, ~2x o custo): `make cloud-up AZ_NODE_SIZE=Standard_B2ms`.
+# Standard_B2ms (8 GB, ~2x o custo): `make cloud-aks-up AZ_NODE_SIZE=Standard_B2ms`.
 AZ_NODE_SIZE      ?= Standard_B2als_v2
 CLOUD_NS           = pytstop
 CLOUD_ENV_FILE    ?= .env.cloud
-TF_AZURE           = terraform -chdir=infra/azure
+TF_AZURE           = terraform -chdir=infra/azure-aks
 CLOUD_KUBECTL      = kubectl --context $(AZ_CLOUD_CLUSTER)
 
-.PHONY: cloud-up cloud-down cloud-url cloud-seed
+.PHONY: cloud-aks-up cloud-aks-down cloud-aks-url cloud-aks-seed
 
-cloud-up:
+cloud-aks-up:
 	@command -v az >/dev/null 2>&1 || { echo ">> ERRO: Azure CLI (az) nao instalado (brew install azure-cli)."; exit 1; }
 	@az account show >/dev/null 2>&1 || { echo ">> ERRO: nao logado no Azure. Rode 'az login'."; exit 1; }
 	@echo ">> [pre] verificando imagens no GHCR (tag $(GIT_SHA))..."
@@ -479,7 +479,7 @@ cloud-up:
 		echo ">>       o CD a publica em push na main; rode num commit ja buildado e"; \
 		echo ">>       confirme que os packages -app/-ui estao PUBLICOS no GHCR."; exit 1; }
 	@docker manifest inspect $(K8S_UI_TAG) >/dev/null 2>&1 || { echo ">> ERRO: imagem $(K8S_UI_TAG) nao esta no GHCR."; exit 1; }
-	@echo ">> [1/7] provisionando AKS (terraform infra/azure)..."
+	@echo ">> [1/7] provisionando AKS (terraform infra/azure-aks)..."
 	ARM_SUBSCRIPTION_ID="$$(az account show --query id -o tsv)" $(TF_AZURE) init -input=false
 	ARM_SUBSCRIPTION_ID="$$(az account show --query id -o tsv)" $(TF_AZURE) apply -auto-approve -input=false \
 		-var resource_group_name=$(AZ_RESOURCE_GROUP) -var cluster_name=$(AZ_CLOUD_CLUSTER) \
@@ -501,6 +501,10 @@ cloud-up:
 		--from-literal=DATABASE_URL="postgresql://pytstop:$$POSTGRES_PASSWORD@postgres.pytstop-infra.svc.cluster.local:5432/pytstop" \
 		--from-literal=ADMIN_EMAIL="$$ADMIN_EMAIL" --from-literal=ADMIN_PASSWORD="$$ADMIN_PASSWORD" \
 		--from-literal=ORCAMENTO_WEBHOOK_TOKEN="$$ORCAMENTO_WEBHOOK_TOKEN" \
+		--dry-run=client -o yaml | $(CLOUD_KUBECTL) apply -f -; \
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) create secret generic pytstop-ui-secrets \
+		--from-literal=UI_SENHA_ATENDENTE="$$ATENDENTE_PASSWORD" \
+		--from-literal=UI_SENHA_MECANICO="$$MECANICO_PASSWORD" \
 		--dry-run=client -o yaml | $(CLOUD_KUBECTL) apply -f -
 	@echo ">> [4/7] overlay (apoio + config + postgres + UI) com tag $(GIT_SHA)..."
 	kubectl kustomize --load-restrictor=LoadRestrictionsNone k8s/overlays/cloud | \
@@ -523,14 +527,21 @@ cloud-up:
 	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-api --timeout=300s
 	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-relay --timeout=300s
 	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-ui --timeout=300s
+	@echo ">> usuarios atendente/mecanico com senha forte (ADR-025 adendo)..."
+	-@set -a; . ./$(CLOUD_ENV_FILE); set +a; \
+	POD=$$($(CLOUD_KUBECTL) -n $(CLOUD_NS) get pod -l app=pytstop-api -o jsonpath='{.items[0].metadata.name}'); \
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) cp scripts/seed_usuarios.py $$POD:/tmp/seed_usuarios.py; \
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) exec $$POD -- env SEED_PAPEIS=ATENDENTE,MECANICO \
+		SEED_SENHA_ATENDENTE="$$ATENDENTE_PASSWORD" SEED_SENHA_MECANICO="$$MECANICO_PASSWORD" \
+		python /tmp/seed_usuarios.py
 	@echo ">> [7/7] IPs publicos + CORS + dados de demo..."
-	@$(MAKE) cloud-url
-	-@$(MAKE) cloud-seed
+	@$(MAKE) cloud-aks-url
+	-@$(MAKE) cloud-aks-seed
 
 # Descobre os IPs dos 4 LoadBalancers (UI, API, Jaeger, Prometheus), ajusta o
 # CORS_ORIGINS para a URL da UI e imprime os acessos da banca. Idempotente:
 # rode de novo se algum LB ainda nao tinha IP.
-cloud-url:
+cloud-aks-url:
 	@set -e; \
 	echo ">> aguardando IPs dos 4 LoadBalancers (pode levar 1-3 min)..."; \
 	UI_IP=""; API_IP=""; JAEGER_IP=""; PROM_IP=""; \
@@ -542,7 +553,7 @@ cloud-url:
 		[ -n "$$UI_IP" ] && [ -n "$$API_IP" ] && [ -n "$$JAEGER_IP" ] && [ -n "$$PROM_IP" ] && break; \
 		echo "   ... ($$i/30) UI=$$UI_IP API=$$API_IP JAEGER=$$JAEGER_IP PROM=$$PROM_IP"; sleep 10; \
 	done; \
-	if [ -z "$$UI_IP" ]; then echo ">> LBs ainda sem IP; rode 'make cloud-url' de novo em ~1 min."; exit 1; fi; \
+	if [ -z "$$UI_IP" ]; then echo ">> LBs ainda sem IP; rode 'make cloud-aks-url' de novo em ~1 min."; exit 1; fi; \
 	echo ">> CORS_ORIGINS=http://$$UI_IP:8080 + restart da API..."; \
 	$(CLOUD_KUBECTL) -n $(CLOUD_NS) patch configmap pytstop-config --type merge -p "{\"data\":{\"CORS_ORIGINS\":\"http://$$UI_IP:8080\"}}"; \
 	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout restart deployment/pytstop-api >/dev/null; \
@@ -558,11 +569,11 @@ cloud-url:
 # Popula dados de demo (clientes, veiculos, catalogo, estoque, OS em varios
 # estados) na nuvem, via a API publica, logando com o admin FORTE do
 # .env.cloud (seed_demo aceita ADMIN_EMAIL/ADMIN_PASSWORD do ambiente).
-# Best-effort no cloud-up; rode manualmente se quiser repovoar.
-cloud-seed:
-	@[ -f $(CLOUD_ENV_FILE) ] || { echo ">> ERRO: $(CLOUD_ENV_FILE) ausente; rode 'make cloud-up' antes."; exit 1; }
+# Best-effort no cloud-aks-up; rode manualmente se quiser repovoar.
+cloud-aks-seed:
+	@[ -f $(CLOUD_ENV_FILE) ] || { echo ">> ERRO: $(CLOUD_ENV_FILE) ausente; rode 'make cloud-aks-up' antes."; exit 1; }
 	@API_IP=$$($(CLOUD_KUBECTL) -n $(CLOUD_NS) get svc pytstop-api -o jsonpath='{.status.loadBalancer.ingress[0].ip}' 2>/dev/null || true); \
-	if [ -z "$$API_IP" ]; then echo ">> API sem IP publico ainda; rode 'make cloud-url' e tente de novo."; exit 1; fi; \
+	if [ -z "$$API_IP" ]; then echo ">> API sem IP publico ainda; rode 'make cloud-aks-url' e tente de novo."; exit 1; fi; \
 	echo ">> populando dados de demo via http://$$API_IP:8000 ..."; \
 	set -a; . ./$(CLOUD_ENV_FILE); set +a; \
 	BACKEND_URL="http://$$API_IP:8000" $(PY_UI)python scripts/seed_demo.py
@@ -570,10 +581,140 @@ cloud-seed:
 # Destroi TUDO (cluster + node + LoadBalancer + IP + disco) -> custo zero. O
 # delete do namespace do banco antes libera o PVC/disco; o destroy do cluster
 # remove o resource group gerenciado (MC_*) com o resto.
-cloud-down:
+cloud-aks-down:
 	@command -v az >/dev/null 2>&1 || { echo ">> ERRO: Azure CLI (az) nao instalado."; exit 1; }
 	-az aks get-credentials --resource-group $(AZ_RESOURCE_GROUP) --name $(AZ_CLOUD_CLUSTER) --overwrite-existing 2>/dev/null
 	-$(CLOUD_KUBECTL) delete namespace pytstop-infra --wait=false 2>/dev/null
 	ARM_SUBSCRIPTION_ID="$$(az account show --query id -o tsv)" $(TF_AZURE) destroy -auto-approve -input=false \
 		-var resource_group_name=$(AZ_RESOURCE_GROUP) -var cluster_name=$(AZ_CLOUD_CLUSTER) -var location=$(AZ_LOCATION)
 	@echo ">> ambiente cloud destruido (cluster + node + LB/IP + disco). Custo -> zero."
+
+# ---- Ambiente de demonstracao em VM + k3s (adendo do ADR-025) ----
+# Veiculo da demo publica enquanto o AKS esta bloqueado na conta de estudante
+# (system pool exige SKU v5-v7, quota zero, pedido negado). Uma VM D2s_v3
+# SPOT (~US$0,019/h) roda k3s e recebe o overlay vm-k3s (que herda o cloud
+# inteiro). Klipper-lb binda as 4 superficies no MESMO IP publico:
+# UI :8080, API :8000, Jaeger :16686, Prometheus :9090.
+# SPOT=false troca para on-demand (janela critica da banca) SEM mudar o IP —
+# o IP publico e' recurso separado no Terraform e sobrevive ao recreate.
+VM_RG        ?= rg-pytstop-vm
+VM_LOCATION  ?= northcentralus
+VM_SIZE      ?= Standard_D2s_v3
+SPOT         ?= true
+VM_SSH_KEY    = .vm-demo-ssh
+VM_KUBECONF   = .kube-vm-config
+TF_AZVM       = terraform -chdir=infra/azure-vm
+VM_KUBECTL    = kubectl --kubeconfig $(VM_KUBECONF)
+
+.PHONY: vm-up vm-down vm-url vm-seed
+
+vm-up:
+	@command -v az >/dev/null 2>&1 || { echo ">> ERRO: Azure CLI (az) nao instalado (brew install azure-cli)."; exit 1; }
+	@az account show >/dev/null 2>&1 || { echo ">> ERRO: nao logado no Azure. Rode 'az login'."; exit 1; }
+	@echo ">> [pre] verificando imagens no GHCR (tag $(GIT_SHA))..."
+	@docker manifest inspect $(K8S_TAG) >/dev/null 2>&1 || { echo ">> ERRO: imagem $(K8S_TAG) nao esta no GHCR (CD publica no push da main; packages publicos)."; exit 1; }
+	@docker manifest inspect $(K8S_UI_TAG) >/dev/null 2>&1 || { echo ">> ERRO: imagem $(K8S_UI_TAG) nao esta no GHCR."; exit 1; }
+	@[ -f $(VM_SSH_KEY) ] || { echo ">> gerando chave SSH dedicada ($(VM_SSH_KEY), git-ignored)..."; ssh-keygen -t ed25519 -f $(VM_SSH_KEY) -N "" -C pytstop-vm-demo >/dev/null; }
+	@echo ">> [1/7] provisionando VM $(VM_SIZE) (spot=$(SPOT)) em $(VM_LOCATION)..."
+	@MY_IP=$$(curl -fsS https://ifconfig.me 2>/dev/null || curl -fsS https://api.ipify.org); \
+	[ -n "$$MY_IP" ] || { echo ">> ERRO: nao consegui descobrir seu IP publico (SSH do NSG)."; exit 1; }; \
+	ARM_SUBSCRIPTION_ID="$$(az account show --query id -o tsv)" $(TF_AZVM) init -input=false >/dev/null; \
+	ARM_SUBSCRIPTION_ID="$$(az account show --query id -o tsv)" $(TF_AZVM) apply -auto-approve -input=false \
+		-var resource_group_name=$(VM_RG) -var location=$(VM_LOCATION) -var vm_size=$(VM_SIZE) \
+		-var spot=$(SPOT) -var ssh_allowed_cidr="$$MY_IP/32" \
+		-var admin_ssh_pubkey="$$(cat $(VM_SSH_KEY).pub)"
+	@echo ">> [2/7] aguardando SSH + k3s subirem na VM..."
+	@PUBIP=$$($(TF_AZVM) output -raw public_ip); \
+	for i in $$(seq 1 60); do \
+		if ssh -i $(VM_SSH_KEY) -o UserKnownHostsFile=.vm-demo-known_hosts -o StrictHostKeyChecking=accept-new -o ConnectTimeout=5 pytstop@$$PUBIP 'sudo test -f /etc/rancher/k3s/k3s.yaml' 2>/dev/null; then \
+			echo ">> k3s pronto ($$i tentativa/s)."; break; fi; \
+		[ $$i -eq 60 ] && { echo ">> ERRO: k3s nao subiu em 5 min; veja cloud-init na VM (ssh -i $(VM_SSH_KEY) pytstop@$$PUBIP)."; exit 1; }; \
+		sleep 5; done
+	@echo ">> [3/7] exportando kubeconfig ($(VM_KUBECONF), git-ignored)..."
+	@PUBIP=$$($(TF_AZVM) output -raw public_ip); \
+	ssh -i $(VM_SSH_KEY) -o UserKnownHostsFile=.vm-demo-known_hosts -o StrictHostKeyChecking=accept-new pytstop@$$PUBIP 'sudo cat /etc/rancher/k3s/k3s.yaml' \
+		| sed "s/127.0.0.1/$$PUBIP/" > $(VM_KUBECONF); \
+	chmod 600 $(VM_KUBECONF); \
+	$(VM_KUBECTL) get nodes
+	@echo ">> [4/7] segredos reais ($(CLOUD_ENV_FILE)) -> Secrets do cluster..."
+	bash scripts/cloud-secrets.sh $(CLOUD_ENV_FILE)
+	@set -a; . ./$(CLOUD_ENV_FILE); set +a; \
+	$(VM_KUBECTL) create namespace $(CLOUD_NS) --dry-run=client -o yaml | $(VM_KUBECTL) apply -f -; \
+	$(VM_KUBECTL) create namespace pytstop-infra --dry-run=client -o yaml | $(VM_KUBECTL) apply -f -; \
+	$(VM_KUBECTL) -n pytstop-infra create secret generic postgres-credentials \
+		--from-literal=POSTGRES_DB=pytstop --from-literal=POSTGRES_USER=pytstop \
+		--from-literal=POSTGRES_PASSWORD="$$POSTGRES_PASSWORD" \
+		--dry-run=client -o yaml | $(VM_KUBECTL) apply -f -; \
+	$(VM_KUBECTL) -n $(CLOUD_NS) create secret generic pytstop-secrets \
+		--from-literal=JWT_SECRET="$$JWT_SECRET" \
+		--from-literal=ENCRYPTION_KEY="$$ENCRYPTION_KEY" \
+		--from-literal=DATABASE_URL="postgresql://pytstop:$$POSTGRES_PASSWORD@postgres.pytstop-infra.svc.cluster.local:5432/pytstop" \
+		--from-literal=ADMIN_EMAIL="$$ADMIN_EMAIL" --from-literal=ADMIN_PASSWORD="$$ADMIN_PASSWORD" \
+		--from-literal=ORCAMENTO_WEBHOOK_TOKEN="$$ORCAMENTO_WEBHOOK_TOKEN" \
+		--dry-run=client -o yaml | $(VM_KUBECTL) apply -f -; \
+	$(VM_KUBECTL) -n $(CLOUD_NS) create secret generic pytstop-ui-secrets \
+		--from-literal=UI_SENHA_ATENDENTE="$$ATENDENTE_PASSWORD" \
+		--from-literal=UI_SENHA_MECANICO="$$MECANICO_PASSWORD" \
+		--dry-run=client -o yaml | $(VM_KUBECTL) apply -f -
+	@echo ">> [5/7] overlay vm-k3s (apoio + config + postgres + UI + observabilidade)..."
+	kubectl kustomize --load-restrictor=LoadRestrictionsNone k8s/overlays/vm-k3s | \
+		sed -e "s|$(K8S_APP_IMAGE):dev|$(K8S_TAG)|" -e "s|$(K8S_UI_IMAGE):dev|$(K8S_UI_TAG)|" | \
+		$(VM_KUBECTL) apply -f -
+	@echo ">> [6/7] Job de migracao antes do rollout..."
+	$(VM_KUBECTL) -n $(CLOUD_NS) delete job pytstop-migrate --ignore-not-found
+	sed "s|$(K8S_APP_IMAGE):dev|$(K8S_TAG)|" k8s/jobs/migration-job.yaml | $(VM_KUBECTL) -n $(CLOUD_NS) apply -f -
+	@$(VM_KUBECTL) -n $(CLOUD_NS) wait --for=condition=complete --timeout=300s job/pytstop-migrate & ok=$$!; \
+	$(VM_KUBECTL) -n $(CLOUD_NS) wait --for=condition=failed --timeout=300s job/pytstop-migrate 2>/dev/null & bad=$$!; \
+	while kill -0 $$ok 2>/dev/null && kill -0 $$bad 2>/dev/null; do sleep 2; done; \
+	kill $$ok $$bad 2>/dev/null; \
+	if [ "$$($(VM_KUBECTL) -n $(CLOUD_NS) get job pytstop-migrate -o jsonpath='{.status.succeeded}')" != "1" ]; then \
+		echo ">> ERRO: migracao falhou/expirou; abortando o deploy."; \
+		$(VM_KUBECTL) -n $(CLOUD_NS) logs job/pytstop-migrate --tail=50 || true; exit 1; fi
+	@echo ">> [7/7] cargas da app (deployment + relay) + URL + seed..."
+	for f in k8s/deployment.yaml k8s/relay.yaml; do \
+		sed "s|$(K8S_APP_IMAGE):dev|$(K8S_TAG)|" "$$f" | $(VM_KUBECTL) apply -f - || exit 1; \
+	done
+	$(VM_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-api --timeout=300s
+	$(VM_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-relay --timeout=300s
+	$(VM_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-ui --timeout=300s
+	@echo ">> usuarios atendente/mecanico com senha forte (ADR-025 adendo)..."
+	-@set -a; . ./$(CLOUD_ENV_FILE); set +a; \
+	POD=$$($(VM_KUBECTL) -n $(CLOUD_NS) get pod -l app=pytstop-api -o jsonpath='{.items[0].metadata.name}'); \
+	$(VM_KUBECTL) -n $(CLOUD_NS) cp scripts/seed_usuarios.py $$POD:/tmp/seed_usuarios.py; \
+	$(VM_KUBECTL) -n $(CLOUD_NS) exec $$POD -- env SEED_PAPEIS=ATENDENTE,MECANICO \
+		SEED_SENHA_ATENDENTE="$$ATENDENTE_PASSWORD" SEED_SENHA_MECANICO="$$MECANICO_PASSWORD" \
+		python /tmp/seed_usuarios.py
+	@$(MAKE) vm-url
+	-@$(MAKE) vm-seed
+
+# Imprime os acessos (mesmo IP, 4 portas) e ajusta o CORS para a UI.
+vm-url:
+	@PUBIP=$$($(TF_AZVM) output -raw public_ip); \
+	echo ">> CORS_ORIGINS=http://$$PUBIP:8080 + restart da API..."; \
+	$(VM_KUBECTL) -n $(CLOUD_NS) patch configmap pytstop-config --type merge -p "{\"data\":{\"CORS_ORIGINS\":\"http://$$PUBIP:8080\"}}" >/dev/null; \
+	$(VM_KUBECTL) -n $(CLOUD_NS) rollout restart deployment/pytstop-api >/dev/null; \
+	echo ""; \
+	echo "==================== ACESSOS DA BANCA ===================="; \
+	echo "  UI (app)      http://$$PUBIP:8080"; \
+	echo "  API (Postman) http://$$PUBIP:8000"; \
+	echo "  Jaeger        http://$$PUBIP:16686"; \
+	echo "  Prometheus    http://$$PUBIP:9090"; \
+	echo "========================================================="; \
+	echo ">> preencha CLOUD-URL-FASE-2 (doc de entrega + README) com http://$$PUBIP:8080"
+
+# Dados de demo via API publica da VM, com o admin FORTE do .env.cloud.
+vm-seed:
+	@[ -f $(CLOUD_ENV_FILE) ] || { echo ">> ERRO: $(CLOUD_ENV_FILE) ausente; rode 'make vm-up' antes."; exit 1; }
+	@PUBIP=$$($(TF_AZVM) output -raw public_ip); \
+	echo ">> populando dados de demo via http://$$PUBIP:8000 ..."; \
+	set -a; . ./$(CLOUD_ENV_FILE); set +a; \
+	BACKEND_URL="http://$$PUBIP:8000" $(PY_UI)python scripts/seed_demo.py
+
+# Destroi a VM inteira (RG + IP + disco) -> custo zero.
+vm-down:
+	@command -v az >/dev/null 2>&1 || { echo ">> ERRO: Azure CLI (az) nao instalado."; exit 1; }
+	ARM_SUBSCRIPTION_ID="$$(az account show --query id -o tsv)" $(TF_AZVM) destroy -auto-approve -input=false \
+		-var resource_group_name=$(VM_RG) -var location=$(VM_LOCATION) -var vm_size=$(VM_SIZE) \
+		-var spot=$(SPOT) -var ssh_allowed_cidr="0.0.0.0/32" -var admin_ssh_pubkey="unused"
+	@/bin/rm -f $(VM_KUBECONF) .vm-demo-known_hosts
+	@echo ">> VM de demo destruida (RG + IP + disco). Custo -> zero."

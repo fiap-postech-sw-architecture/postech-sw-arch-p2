@@ -1,0 +1,73 @@
+# Watchdog da VM spot de demonstração (adendo do ADR-025).
+#
+# A VM da demo roda como Spot (~80% de desconto): a Azure pode despejá-la
+# por capacidade (eviction_policy=Deallocate — discos preservados). Este
+# workflow religa a VM despejada: a cada 30 min, se o power state for
+# "deallocated", roda `az vm start`. Downtime pior caso ≈ 30 min, raro
+# (Dsv3/eastus tem eviction baixo e max_bid=-1 elimina despejo por preço).
+#
+# Cron restrito a JULHO (campo month=7): a janela pública da banca. Fora
+# dela a VM não existe (make vm-down) e o workflow nem roda — não queima
+# minutos de Actions do repositório privado o ano todo.
+#
+# Login por OIDC (sem segredo estático). ATENÇÃO: usa uma federated
+# credential ESCOPADA À MAIN (subject repo:...:ref:refs/heads/main), não a
+# do environment `cloud` — environment com required reviewers pausaria cada
+# execução do cron aguardando aprovação. Bootstrap (uma vez):
+#
+#   az ad app federated-credential create \
+#     --id 7ef228f8-77d0-4586-92a5-e78885fa13fd --parameters '{
+#       "name": "github-main-watchdog",
+#       "issuer": "https://token.actions.githubusercontent.com",
+#       "subject": "repo:fiap-postech-sw-architecture/postech-sw-arch-p2:ref:refs/heads/main",
+#       "audiences": ["api://AzureADTokenExchange"]
+#     }'
+#
+# E os 3 IDs (públicos, não-segredos) como *Variables* do repositório:
+# AZURE_CLIENT_ID, AZURE_TENANT_ID, AZURE_SUBSCRIPTION_ID
+# (Settings -> Secrets and variables -> Actions -> Variables).
+name: vm-watchdog
+
+on:
+  schedule:
+    - cron: "*/30 * * 7 *" # a cada 30 min, somente em julho
+  workflow_dispatch:
+
+permissions:
+  id-token: write
+  contents: read
+
+concurrency:
+  group: vm-watchdog
+  cancel-in-progress: false
+
+jobs:
+  restart-if-evicted:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: azure/login@v2
+        with:
+          client-id: ${{ vars.AZURE_CLIENT_ID }}
+          tenant-id: ${{ vars.AZURE_TENANT_ID }}
+          subscription-id: ${{ vars.AZURE_SUBSCRIPTION_ID }}
+      - name: Start VM if deallocated
+        run: |
+          set -euo pipefail
+          RG="rg-pytstop-vm"
+          VM="pytstop-vm"
+          # VM não existe (vm-down / fora da janela): sai verde sem ruído.
+          if ! az vm show -g "$RG" -n "$VM" --query name -o tsv >/dev/null 2>&1; then
+            echo "VM $VM não existe — nada a fazer."
+            exit 0
+          fi
+          STATE=$(az vm get-instance-view -g "$RG" -n "$VM" \
+            --query "instanceView.statuses[?starts_with(code, 'PowerState/')].code" -o tsv)
+          echo "Power state: $STATE"
+          if [ "$STATE" = "PowerState/deallocated" ]; then
+            echo "VM despejada (spot eviction) — religando..."
+            az vm start -g "$RG" -n "$VM"
+            echo "VM religada. k3s volta sozinho (systemd) com os dados do disco."
+          else
+            echo "VM saudável — nada a fazer."
+          fi

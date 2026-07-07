@@ -36,6 +36,8 @@ resources:
 
 patches:
   - path: patch-configmap.yaml
+  - path: patch-ui-configmap.yaml
+  - path: patch-ui-deployment.yaml
   - path: patch-ui-service.yaml
   - path: patch-api-service.yaml
   - path: patch-jaeger-service.yaml

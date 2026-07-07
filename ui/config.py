@@ -66,6 +66,14 @@ class Config:
     # onde nao tem imagem nem env var. Usado pra exibir versao no rodape
     # da pagina de login.
     git_sha: str = ""
+    # Papeis com atalho de login na tela (botoes + role switcher). Default:
+    # os 3 de dev/compose/kind, onde os usuarios seed existem com as senhas
+    # fixas. O overlay cloud seta UI_ATALHOS_PAPEIS="atendente,mecanico":
+    # o admin do cloud tem senha forte fora da UI (so login manual), e os
+    # outros dois sao seedados com senha forte injetada por UI_SENHA_<PAPEL>
+    # (ADR-025 adendo). O probe de "seed nao encontrado" so roda quando o
+    # ADMIN esta nos atalhos — e' um check de dev, ruido em production.
+    atalhos_papeis: tuple[Papel, ...] = ("admin", "atendente", "mecanico")
     usuarios_seed: dict[Papel, UsuarioSeed] = field(
         default_factory=lambda: dict(_USUARIOS_SEED)
     )
@@ -80,8 +88,30 @@ class Config:
                 "UI_STORAGE_SECRET", _STORAGE_SECRET_DEV_FALLBACK
             ),
             git_sha=source.get("PYTSTOP_GIT_SHA", ""),
-            usuarios_seed=dict(_USUARIOS_SEED),
+            atalhos_papeis=_parse_atalhos_papeis(
+                source.get("UI_ATALHOS_PAPEIS", "admin,atendente,mecanico")
+            ),
+            usuarios_seed=_usuarios_seed_com_overrides(source),
         )
+
+
+def _parse_atalhos_papeis(bruto: str) -> tuple[Papel, ...]:
+    """CSV -> papeis validos, ordem preservada, desconhecidos ignorados."""
+    vistos: list[Papel] = []
+    for pedaco in bruto.split(","):
+        nome = pedaco.strip().lower()
+        if nome in _USUARIOS_SEED and nome not in vistos:
+            vistos.append(nome)
+    return tuple(vistos)
+
+
+def _usuarios_seed_com_overrides(source: dict[str, str]) -> dict[Papel, UsuarioSeed]:
+    """Senha por papel substituivel via UI_SENHA_<PAPEL> (cloud: senha forte)."""
+    usuarios: dict[Papel, UsuarioSeed] = {}
+    for papel, usuario in _USUARIOS_SEED.items():
+        senha = source.get(f"UI_SENHA_{papel.upper()}") or usuario.senha
+        usuarios[papel] = UsuarioSeed(email=usuario.email, senha=senha, papel=papel)
+    return usuarios
 
 
 _PORTA_MAXIMA = 65535
