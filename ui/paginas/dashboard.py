@@ -57,7 +57,9 @@ def _renderizar_metricas() -> None:
         _card_metrica("Total de OS", str(dados.get("total", 0)), "bg-blue-500")
         _card_metrica(
             "Tempo medio (min)",
-            str(dados.get("tempo_medio_execucao_minutos", 0)),
+            # 1 casa: o backend devolve o float cru (ex.: 0.00031...) e o str()
+            # direto jogava 17 casas no card. Arredondar e apresentacao, mora aqui.
+            f"{dados.get('tempo_medio_execucao_minutos') or 0:.1f}",
             "bg-green-500",
         )
         por_status = dados.get("por_status", {})
