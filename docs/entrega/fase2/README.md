@@ -12,7 +12,7 @@ Artefatos da entrega da Fase 2 do Tech Challenge FIAP. Os artefatos da fase 1 pe
 |---------|-----------|
 | [entrega-fase-2.md](entrega-fase-2.md) | Documento de entrega (origem do PDF) — grupo, repositório, vídeo, documentação e rastreabilidade requisito → evidência |
 | [roteiro-video.md](roteiro-video.md) | Roteiro cronometrado do vídeo de demonstração (deploy, CI/CD, APIs, HPA, traces) |
-| [postman_collection.json](postman_collection.json) | Collection Postman gerada do contrato OpenAPI vivo (46 requisições agrupadas por tag) |
+| [postman_collection.json](postman_collection.json) | Collection Postman gerada do contrato OpenAPI vivo (48 requisições agrupadas por tag) |
 
 ## Regerar a collection
 

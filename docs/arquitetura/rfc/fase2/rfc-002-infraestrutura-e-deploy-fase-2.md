@@ -105,8 +105,8 @@ flowchart TB
     subgraph cluster["Cluster kind (ADR-016) — dev local, vídeo e CI efêmero"]
         subgraph infra_tf["/infra — Terraform (ADR-016, ADR-017)"]
             pg[("PostgreSQL 16<br/>StatefulSet + PVC")]
-            ms["metrics-server"]
         end
+        ms["metrics-server<br/>(add-on aplicado no deploy)"]
         subgraph k8s_app["/k8s — manifests da aplicação"]
             svc["Service"]
             app["PytStop API — Deployment<br/>Clean Architecture (ADR-015):<br/>Entidades · Casos de Uso ·<br/>Adaptadores de Interface ·<br/>Frameworks & Drivers"]
@@ -117,6 +117,7 @@ flowchart TB
             relay["Relay de eventos (ADR-022)<br/>Deployment — outbox→SMTP"]
             redis["Redis (ADR-023)<br/>Deployment + Service — rate limit"]
             prometheus["Prometheus (ADR-024)<br/>Deployment + Service — métricas do relay"]
+            ui["UI de demonstração (NiceGUI)<br/>Deployment + Service ClusterIP<br/>BACKEND_URL → pytstop-api"]
         end
     end
 
@@ -124,6 +125,7 @@ flowchart TB
     cfg -.->|"env vars"| app
     hpa -->|"escala réplicas"| app
     ms -.->|"métricas de CPU e memória"| hpa
+    ui -->|"consome a API no cluster"| svc
     app -->|"SQL via DATABASE_URL"| pg
     app -->|"grava outbox + NOTIFY"| pg
     relay -->|"LISTEN/NOTIFY + claim outbox"| pg

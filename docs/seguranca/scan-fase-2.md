@@ -26,7 +26,7 @@ Diferentemente da bateria de 12/06 — um scan local pontual — a bateria de fe
 | Ferramenta | Tipo | Alvo | Resultado na HEAD final |
 |---|---|---|---|
 | bandit 1.9.4 | SAST | `src/` + `relay/` (10.112 LoC) | **0 high / 0 medium / 0 low** — nenhum achado |
-| pip-audit | SCA (deps) | dependências de runtime resolvidas do `uv.lock` | **0 vulnerabilidades** (3 CVEs de nicegui dev-only aceitos, #112) |
+| pip-audit | SCA (deps) | dependências de runtime resolvidas do `uv.lock` | **0 vulnerabilidades** (3 CVEs de nicegui dev-only aceitos — justificativa em [relatorio-vulnerabilidades.md](relatorio-vulnerabilidades.md) e `--ignore-vuln` comentado em `security.yml`) |
 | trivy | SCA (imagem) | imagem de runtime `pytstop` (Python 3.14) | **0 HIGH/CRITICAL** no gate (`ignore-unfixed` + `.trivyignore`) |
 | gitleaks | Segredos | árvore de trabalho (`gitleaks dir`) com allowlist | **0 leaks** |
 | CodeQL | SAST semântico | python + javascript-typescript (default setup) | **`Analyze` verde** — sem alertas de segurança ativos |
@@ -60,7 +60,7 @@ uv export --frozen --no-emit-project --no-dev --no-hashes --format requirements-
 uvx pip-audit -r requirements-prod.txt --strict
 ```
 
-**Resultado na HEAD final**: `No known vulnerabilities found`. Os únicos advisories excluídos são os **3 HIGH de `nicegui`** ([CVE-2025-66645, CVE-2026-21873, CVE-2026-25732](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/112)) — a UI é dev-only e não consta no lockfile de produção; ficam como `--ignore-vuln` explícito (cinto-e-suspensório, [#112](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/112)).
+**Resultado na HEAD final**: `No known vulnerabilities found`. Os únicos advisories excluídos são os **3 HIGH de `nicegui`** (CVE-2025-66645, CVE-2026-21873, CVE-2026-25732) — a UI é dev-only e não consta no lockfile de produção; ficam como `--ignore-vuln` explícito e comentado em [`security.yml`](../../.github/workflows/security.yml), com a justificativa registrada em [relatorio-vulnerabilidades.md](relatorio-vulnerabilidades.md).
 
 Este resultado limpo é o **estado consolidado** de duas ondas de upgrade posteriores à v1.0:
 
@@ -71,7 +71,7 @@ Este resultado limpo é o **estado consolidado** de duas ondas de upgrade poster
 | NiceGUI 3 | [#149](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/149) | Upgrade `nicegui 2.24 → 3.14` — removeu a transitiva `vbuild` (que usava `pkgutil.find_loader`, extinto no Python 3.14), destravando a migração 3.14 |
 | Pisos de deps + Terraform action | [#151](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/151) | Alinha pisos de `pwdlib`/`testcontainers`; `setup-terraform@v4` |
 
-Versões-chave resolvidas no `uv.lock` da HEAD final: `pyjwt 2.13.0`, `starlette 1.3.1`, `cryptography 49.0.0`, `fastapi 0.139.0`, `urllib3 2.7.0`, `idna 3.18`, `mako 1.3.12`, `redis 8.0.1`. A suíte completa (1.617 testes unitários + 163 de integração, contagem via `pytest --collect-only`) segue verde após os bumps, validando ausência de regressão.
+Versões-chave resolvidas no `uv.lock` da HEAD final: `pyjwt 2.13.0`, `starlette 1.3.1`, `cryptography 49.0.0`, `fastapi 0.139.0`, `urllib3 2.7.0`, `idna 3.18`, `mako 1.3.12`, `redis 8.0.1`. A suíte completa (1.802 testes unitários + 162 de integração na HEAD final, contagem via `pytest --collect-only`; 1.617 + 163 à época dos bumps) segue verde, validando ausência de regressão.
 
 ## Scan de Imagem (trivy)
 
