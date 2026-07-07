@@ -713,8 +713,15 @@ vm-seed:
 # Destroi a VM inteira (RG + IP + disco) -> custo zero.
 vm-down:
 	@command -v az >/dev/null 2>&1 || { echo ">> ERRO: Azure CLI (az) nao instalado."; exit 1; }
+	# admin_ssh_pubkey precisa ser uma chave SSH2 VALIDA mesmo no destroy: o
+	# terraform avalia o bloco do recurso (o azurerm valida o formato de
+	# `admin_ssh_key.public_key`) antes de montar o grafo de destroy. Um valor
+	# placeholder como "unused" aborta com "is not a complete SSH2 Public Key".
+	# Reusa a chave real (git-ignored); se sumiu num clone limpo, gera uma
+	# throwaway so pra satisfazer a validacao -- a VM e apagada de qualquer forma.
+	@[ -f $(VM_SSH_KEY) ] || ssh-keygen -t ed25519 -f $(VM_SSH_KEY) -N "" -C pytstop-vm-demo >/dev/null
 	ARM_SUBSCRIPTION_ID="$$(az account show --query id -o tsv)" $(TF_AZVM) destroy -auto-approve -input=false \
 		-var resource_group_name=$(VM_RG) -var location=$(VM_LOCATION) -var vm_size=$(VM_SIZE) \
-		-var spot=$(SPOT) -var ssh_allowed_cidr="0.0.0.0/32" -var admin_ssh_pubkey="unused"
+		-var spot=$(SPOT) -var ssh_allowed_cidr="0.0.0.0/32" -var admin_ssh_pubkey="$$(cat $(VM_SSH_KEY).pub)"
 	@/bin/rm -f $(VM_KUBECONF) .vm-demo-known_hosts
 	@echo ">> VM de demo destruida (RG + IP + disco). Custo -> zero."
