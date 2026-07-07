@@ -501,6 +501,10 @@ cloud-aks-up:
 		--from-literal=DATABASE_URL="postgresql://pytstop:$$POSTGRES_PASSWORD@postgres.pytstop-infra.svc.cluster.local:5432/pytstop" \
 		--from-literal=ADMIN_EMAIL="$$ADMIN_EMAIL" --from-literal=ADMIN_PASSWORD="$$ADMIN_PASSWORD" \
 		--from-literal=ORCAMENTO_WEBHOOK_TOKEN="$$ORCAMENTO_WEBHOOK_TOKEN" \
+		--dry-run=client -o yaml | $(CLOUD_KUBECTL) apply -f -; \
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) create secret generic pytstop-ui-secrets \
+		--from-literal=UI_SENHA_ATENDENTE="$$ATENDENTE_PASSWORD" \
+		--from-literal=UI_SENHA_MECANICO="$$MECANICO_PASSWORD" \
 		--dry-run=client -o yaml | $(CLOUD_KUBECTL) apply -f -
 	@echo ">> [4/7] overlay (apoio + config + postgres + UI) com tag $(GIT_SHA)..."
 	kubectl kustomize --load-restrictor=LoadRestrictionsNone k8s/overlays/cloud | \
@@ -523,6 +527,13 @@ cloud-aks-up:
 	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-api --timeout=300s
 	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-relay --timeout=300s
 	$(CLOUD_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-ui --timeout=300s
+	@echo ">> usuarios atendente/mecanico com senha forte (ADR-025 adendo)..."
+	-@set -a; . ./$(CLOUD_ENV_FILE); set +a; \
+	POD=$$($(CLOUD_KUBECTL) -n $(CLOUD_NS) get pod -l app=pytstop-api -o jsonpath='{.items[0].metadata.name}'); \
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) cp scripts/seed_usuarios.py $$POD:/tmp/seed_usuarios.py; \
+	$(CLOUD_KUBECTL) -n $(CLOUD_NS) exec $$POD -- env SEED_PAPEIS=ATENDENTE,MECANICO \
+		SEED_SENHA_ATENDENTE="$$ATENDENTE_PASSWORD" SEED_SENHA_MECANICO="$$MECANICO_PASSWORD" \
+		python /tmp/seed_usuarios.py
 	@echo ">> [7/7] IPs publicos + CORS + dados de demo..."
 	@$(MAKE) cloud-aks-url
 	-@$(MAKE) cloud-aks-seed
@@ -640,6 +651,10 @@ vm-up:
 		--from-literal=DATABASE_URL="postgresql://pytstop:$$POSTGRES_PASSWORD@postgres.pytstop-infra.svc.cluster.local:5432/pytstop" \
 		--from-literal=ADMIN_EMAIL="$$ADMIN_EMAIL" --from-literal=ADMIN_PASSWORD="$$ADMIN_PASSWORD" \
 		--from-literal=ORCAMENTO_WEBHOOK_TOKEN="$$ORCAMENTO_WEBHOOK_TOKEN" \
+		--dry-run=client -o yaml | $(VM_KUBECTL) apply -f -; \
+	$(VM_KUBECTL) -n $(CLOUD_NS) create secret generic pytstop-ui-secrets \
+		--from-literal=UI_SENHA_ATENDENTE="$$ATENDENTE_PASSWORD" \
+		--from-literal=UI_SENHA_MECANICO="$$MECANICO_PASSWORD" \
 		--dry-run=client -o yaml | $(VM_KUBECTL) apply -f -
 	@echo ">> [5/7] overlay vm-k3s (apoio + config + postgres + UI + observabilidade)..."
 	kubectl kustomize --load-restrictor=LoadRestrictionsNone k8s/overlays/vm-k3s | \
@@ -662,6 +677,13 @@ vm-up:
 	$(VM_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-api --timeout=300s
 	$(VM_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-relay --timeout=300s
 	$(VM_KUBECTL) -n $(CLOUD_NS) rollout status deployment/pytstop-ui --timeout=300s
+	@echo ">> usuarios atendente/mecanico com senha forte (ADR-025 adendo)..."
+	-@set -a; . ./$(CLOUD_ENV_FILE); set +a; \
+	POD=$$($(VM_KUBECTL) -n $(CLOUD_NS) get pod -l app=pytstop-api -o jsonpath='{.items[0].metadata.name}'); \
+	$(VM_KUBECTL) -n $(CLOUD_NS) cp scripts/seed_usuarios.py $$POD:/tmp/seed_usuarios.py; \
+	$(VM_KUBECTL) -n $(CLOUD_NS) exec $$POD -- env SEED_PAPEIS=ATENDENTE,MECANICO \
+		SEED_SENHA_ATENDENTE="$$ATENDENTE_PASSWORD" SEED_SENHA_MECANICO="$$MECANICO_PASSWORD" \
+		python /tmp/seed_usuarios.py
 	@$(MAKE) vm-url
 	-@$(MAKE) vm-seed
 

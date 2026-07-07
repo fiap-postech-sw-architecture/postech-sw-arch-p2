@@ -12,6 +12,13 @@ Uso:
     make seed-users-docker                     # via docker compose
     python scripts/seed_usuarios.py            # manual
 
+Cloud (ADR-025 adendo): ``SEED_PAPEIS`` restringe quais papeis criar (CSV,
+ex. ``ATENDENTE,MECANICO`` — o admin do cloud vem do Job de migracao e nao
+e' tocado) e ``SEED_SENHA_<PAPEL>`` substitui a senha dev publica por uma
+forte do ``.env.cloud``. Em ``ENVIRONMENT=production`` o seed SO roda se
+todo papel selecionado tiver senha via env — a guarda contra plantar senha
+publica em ambiente exposto continua valendo.
+
 Idempotencia: checagem primaria via ``email_existe``; UNIQUE constraint em
 ``usuarios.email`` cobre race conditions como fallback.
 """
@@ -60,8 +67,15 @@ _USUARIOS_FIXOS: list[tuple[str, str, str]] = [
 def criar_usuarios_seed(
     session_factory: Callable[[], Session],
     hasher: Callable[[str], str],
+    papeis: frozenset[str] | None = None,
+    senhas: dict[str, str] | None = None,
 ) -> RelatorioSeed:
-    """Cria os 3 papeis se ausentes. Retorna contagem de criados/existentes."""
+    """Cria os papeis selecionados se ausentes. Retorna criados/existentes.
+
+    ``papeis`` restringe o subconjunto (nomes do enum, ex. ``{"ATENDENTE"}``;
+    ``None`` = todos). ``senhas`` substitui a senha dev fixa por papel —
+    e' o que permite seed em cloud com senha forte (ADR-025 adendo).
+    """
     from sqlalchemy.exc import IntegrityError
 
     from src.autenticacao.dominio.papel import Papel
@@ -70,7 +84,10 @@ def criar_usuarios_seed(
 
     criados = 0
     existentes = 0
-    for papel_name, email, senha in _USUARIOS_FIXOS:
+    for papel_name, email, senha_fixa in _USUARIOS_FIXOS:
+        if papeis is not None and papel_name not in papeis:
+            continue
+        senha = (senhas or {}).get(papel_name, senha_fixa)
         papel = Papel[papel_name]
         with session_factory() as session:
             repo = UsuarioSQLAlchemyRepository(session=session)
@@ -94,15 +111,26 @@ def criar_usuarios_seed(
 
 def main() -> None:
     environment = os.environ.get("ENVIRONMENT", "development").lower()
-    # Guarda de ambiente (espelha scripts/seed_admin.py): este seed cria 3
-    # contas com senhas PUBLICAS fixas (_USUARIOS_FIXOS, tambem em ui/config.py)
-    # so para a UI de simulacao em dev/test. Rodar contra um banco de qualquer
-    # outro ambiente plantaria credenciais publicas conhecidas -- barrado.
-    if environment not in {"development", "test"}:
+    papeis_brutos = os.environ.get("SEED_PAPEIS", "ADMIN,ATENDENTE,MECANICO")
+    papeis = frozenset(p.strip().upper() for p in papeis_brutos.split(",") if p.strip())
+    senhas = {
+        papel_name: valor
+        for papel_name, _, _ in _USUARIOS_FIXOS
+        if (valor := os.environ.get(f"SEED_SENHA_{papel_name}"))
+    }
+    # Guarda de ambiente (espelha scripts/seed_admin.py): as senhas FIXAS de
+    # _USUARIOS_FIXOS sao publicas (tambem em ui/config.py e nas imagens GHCR
+    # publicas) — plantar qualquer uma delas fora de dev/test abriria login
+    # conhecido num ambiente exposto. Em production o seed SO passa quando
+    # TODO papel selecionado tem senha propria via SEED_SENHA_<PAPEL>
+    # (ADR-025 adendo: atendente/mecanico com senha forte do .env.cloud).
+    if environment not in {"development", "test"} and not papeis <= set(senhas):
+        sem_env = sorted(papeis - set(senhas))
         print(
-            "ERRO: seed_usuarios cria contas com senhas publicas fixas e so "
-            "roda em ENVIRONMENT development/test (atual: "
-            f"{environment!r})."
+            "ERRO: em ENVIRONMENT "
+            f"{environment!r} seed_usuarios exige SEED_SENHA_<PAPEL> para todo "
+            f"papel selecionado (sem senha via env: {', '.join(sem_env)}); "
+            "senhas dev publicas nao podem ir para ambiente exposto."
         )
         sys.exit(1)
     database_url = os.environ.get("DATABASE_URL")
@@ -122,11 +150,13 @@ def main() -> None:
         relatorio = criar_usuarios_seed(
             session_factory=criar_session_factory(engine),
             hasher=hash_senha,
+            papeis=papeis,
+            senhas=senhas,
         )
     finally:
         engine.dispose()
 
-    print(f"Seed de usuarios: {relatorio.resumo()}.")
+    print(f"Seed de usuarios ({', '.join(sorted(papeis))}): {relatorio.resumo()}.")
 
 
 if __name__ == "__main__":

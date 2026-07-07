@@ -50,7 +50,13 @@ class CabecalhoApp:
             f"{_CORES_PAPEL[papel_atual]} text-white px-3 py-1"
         )
         ui.label(email).classes("text-sm text-gray-300")
-        papeis = list(CONFIG.usuarios_seed.keys())
+        # So papeis com atalho configurado (UI_ATALHOS_PAPEIS): o switcher
+        # reloga com a credencial seed do papel — no cloud o admin nao tem
+        # credencial na UI (senha forte, login manual), entao sai da lista.
+        papeis = [p for p in CONFIG.usuarios_seed if p in CONFIG.atalhos_papeis]
+        if not papeis:
+            ui.button("Logout", on_click=self._logout).classes("bg-gray-600")
+            return
         # Quasar q-select no header escuro: `dark` flipa a paleta pra texto
         # claro em fundo escuro (label, input, arrow). `outlined dense`
         # mantem o controle compacto e com borda visivel. Sem `dark` o label

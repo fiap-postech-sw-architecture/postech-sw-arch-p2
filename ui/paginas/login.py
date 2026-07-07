@@ -28,11 +28,11 @@ def pagina_login() -> None:
         status_backend = ui.label("").classes("text-sm")
         _checar_backend(status_backend)
 
-        # Probe de seed + atalhos: SO no modo dev (UI_ATALHOS_DEV, default
-        # true). No cloud (production) os usuarios seed nao existem por
-        # design — o probe acusaria "seed nao encontrado" (ruido pra banca)
-        # e os botoes de atalho falhariam o login.
-        if CONFIG.atalhos_dev:
+        # Probe de "seed nao encontrado": check de DEV — so roda quando o
+        # admin dev esta nos atalhos (UI_ATALHOS_PAPEIS). No cloud o admin e'
+        # forte e fora dos atalhos; o probe com a senha dev acusaria ausencia
+        # e viraria ruido para a banca (ADR-025 adendo).
+        if "admin" in CONFIG.atalhos_papeis:
             alerta_seed = ui.column().classes("w-full")
             _checar_usuarios_seed(alerta_seed)
 
@@ -41,11 +41,13 @@ def pagina_login() -> None:
             on_click=lambda: _entrar(email_input.value, senha_input.value),
         ).classes("w-full")
 
-        if CONFIG.atalhos_dev:
+        # Atalhos por papel (UI_ATALHOS_PAPEIS): dev mostra os 3; cloud so
+        # atendente/mecanico (senha forte via UI_SENHA_<PAPEL>).
+        if CONFIG.atalhos_papeis:
             ui.separator()
-            ui.label("Atalhos (dev)").classes("text-sm text-gray-500")
+            ui.label("Atalhos").classes("text-sm text-gray-500")
             with ui.row().classes("gap-2 w-full justify-center"):
-                for papel in ("admin", "atendente", "mecanico"):
+                for papel in CONFIG.atalhos_papeis:
                     ui.button(
                         papel.capitalize(),
                         on_click=lambda p=papel: _entrar_como_seed(p),
