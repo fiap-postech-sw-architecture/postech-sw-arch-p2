@@ -2,15 +2,13 @@
 
 > [↑ Raiz do projeto](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2) · [↑ Entrega Fase 2](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/docs/entrega/fase2)
 
-> **Versão**: 1.4 — Julho/2026.
+> **Versão**: 1.5 — Julho/2026.
 
 Documento de entrega da Fase 2 do Tech Challenge da Pós-Graduação em Arquitetura de Software (FIAP). O conteúdo cobre os itens exigidos pelo enunciado da fase: identificação do grupo, link do repositório (compartilhado com o avaliador), desenho da arquitetura, instruções de execução e deploy, link da collection das APIs e link do vídeo de demonstração.
 
 ## Como ler este documento
 
-O repositório é a fonte de verdade da entrega. Os artefatos exigidos pela fase — código refatorado com Clean Architecture, Dockerfile e docker-compose revisados, manifests Kubernetes em `/k8s`, scripts Terraform em `/infra`, pipeline de CI/CD e README atualizado — estão versionados no próprio projeto. Os links abaixo apontam diretamente para esses arquivos no GitHub (branch `main`), navegáveis pela UI nativa do GitHub com o avaliador adicionado como colaborador. O desenho da arquitetura é modelado em Mermaid, renderizado nativamente pelo GitHub; a fonte única do diagrama é a [RFC-002 §3](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md), e ele é replicado no [README](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/README.md) e na seção 7 deste documento.
-
-A opção por documentação textual e versionada segue a fase 1: o projeto é AI-first, e Markdown + Mermaid permitem manutenção por agentes de IA sem prejuízo da leitura humana. As decisões da fase estão registradas em ADRs (015–024) e consolidadas na RFC-002; a rastreabilidade requisito → implementação → evidência está na seção 6.
+O repositório é a fonte de verdade: os artefatos exigidos — código refatorado (Clean Architecture), Dockerfile e docker-compose, manifests em `/k8s`, Terraform em `/infra`, pipeline de CI/CD e README — estão versionados e linkados abaixo (branch `main`, com o avaliador como colaborador). O desenho da arquitetura é Mermaid renderizado pelo GitHub, com fonte única na [RFC-002 §3](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md), replicada no [README](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/README.md) e na seção 7. As decisões estão nas ADRs 015–025 e na RFC-002; a rastreabilidade requisito → evidência está na seção 6.
 
 ---
 
@@ -47,7 +45,7 @@ Repositório privado no GitHub, compartilhado com `soat-architecture` conforme e
 | Pipeline de CD (build de imagem + deploy + smoke test) | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/.github/workflows/cd.yml |
 | Collection das APIs (Postman, gerada do OpenAPI) | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/entrega/fase2/postman_collection.json |
 
-A collection foi gerada a partir do contrato OpenAPI vivo da aplicação (46 requisições agrupadas por tag) e é executável de ponta a ponta — validada com newman contra o cluster ([PR #157](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/157)). O request de decisão externa de orçamento traz um **pre-request script que assina a requisição com HMAC** (`X-Webhook-Signature` + `X-Webhook-Timestamp`, espelhando `webhook_signature.py`). O Swagger UI em `/docs` permanece a referência interativa — instruções de acesso no README.
+A collection foi gerada a partir do contrato OpenAPI vivo da aplicação (48 requisições agrupadas por tag) e é executável — validada com newman contra o cluster ([PR #157](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/157)). O request de decisão externa de orçamento traz um pre-request script que assina a requisição com HMAC (`X-Webhook-Signature` + `X-Webhook-Timestamp`, espelhando `webhook_signature.py`). O Swagger UI em `/docs` permanece a referência interativa — instruções de acesso no README.
 
 ### Execuções verdes do CD na main
 
@@ -101,7 +99,7 @@ A documentação da fase 1 (Event Storming, Domain Storytelling, Linguagem Ubíq
 
 ## 5. Relatório de Análise de Vulnerabilidades
 
-A postura de segurança da fase 2 é **verificada por CI, não afirmada em documento**: os seis scanners que a fase 1 rodava manualmente foram automatizados como gates de pipeline ([PR #116](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/116), fecha [#75](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/75)) e reexecutados na HEAD final, já sobre **Python 3.14** ([PR #150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150)). Os seis passaram verdes — cobrindo `src/` + `relay/` no SAST, dependências de runtime na SCA, a imagem 3.14 no scan de container, segredos, análise semântica e DAST contra a API viva. A sétima camada é o **SonarQube**, scan manual de fechamento de fase ([TD-010/ADR-011](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/011-pipeline-seguranca-analise-estatica.md)), executado na mesma HEAD com todos os achados tratados.
+A postura de segurança da fase 2 é verificada por CI: os seis scanners que a fase 1 rodava manualmente foram automatizados como gates de pipeline ([PR #116](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/116), fecha [#75](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/75)) e reexecutados na HEAD final, já sobre Python 3.14 ([PR #150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150)). Os seis passaram verdes — SAST (estática), SCA (dependências), scan de container, segredos, análise semântica e DAST (dinâmica, contra a API viva); detalhe por ferramenta na tabela 5.1. A sétima camada é o **SonarQube**, scan manual de fechamento de fase ([TD-010/ADR-011](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/011-pipeline-seguranca-analise-estatica.md)), executado na mesma HEAD com todos os achados tratados.
 
 ### 5.1 Ferramentas e resultado na HEAD final
 
@@ -159,7 +157,7 @@ Cada requisito da fase 2 ([gap analysis](https://github.com/fiap-postech-sw-arch
 | ID | PR | Requisito | Evidência (arquivo / teste chave) |
 |---|---|---|---|
 | RNF-017 | [#12](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/12) | Clean Architecture formalizada e verificada | Contratos de camadas em `[tool.importlinter]` (`pyproject.toml`), verificados na CI (step *Architecture contracts*, `lint-imports`; paridade local via `make lint-arch`); [ADR-015](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md) |
-| RNF-018 | [#13](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/13)–[#17](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/17) (transversal) | Testes dos fluxos críticos mantidos na evolução | Gate de 95% em `.coveragerc` (1.617 testes unitários + 163 de integração na HEAD final); cobertura de 95,3% em `src/` medida no fechamento (Anexo A) — CI verde na main ([run 28637221227](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/28637221227)) |
+| RNF-018 | [#13](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/13)–[#17](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/17) (transversal) | Testes dos fluxos críticos mantidos na evolução | Gate de 95% em `.coveragerc` (1.802 testes unitários + 162 de integração na HEAD final); cobertura de 95,3% em `src/` medida no fechamento (Anexo A) — CI verde na main ([run 28637221227](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/28637221227)) |
 | RNF-019 | [#18](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/18) | Dockerfile e docker-compose revisados (healthcheck do app) | `HEALTHCHECK` no `Dockerfile` + bloco `healthcheck` do serviço `app` no `docker-compose.yml`, ambos probando `/api/v1/saude` |
 | RNF-020 | [#19](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/19) | Manifests K8s: Deployment, Service, ConfigMap, Secret, HPA | [`k8s/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/k8s) — `namespace.yaml`, `deployment.yaml`, `service.yaml`, `configmap.yaml`, `secret.yaml`, `hpa.yaml`, `jobs/migration-job.yaml`, `mailpit.yaml`, `jaeger.yaml`, `relay.yaml`, `redis.yaml`, `prometheus.yaml`, `ui-{deployment,service,configmap}.yaml` (UI no cluster, issue #186) |
 | RNF-021 | [#20](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/20) | IaC: Terraform provisiona cluster e banco, documentado | [`infra/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/infra) — cluster kind + namespace + Secret + StatefulSet PostgreSQL + Service num único apply; recursos documentados em `infra/README.md` |
@@ -175,11 +173,13 @@ Cada requisito da fase 2 ([gap analysis](https://github.com/fiap-postech-sw-arch
 | RN-019 | [#13](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/13) | Exclusão lógica de `FINALIZADA`/`ENTREGUE` (nenhum delete físico) | Filtro de consulta `notin_(_ESTADOS_ENCERRADOS)`; `incluir_encerradas=true` prova que as linhas permanecem |
 | RN-020 | [#13](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/13) (ratificada no [ADR-021](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/021-aprovacao-externa-orcamento.md)) | Status extras: complementar ordena com Aguardando aprovação; `CANCELADA` excluída como encerrada | Teste-guarda de totalidade dos 8 estados em `tests/unitarios/ordem_servico/test_repository_os.py` |
 
+**Clean Code** (prática exigida pelo enunciado, ao lado da Clean Architecture): nomes na linguagem ubíqua, funções coesas e simplicidade são mantidos por gate de CI — `ruff check` + `ruff format` — e por Value Objects que substituem primitivos (`CPF`, `Placa`, `Contato`); a coesão entre camadas é imposta pelo import-linter (RNF-017). Os refactors estão catalogados no ledger de dívida técnica abaixo.
+
 **Além dos requisitos**: observabilidade com OpenTelemetry. **Traces** de FastAPI e SQLAlchemy no Jaeger ([ADR-020](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/020-observabilidade-opentelemetry.md), [PR #22](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/22)); **métricas** do relay no Prometheus — profundidade da outbox, idade do pendente mais antigo, DLQ (dead-letter queue) e contadores de entrega/falha/retry, via `MeterProvider` OTel + `PrometheusMetricReader` ([ADR-024](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/024-metricas-prometheus.md), [PR #66](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/66), TD-022). Ambos rodam no cluster de demo e são demonstrados no bloco 6 do vídeo.
 
 ### Qualidade além do escopo — dívida técnica endereçada
 
-O backlog de dívida técnica é mantido como um ledger versionado em [`docs/tech-debt/README.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/tech-debt/README.md), com itens classificados e rastreados desde a fase 1. O ledger registra hoje **29 itens resolvidos** e **5 abertos** (todos deliberados e justificados, sem impacto de produção no caminho suportado; os achados da [auditoria pré-entrega](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/tech-debt/auditoria-pre-entrega-fase2.md) foram endereçados por completo). Fora do escopo exigido pela fase 2, o grupo amortizou parte expressiva desse backlog — incluindo um débito tático de DDD herdado da fase 1 — atacando-o em tiers priorizados ([plano-ataque.md](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/tech-debt/plano-ataque.md)) e mantendo o ledger fiel ao código. Os principais:
+O backlog de dívida técnica é mantido como um ledger versionado em [`docs/tech-debt/README.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/tech-debt/README.md), com itens classificados e rastreados desde a fase 1. O ledger registra hoje **29 itens resolvidos** e **5 abertos** (todos deliberados e justificados, sem impacto de produção no caminho suportado; os achados da [auditoria pré-entrega](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/tech-debt/auditoria-pre-entrega-fase2.md) foram endereçados por completo). Fora do escopo exigido pela fase 2, o grupo amortizou boa parte desse backlog — incluindo um débito tático de DDD herdado da fase 1 — em tiers priorizados ([plano-ataque.md](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/tech-debt/plano-ataque.md)). Os principais:
 
 | Item | PR | O que foi feito |
 |---|---|---|
@@ -198,9 +198,7 @@ O backlog de dívida técnica é mantido como um ledger versionado em [`docs/tec
 | TD-019 (Clean Architecture) | [#50](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/50) | Extração de `PasswordHasherPort`/`JWTServicePort` na autenticação, removendo o último acoplamento `aplicação → infraestrutura`; o contrato `forbidden` do import-linter passou a verificá-lo globalmente em todos os contextos, reforçando a **RNF-017** |
 | #75 (gates de segurança em CI) | [#116](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/116) | Automação dos scanners que os docs de segurança citavam mas nenhum workflow rodava: **pip-audit** (CVE em deps — pegou e corrigiu 5 CVEs reais em cryptography/starlette), **gitleaks** (segredos) e **trivy** (CVE na imagem) em [`security.yml`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/.github/workflows/security.yml); escopo do **bandit** ampliado (`src ui relay scripts`); **CodeQL** confirmado no default setup do GitHub + `make codeql-quality` local aplicando as supressões de falsos positivos que o default setup não permite; **Dependabot** habilitado (hoje com cadência mensal) |
 
-A tabela acima destaca os itens de maior valor; o conjunto completo dos **29 resolvidos** (incluindo itens fechados nas campanhas de finalização da fase 2 e pendências herdadas da fase 1) está no [ledger](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/tech-debt/README.md#itens-resolvidos-29).
-
-Isso concretiza a Boy Scout Rule registrada na estratégia de pagamento do [ledger de dívida técnica](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/tech-debt/README.md): cada evolução deixa o código e a documentação melhores do que os encontrou.
+A tabela acima destaca os itens de maior valor; o conjunto completo dos **29 resolvidos** está no [ledger](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/tech-debt/README.md#itens-resolvidos-29).
 
 ## 7. Desenho da arquitetura
 
@@ -227,8 +225,8 @@ flowchart TB
     subgraph cluster["Cluster kind (ADR-016) — dev local, vídeo e CI efêmero"]
         subgraph infra_tf["/infra — Terraform (ADR-016, ADR-017)"]
             pg[("PostgreSQL 16<br/>StatefulSet + PVC")]
-            ms["metrics-server"]
         end
+        ms["metrics-server<br/>(add-on aplicado no deploy)"]
         subgraph k8s_app["/k8s — manifests da aplicação"]
             svc["Service"]
             app["PytStop API — Deployment<br/>Clean Architecture (ADR-015):<br/>Entidades · Casos de Uso ·<br/>Adaptadores de Interface ·<br/>Frameworks & Drivers"]
@@ -261,24 +259,9 @@ No fluxo acima, a CI atua como gate no PR (antes do merge); no push à `main`, C
 
 A demo pode ser conduzida inteiramente no cluster: a UI de simulação (NiceGUI, [issue #186](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/186)) sobe como o Deployment `pytstop-ui` e consome a API pelo Service interno `pytstop-api:8000` — `make cd-local` a implanta junto com o resto, e `kubectl -n pytstop port-forward svc/pytstop-ui 8080:8080` a expõe em `http://localhost:8080`. Alternativamente, o `docker-compose.yml` sobe a mesma UI localmente (`make up`); o passo a passo dos dois caminhos está no [README](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/README.md#ui-de-simula%C3%A7%C3%A3o) e no [`k8s/README.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/k8s/README.md).
 
-### Evolução das camadas — da Onion (fase 1) à Clean Architecture (fase 2)
+### Camadas — Clean Architecture (fase 2)
 
-A fase 1 organizava cada contexto delimitado em quatro camadas no modelo Onion ([ADR-003](../../arquitetura/adr/003-arquitetura-ddd-onion.md)): `dominio/`, `aplicacao/`, `infraestrutura/` e `interfaces/`, com a regra de dependência apontando para dentro, ports declarados em `aplicacao/` e adapters concretos na borda — mas sem ordem formal entre `interfaces/` e `infraestrutura/`.
-
-<!-- fonte: ADR-003 — camadas da fase 1 -->
-```mermaid
-flowchart TB
-    subgraph borda["Borda — interfaces/ e infraestrutura/, sem subdivisão formal"]
-        direction TB
-        i1["interfaces/<br/>routers FastAPI, schemas"]
-        n1["infraestrutura/<br/>ORM, repositórios, PostgreSQL"]
-        subgraph app1["aplicacao/ — casos de uso, DTOs, ports, UnitOfWork"]
-            dom1["dominio/ — entidades, agregados, value objects, eventos"]
-        end
-    end
-```
-
-A refatoração da fase 2 ([ADR-015](../../arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md), RNF-017) adotou a Clean Architecture sem rewrite: o núcleo ports & adapters permaneceu válido, e a mudança formalizou a nomenclatura de Martin e subdividiu a borda — `interfaces/` virou a camada de **Adaptadores de Interface** (controllers e presenters) e `infraestrutura/` a de **Frameworks & Drivers** (gateways SQLAlchemy, ORM, conexão com o banco), cada uma com papel e regras próprios.
+A fase 1 já usava ports & adapters no modelo Onion ([ADR-003](../../arquitetura/adr/003-arquitetura-ddd-onion.md)), sem ordem formal entre `interfaces/` e `infraestrutura/`. A fase 2 ([ADR-015](../../arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md), RNF-017) adotou a Clean Architecture sem rewrite: formalizou a nomenclatura de Martin e subdividiu a borda — `interfaces/` virou **Adaptadores de Interface** (controllers e presenters) e `infraestrutura/` **Frameworks & Drivers** (gateways SQLAlchemy, ORM, banco).
 
 <!-- fonte: ADR-015 — camadas da fase 2 -->
 ```mermaid
@@ -296,9 +279,9 @@ A regra de dependência deixou de ser convenção e virou gate: o [import-linter
 
 ### Ambiente cloud de demonstração (opcional — ADR-025)
 
-Além do cluster kind (dev, vídeo e CI), a solução é publicada na nuvem como ambiente vivo para a banca navegar durante a avaliação — **aditivo**, sem alterar o CD canônico do RNF-022. O veículo é uma **VM Azure Spot com k3s** (`infra/azure-vm/` + `make vm-up`): Kubernetes real recebendo as mesmas imagens por SHA, os mesmos manifests de `k8s/` (via _overlay_ kustomize) e o mesmo Job de migração — a subscription de estudante bloqueia o AKS gerenciado (quota zero nas famílias de SKU que o AKS aceita; pedido de aumento negado), e o trilho AKS permanece pronto em `infra/azure-aks/` (`make cloud-aks-up`) para quando a quota liberar. A decisão, os trade-offs de custo e o bloqueio documentado estão no [ADR-025](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/025-ambiente-cloud-demonstracao.md) (com adendo); o plano de execução na [issue #188](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/188).
+Além do cluster kind (dev, vídeo e CI), a solução roda na nuvem como ambiente vivo para a banca navegar — aditivo, sem alterar o CD canônico do RNF-022. O veículo é uma VM Azure Spot com k3s (`infra/azure-vm/` + `make vm-up`): Kubernetes real com as mesmas imagens por SHA, os mesmos manifests de `k8s/` (via overlay kustomize) e o mesmo Job de migração. A conta de estudante não libera o AKS gerenciado (quota zero nas SKUs aceitas, aumento negado); o trilho AKS segue pronto em `infra/azure-aks/` (`make cloud-aks-up`) para quando a quota liberar. Decisão, custos e bloqueio no [ADR-025](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/025-ambiente-cloud-demonstracao.md); plano de execução na [issue #188](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/188).
 
-> **Ambiente de demonstração na nuvem:** `CLOUD-URL-FASE-2` — disponível **24/7 durante julho/2026** (horário de Brasília); a banca pode abrir a qualquer hora do mês. A partir de 01/08/2026 o ambiente é destruído para preservar o crédito de estudante e reerguível sob demanda em ~10 min (deploy 100% reproduzível). A banca acessa quatro superfícies por IP público: **UI** (navegar o app), **API** (testar com Postman), **Jaeger** (traces) e **Prometheus** (métricas). Custo mantido baixo por _node_ único e destruição fora da janela — risco financeiro zero (conta de estudante sem cartão). Este ambiente é um **diferencial**: o aceite do enunciado (vídeo + repositório + IaC do kind) não depende dele.
+> **Ambiente de demonstração:** UI em http://135.232.196.168:8080 <!-- CLOUD-URL-FASE-2 --> (mesmo IP: API `:8000` para Postman, Jaeger `:16686`, Prometheus `:9090`) — disponível 24/7 durante julho/2026 (horário de Brasília). A partir de 01/08/2026 é destruído para preservar o crédito de estudante, reerguível em ~10 min. Node único e destruição fora da janela mantêm o custo baixo, sem risco financeiro (conta de estudante sem cartão). O aceite do enunciado (vídeo + repositório + IaC do kind) não depende deste ambiente.
 
 ## 8. Conteúdo do PDF de submissão
 
@@ -310,7 +293,7 @@ O PDF contém os três itens exigidos pelo enunciado:
 2. **Desenho da arquitetura** com os recursos escolhidos (seção 7 — kind, Terraform, GHCR, manifests K8s com HPA, Mailpit, Jaeger, Prometheus).
 3. **Link do vídeo** de até 15 minutos apresentando a solução (seção 3 — preenchido após a gravação).
 
-Mais três anexos de evidência de profundidade:
+Mais três anexos de evidência:
 
 - **Anexo A — Scans de Segurança da Fase 2**: bateria de fechamento na HEAD final ([`scan-fase-2.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/seguranca/scan-fase-2.md)).
 - **Anexo B — Evidências Visuais**: capturas da demonstração no cluster (pipeline verde, HPA escalando 1 → 5, traces no Jaeger, e-mails no Mailpit, métricas no Prometheus e o antes/depois do SonarQube — hotspots 3 → 0, Quality Gate Passed).
@@ -327,7 +310,7 @@ Ações manuais que permanecem com a equipe (nenhuma bloqueia a navegação do r
 | 3 | Preencher o link do vídeo na seção 3 deste documento e no README (marcadores `VIDEO-LINK-FASE-2`) | `docs/entrega/fase2/entrega-fase-2.md` + `README.md` |
 | 4 | Mergear as alterações finais (link do vídeo) na `main` — os links do PDF apontam para a `main` | PR do branch de entrega |
 | 5 | Regerar o PDF (`documento-entrega-fase-2.pdf`) com o link do vídeo preenchido e submeter no portal do aluno | fluxo descrito no [README da pasta](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/entrega/fase2/README.md) |
-| 6 _(opcional, diferencial)_ | Subir o ambiente cloud de demonstração e preencher a URL na seção 7 (marcador `CLOUD-URL-FASE-2`) | bootstrap Azure + Environment `cloud`; ver [ADR-025](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/025-ambiente-cloud-demonstracao.md) e [#188](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/188) |
+| 6 _(opcional)_ | Ambiente cloud de demonstração no ar (seção 7); reerguível com `make vm-up` se cair fora da janela de julho | ver [ADR-025](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/025-ambiente-cloud-demonstracao.md) e [#188](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/188) |
 
 ---
 
