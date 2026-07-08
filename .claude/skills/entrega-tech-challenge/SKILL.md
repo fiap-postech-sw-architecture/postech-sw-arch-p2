@@ -28,11 +28,11 @@ Recursos da skill:
 - `references/idas-e-voltas.md` — **gotchas a antecipar e evitar** (git/PR, PDF, CI/review, infra).
 - `references/code-review-canonico.md` — alternativa single-shot+Judge (para code review do dia-a-dia, quando 18 perspectivas e exagero).
 - `scripts/gerar_pdf_entrega.py` — gera o PDF de submissao.
-- **Exemplos reais (no proprio repo):** `docs/entrega/` ja contem os pacotes de
-  entrega das fases anteriores (a fase 1 tirou 10) — `entrega-fase-N.md`,
-  `roteiro-video.md`, `documento-aprovacao-solucao.md`, etc. Use como template a
-  espelhar. Nao sao duplicados aqui para nao inchar o repo; o PDF e regeravel
-  pelo script acima.
+- `assets/exemplos/fase1/`, `assets/exemplos/fase2/` — pacotes de entrega REAIS
+  (a fase 1 tirou 10) como template a espelhar: `entrega-fase-N.md`,
+  `roteiro-video.md`, `documento-aprovacao-solucao.md`, `apendice-*.md`, assets.
+  Inclui `documento-entrega-fase-{1,2}.pdf` como referencia visual de "como fica
+  um 10" (a fase 1 e a baseline da nota maxima).
 
 ## Antes de tudo
 
@@ -50,21 +50,42 @@ modulo de codigo, diff de PR, e o proprio documento de entrega).
 O protocolo completo esta em `references/protocolo-perspective-review.md`. Resumo
 operacional:
 
-1. **Paralelo (#1–#16):** lance 16 sub-agentes, um por perspectiva. Cada um
-   recebe **apenas** o seu arquivo `references/perspectives/NN-*.md` + o artefato
-   em revisao + o spec/enunciado da fase + glossario. NAO passe o indice nem as
-   outras perspectivas (foco estreito = mais recall).
+0. **Escolha o NIVEL primeiro** (custo × momento — detalhe no protocolo):
+   - **rapido** (default, diffs e docs do dia-a-dia): single-shot + Judge
+     (`references/code-review-canonico.md`); doc-only = secoes 8+9. SEM
+     sub-agente por perspectiva.
+   - **deep** (artefato significativo em iteracao): 4–6 lentes AGRUPADAS por
+     tipo de artefato + Judge + #17→#18→#17.
+   - **campeao** (1× por artefato de entrega, no fechamento — onde o 10 e
+     decidido): o conjunto APLICAVEL das 16 + extras do tipo de artefato
+     (trabalho academico: professor-com-rubrica + escrita PT-BR) + Judge +
+     #17→#18→#17. Nao relancar campeao a cada retoque: retoques usam deep.
+1. **Paralelo (finders):** lance os sub-agentes do nivel escolhido — SO as
+   perspectivas cujo checklist nao seria majoritariamente N/A para o artefato
+   (lentes de codigo nao rodam em documento). Cada um recebe **apenas** o seu
+   arquivo `references/perspectives/NN-*.md` + o artefato em revisao + o
+   spec/enunciado da fase + glossario — nunca o historico da sessao.
+   - Finders rodam em **modelo barato** (classe Sonnet); recall e o trabalho
+     deles, precisao vem do Judge e da triagem. Findings em 1 linha:
+     `[SEVERIDADE] linha — problema → correcao`.
    - Use o Agent tool com varios sub-agentes no mesmo turno (rodam concorrentes).
    - Cada perspectiva termina num **Checklist obrigatorio**: o sub-agente so
      retorna PASS depois de verificar cada item, citando `file:line` em cada
      violacao. Se nao se aplica: `PASS — N/A (motivo)`.
-2. **Triagem:** colete TODAS as findings. Cada uma e **aplicada** ou
-   **rejeitada com justificativa de 1 linha** — nenhuma e silenciosamente
-   ignorada. Formato: `REJECTED [Perspectiva N]: <finding> — Motivo: <razao>`.
-   Conflitos entre perspectivas: vence o que serve melhor o plano; documente.
-3. **Sequencial #17 → #18 → #17:** rode AI-Trace Removal (#17) sozinho no
-   resultado acumulado, depois Human Reader (#18), depois #17 de novo. **Nunca
-   pule o #17** — e o que remove "cara de IA" do texto (decisivo no 10 de docs).
+2. **Judge + triagem:** aplique o filtro Judge do canonico (derruba finding que
+   repete tradeoff aceito no MEMORY, duplicata <MEDIUM, ou especulativo sem
+   linha/simbolo citado). Cada sobrevivente e **aplicado** ou **rejeitado com
+   justificativa de 1 linha** — nenhum e silenciosamente ignorado. Formato:
+   `REJECTED [Perspectiva N]: <finding> — Motivo: <razao>`. Conflitos entre
+   perspectivas: vence o que serve melhor o plano; documente.
+3. **Sequencial #17 → #18 → verificacao** (no modelo da sessao, nao no barato):
+   rode AI-Trace Removal (#17) sozinho no resultado acumulado; depois Human
+   Reader (#18) com a restricao "suas reescritas devem obedecer o checklist do
+   #17"; depois verifique as edicoes do #18 com `scripts/lint_ai_trace.py` +
+   auto-checagem do checklist SO no diff. Agente #17 completo de novo APENAS se
+   o linter acusar, o self-check achar algo, ou o #18 tiver reescrito >20% das
+   linhas (racional e fontes no protocolo). **Nunca pule o #17 (S1)** — e o que
+   remove "cara de IA" do texto (decisivo no 10 de docs).
 4. **Copilot Gap Analysis (apos push do PR):** para cada finding do Copilot,
    mapeie a perspectiva que deveria ter pego, registre, e se 3+ findings caem na
    mesma perspectiva, reforce o checklist dela.
@@ -90,7 +111,7 @@ Pre-requisitos: `pandoc`, `weasyprint`, `npx` (mermaid-cli on-demand), `python3`
    o link do repo + colaborador `soat-architecture`) antes de submeter.
 3. Rode, da raiz do repo da fase:
    ```bash
-   python .claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py \
+   python ~/.claude/skills/entrega-tech-challenge/scripts/gerar_pdf_entrega.py \
      docs/entrega/faseN/entrega-fase-N.md
    ```
    - Auto-detecta `owner/repo` (gh → git remote). **Se o repo foi transferido de

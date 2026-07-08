@@ -1,12 +1,5 @@
 # Code Review Protocol
 
-> **Origin.** This file is a copy of the canonical protocol from the
-> `postech-ai-helper` repo (workspace root). Relative references in this
-> document (`../_archive/...`, `ai/ddd/*.md`, `ai/canonical/*.md`,
-> `context-pack.md`, `memory.md`, `code-review-checklist-extended.md`) point
-> into the `postech-ai-helper` tree, **not** this repo — they are origin
-> context, not links navigable from here.
-
 Single-shot review with checklist + Judge filter. Replaces the 16-parallel-perspective protocol (archived at `../_archive/perspectives-2026-04/`).
 
 ## When to use
