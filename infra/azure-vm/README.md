@@ -35,15 +35,18 @@ Secrets reais de `.env.cloud` → overlay `vm-k3s` → Job de migração →
 deployment/relay/UI → CORS + seed. Chave SSH dedicada `.vm-demo-ssh`
 (git-ignored, gerada no primeiro up).
 
-## Spot: eviction e watchdog
+## Spot: eviction e religamento
 
 - `max_bid_price = -1`: paga no máximo o preço on-demand ⇒ eviction **só por
   falta de capacidade** (rara em Dsv3/eastus), nunca por preço.
 - `eviction_policy = Deallocate`: discos preservados — religou, k3s e dados voltam.
-- **Watchdog**: [`.github/workflows/vm-watchdog.yml`](../../.github/workflows/vm-watchdog.yml)
-  religa a VM despejada a cada 30 min (cron restrito a julho). Requer, uma vez:
-  federated credential escopada à main + os 3 IDs como *Variables* do repo —
-  comandos no cabeçalho do próprio workflow.
+- **Religamento manual** (o IP estático não muda):
+  `az vm start -g rg-pytstop-vm -n pytstop-vm`.
+  Um workflow de religamento automático (`vm-watchdog`) existiu e foi
+  **descomissionado em 2026-07-08**: exigia bootstrap OIDC adicional
+  (federated credential escopada à main) que nunca foi concluído, e cada
+  execução falhando a cada 30 min só poluía o Actions — para uma eviction
+  rara que um comando resolve.
 
 ## Custo (preços reais consultados em 2026-07)
 

@@ -9,11 +9,11 @@ output "ssh_command" {
 }
 
 output "vm_name" {
-  description = "Nome da VM (alvo do watchdog: az vm start -g <rg> -n <vm>)."
+  description = "Nome da VM (religamento manual pós-eviction: az vm start -g <rg> -n <vm>)."
   value       = azurerm_linux_virtual_machine.vm.name
 }
 
 output "resource_group_name" {
-  description = "Resource group da VM (alvo do make vm-down / watchdog)."
+  description = "Resource group da VM (alvo do make vm-down / az vm start)."
   value       = azurerm_resource_group.vm.name
 }
