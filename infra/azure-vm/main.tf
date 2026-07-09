@@ -6,9 +6,9 @@
 # - IP público como RECURSO SEPARADO da VM: sobrevive a eviction/recreate e
 #   até à troca spot<->on-demand — a URL passada à banca não muda.
 # - Spot com max_bid_price = -1: paga no máximo o preço on-demand, então a
-#   eviction só acontece por falta de capacidade (nunca por preço). O
-#   workflow vm-watchdog religa a VM despejada (eviction_policy=Deallocate
-#   preserva discos).
+#   eviction só acontece por falta de capacidade (nunca por preço). Pós-
+#   eviction, religamento manual: `az vm start -g <rg> -n <vm>`
+#   (eviction_policy=Deallocate preserva discos; o IP estático não muda).
 # - cloud-init instala o k3s com --tls-san <ip público> (o kubeconfig
 #   exportado pelo make valida TLS contra o IP público) e sem Traefik (os
 #   Services LoadBalancer do overlay são atendidos pelo klipper-lb do k3s,
@@ -139,7 +139,7 @@ resource "azurerm_linux_virtual_machine" "vm" {
   network_interface_ids = [azurerm_network_interface.vm.id]
 
   # Spot: despejo só por capacidade (max_bid = on-demand); Deallocate
-  # preserva discos — o watchdog religa e o k3s volta com os dados.
+  # preserva discos — um `az vm start` religa e o k3s volta com os dados.
   priority        = var.spot ? "Spot" : "Regular"
   eviction_policy = var.spot ? "Deallocate" : null
   max_bid_price   = var.spot ? -1 : null

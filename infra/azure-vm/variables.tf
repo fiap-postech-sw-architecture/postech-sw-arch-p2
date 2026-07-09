@@ -17,7 +17,7 @@ variable "vm_size" {
 }
 
 variable "spot" {
-  description = "true = VM Spot (~80% de desconto; pode ser despejada por capacidade — watchdog religa). false = on-demand (janela crítica da banca)."
+  description = "true = VM Spot (~80% de desconto; pode ser despejada por capacidade — religar com az vm start). false = on-demand (janela crítica da banca)."
   type        = bool
   default     = true
 }
