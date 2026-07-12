@@ -35,6 +35,27 @@ Secrets reais de `.env.cloud` → overlay `vm-k3s` → Job de migração →
 deployment/relay/UI → CORS + seed. Chave SSH dedicada `.vm-demo-ssh`
 (git-ignored, gerada no primeiro up).
 
+## Subindo como membro do grupo
+
+Qualquer integrante consegue subir/derrubar o ambiente do zero, desde que:
+
+1. **Acesso à subscription** — o dono da conta Azure for Students concede
+   uma vez: `az role assignment create --assignee RM<numero>@fiap.com.br
+   --role Contributor --scope /subscriptions/<id-da-subscription>`.
+2. **Toolchain local** — `az` (CLI), `terraform`, `kubectl`, `docker` e `uv`
+   ([setup por plataforma](../../docs/setup/)).
+3. **Segredos** — receber o `.env.cloud` do dono por canal seguro (nunca
+   commitar; já está no `.gitignore`) e colocá-lo na raiz do repo. Sem ele o
+   `vm-up` funciona igual, mas **gera credenciais novas** (`cloud-secrets.sh`
+   é idempotente: reusa o arquivo se existir, cria se não) — aí as senhas
+   divergem das documentadas para a banca.
+4. `az login` com a conta FIAP → `make vm-up`.
+
+Cuidados: o crédito é da subscription do dono (US$ 100, sem cartão);
+`make vm-down` ao terminar testes fora da janela da banca. O IP muda a cada
+`vm-down`+`vm-up` — atualizar o marcador `CLOUD-URL-FASE-2` no documento de
+entrega quando o ambiente da banca for (re)erguido.
+
 ## Spot: eviction e religamento
 
 - `max_bid_price = -1`: paga no máximo o preço on-demand ⇒ eviction **só por
