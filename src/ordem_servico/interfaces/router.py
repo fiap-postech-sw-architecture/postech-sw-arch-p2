@@ -20,10 +20,16 @@ middleware de auth (rate-limited a 10/minute).
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 from uuid import UUID  # noqa: TC003
 
 from fastapi import APIRouter, Depends, Query, status
+
+# Runtime import (nao TYPE_CHECKING): com `from __future__ import annotations`,
+# o FastAPI avalia a annotation `Annotated[Session, Depends(...)]` em runtime;
+# sem o nome no modulo, a resolucao da annotation falha no startup
+# (PydanticUserError: not fully defined) — verificado empiricamente.
+from sqlalchemy.orm import Session  # noqa: TC002
 
 from src.autenticacao.interfaces.middleware import exigir_papel
 from src.compartilhado.interfaces.dependencies import obter_session
@@ -63,8 +69,6 @@ from src.ordem_servico.interfaces.schemas import (
 )
 
 if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
     from src.ordem_servico.aplicacao.dtos import OrdemDeServicoDTO
 
 router = APIRouter(prefix="/api/v1/ordens-de-servico", tags=["ordens-de-servico"])
@@ -89,12 +93,11 @@ def _to_ordem_response(
     "/",
     status_code=status.HTTP_201_CREATED,
     summary="Cria uma nova ordem de servico",
-    response_model=OrdemDeServicoResponse,
 )
 def criar_ordem(
     body: CriarOrdemRequest,
-    usuario: dict[str, object] = Depends(exigir_papel("admin")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Abre uma ordem de servico, opcionalmente ja com servicos e pecas.
 
@@ -129,24 +132,25 @@ def criar_ordem(
 @router.get(
     "/",
     summary="Lista ordens paginadas por prioridade de status",
-    response_model=OrdemListaResponse,
 )
 def listar_ordens(
     *,
-    offset: int = Query(default=0, ge=0),
-    limit: int = Query(default=20, ge=1, le=100),
-    incluir_encerradas: bool = Query(
-        default=False,
-        description=(
-            "Inclui FINALIZADA/ENTREGUE/CANCELADA ao final da listagem "
-            "(visao administrativa completa). Default exclui encerradas "
-            "(RN-019/RN-020)."
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
+    incluir_encerradas: Annotated[
+        bool,
+        Query(
+            description=(
+                "Inclui FINALIZADA/ENTREGUE/CANCELADA ao final da listagem "
+                "(visao administrativa completa). Default exclui encerradas "
+                "(RN-019/RN-020)."
+            )
         ),
-    ),
-    usuario: dict[str, object] = Depends(
-        exigir_papel("admin", "atendente", "mecanico")
-    ),
-    session: Session = Depends(obter_session),
+    ] = False,
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel("admin", "atendente", "mecanico"))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemListaResponse:
     """Pagina ordens por prioridade de status + antiguidade (RF-023).
 
@@ -171,11 +175,10 @@ def listar_ordens(
 @router.get(
     "/metricas",
     summary="Projecao agregada de ordens (total + por status + tempo medio)",
-    response_model=MetricasResponse,
 )
 def metricas(
-    usuario: dict[str, object] = Depends(exigir_papel("admin")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> MetricasResponse:
     """Retorna total, contagem por status e tempo medio de execucao em minutos."""
     uc = obter_metricas(session)
@@ -186,14 +189,13 @@ def metricas(
 @router.get(
     "/{ordem_id}",
     summary="Consulta detalhada de uma ordem por id",
-    response_model=OrdemDeServicoResponse,
 )
 def obter_ordem(
     ordem_id: UUID,
-    usuario: dict[str, object] = Depends(
-        exigir_papel("admin", "atendente", "mecanico")
-    ),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel("admin", "atendente", "mecanico"))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Retorna a projecao completa da ordem (itens + orcamento + timestamps)."""
     uc = obter_obter_ordem(session)
@@ -205,13 +207,12 @@ def obter_ordem(
     "/{ordem_id}/itens",
     status_code=status.HTTP_201_CREATED,
     summary="Adiciona um item a uma ordem",
-    response_model=OrdemDeServicoResponse,
 )
 def adicionar_item(
     ordem_id: UUID,
     body: AdicionarItemRequest,
-    usuario: dict[str, object] = Depends(exigir_papel("admin", "mecanico")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin", "mecanico"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Valida servico via ``CatalogoPort`` e adiciona o item a ordem."""
     uc = obter_adicionar_item(session)
@@ -228,13 +229,12 @@ def adicionar_item(
 @router.delete(
     "/{ordem_id}/itens/{item_id}",
     summary="Remove um item da ordem e retorna a ordem atualizada",
-    response_model=OrdemDeServicoResponse,
 )
 def remover_item(
     ordem_id: UUID,
     item_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel("admin", "mecanico")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin", "mecanico"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Remove o item por id; retorna a ordem atualizada (status, lista de itens).
 
@@ -249,12 +249,11 @@ def remover_item(
 @router.post(
     "/{ordem_id}/diagnostico",
     summary="RECEBIDA -> EM_DIAGNOSTICO",
-    response_model=OrdemDeServicoResponse,
 )
 def iniciar_diagnostico(
     ordem_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel("admin", "mecanico")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin", "mecanico"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Transita a ordem para ``EM_DIAGNOSTICO`` e emite ``DiagnosticoIniciadoEvent``."""
     uc = obter_iniciar_diagnostico(session)
@@ -265,12 +264,11 @@ def iniciar_diagnostico(
 @router.post(
     "/{ordem_id}/orcamento",
     summary="EM_DIAGNOSTICO -> AGUARDANDO_APROVACAO",
-    response_model=OrdemDeServicoResponse,
 )
 def gerar_orcamento(
     ordem_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel("admin", "mecanico")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin", "mecanico"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Calcula o orcamento e transita a ordem para ``AGUARDANDO_APROVACAO``."""
     uc = obter_gerar_orcamento(session)
@@ -281,12 +279,11 @@ def gerar_orcamento(
 @router.post(
     "/{ordem_id}/aprovacao",
     summary="AGUARDANDO_APROVACAO -> EM_EXECUCAO",
-    response_model=OrdemDeServicoResponse,
 )
 def aprovar_orcamento(
     ordem_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel("admin")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Aprova o orcamento, reserva estoque e transita para ``EM_EXECUCAO``."""
     uc = obter_aprovar_orcamento(session)
@@ -297,12 +294,11 @@ def aprovar_orcamento(
 @router.post(
     "/{ordem_id}/finalizacao",
     summary="EM_EXECUCAO -> FINALIZADA",
-    response_model=OrdemDeServicoResponse,
 )
 def finalizar_servico(
     ordem_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel("admin", "mecanico")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin", "mecanico"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Transita a ordem para ``FINALIZADA`` e emite ``ServicoFinalizadoEvent``."""
     uc = obter_finalizar_servico(session)
@@ -313,12 +309,11 @@ def finalizar_servico(
 @router.post(
     "/{ordem_id}/entrega",
     summary="FINALIZADA -> ENTREGUE",
-    response_model=OrdemDeServicoResponse,
 )
 def registrar_entrega(
     ordem_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel("admin", "mecanico")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin", "mecanico"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Transita a ordem para ``ENTREGUE`` e emite ``EntregaRegistradaEvent``."""
     uc = obter_registrar_entrega(session)
@@ -329,13 +324,12 @@ def registrar_entrega(
 @router.post(
     "/{ordem_id}/cancelamento",
     summary="Qualquer estado ativo -> CANCELADA",
-    response_model=OrdemDeServicoResponse,
 )
 def cancelar_ordem(
     ordem_id: UUID,
     body: CancelarOrdemRequest,
-    usuario: dict[str, object] = Depends(exigir_papel("admin")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Cancela a ordem e libera reservas de estoque ativas (se houver)."""
     uc = obter_cancelar_ordem(session)
@@ -346,12 +340,11 @@ def cancelar_ordem(
 @router.post(
     "/{ordem_id}/orcamento-complementar",
     summary="EM_EXECUCAO -> AGUARDANDO_APROVACAO_COMPLEMENTAR",
-    response_model=OrdemDeServicoResponse,
 )
 def gerar_complementar(
     ordem_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel("admin", "mecanico")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin", "mecanico"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Regenera o orcamento apos novos itens e transita para aprovacao complementar."""
     uc = obter_gerar_complementar(session)
@@ -362,12 +355,11 @@ def gerar_complementar(
 @router.post(
     "/{ordem_id}/aprovacao-complementar",
     summary="AGUARDANDO_APROVACAO_COMPLEMENTAR -> EM_EXECUCAO (aprovado)",
-    response_model=OrdemDeServicoResponse,
 )
 def aprovar_complementar(
     ordem_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel("admin", "mecanico")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin", "mecanico"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Aprova o orcamento complementar e retorna a ordem a ``EM_EXECUCAO``."""
     uc = obter_aprovar_complementar(session)
@@ -378,12 +370,11 @@ def aprovar_complementar(
 @router.post(
     "/{ordem_id}/rejeicao-complementar",
     summary="AGUARDANDO_APROVACAO_COMPLEMENTAR -> EM_EXECUCAO (rejeitado)",
-    response_model=OrdemDeServicoResponse,
 )
 def rejeitar_complementar(
     ordem_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel("admin")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> OrdemDeServicoResponse:
     """Rejeita o orcamento complementar e retorna a ordem a ``EM_EXECUCAO``."""
     uc = obter_rejeitar_complementar(session)

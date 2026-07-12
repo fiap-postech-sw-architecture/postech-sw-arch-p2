@@ -79,7 +79,7 @@ class TestRouterOS:
 
         Os testes deste arquivo trocam DTOs reais por ``SimpleNamespace``
         para nao depender da camada de aplicacao. A query real chama
-        ``dataclasses.replace`` no DTO antes de devolver — operacao que
+        ``copy.replace`` no DTO antes de devolver — operacao que
         falha em ``SimpleNamespace``. O stub aqui devolve o input
         intacto, mantendo o foco do teste no router.
         """

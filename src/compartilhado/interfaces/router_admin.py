@@ -20,7 +20,7 @@ contexto algum.
 
 from __future__ import annotations
 
-from typing import TYPE_CHECKING, Any
+from typing import TYPE_CHECKING, Annotated, Any
 
 import structlog
 from fastapi import APIRouter, Depends, HTTPException, status
@@ -63,7 +63,7 @@ def listar_dlq(request: Request) -> list[dict[str, Any]]:
 def reenfileirar_dlq(
     outbox_id: int,
     request: Request,
-    usuario: dict[str, object] = Depends(exigir_papel("admin")),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin"))],
 ) -> dict[str, Any]:
     """Reenfileira uma linha ``dead`` (volta a ``pendente``, zera tentativas).
 

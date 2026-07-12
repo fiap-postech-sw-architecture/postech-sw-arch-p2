@@ -27,11 +27,17 @@ from __future__ import annotations
 import hmac
 import os
 import time
-from typing import TYPE_CHECKING
+from typing import Annotated
 from uuid import UUID  # noqa: TC003
 
 import structlog
 from fastapi import APIRouter, Depends, Header, HTTPException, status
+
+# Runtime import (nao TYPE_CHECKING): com `from __future__ import annotations`,
+# o FastAPI avalia a annotation `Annotated[Session, Depends(...)]` em runtime;
+# sem o nome no modulo, a resolucao da annotation falha no startup
+# (PydanticUserError: not fully defined) — verificado empiricamente.
+from sqlalchemy.orm import Session  # noqa: TC002
 from starlette.requests import Request  # noqa: TC002
 
 from src.compartilhado.infraestrutura.webhook_signature import (
@@ -45,9 +51,6 @@ from src.ordem_servico.interfaces.schemas import (
     AcompanhamentoResponse,
     DecisaoOrcamentoRequest,
 )
-
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
 
 _log = structlog.get_logger(__name__)
 
@@ -88,7 +91,6 @@ async def saude() -> dict[str, str]:
 @router.post(
     "/api/v1/acompanhamento",
     summary="Consulta publica de ordem por placa + documento",
-    response_model=AcompanhamentoResponse,
     responses={
         404: {"description": "Nenhuma ordem encontrada para o par placa+documento."},
         429: {"description": "Rate limit excedido (10/minute por IP)."},
@@ -98,7 +100,7 @@ async def saude() -> dict[str, str]:
 def acompanhamento(
     request: Request,
     corpo: AcompanhamentoRequest,
-    session: Session = Depends(obter_session),
+    session: Annotated[Session, Depends(obter_session)],
 ) -> AcompanhamentoResponse:
     """Retorna status/timestamps da ordem mais recente para o par informado.
 
@@ -219,7 +221,6 @@ async def validar_assinatura_webhook(
 @router.post(
     "/api/v1/publico/ordens-de-servico/{ordem_id}/decisao-orcamento",
     summary="Decisao externa (aprovacao/recusa) do orcamento",
-    response_model=AcompanhamentoResponse,
     dependencies=[Depends(validar_assinatura_webhook)],
     responses={
         401: {
@@ -249,7 +250,7 @@ def decisao_orcamento(
     request: Request,
     ordem_id: UUID,
     body: DecisaoOrcamentoRequest,
-    session: Session = Depends(obter_session),
+    session: Annotated[Session, Depends(obter_session)],
 ) -> AcompanhamentoResponse:
     """Canal externo de aprovacao/recusa do orcamento (RF-022, ADR-021).
 

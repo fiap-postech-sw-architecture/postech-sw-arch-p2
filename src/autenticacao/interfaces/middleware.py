@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from types import MappingProxyType
-from typing import TYPE_CHECKING
+from typing import TYPE_CHECKING, Annotated
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+# Runtime import (nao TYPE_CHECKING): com `from __future__ import annotations`,
+# o FastAPI avalia a annotation `Annotated[Session, Depends(...)]` em runtime;
+# sem o nome no modulo, a resolucao da annotation falha no startup
+# (PydanticUserError: not fully defined) — verificado empiricamente.
+from sqlalchemy.orm import Session
 
 from src.autenticacao.dominio.exceptions import (
     TokenExpiradoException,
@@ -20,14 +26,14 @@ from src.compartilhado.interfaces.dependencies import obter_session
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-    from sqlalchemy.orm import Session
-
 _bearer_scheme = HTTPBearer(auto_error=False)
 
 
 def obter_usuario_atual(
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
-    session: Session = Depends(obter_session),
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> dict[str, object]:
     if credentials is None:
         raise HTTPException(
@@ -96,7 +102,7 @@ def exigir_papel(
         raise ValueError(f"exigir_papel recebeu papel invalido: {exc}") from exc
 
     def verificar(
-        usuario: dict[str, object] = Depends(obter_usuario_atual),
+        usuario: Annotated[dict[str, object], Depends(obter_usuario_atual)],
     ) -> dict[str, object]:
         raw = usuario.get("papel")
         papel: Papel | None

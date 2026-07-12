@@ -105,8 +105,8 @@ def _status_admin_seed() -> int | None:
         email=usuario_admin.email, senha=usuario_admin.senha
     )
     if status is not None:
-        _probe_seed_feito = True
-        _probe_seed_status = status
+        _probe_seed_feito = True  # codeql[py/unused-global-variable] -- cache
+        _probe_seed_status = status  # codeql[py/unused-global-variable] -- cache
     return status
 
 

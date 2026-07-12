@@ -2,7 +2,9 @@
 
 > [↑ Raiz do projeto](../../README.md) · [↑ Segurança](README.md)
 
-> **Versão**: 2.1 — adiciona a **sétima camada**: SonarQube como scan manual de fechamento (TD-010/[ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md)) executado em 02/07/2026, com Quality Gate **Passed** e os 3 security hotspots levados a zero (1 corrigido no código, 2 revisados como seguros com justificativa) — antes/depois no Anexo B do documento de entrega.
+> **Versão**: 2.2 — zera os **143 code smells** do SonarQube (rating A, até aqui tratados como informativo) num único PR, espelhando o mesmo processo já aplicado na fase 3: `Annotated` nos `Depends` de 7 routers (S8410, 98×), `response_model` redundante removido (S8409, 17×), docstrings nos métodos vazios dos ports de domínio + `unit_of_work` (S1186, 22×), tipagem concreta do retorno das queries de OS (S5886, 3×), parênteses redundantes (S1110, 2×) e complexidade cognitiva do mapeamento de veículo reduzida de 19 para abaixo de 15 (S3776, 1×). Quality Gate segue **Passed**: 0 bugs/vulnerabilities/hotspots, coverage 94,2%, duplicação 0,0% — antes/depois no Anexo B.
+>
+> **Versão 2.1** — adiciona a **sétima camada**: SonarQube como scan manual de fechamento (TD-010/[ADR-011](../arquitetura/adr/011-pipeline-seguranca-analise-estatica.md)) executado em 02/07/2026, com Quality Gate **Passed** e os 3 security hotspots levados a zero (1 corrigido no código, 2 revisados como seguros com justificativa) — antes/depois no Anexo B do documento de entrega.
 >
 > **Versão 2.0** — bateria de fechamento **reexecutada na HEAD final da fase 2** (commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826), 02/07/2026), já sobre **Python 3.14** ([PR #150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150)). Sucede a versão 1.0 (12/06/2026), que cobria só `src/`+`ui/` e não reexecutou trivy; esta versão fecha o escopo — `src/`+`relay/` no SAST, deps de runtime na SCA, imagem 3.14 no scan de container, segredos, CodeQL e DAST — e incorpora os PRs de segurança posteriores a 12/06. Complementa o [relatório de vulnerabilidades](relatorio-vulnerabilidades.md) da fase 1, que permanece válido para o baseline OWASP API Top 10 do MVP.
 
@@ -31,7 +33,7 @@ Diferentemente da bateria de 12/06 — um scan local pontual — a bateria de fe
 | gitleaks | Segredos | árvore de trabalho (`gitleaks dir`) com allowlist | **0 leaks** |
 | CodeQL | SAST semântico | python + javascript-typescript (default setup) | **`Analyze` verde** — sem alertas de segurança ativos |
 | OWASP ZAP | DAST baseline | API viva via OpenAPI (stack compose) | **0 FAIL** — 2 WARN aceitos como IGNORE ([`.zap/rules.tsv`](../../.zap/rules.tsv)) |
-| SonarQube (Community, local) | Análise estática + hotspots | `src/` (7,4k LoC, cobertura importada) | **Quality Gate Passed** — 0 security, 0 reliability, coverage 95,3%; **hotspots 3 → 0** (1 FIXED, 2 SAFE) |
+| SonarQube (Community, local) | Análise estática + hotspots | `src/` (7,3k LoC, cobertura importada) | **Quality Gate Passed** — 0 security, 0 reliability, hotspots 0 (3 revisados SAFE/FIXED); **code smells 143 → 0**; coverage 94,2% |
 
 Referência da última execução verde: check-runs do commit [`5404826`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/commit/5404826) — `security`, `pip-audit (CVE em dependências)`, `gitleaks (segredos)`, `trivy (CVE na imagem)`, `Analyze (python)`, `Analyze (javascript-typescript)` e o `full-test-ci` (que hospeda o DAST) todos `success`.
 
@@ -123,6 +125,19 @@ O SonarQube **não é gate de CI** por decisão registrada (TD-010, [ADR-011](..
 | `http://jaeger:4317` como endpoint OTLP default (`observability.py`, 2 ocorrências) | S5332 (encrypt-data) | **Revisado como SAFE**: tráfego OTLP gRPC intra-cluster (o DNS `jaeger` só resolve dentro do cluster/compose); um collector externo entra via `OTEL_EXPORTER_OTLP_ENDPOINT` com `https`, que desliga o modo insecure automaticamente |
 
 **Resultado final: 0 hotspots a revisar**, Quality Gate mantido **Passed**. O universo de cobertura foi alinhado ao gate do `.coveragerc` (`sonar.coverage.exclusions=**/__init__.py` — arquivos omitidos do gate não entram no denominador): a primeira leitura reportava 93,6% por medir um conjunto maior de arquivos do que o gate de 95% mede; alinhado, a cobertura real é **95,3%** (o gate de CI mede 97,5% incluindo `ui/`). O antes/depois está nas evidências visuais do Anexo B do documento de entrega ([`b6-sonarqube-quality-gate.png`](../entrega/fase2/evidencias/b6-sonarqube-quality-gate.png) → [`b6b-sonarqube-hotspots-zerados.png`](../entrega/fase2/evidencias/b6b-sonarqube-hotspots-zerados.png)).
+
+**Fechamento dos code smells (12/07/2026)** — a fase 3 já tinha zerado o mesmo conjunto de regras no seu próprio scan (PR #6 lá, arquivos byte-idênticos aos da fase 2 na origem); este fechamento aplica o diff equivalente aqui. Container SonarQube recriado do zero (credenciais antigas não recuperadas — sem impacto, é scan local efêmero); os 3 hotspots já tratados (linha acima) foram re-triados idênticos no novo servidor, já que o estado de revisão vive no banco do Sonar, não no código. Nota sobre os números: o baseline mudou de **147** code smells / **95,3%** coverage (execução de 02/07, acima) para **143** / **94,2%** — confirmado por um scan rodado na `main` intocada, ANTES de qualquer correção deste fechamento: o delta vem da evolução normal do código entre 02/07 e 12/07 (10 dias de PRs não relacionados), não desta correção. O fechamento em si zera os 143 encontrados nesse baseline de 12/07. Distribuição dos 143 code smells por regra:
+
+| Regra | Ocorrências | Correção |
+|---|---|---|
+| S8410 (Annotated em Depends) | 98 | `param: Tipo = Depends(...)` → `param: Annotated[Tipo, Depends(...)]` nos 7 routers de interface; exigiu reordenar parâmetros (sem `=` antes dos com default) e, em `autenticacao/router.py`/`autenticacao/middleware.py`, tirar `Session` de import `TYPE_CHECKING`-only pra import real (`# noqa: TC002`) — `Annotated[Session, Depends(...)]` é resolvido em runtime pelo FastAPI mesmo com `from __future__ import annotations` |
+| S1186 (docstring em método vazio) | 22 | docstrings nos métodos abstratos dos ports de domínio (`repository.py` de 4 contextos) e em `unit_of_work.py` |
+| S8409 (`response_model` redundante) | 17 | removido onde duplica a anotação de retorno da função — schema OpenAPI idêntico |
+| S5886 (retorno tipado) | 3 | `queries.py` (ordem de serviço): retorno anotado com o DTO concreto (`OrdemDeServicoDTO`/`ItemDaOrdemDTO`) em vez do protocolo genérico `DataclassInstance` |
+| S1110 (parênteses redundantes) | 2 | `outbox.py` e `middleware.py`: string multi-linha com parênteses de continuação reestruturada em duas atribuições simples |
+| S3776 (complexidade cognitiva) | 1 | `cliente_veiculo/infraestrutura/mapping.py`: função de mapeamento de 19 → abaixo de 15 |
+
+Verificação: `make check` (ruff + lint-imports + mypy strict + bandit) verde; suíte unitária completa 100% verde sem erro de coleta (o registro de rotas do FastAPI acontece em tempo de import — um `Annotated`/import quebrado teria estourado a coleta, não só uma asserção). Re-scan confirma `code_smells: 0`, hotspots/bugs/vulnerabilities em 0, Quality Gate **Passed**. Antes/depois em [`b6c-sonarqube-code-smells-antes.png`](../entrega/fase2/evidencias/b6c-sonarqube-code-smells-antes.png) → [`b6d-sonarqube-code-smells-depois.png`](../entrega/fase2/evidencias/b6d-sonarqube-code-smells-depois.png).
 
 ## Itens de Segurança Endereçados na Fase 2
 

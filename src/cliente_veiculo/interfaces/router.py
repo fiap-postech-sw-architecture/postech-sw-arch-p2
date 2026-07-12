@@ -1,11 +1,17 @@
 from __future__ import annotations
 
 import dataclasses
-from typing import TYPE_CHECKING
+from typing import Annotated
 from uuid import UUID  # noqa: TC003
 
 import structlog
 from fastapi import APIRouter, Depends, Query, status
+
+# Runtime import (nao TYPE_CHECKING): com `from __future__ import annotations`,
+# o FastAPI avalia a annotation `Annotated[Session, Depends(...)]` em runtime;
+# sem o nome no modulo, a resolucao da annotation falha no startup
+# (PydanticUserError: not fully defined) — verificado empiricamente.
+from sqlalchemy.orm import Session  # noqa: TC002
 
 from src.autenticacao.dominio.papel import Papel
 from src.autenticacao.interfaces.middleware import exigir_papel
@@ -44,9 +50,6 @@ from src.cliente_veiculo.interfaces.schemas import (
 from src.compartilhado.interfaces.auditoria import ator_de
 from src.compartilhado.interfaces.dependencies import obter_session
 
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
 router = APIRouter(prefix="/api/v1/clientes", tags=["clientes"])
 _log = structlog.get_logger(__name__)
 
@@ -58,8 +61,10 @@ _log = structlog.get_logger(__name__)
 )
 def criar_cliente(
     body: CriarClienteRequest,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> ClienteResponse:
     """Cria um cliente com documento unico (CPF/CNPJ); 409 se ja cadastrado."""
     uc = obter_criar_cliente(session)
@@ -75,10 +80,12 @@ def criar_cliente(
 
 @router.get("/", summary="Lista clientes paginados")
 def listar_clientes(
-    offset: int = Query(default=0, ge=0),
-    limit: int = Query(default=20, ge=1, le=100),
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> ClienteListaResponse:
     """Retorna os clientes paginados (offset/limit) com o total; documento mascarado."""
     uc = obter_listar_clientes(session)
@@ -95,8 +102,10 @@ def listar_clientes(
 @router.get("/{cliente_id}", summary="Consulta um cliente por id")
 def obter_cliente(
     cliente_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> ClienteResponse:
     """Busca um cliente pelo id, com seus veiculos; 404 se nao existir."""
     uc = obter_obter_cliente(session)
@@ -108,8 +117,10 @@ def obter_cliente(
 def atualizar_cliente(
     cliente_id: UUID,
     body: AtualizarClienteRequest,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> ClienteResponse:
     """Atualiza nome/contato do cliente; 404 se ausente, 409 se inativo/anonimizado."""
     uc = obter_atualizar_cliente(session)
@@ -125,8 +136,10 @@ def atualizar_cliente(
 )
 def desativar_cliente(
     cliente_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> None:
     """Desativa um cliente (terminal); 404 se ausente, 409 se possuir OS ativa."""
     uc = obter_desativar_cliente(session)
@@ -141,8 +154,10 @@ def desativar_cliente(
 def adicionar_veiculo(
     cliente_id: UUID,
     body: AdicionarVeiculoRequest,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> VeiculoResponse:
     """Anexa um veiculo (placa unica global); 409 se placa em uso ou cliente inativo."""
     uc = obter_adicionar_veiculo(session)
@@ -159,8 +174,10 @@ def adicionar_veiculo(
 @router.get("/{cliente_id}/veiculos", summary="Lista os veiculos de um cliente")
 def listar_veiculos(
     cliente_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> list[VeiculoResponse]:
     """Retorna todos os veiculos do cliente; 404 se o cliente nao existir."""
     uc = obter_listar_veiculos(session)
@@ -176,8 +193,10 @@ def listar_veiculos(
 def remover_veiculo(
     cliente_id: UUID,
     veiculo_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> None:
     """Remove um veiculo do cliente; 404 se ausente, 409 se houver OS vinculada."""
     uc = obter_remover_veiculo(session)
@@ -212,8 +231,10 @@ def _exportar_dados_pessoais_e_auditar(
 )
 def obter_dados_pessoais(
     cliente_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> DadosPessoaisResponse:
     """Retorna os dados pessoais do cliente (LGPD acesso), auditando a consulta."""
     return _exportar_dados_pessoais_e_auditar(cliente_id, usuario, session, "obter")
@@ -225,8 +246,10 @@ def obter_dados_pessoais(
 )
 def exportar_dados_pessoais(
     cliente_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> DadosPessoaisResponse:
     """Exporta os dados pessoais do cliente (LGPD portabilidade), auditando o acesso."""
     return _exportar_dados_pessoais_e_auditar(cliente_id, usuario, session, "exportar")
@@ -239,8 +262,8 @@ def exportar_dados_pessoais(
 )
 def excluir_dados_pessoais(
     cliente_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel(Papel.ADMIN))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> None:
     """Anonimiza os dados do cliente (LGPD erasure); 409 se houver OS ativa."""
     uc = obter_excluir_dados(session)
@@ -262,8 +285,10 @@ def excluir_dados_pessoais(
 def registrar_consentimento(
     cliente_id: UUID,
     body: ConsentimentoRequest,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> ConsentimentoResponse:
     """Registra a base legal de consentimento por tipo; 409 se ja houver ativo."""
     uc = obter_registrar_consentimento(session)
@@ -287,9 +312,11 @@ def registrar_consentimento(
 )
 def revogar_consentimento(
     cliente_id: UUID,
-    tipo: str = Query(min_length=1, max_length=50),
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE)),
-    session: Session = Depends(obter_session),
+    tipo: Annotated[str, Query(min_length=1, max_length=50)],
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.ATENDENTE))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> None:
     """Revoga o consentimento do tipo informado; 404 se nao houver consentimento."""
     # Mesma canonicalizacao do ConsentimentoRequest.tipo: garante que o grant

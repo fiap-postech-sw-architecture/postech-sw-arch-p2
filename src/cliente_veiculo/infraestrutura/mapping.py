@@ -72,7 +72,47 @@ _mapeamento_iniciado = False
 _PREFIXO_FERNET = "gAAAAA"
 
 
-def iniciar_mapeamentos() -> None:  # noqa: C901, PLR0915  # mapeamento declarativo coeso
+def _reidratar_placa(target: Veiculo) -> None:
+    # object.__setattr__ for slots-safety and consistency with other listeners.
+    valor: str = target._placa_valor  # type: ignore[attr-defined]
+    # Tombstone LGPD escrito por ``anonimizar_dados`` (raw UPDATE, #72):
+    # reidrata como VO de primeira classe, sem passar pela validacao de
+    # formato da ``Placa`` (mesmo padrao do ``DocumentoAnonimizado``).
+    placa: Placa | PlacaAnonimizada = (
+        PlacaAnonimizada(veiculo_id=target.id)
+        if valor.startswith("ANONIMIZADO")
+        else Placa(valor=valor)
+    )
+    object.__setattr__(target, "_placa", placa)
+
+
+def _reidratar_documento(target: Cliente) -> None:
+    numero: str = target._documento_numero  # type: ignore[attr-defined]
+    enc = EncryptionService.instance()
+    if numero and numero.startswith(_PREFIXO_FERNET):
+        numero = enc.decrypt(numero)
+    tipo: str = target._tipo_documento  # type: ignore[attr-defined]
+    doc: CPF | CNPJ | DocumentoAnonimizado
+    if numero == "ANONIMIZADO":
+        # Tombstone escrito por ``ClienteRepository.anonimizar_dados``
+        # (raw UPDATE bypassing event listeners). Reidrata como VO de
+        # primeira classe — ``isinstance(doc, CPF/CNPJ)`` passa a ser
+        # naturalmente False e nao precisamos burlar a validacao do CPF.
+        doc = DocumentoAnonimizado(cliente_id=target.id)
+    elif tipo == "cpf":
+        doc = CPF(numero=numero)
+    elif tipo == "cnpj":
+        doc = CNPJ(numero=numero)
+    else:
+        msg = f"tipo_documento invalido ao reidratar Cliente: {tipo!r}"
+        raise ValueError(msg)
+    object.__setattr__(target, "_documento", doc)
+    contato_valor: str = target._contato_valor  # type: ignore[attr-defined]
+    object.__setattr__(target, "_contato", Contato(valor=contato_valor))
+    object.__setattr__(target, "_eventos_pendentes", [])
+
+
+def iniciar_mapeamentos() -> None:  # noqa: C901  # mapeamento declarativo coeso
     global _mapeamento_iniciado  # noqa: PLW0603  # init-once flag
     if _mapeamento_iniciado:
         return
@@ -123,19 +163,6 @@ def iniciar_mapeamentos() -> None:  # noqa: C901, PLR0915  # mapeamento declarat
         },
     )
 
-    def _reidratar_placa(target: Veiculo) -> None:
-        # object.__setattr__ for slots-safety and consistency with other listeners.
-        valor: str = target._placa_valor  # type: ignore[attr-defined]
-        # Tombstone LGPD escrito por ``anonimizar_dados`` (raw UPDATE, #72):
-        # reidrata como VO de primeira classe, sem passar pela validacao de
-        # formato da ``Placa`` (mesmo padrao do ``DocumentoAnonimizado``).
-        placa: Placa | PlacaAnonimizada = (
-            PlacaAnonimizada(veiculo_id=target.id)
-            if valor.startswith("ANONIMIZADO")
-            else Placa(valor=valor)
-        )
-        object.__setattr__(target, "_placa", placa)
-
     @event.listens_for(Veiculo, "load")
     def _reconstruir_placa_on_load(target: Veiculo, _context: object) -> None:
         _reidratar_placa(target)
@@ -148,31 +175,6 @@ def iniciar_mapeamentos() -> None:  # noqa: C901, PLR0915  # mapeamento declarat
         # ``anonimizar_dados`` (raw UPDATE) e o re-le: o evento ``load`` so
         # dispara no primeiro carregamento (espelha o Cliente).
         _reidratar_placa(target)
-
-    def _reidratar_documento(target: Cliente) -> None:
-        numero: str = target._documento_numero  # type: ignore[attr-defined]
-        enc = EncryptionService.instance()
-        if numero and numero.startswith(_PREFIXO_FERNET):
-            numero = enc.decrypt(numero)
-        tipo: str = target._tipo_documento  # type: ignore[attr-defined]
-        doc: CPF | CNPJ | DocumentoAnonimizado
-        if numero == "ANONIMIZADO":
-            # Tombstone escrito por ``ClienteRepository.anonimizar_dados``
-            # (raw UPDATE bypassing event listeners). Reidrata como VO de
-            # primeira classe — ``isinstance(doc, CPF/CNPJ)`` passa a ser
-            # naturalmente False e nao precisamos burlar a validacao do CPF.
-            doc = DocumentoAnonimizado(cliente_id=target.id)
-        elif tipo == "cpf":
-            doc = CPF(numero=numero)
-        elif tipo == "cnpj":
-            doc = CNPJ(numero=numero)
-        else:
-            msg = f"tipo_documento invalido ao reidratar Cliente: {tipo!r}"
-            raise ValueError(msg)
-        object.__setattr__(target, "_documento", doc)
-        contato_valor: str = target._contato_valor  # type: ignore[attr-defined]
-        object.__setattr__(target, "_contato", Contato(valor=contato_valor))
-        object.__setattr__(target, "_eventos_pendentes", [])
 
     @event.listens_for(Cliente, "load")
     def _reconstruir_documento_on_load(target: Cliente, _context: object) -> None:

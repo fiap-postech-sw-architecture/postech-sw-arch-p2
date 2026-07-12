@@ -1,10 +1,16 @@
 from __future__ import annotations
 
 from dataclasses import asdict
-from typing import TYPE_CHECKING
+from typing import Annotated
 from uuid import UUID  # noqa: TC003
 
 from fastapi import APIRouter, Depends, Query, status
+
+# Runtime import (nao TYPE_CHECKING): com `from __future__ import annotations`,
+# o FastAPI avalia a annotation `Annotated[Session, Depends(...)]` em runtime;
+# sem o nome no modulo, a resolucao da annotation falha no startup
+# (PydanticUserError: not fully defined) — verificado empiricamente.
+from sqlalchemy.orm import Session  # noqa: TC002
 
 from src.autenticacao.dominio.papel import Papel
 from src.autenticacao.interfaces.middleware import exigir_papel
@@ -30,9 +36,6 @@ from src.estoque.interfaces.schemas import (
     ItemEstoqueResponse,
 )
 
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
 router = APIRouter(prefix="/api/v1/estoque", tags=["Estoque"])
 
 
@@ -43,8 +46,8 @@ router = APIRouter(prefix="/api/v1/estoque", tags=["Estoque"])
 )
 def criar_item(
     body: CriarItemEstoqueRequest,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel(Papel.ADMIN))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> ItemEstoqueResponse:
     """Cria um item de estoque (nome, descricao, quantidade, preco) e retorna seu id."""
     use_case = obter_criar_item(session)
@@ -60,10 +63,12 @@ def criar_item(
 
 @router.get("/", summary="Lista itens de estoque paginados")
 def listar_itens(
-    offset: int = Query(default=0, ge=0),
-    limit: int = Query(default=20, ge=1, le=100),
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.MECANICO)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.MECANICO))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
+    offset: Annotated[int, Query(ge=0)] = 0,
+    limit: Annotated[int, Query(ge=1, le=100)] = 20,
 ) -> ItemEstoqueListaResponse:
     """Retorna os itens de estoque paginados (offset/limit) com o total."""
     use_case = obter_listar_itens(session)
@@ -80,8 +85,10 @@ def listar_itens(
 @router.get("/{item_id}", summary="Consulta um item de estoque por id")
 def obter_item(
     item_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN, Papel.MECANICO)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[
+        dict[str, object], Depends(exigir_papel(Papel.ADMIN, Papel.MECANICO))
+    ],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> ItemEstoqueResponse:
     """Busca um item de estoque pelo id; 404 se nao existir."""
     use_case = obter_obter_item(session)
@@ -96,8 +103,8 @@ def obter_item(
 def atualizar_item(
     item_id: UUID,
     body: AtualizarItemEstoqueRequest,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel(Papel.ADMIN))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> ItemEstoqueResponse:
     """Atualiza os dados cadastrais de um item (nao a quantidade); 404 se ausente."""
     use_case = obter_atualizar_item(session)
@@ -117,8 +124,8 @@ def atualizar_item(
 def ajustar_quantidade(
     item_id: UUID,
     body: AjustarQuantidadeRequest,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel(Papel.ADMIN))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> ItemEstoqueResponse:
     """Define a nova quantidade absoluta em estoque do item; 404 se nao existir."""
     use_case = obter_ajustar_quantidade(session)
@@ -134,8 +141,8 @@ def ajustar_quantidade(
 )
 def desativar_item(
     item_id: UUID,
-    usuario: dict[str, object] = Depends(exigir_papel(Papel.ADMIN)),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel(Papel.ADMIN))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> None:
     """Desativa logicamente um item de estoque; 404 se nao existir."""
     use_case = obter_desativar_item(session)

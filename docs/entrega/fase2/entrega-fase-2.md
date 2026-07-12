@@ -2,7 +2,7 @@
 
 > [↑ Raiz do projeto](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2) · [↑ Entrega Fase 2](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/docs/entrega/fase2)
 
-> **Versão**: 1.6 — julho/2026.
+> **Versão**: 1.7 — julho/2026. Atualiza a §5 com o fechamento dos 143 code smells do SonarQube ([PR #199](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/199)).
 
 Documento de entrega da fase 2 do Tech Challenge da Pós-Graduação em Arquitetura de Software (FIAP). O conteúdo cobre os itens exigidos pelo enunciado da fase: identificação do grupo, link do repositório (compartilhado com o avaliador), desenho da arquitetura, instruções de execução e deploy, link da collection das APIs e link do vídeo de demonstração.
 
@@ -100,7 +100,7 @@ A documentação da fase 1 (Event Storming, Domain Storytelling, Linguagem Ubíq
 
 ## 5. Relatório de análise de vulnerabilidades
 
-A postura de segurança da fase 2 é verificada por CI: os seis scanners que a fase 1 rodava manualmente foram automatizados como gates de pipeline ([PR #116](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/116), fecha [#75](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/75)) e reexecutados na HEAD final, já sobre Python 3.14 ([PR #150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150)). Os seis passaram verdes — SAST (Static Application Security Testing, análise estática do código), SCA (Software Composition Analysis, vulnerabilidades em dependências), scan de container, segredos, análise semântica e DAST (Dynamic Application Security Testing, teste dinâmico contra a API viva); detalhe por ferramenta na tabela 5.1. A sétima camada é o SonarQube, scan manual de fechamento de fase ([TD-010/ADR-011](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/011-pipeline-seguranca-analise-estatica.md)), executado na mesma HEAD com todos os achados tratados.
+A postura de segurança da fase 2 é verificada por CI: os seis scanners que a fase 1 rodava manualmente foram automatizados como gates de pipeline ([PR #116](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/116), fecha [#75](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/issues/75)) e reexecutados na HEAD final, já sobre Python 3.14 ([PR #150](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/150)). Os seis passaram verdes — SAST (Static Application Security Testing, análise estática do código), SCA (Software Composition Analysis, vulnerabilidades em dependências), scan de container, segredos, análise semântica e DAST (Dynamic Application Security Testing, teste dinâmico contra a API viva); detalhe por ferramenta na tabela 5.1. A sétima camada é o SonarQube, scan manual de fechamento de fase ([TD-010/ADR-011](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/011-pipeline-seguranca-analise-estatica.md)), executado na mesma HEAD com todos os achados tratados — os 3 security hotspots e os 143 code smells de maintainability (rating A, informativo) zerados, este último em [PR #199](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/199).
 
 ### 5.1 Ferramentas e resultado na HEAD final
 
@@ -112,7 +112,7 @@ A postura de segurança da fase 2 é verificada por CI: os seis scanners que a f
 | gitleaks | Detecção de segredos | árvore de trabalho, com allowlist | 0 leaks |
 | CodeQL | SAST semântico | python + javascript-typescript (default setup) | `Analyze` verde, sem alertas ativos |
 | OWASP ZAP | DAST baseline | API viva via OpenAPI (stack compose) | 0 FAIL — 2 WARN aceitos como IGNORE |
-| SonarQube | Análise estática + security hotspots | `src/` (7,4k LoC, cobertura importada) | Quality Gate Passed — 0 security, 0 reliability, coverage 95,3%; hotspots 3 → 0 |
+| SonarQube | Análise estática + security hotspots | `src/` (7,3k LoC, cobertura importada) | Quality Gate Passed — 0 security, 0 reliability, coverage 94,2%; hotspots 3 → 0; **code smells 143 → 0** |
 
 No ciclo do SonarQube, a primeira análise apontou 3 security hotspots: um ReDoS (Regular Expression Denial of Service — regra S5852) na regex de extração de e-mail e dois em avisos de `http://` no exporter do OpenTelemetry. A regex foi corrigida no código, e a mesma classe de defeito foi eliminada também na regex do scrubber de logs ([PR #155](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/155)); os avisos de `http://` foram revisados como seguros (tráfego gRPC intra-cluster, com endpoint externo entrando via env com `https`). A reanálise fechou com 0 hotspots; o antes/depois está no Anexo B do PDF (seção 8). O SonarQube é o scan manual de fechamento, ancorado ao commit registrado em `scan-fase-2.md`; os seis gates de CI seguem verdes a cada push na `main`.
 
@@ -136,7 +136,7 @@ Além dos scans limpos, a auditoria de finalização ([issue #128](https://githu
 
 | Documento | URL |
 |---|---|
-| Scans de fechamento da fase 2 (v2.1, HEAD final — inclui o ciclo SonarQube) | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/seguranca/scan-fase-2.md |
+| Scans de fechamento da fase 2 (v2.2, HEAD final — inclui o ciclo SonarQube e o fechamento dos code smells) | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/seguranca/scan-fase-2.md |
 | Relatório de Vulnerabilidades (baseline OWASP API Top 10, fase 1) | https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/seguranca/relatorio-vulnerabilidades.md |
 
 ## 6. Rastreabilidade requisito → evidência
@@ -158,7 +158,7 @@ Cada requisito da fase 2 ([gap analysis](https://github.com/fiap-postech-sw-arch
 | ID | PR | Requisito | Evidência (arquivo / teste chave) |
 |---|---|---|---|
 | RNF-017 | [#12](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/12) | Clean Architecture formalizada e verificada | Contratos de camadas em `[tool.importlinter]` (`pyproject.toml`), verificados na CI (step `Architecture contracts`, `lint-imports`; paridade local via `make lint-arch`); [ADR-015](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/adr/fase2/015-arquitetura-alvo-fase-2.md) |
-| RNF-018 | [#13](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/13)–[#17](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/17) (transversal) | Testes dos fluxos críticos mantidos na evolução | Gate de 95% em `.coveragerc` (1.802 testes unitários + 162 de integração na HEAD final); cobertura de 95,3% em `src/` medida no fechamento (Anexo A do PDF; [`scan-fase-2.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/seguranca/scan-fase-2.md)) — CI verde na main ([run 28637221227](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/28637221227)) |
+| RNF-018 | [#13](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/13)–[#17](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/17) (transversal) | Testes dos fluxos críticos mantidos na evolução | Gate de 95% em `.coveragerc` (1.802 testes unitários + 162 de integração na HEAD final); cobertura de 94,2% no universo do Sonar (o gate de CI mede 97,5% incluindo `ui/`), medida no fechamento (Anexo A do PDF; [`scan-fase-2.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/seguranca/scan-fase-2.md)) — CI verde na main ([run 28637221227](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/actions/runs/28637221227)) |
 | RNF-019 | [#18](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/18) | Dockerfile e docker-compose revisados (healthcheck do app) | `HEALTHCHECK` no `Dockerfile` + bloco `healthcheck` do serviço `app` no `docker-compose.yml`, ambos probando `/api/v1/saude` |
 | RNF-020 | [#19](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/19) | Manifests K8s: Deployment, Service, ConfigMap, Secret, HPA | [`k8s/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/k8s) — `namespace.yaml`, `deployment.yaml`, `service.yaml`, `configmap.yaml`, `secret.yaml`, `hpa.yaml`, `jobs/migration-job.yaml`, `mailpit.yaml`, `jaeger.yaml`, `relay.yaml`, `redis.yaml`, `prometheus.yaml`, `ui-{deployment,service,configmap}.yaml` (UI no cluster, issue #186) |
 | RNF-021 | [#20](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/pull/20) | IaC: Terraform provisiona cluster e banco, documentado | [`infra/`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/tree/main/infra) — cluster kind + namespace + Secret + StatefulSet PostgreSQL + Service num único apply; recursos documentados em [`infra/README.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/infra/README.md) |
@@ -289,7 +289,7 @@ O PDF contém os três itens exigidos pelo enunciado:
 Mais três anexos de evidência:
 
 - **Anexo A — Scans de Segurança da Fase 2**: bateria de fechamento na HEAD final ([`scan-fase-2.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/seguranca/scan-fase-2.md)).
-- **Anexo B — Evidências Visuais**: capturas da demonstração no cluster (pipeline verde, HPA escalando 1 → 5, traces no Jaeger, e-mails no Mailpit, métricas no Prometheus e o antes/depois do SonarQube — hotspots 3 → 0, Quality Gate Passed).
+- **Anexo B — Evidências Visuais**: capturas da demonstração no cluster (pipeline verde, HPA escalando 1 → 5, traces no Jaeger, e-mails no Mailpit, métricas no Prometheus e o antes/depois do SonarQube — hotspots 3 → 0 e code smells 143 → 0, Quality Gate Passed).
 - **Anexo C — Funcionalidades Extras da Fase 2**: catálogo além do enunciado ([`apendice-funcionalidades-extras.md`](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/entrega/fase2/apendice-funcionalidades-extras.md)).
 
 ## 9. Pendências para fechar a entrega

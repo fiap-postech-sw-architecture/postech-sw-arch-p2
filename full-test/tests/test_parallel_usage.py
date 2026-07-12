@@ -57,6 +57,14 @@ def _falhar_com_resumo(agregado: ResultadoAgregado) -> None:
 
 
 @pytest.mark.slowest
+# O teto global de 120s (pyproject.toml) e rede de seguranca contra hang real
+# (ex.: t.join() sem limite nos testes de lock do relay) — mas o backoff de
+# rate-limit do harness (system_client.py, _BACKOFF_MAX=70s) e uma espera
+# LEGITIMA quando muitas threads/journeys colidem no login (5/min): observado
+# ~138s de wall-clock em maquina sob carga, com uma unica chamada acumulando
+# duas janelas de Retry-After (~65s cada). 240s da margem real sem tirar a
+# rede de seguranca dos outros testes.
+@pytest.mark.timeout(240)
 def test_plano_full(config: FullTestConfig, seed_recursos: dict[str, Any]) -> None:
     """Roda o plano completo incluindo sleeps reais (E2E integrado completo).
 

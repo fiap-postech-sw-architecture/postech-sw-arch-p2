@@ -1,9 +1,15 @@
 from __future__ import annotations
 
-from typing import TYPE_CHECKING
+from typing import Annotated
 
 from fastapi import APIRouter, Body, Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
+
+# Runtime import (nao TYPE_CHECKING): com `from __future__ import annotations`,
+# o FastAPI avalia a annotation `Annotated[Session, Depends(...)]` em runtime;
+# sem o nome no modulo, a resolucao da annotation falha no startup
+# (PydanticUserError: not fully defined) — verificado empiricamente.
+from sqlalchemy.orm import Session  # noqa: TC002
 from starlette.requests import Request  # noqa: TC002
 
 from src.autenticacao.aplicacao.dtos import LoginDTO, RegistrarDTO
@@ -24,10 +30,6 @@ from src.autenticacao.interfaces.schemas import (
 from src.compartilhado.interfaces.dependencies import obter_session
 from src.compartilhado.interfaces.middleware import limiter
 
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
-
-
 router = APIRouter(prefix="/api/v1/autenticacao", tags=["autenticacao"])
 
 # auto_error=False: o HTTPBearer default responde 403 sem WWW-Authenticate
@@ -40,7 +42,7 @@ _bearer_scheme = HTTPBearer(auto_error=False)
 def login(
     request: Request,
     body: LoginRequest,
-    session: Session = Depends(obter_session),
+    session: Annotated[Session, Depends(obter_session)],
 ) -> TokenResponse:
     """Valida e-mail + senha e devolve access + refresh tokens (rate limit 5/min).
 
@@ -66,8 +68,8 @@ def login(
 def registrar(
     request: Request,
     body: RegistrarRequest,
-    usuario: dict[str, object] = Depends(exigir_papel("admin")),
-    session: Session = Depends(obter_session),
+    usuario: Annotated[dict[str, object], Depends(exigir_papel("admin"))],
+    session: Annotated[Session, Depends(obter_session)],
 ) -> UsuarioResponse:
     """Cria um usuario com o papel informado. Endpoint admin-gated (RBAC).
 
@@ -84,9 +86,11 @@ def registrar(
 @limiter.limit("10/minute")
 def logout(
     request: Request,
-    credentials: HTTPAuthorizationCredentials | None = Depends(_bearer_scheme),
-    refresh_token: str | None = Body(default=None, embed=True),
-    session: Session = Depends(obter_session),
+    credentials: Annotated[
+        HTTPAuthorizationCredentials | None, Depends(_bearer_scheme)
+    ],
+    session: Annotated[Session, Depends(obter_session)],
+    refresh_token: Annotated[str | None, Body(embed=True)] = None,
 ) -> dict[str, str]:
     """Revoga o access token do header; se o refresh vier no corpo, revoga-o tambem.
 
@@ -112,7 +116,7 @@ def logout(
 def refresh(
     request: Request,
     body: RefreshRequest,
-    session: Session = Depends(obter_session),
+    session: Annotated[Session, Depends(obter_session)],
 ) -> TokenResponse:
     """Troca um refresh token valido por um novo par (access + refresh).
 
