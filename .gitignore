@@ -28,6 +28,9 @@ coverage.xml
 htmlcov/
 .mutmut-cache
 
+# Cache local do sonar-scanner (scan manual de fechamento, TD-010/ADR-011)
+.scannerwork/
+
 .idea/
 .vscode/
 *.swp

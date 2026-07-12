@@ -11,7 +11,11 @@ queries que orquestram as portas ``CatalogoPort`` / ``EstoquePort`` /
 
 from __future__ import annotations
 
-from dataclasses import replace
+# ``copy.replace`` (nao ``dataclasses.replace``): semantica identica para
+# dataclasses (>=3.13, via ``__replace__``), mas o Sonar (S5886/S5890) nao
+# aplica o TypeVar de ``dataclasses.replace`` e inferiria o retorno como
+# ``DataclassInstance`` em vez do DTO declarado.
+from copy import replace
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

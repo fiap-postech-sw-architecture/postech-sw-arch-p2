@@ -72,10 +72,8 @@ def serializar_integration_event(evento: IntegrationEvent) -> OutboxRegistro:
         try:
             payload[campo.name] = _serializar_valor(valor)
         except TypeError as exc:
-            msg = (
-                f"Campo {campo.name!r} de {type(evento).__name__} nao e "
-                f"serializavel para a outbox: {exc}"
-            )
+            campo_ctx = f"Campo {campo.name!r} de {type(evento).__name__}"
+            msg = f"{campo_ctx} nao e serializavel para a outbox: {exc}"
             raise TypeError(msg) from exc
     return OutboxRegistro(
         agregado_id=evento.agregado_id,

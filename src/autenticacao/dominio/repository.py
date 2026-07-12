@@ -11,15 +11,19 @@ if TYPE_CHECKING:
 class UsuarioRepository(Protocol):
     # corpos `pass` (nao `...`) evitam o FP CodeQL py/ineffectual-statement
     def obter_por_id(self, usuario_id: UUID) -> Usuario | None:
+        """Busca o usuario pelo id; None se nao existir."""
         pass
 
     def obter_por_email(self, email: str) -> Usuario | None:
+        """Busca o usuario pelo e-mail exato; None se nao existir."""
         pass
 
     def salvar(self, usuario: Usuario) -> None:
+        """Adiciona o usuario a sessao e faz flush imediato."""
         pass
 
     def email_existe(self, email: str) -> bool:
+        """True se ja existe usuario cadastrado com este e-mail."""
         pass
 
 
@@ -30,4 +34,5 @@ class TokenRevogadoRepository(Protocol):
         pass
 
     def esta_revogado(self, jti: str) -> bool:
+        """True se o jti consta na lista de tokens revogados."""
         pass

@@ -273,10 +273,8 @@ _default_limit = os.environ.get("RATE_LIMIT", "60/minute")
 try:
     parse_many(_default_limit)
 except ValueError as _exc:
-    _msg = (
-        f"RATE_LIMIT invalido: {_default_limit!r}. Use a notacao do pacote "
-        "`limits` (ex.: '60/minute', '100/hour')."
-    )
+    _pref = f"RATE_LIMIT invalido: {_default_limit!r}"
+    _msg = f"{_pref}. Use a notacao do pacote `limits` (ex.: '60/minute', '100/hour')."
     raise RuntimeError(_msg) from _exc
 limiter = Limiter(
     key_func=get_remote_address,
