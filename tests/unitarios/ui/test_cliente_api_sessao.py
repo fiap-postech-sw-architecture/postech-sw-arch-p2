@@ -28,9 +28,6 @@ from ui.estado import Sessao, StateStore
 if TYPE_CHECKING:
     from collections.abc import Callable
 
-# {"alg":"HS256","typ":"JWT"} base64 sem padding.
-_HEADER_B64 = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9"
-
 
 @pytest.fixture
 def store() -> StateStore:
