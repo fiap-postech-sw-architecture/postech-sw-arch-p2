@@ -85,6 +85,9 @@ def test_plano_full(config: FullTestConfig, seed_recursos: dict[str, Any]) -> No
 
 
 @pytest.mark.slow
+# Mesmo racional do @pytest.mark.timeout de test_plano_full acima: o backoff
+# de rate-limit do harness e legitimo e pode passar do teto global de 120s.
+@pytest.mark.timeout(240)
 def test_plano_ci(config: FullTestConfig, seed_recursos: dict[str, Any]) -> None:
     """Roda o plano reduzido sem sleeps — roda em CI."""
     orquestrador = ParallelOrchestrator(config=config)

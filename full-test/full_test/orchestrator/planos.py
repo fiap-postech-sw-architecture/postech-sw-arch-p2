@@ -134,8 +134,12 @@ def plano_ci(n_clientes: int, n_operadores: int, n_admins: int) -> PlanoDeExecuc
         ),
         # Fase 2 (RF-020..023): 1 instancia no CI cobrindo os contratos novos.
         DescritorDeJourney(Fase2ContratosJourney, 1, timeout_s=60.0),
-        DescritorDeJourney(AtendenteJourney, min(n_operadores, 1), timeout_s=30.0),
-        DescritorDeJourney(MecanicoJourney, min(n_operadores, 1), timeout_s=30.0),
+        # 120s (nao 30s): mesmo racional do RbacMatrix abaixo -- atendente faz
+        # lgpd-excluir-dados, que pode colidir com o rate limit e retry-backoff
+        # ate 70s; 30s cortava a journey antes do retry legitimo terminar
+        # (observado: timeout apos 30.0s enquanto a chamada real levava ~65s).
+        DescritorDeJourney(AtendenteJourney, min(n_operadores, 1), timeout_s=120.0),
+        DescritorDeJourney(MecanicoJourney, min(n_operadores, 1), timeout_s=120.0),
         DescritorDeJourney(AdminConcurrencyJourney, min(n_admins, 1), timeout_s=60.0),
         DescritorDeJourney(MetricasFixtureJourney, 1, timeout_s=60.0),
         # RbacMatrix: 180 celulas + 3 logins descartaveis para /logout (um por
