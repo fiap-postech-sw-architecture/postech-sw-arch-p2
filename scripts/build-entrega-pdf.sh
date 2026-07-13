@@ -201,7 +201,10 @@ done
 #    tabelas de uma vez — sem ele o layout automatico distribuia espaco
 #    igualmente e espremia as colunas de texto.
 TMP_HTML="${TMP}/entrega.html"
-pandoc "$COMBINADO" -o "$TMP_HTML" -s -V lang=pt-BR \
+# +autolink_bare_uris: URLs cruas (ex.: as colunas "URL" das tabelas de
+# recursos) viram links clicaveis no PDF. Sem isso, so os [label](url) viram
+# <a>; o GitHub auto-linka URL crua, o pandoc default nao.
+pandoc -f markdown+autolink_bare_uris "$COMBINADO" -o "$TMP_HTML" -s -V lang=pt-BR \
   --metadata pagetitle="PytStop — Entrega Fase 2"
 python3 - "$TMP_HTML" <<'EOF'
 import re
