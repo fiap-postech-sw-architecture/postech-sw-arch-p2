@@ -78,12 +78,12 @@
   </g>
 
   <!-- PytStop text -->
-  <text x="256" y="400" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="58" font-weight="800" fill="#e2e8f0" letter-spacing="2">
-    <tspan fill="#5A9FD4">Pyt</tspan><tspan fill="#FFD43B">Stop</tspan>
+  <text x="256" y="400" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="58" font-weight="800" fill="#e2e8f0" letter-spacing="2">
+    <tspan fill="#5A9FD4">Pyt</tspan><tspan fill="#FFD43B" dx="2">Stop</tspan>
   </text>
 
   <!-- Tagline -->
-  <text x="256" y="435" text-anchor="middle" font-family="'Segoe UI', Arial, Helvetica, sans-serif" font-size="16" fill="#64748b" letter-spacing="3">FASE 1 // ARQUITETURA DE SW</text>
+  <text x="256" y="435" text-anchor="middle" font-family="Arial, Helvetica, sans-serif" font-size="16" fill="#64748b" letter-spacing="3">FASE 2 // ARQUITETURA DE SW</text>
 
   <!-- Bottom accent line -->
   <line x1="156" y1="460" x2="356" y2="460" stroke="#334155" stroke-width="2"/>
