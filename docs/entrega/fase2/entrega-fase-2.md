@@ -10,6 +10,8 @@ Documento de entrega da fase 2 do Tech Challenge da Pós-Graduação em Arquitet
 
 O repositório é a fonte de verdade. Os artefatos exigidos estão versionados e disponíveis nos links abaixo (branch `main`): código refatorado (Clean Architecture), Dockerfile e docker-compose, manifests em `/k8s`, Terraform em `/infra`, pipeline de CI/CD e README. O desenho da arquitetura é Mermaid renderizado pelo GitHub, com fonte única na [RFC-002 §3](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-2.md), replicada no [README](https://github.com/fiap-postech-sw-architecture/postech-sw-arch-p2/blob/main/README.md) e na seção 7. As decisões estão nas ADRs 015–025 e na RFC-002; a rastreabilidade requisito → evidência está na seção 6.
 
+A opção por documentação textual e versionada é intencional: o projeto é AI-first. Markdown + Mermaid permitem manutenção por agentes de IA sem prejuízo da leitura humana — a UI do GitHub renderiza Markdown e Mermaid nativamente, e os diagramas seguem como imagens neste PDF. GitHub Pages foi avaliado e descartado: a conta atual exige repositório público para publicação, o que conflita com o requisito de manter o código acessível apenas ao avaliador.
+
 ---
 
 ## 1. Identificação do grupo
