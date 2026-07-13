@@ -217,7 +217,7 @@ o [RFC-002 §6](docs/arquitetura/rfc/fase2/rfc-002-infraestrutura-e-deploy-fase-
 
 ## Vídeo de demonstração
 
-**Vídeo de demonstração:** _link será adicionado após a gravação_ <!-- VIDEO-LINK-FASE-2 -->
+**Vídeo de demonstração:** [https://drive.google.com/file/d/1_HbHWFpPl8dwdIFpbTqX066VjIP-UCod/view](https://drive.google.com/file/d/1_HbHWFpPl8dwdIFpbTqX066VjIP-UCod/view)
 
 Roteiro de gravação (deploy, CI/CD, APIs, HPA, traces): [`docs/entrega/fase2/roteiro-video.md`](docs/entrega/fase2/roteiro-video.md).
 

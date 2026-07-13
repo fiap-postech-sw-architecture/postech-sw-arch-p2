@@ -63,7 +63,7 @@ Vídeo de até 15 minutos demonstrando deploy, execução do CI/CD, consumo das 
 
 | Recurso | URL |
 |---|---|
-| Vídeo de demonstração | _link será adicionado após a gravação_ <!-- VIDEO-LINK-FASE-2 --> |
+| Vídeo de demonstração | [https://drive.google.com/file/d/1_HbHWFpPl8dwdIFpbTqX066VjIP-UCod/view](https://drive.google.com/file/d/1_HbHWFpPl8dwdIFpbTqX066VjIP-UCod/view) |
 
 ## 4. Link da documentação
 
