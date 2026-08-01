@@ -7,7 +7,7 @@ description = "Sistema Integrado de Atendimento e Execucao de Servicos"
 # que nada no projeto executa.
 requires-python = ">=3.14"
 dependencies = [
-    "fastapi>=0.115",
+    "fastapi>=0.140.13",
     "uvicorn[standard]>=0.32",
     "sqlalchemy>=2.0,<2.1",
     "psycopg2-binary>=2.9",
@@ -34,10 +34,10 @@ test = [
     "testcontainers[postgres,redis]>=4.14.2",
     "polyfactory>=2.0",
     "httpx>=0.27",
-    "ruff>=0.8",
-    "mypy>=1.13",
+    "ruff>=0.16.0",
+    "mypy>=2.3.0",
     "bandit>=1.7",
-    "import-linter>=2.0",
+    "import-linter>=2.13",
     # Lido por scripts/codeql_quality.py (gate de Code Quality) para parsear o
     # codeql-config.yml. Declarado explicitamente aqui (dev-tooling, junto de
     # ruff/mypy/bandit): hoje so funciona porque bandit o puxa transitivamente,
@@ -45,7 +45,7 @@ test = [
     "pyyaml>=6",
 ]
 ui = [
-    "nicegui>=3,<4",
+    "nicegui>=3.15.0,<4",
     # httpx e usado direto por ui/cliente_api.py (wrapper HTTP da UI). NiceGUI
     # 3.x nao puxa httpx transitivamente, entao precisa estar declarado aqui.
     # Sem isso, `uv run --extra ui` (incluindo make ui, make seed-demo,
@@ -54,7 +54,7 @@ ui = [
     # Necessarios para a fixture `screen` de nicegui.testing executar os testes
     # lentos de browser em vez de marca-los como skipped por dependencia ausente.
     "pytest-selenium>=4.1",
-    "selenium>=4.0",
+    "selenium>=4.46.0",
 ]
 full-test = [
     "httpx>=0.27",
@@ -82,7 +82,7 @@ otel = [
     # MeterProvider no REGISTRY default do prometheus_client; start_http_server
     # serve /metrics. Versionado junto do SDK 1.42.x.
     "opentelemetry-exporter-prometheus>=0.63b1,<0.64",
-    "prometheus-client>=0.20",
+    "prometheus-client>=0.26.0",
 ]
 
 [build-system]
