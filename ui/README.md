@@ -212,6 +212,7 @@ from nicegui import ui
 from ui.auth_guard import exige_autenticacao
 from ui.componentes.cabecalho import CabecalhoApp
 
+
 @ui.page("/novo")
 @exige_autenticacao
 def pagina_novo() -> None:

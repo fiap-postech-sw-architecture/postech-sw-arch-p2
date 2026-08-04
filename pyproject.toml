@@ -59,6 +59,10 @@ ui = [
 full-test = [
     "httpx>=0.27",
     "pytest>=8",
+    # timeout global em [tool.pytest.ini_options] + --strict-markers: qualquer
+    # ambiente que rode pytest precisa do plugin, senao a coleta morre com
+    # "'timeout' not found in markers" (CI full-test sincroniza SO este extra).
+    "pytest-timeout>=2.3",
     "python-dotenv>=1.0",
     "sqlalchemy>=2.0",
 ]
