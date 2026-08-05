@@ -136,10 +136,24 @@ def test_skip_locked_nao_duplica_em_concorrencia(engine: Engine) -> None:
         t.join()
 
     # Passada final single-thread: SKIP LOCKED permite que um worker PULE uma
-    # linha momentaneamente lockada por outro na mesma passada — o relay real
-    # drena em loop. A propriedade sob teste e a NAO-duplicacao na corrida;
-    # sem esta drenagem o teste flakava em runner lento (issue #160, 19/20).
-    worker()
+    # linha momentaneamente lockada por outro na mesma passada, e um blip
+    # por-linha sob concorrencia (except por-linha de processar_ciclo, ou
+    # falha -> backoff) deixa a linha 'pendente' com o claim vigente — claim
+    # e lease via proxima_tentativa_em adiantada, INVISIVEL para a drenagem
+    # com relogio em now() (issue #160 reincidiu como 19/20 no p3 mesmo com
+    # a drenagem: o relogio nao passava do lease). O relay real drena em loop
+    # continuo, entao adianta-se o relogio alem de lease+backoff para a
+    # passada final enxergar qualquer linha nao entregue. A propriedade sob
+    # teste segue sendo a NAO-duplicacao: linha 'entregue' nunca e
+    # re-reivindicada, com qualquer relogio.
+    processar_ciclo(
+        engine,
+        handlers={"DiagnosticoIniciadoEvent": handler},
+        nome_handler="email",
+        limite=20,
+        lease=_LEASE,
+        relogio=lambda: _agora() + _LEASE + timedelta(seconds=5),
+    )
 
     # SKIP LOCKED garante que cada linha foi entregue no maximo 1x.
     assert len(entregues) == len(set(entregues)) == 20
