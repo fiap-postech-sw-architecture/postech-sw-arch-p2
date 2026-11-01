@@ -4,7 +4,7 @@
 # cluster kind (demo local: UI + APIs no k8s) -- kind nao e producao, o
 # aviso continua valido; nao deve ser promovida para publicos externos.
 
-FROM python:3.14-slim AS base
+FROM python:3.15-slim AS base
 
 ARG GIT_SHA=unknown
 ARG GIT_DATE=unknown
