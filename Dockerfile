@@ -34,7 +34,7 @@ COPY . .
 RUN --mount=type=cache,target=/root/.cache/uv \
     uv sync --frozen --no-dev --extra otel
 
-FROM python:3.14-slim AS runtime
+FROM python:3.15-slim AS runtime
 
 ARG GIT_SHA=unknown
 ARG GIT_DATE=unknown
